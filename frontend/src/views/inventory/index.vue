@@ -393,7 +393,7 @@ const adjustmentForm = ref<AdjustmentForm>({
   warehouse_name: '',
   current_quantity: 0,
   adjustment_type: 'increase',
-  adjustment_quantity: 0,
+  adjustment_quantity: '',
   reason: '',
 });
 
@@ -406,7 +406,7 @@ const handleAdjustment = () => {
     warehouse_name: '',
     current_quantity: 0,
     adjustment_type: 'increase',
-    adjustment_quantity: 0,
+    adjustment_quantity: '',
     reason: '',
   };
   adjustmentDialogVisible.value = true;
@@ -418,7 +418,9 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
     ElMessage.warning(t('inventory.message.adjustmentProductWarehouseRequired'));
     return;
   }
-  if (!form.adjustment_quantity || form.adjustment_quantity <= 0) {
+  // 调整量按十进制串校验（与对话框校验器同口径，双保险）：空串、非数、零与负数都不构成调整
+  const adjustmentQty = Number((form.adjustment_quantity ?? '').trim());
+  if (!Number.isFinite(adjustmentQty) || adjustmentQty <= 0) {
     ElMessage.warning(t('inventory.message.adjustmentQtyInvalid'));
     return;
   }
@@ -446,7 +448,7 @@ const onSubmitAdjustment = async (form: AdjustmentForm) => {
       adjustment_type: form.adjustment_type,
       reason_type: form.reason,
       reason_description: form.reason,
-      items: [{ stock_id: stockRow.id, quantity: String(form.adjustment_quantity) }],
+      items: [{ stock_id: stockRow.id, quantity: (form.adjustment_quantity ?? '').trim() }],
     });
     ElMessage.success(t('inventory.message.adjustmentSuccess'));
     adjustmentDialogVisible.value = false;

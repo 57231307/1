@@ -1,10 +1,10 @@
 <!--
   AdjustmentDialog.vue - 库存调整对话框
-  任务编号: P14 批 2 I-3 第 8 批
-  拆分原 inventory/index.vue 的库存调整对话框
-  使用 props.initialForm 初始化 + 内部 localForm（不直接突变 prop）
-  submit 时 emit submitWithForm(localForm) 把当前 form 回传
-
+  功能：采集调整目标（产品与仓库或预置库存行）、增减方向、调整量与原因，submit 时把
+  表单回传给父组件（views/inventory/index.vue 的 onSubmitAdjustment）由父侧定位库存行并调
+  createStockAdjustment 建调整单。
+  调整量为十进制串（后端 inventory_adjustment_items.quantity 是 Decimal，入参按串传避免
+  浮点失真），范围与精度由 el-form 校验器保证（有限正数），全项目禁步进数字框。
   修复（缺陷A）：从工具栏进入时（无预置 product_name/warehouse_name），
   渲染可选 el-select 供用户选定目标库存；从行内进入时保留只读回显。
 -->
@@ -18,7 +18,9 @@
     @update:model-value="onClose"
   >
     <el-form
+      ref="formRef"
       :model="localForm"
+      :rules="rules"
       label-width="100px"
       :aria-label="t('inventory.adjustmentDialog.formAria')"
     >
@@ -69,8 +71,12 @@
           <el-radio value="decrease">{{ t('inventory.adjustmentDialog.typeDecrease') }}</el-radio>
         </el-radio-group>
       </el-form-item>
-      <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')">
-        <el-input-number v-model="localForm.adjustment_quantity" :min="1" style="width: 100%" />
+      <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')" prop="adjustment_quantity">
+        <el-input
+          v-model="localForm.adjustment_quantity"
+          :placeholder="t('inventory.adjustmentDialog.qtyPlaceholder')"
+          style="width: 100%"
+        />
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.reason')">
         <el-input
@@ -93,14 +99,17 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { deepClone } from '@/utils';
-import { reactive, watch } from 'vue';
+import { reactive, ref, watch } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });
 
-// 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）
+// 库存调整表单数据结构（字段与 inventory 父组件 initialForm 保持一致）。
+// adjustment_quantity 为十进制串：后端调整量是 Decimal，界面按串采集、校验器保证有限正数，
+// 提交时由父侧原样传入 createStockAdjustment 明细 quantity 键。
 export interface AdjustmentForm {
   stock_id: number | null;
   product_id: number | null;
@@ -109,7 +118,7 @@ export interface AdjustmentForm {
   warehouse_name?: string;
   current_quantity?: number;
   adjustment_type: 'increase' | 'decrease';
-  adjustment_quantity: number;
+  adjustment_quantity: string;
   reason: string;
 }
 
@@ -138,12 +147,38 @@ watch(
   { immediate: true, deep: true }
 );
 
+const formRef = ref<FormInstance>();
+
+// 调整量校验器：必填且为有限正数（零与负数不构成调整，与后端受理门同口径），范围靠校验器不靠按钮
+const rules: FormRules = {
+  adjustment_quantity: [
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        const raw = (value ?? '').trim();
+        if (raw === '') {
+          callback(new Error(t('inventory.adjustmentDialog.qtyRequired')));
+          return;
+        }
+        const n = Number(raw);
+        callback(
+          Number.isFinite(n) && n > 0
+            ? undefined
+            : new Error(t('inventory.adjustmentDialog.qtyPositive'))
+        );
+      },
+      trigger: 'blur',
+    },
+  ],
+};
+
 const onClose = (val: boolean) => {
   emit('update:visible', val);
 };
 
-const onSubmit = () => {
+const onSubmit = async () => {
   if (props.submitting) return;
+  const valid = await formRef.value?.validate().catch(() => false);
+  if (!valid) return;
   emit('submit', deepClone(localForm));
 };
 </script>

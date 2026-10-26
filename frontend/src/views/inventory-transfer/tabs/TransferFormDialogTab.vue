@@ -1,7 +1,17 @@
 <!--
   TransferFormDialogTab.vue - 调拨单编辑对话框
-  来源：原 inventoryTransfer/index.vue 中 调拨单编辑对话框
-  拆分日期：2026-06-15 B3-4
+  功能：新建或修改库存调拨单（调出仓与调入仓、日期、逐行选定出库库存四维与数量），
+  查看态回源后端明细并支持 pending 单行级增删改。
+  调用方：views/inventory-transfer/index.vue（列表页挂载本对话框）。
+  入参：modelValue 显隐、currentRow 编辑或查看的行、warehouses/products 主数据、mode 三态。
+  传给谁：建单走 createInventoryTransfer（POST /inventory/transfers），明细键与后端
+  services/inv/mod.rs InventoryTransferItemRequest 逐字段对齐（quantity/unit_cost 为
+  Decimal 十进制串）；行级维护走 createTransferItem/updateTransferItem/deleteTransferItem。
+  存什么·存哪里：数量与单价按串采集原样送后端落 Decimal 列；金额不在前端计算（明细金额
+  由后端按生效值重算，前端乘算属第二口径，禁止恢复 calcAmount 类本地折算）。
+
+  数值录入一律 el-input 加范围校验器（全项目禁步进数字框）；明细行数量必须大于 0，
+  与后端建单门（inv/stock.rs 与 inv/batch.rs 的"零与负数不构成出库"拒绝）同口径。
 -->
 <template>
   <el-dialog
@@ -128,19 +138,28 @@
             :value="p.piece_no"
           />
         </el-select>
-        <el-input-number
-          v-model="item.quantity"
-          :min="1"
-          :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
-          class="item-number"
-        />
-        <el-input-number
-          v-model="item.cost_price"
-          :min="0"
-          :precision="2"
-          :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
-          class="item-number"
-        />
+        <el-form-item
+          :prop="`items.${index}.quantity`"
+          :rules="quantityRules"
+          label-width="0"
+          class="item-number inline-form-item"
+        >
+          <el-input
+            v-model="item.quantity"
+            :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item
+          :prop="`items.${index}.unit_cost`"
+          :rules="unitCostRules"
+          label-width="0"
+          class="item-number inline-form-item"
+        >
+          <el-input
+            v-model="item.unit_cost"
+            :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
+          />
+        </el-form-item>
         <el-input
           v-model="item.remark"
           :placeholder="$t('inventoryTransfer.transferForm.remarkPlaceholder')"
@@ -158,79 +177,81 @@
       <el-button type="primary" link @click="addItem">
         <el-icon><Plus /></el-icon>{{ $t('inventoryTransfer.transferForm.addItem') }}
       </el-button>
-
-      <!-- 查看模式：后端明细回源与行级维护 -->
-      <template v-if="mode === 'view' && formData.id">
-        <el-divider content-position="left">{{
-          $t('inventoryTransfer.transferForm.serverItemsDivider')
-        }}</el-divider>
-        <el-table
-          v-loading="detailLoading"
-          :data="serverItems"
-          border
-          size="small"
-          max-height="300"
-        >
-          <el-table-column prop="id" label="ID" width="60" />
-          <el-table-column
-            prop="product_id"
-            :label="$t('inventoryTransfer.transferForm.colProductId')"
-            width="100"
-          />
-          <el-table-column :label="$t('inventoryTransfer.transferForm.colQuantity')" width="150">
-            <template #default="{ row }">
-              <el-input-number
-                v-if="editable"
-                v-model="row.quantity"
-                :min="1"
-                size="small"
-                controls-position="right"
-              />
-              <span v-else>{{ row.quantity }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="shipped_quantity"
-            :label="$t('inventoryTransfer.transferForm.colShipped')"
-            width="110"
-          />
-          <el-table-column
-            prop="received_quantity"
-            :label="$t('inventoryTransfer.transferForm.colReceived')"
-            width="110"
-          />
-          <el-table-column
-            :label="$t('inventoryTransfer.transferForm.colOperation')"
-            width="140"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <template v-if="editable">
-                <el-button link type="primary" size="small" @click="handleSaveItem(row)">{{
-                  $t('inventoryTransfer.transferForm.saveItem')
-                }}</el-button>
-                <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
-                  $t('inventoryTransfer.transferForm.deleteItem')
-                }}</el-button>
-              </template>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-        </el-table>
-        <div v-if="editable" class="add-item-bar">
-          <el-input-number
-            v-model="newItem.product_id"
-            :min="1"
-            :placeholder="$t('inventoryTransfer.transferForm.colProductId')"
-            style="width: 150px"
-          />
-          <el-input-number v-model="newItem.quantity" :min="1" style="width: 130px" />
-          <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
-            {{ $t('inventoryTransfer.transferForm.addItem') }}
-          </el-button>
-        </div>
-      </template>
     </el-form>
+
+    <!-- 查看模式：后端明细回源与行级维护。本节必须位于 el-form 之外：el-form 的
+         :disabled 沿表单上下文级联禁用全部子控件，原实现在表单内渲染行级编辑器，
+         编辑框与保存按钮恒为禁用态（死 UI），移出后生效。 -->
+    <template v-if="mode === 'view' && formData.id">
+      <el-divider content-position="left">{{
+        $t('inventoryTransfer.transferForm.serverItemsDivider')
+      }}</el-divider>
+      <el-table v-loading="detailLoading" :data="serverItems" border size="small" max-height="300">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column
+          prop="product_id"
+          :label="$t('inventoryTransfer.transferForm.colProductId')"
+          width="100"
+        />
+        <el-table-column :label="$t('inventoryTransfer.transferForm.colQuantity')" width="150">
+          <template #default="{ row }">
+            <el-input v-if="editable" v-model="row.quantity" size="small" />
+            <span v-else>{{ row.quantity }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="shipped_quantity"
+          :label="$t('inventoryTransfer.transferForm.colShipped')"
+          width="110"
+        />
+        <el-table-column
+          prop="received_quantity"
+          :label="$t('inventoryTransfer.transferForm.colReceived')"
+          width="110"
+        />
+        <el-table-column
+          :label="$t('inventoryTransfer.transferForm.colOperation')"
+          width="140"
+          fixed="right"
+        >
+          <template #default="{ row }">
+            <template v-if="editable">
+              <el-button link type="primary" size="small" @click="handleSaveItem(row)">{{
+                $t('inventoryTransfer.transferForm.saveItem')
+              }}</el-button>
+              <el-button link type="danger" size="small" @click="handleDeleteItem(row)">{{
+                $t('inventoryTransfer.transferForm.deleteItem')
+              }}</el-button>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="editable" class="add-item-bar">
+        <!-- 手输物料主键的旧入口废弃：改为按名称可搜索的产品选择（主数据 products 全量） -->
+        <el-select
+          v-model="newItem.product_id"
+          filterable
+          :placeholder="$t('inventoryTransfer.transferForm.productSelectPlaceholder')"
+          style="width: 260px"
+        >
+          <el-option
+            v-for="p in products"
+            :key="p.id"
+            :label="`${p.product_code} - ${p.product_name}`"
+            :value="p.id"
+          />
+        </el-select>
+        <el-input
+          v-model="newItem.quantity"
+          :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
+          style="width: 130px"
+        />
+        <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
+          {{ $t('inventoryTransfer.transferForm.addItem') }}
+        </el-button>
+      </div>
+    </template>
     <template v-if="mode !== 'view'" #footer>
       <el-button @click="emit('update:modelValue', false)">{{
         $t('inventoryTransfer.transferForm.cancel')
@@ -245,9 +266,8 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormItemRule, type FormInstance } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
-import type { FormInstance } from 'element-plus';
 import { Plus, Delete } from '@element-plus/icons-vue';
 import {
   createInventoryTransfer,
@@ -272,7 +292,6 @@ import {
   type InventoryTransferStatus,
 } from '@/utils/inventory-transfer-status';
 
-// 批次 34 v9 P1：接入 i18n，替换硬编码中文 ElMessage
 const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
@@ -294,11 +313,12 @@ const emit = defineEmits<Emits>();
 const formRef = ref<FormInstance>();
 const submitLoading = ref(false);
 
+// 明细行数量与单价是十进制串（后端 Decimal 契约），金额不在前端计算：
+// 明细金额由后端按生效值重算，前端本地乘算是会被漂移的第二口径（已按红线移除 calcAmount）
 interface TransferItemForm {
   product_id: number;
-  quantity: number;
-  cost_price: number;
-  amount: number;
+  quantity: string;
+  unit_cost: string;
   remark: string;
   /** 出库四维（款号+色号+缸号+批次）：由调出仓真实库存行选定 */
   color_no: string;
@@ -315,9 +335,8 @@ interface TransferItemForm {
 
 const newItemForm = (): TransferItemForm => ({
   product_id: 0,
-  quantity: 1,
-  cost_price: 0,
-  amount: 0,
+  quantity: '',
+  unit_cost: '',
   remark: '',
   color_no: '',
   dye_lot_no: '',
@@ -335,6 +354,46 @@ const formData = reactive({
   status: INVENTORY_TRANSFER_STATUS.PENDING as InventoryTransferStatus,
   items: [newItemForm()] as TransferItemForm[],
 });
+
+/** 十进制串解析：有限正数返回数值，否则 null（建单门与后端"零与负数不构成出库"同口径） */
+const parsePositive = (raw: string): number | null => {
+  const n = Number((raw ?? '').trim());
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+// 明细数量校验器：必填且为有限正数
+const quantityRules: FormItemRule[] = [
+  {
+    validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+      callback(
+        parsePositive(value) !== null
+          ? undefined
+          : new Error(t('inventoryTransfer.transferForm.qtyPositive'))
+      );
+    },
+    trigger: 'blur',
+  },
+];
+
+// 单价校验器：留空=未采集（提交省略键），填了必须是不小于 0 的有限数
+const unitCostRules: FormItemRule[] = [
+  {
+    validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+      const raw = (value ?? '').trim();
+      if (raw === '') {
+        callback();
+        return;
+      }
+      const n = Number(raw);
+      callback(
+        Number.isFinite(n) && n >= 0
+          ? undefined
+          : new Error(t('inventoryTransfer.transferForm.priceNonNegative'))
+      );
+    },
+    trigger: 'blur',
+  },
+];
 
 // ===== 出库四维库存行（GET /inventory/stock 按调出仓+产品下推查询，不手写死数据） =====
 const stockRowsMap = ref<Record<number, InventoryStock[]>>({});
@@ -473,10 +532,6 @@ const removeItem = (index: number) => {
   }
 };
 
-const calcAmount = (item: { quantity: number; cost_price: number }) => {
-  return item.quantity * item.cost_price;
-};
-
 watch(
   () => props.modelValue,
   val => {
@@ -484,10 +539,13 @@ watch(
       if (props.currentRow) {
         Object.assign(formData, props.currentRow);
         // 归一化明细行：补齐出库四维字段默认值（服务端行可能缺 stock_row_key 等前端字段；
-        // 服务端匹号为可空列，白坯/历史行为 null，归一为空串=未选定态）
+        // 服务端匹号为可空列，白坯/历史行为 null，归一为空串=未选定态；
+        // 数量与单价按十进制串承载，服务端 Decimal 序列化即为串）
         formData.items = (formData.items || []).map(i => ({
           ...newItemForm(),
           ...i,
+          quantity: String((i as Partial<TransferItemForm>).quantity ?? ''),
+          unit_cost: String((i as { unit_cost?: string | null }).unit_cost ?? ''),
           piece_no: i.piece_no ?? '',
         }));
         if (!formData.items || formData.items.length === 0) {
@@ -508,25 +566,26 @@ watch(
 );
 
 // ===== 查看模式：后端明细回源与行级维护（getInventoryTransfer + 明细 CRUD） =====
+// 明细出参数值列为 Decimal 串；行内编辑按串承载，保存前经 parsePositive 判定，不折 number
 interface ServerItem {
   id: number;
   product_id: number;
-  quantity: number;
-  shipped_quantity: number;
-  received_quantity: number;
-  unit_cost?: number;
+  quantity: string;
+  shipped_quantity: string;
+  received_quantity: string;
+  unit_cost?: string | null;
   notes?: string | null;
 }
 
 const serverItems = ref<ServerItem[]>([]);
 const detailLoading = ref(false);
 const itemSaving = ref(false);
-const newItem = reactive({ product_id: 1, quantity: 1 });
+const newItem = reactive({ product_id: undefined as number | undefined, quantity: '' });
 
 const editable = computed(() => {
   const s = formData.status;
-  // 已发出/已完成不可再编辑（词表见 models/status/purchase_inventory.rs:63，
-  // 后端没有 received 这一值）
+  // 已发出/已完成不可再编辑（词表见 models/status/purchase_inventory.rs 的
+  // inventory_transfer::ALL，后端没有 received 这一值）
   return s !== INVENTORY_TRANSFER_STATUS.SHIPPED && s !== INVENTORY_TRANSFER_STATUS.COMPLETED;
 });
 
@@ -545,14 +604,24 @@ const fetchServerItems = async () => {
 };
 
 const handleAddItem = async () => {
-  if (!formData.id || !newItem.product_id || !newItem.quantity) return;
+  if (!formData.id) return;
+  if (!newItem.product_id) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.productSelectRequired'));
+    return;
+  }
+  if (parsePositive(newItem.quantity) === null) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.qtyPositive'));
+    return;
+  }
   itemSaving.value = true;
   try {
     await createTransferItem(formData.id, {
       product_id: newItem.product_id,
-      quantity: String(newItem.quantity),
+      quantity: newItem.quantity.trim(),
     });
     ElMessage.success(t('inventoryTransfer.transferList.message.success'));
+    newItem.product_id = undefined;
+    newItem.quantity = '';
     await fetchServerItems();
   } catch (e) {
     ElMessage.error((e as Error).message || t('inventoryTransfer.transferList.message.failure'));
@@ -562,10 +631,14 @@ const handleAddItem = async () => {
 };
 
 const handleSaveItem = async (row: ServerItem) => {
+  if (parsePositive(row.quantity) === null) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.qtyPositive'));
+    return;
+  }
   try {
     await updateTransferItem(row.id, {
       product_id: row.product_id,
-      quantity: String(Number(row.quantity)),
+      quantity: row.quantity.trim(),
     });
     ElMessage.success(t('inventoryTransfer.transferList.message.success'));
     await fetchServerItems();
@@ -598,19 +671,23 @@ const handleDeleteItem = async (row: ServerItem) => {
 
 /**
  * 明细行 → 后端入参：字段名逐一对应 services/inv/mod.rs InventoryTransferItemRequest。
+ * 数量与单价按十进制串原样送（后端按生效值重算金额，前端不乘算）；
+ * 单价留空=未采集，省略 unit_cost 键（后端 Option<Decimal> 缺席不写列，塌 "0" 属伪装实测）。
  * 匹号（第四维）：染色布经提交前校验保证已选定真实 AVAILABLE 匹后携带；
- * 白坯/未选定**省略该键**（禁发 null/空串占位，后端 Option<String> 缺席即不写）。
+ * 白坯/未选定省略该键（禁发 null/空串占位，后端 Option<String> 缺席即不写）。
  */
 const toItemPayload = (item: TransferItemForm): InventoryTransferItemPayload => {
   const payload: InventoryTransferItemPayload = {
     product_id: item.product_id,
-    quantity: String(item.quantity),
-    unit_cost: String(item.cost_price),
+    quantity: item.quantity.trim(),
     notes: item.remark,
     color_no: item.color_no,
     dye_lot_no: item.dye_lot_no,
     batch_no: item.batch_no,
   };
+  if (item.unit_cost.trim()) {
+    payload.unit_cost = item.unit_cost.trim();
+  }
   if (item.color_no && item.piece_no) {
     payload.piece_no = item.piece_no;
   }
@@ -621,7 +698,10 @@ const handleSubmit = async () => {
   // 出库维度口径与后端同源（fabric_class 唯一判定，禁止第二份规则）：
   // 批次必填；色号非空的染色布必须齐缸号，色号为空的白坯布免缸号。
   const missingDim = formData.items.find(
-    i => i.product_id && i.quantity > 0 && (!i.batch_no || (i.color_no && !i.dye_lot_no))
+    i =>
+      i.product_id &&
+      parsePositive(i.quantity) !== null &&
+      (!i.batch_no || (i.color_no && !i.dye_lot_no))
   );
   if (missingDim) {
     ElMessage.warning(t('inventoryTransfer.transferForm.stockRowRequired'));
@@ -630,16 +710,24 @@ const handleSubmit = async () => {
   // 第四维匹号：色号非空的染色布必选（后端 fabric_class::normalize_outbound_piece_no 强制，
   // 且建单期按 产品+调出仓+缸+批+匹 全 tuple 预检真实可用匹）；白坯布免匹号，行为不变。
   const missingPiece = formData.items.find(
-    i => i.product_id && i.quantity > 0 && i.color_no && !i.piece_no
+    i => i.product_id && parsePositive(i.quantity) !== null && i.color_no && !i.piece_no
   );
   if (missingPiece) {
     ElMessage.warning(t('inventoryTransfer.transferForm.pieceNoRequired'));
     return;
   }
+  const valid = await formRef.value?.validate().catch(() => false);
+  if (!valid) return;
+  const items = formData.items
+    .filter(i => i.product_id && parsePositive(i.quantity) !== null)
+    .map(toItemPayload);
+  // 全部明细既无产品又无数量的空单不提交：后端会以空 items 建出无痕调拨单
+  if (items.length === 0) {
+    ElMessage.warning(t('inventoryTransfer.transferForm.noValidItem'));
+    return;
+  }
   submitLoading.value = true;
   try {
-    formData.items.forEach(calcAmount);
-    const items = formData.items.filter(i => i.product_id && i.quantity > 0).map(toItemPayload);
     if (formData.id) {
       // UpdateInventoryTransferRequest 只有 status/notes/items 三字段
       await updateInventoryTransfer(formData.id, { items });
@@ -666,15 +754,10 @@ const handleSubmit = async () => {
 
 <style scoped>
 /*
-  明细行布局约束（数量/单价 stepper 可用宽度不变式）：
-  EP 2.14.4 `.el-input-number .el-input__wrapper{padding-left:42px;padding-right:42px}`
-  为左右 −/+ 步进按钮预留 84px；内层数字 input 的计算宽度 = stepper 盒宽 − 84px，
-  stepper 盒宽必须严格大于 84px 数字区才存在（否则 input 宽 0、不可填也不可聚焦）。
-  `flex: N` 速记会把 flex-basis 归零、宽度纯按比例分配且无 min-width 保底，
-  因此这里给两个 stepper 显式 flex-basis=150px 且 flex-shrink:0（150 = 84 + 约 64px
-  数字区，可容 "99999.99" 精度的单价），select/备注给足 basis + 允许收缩 + min-width
-  下限（EP `.el-select__selection` 自带 min-width:0 + ellipsis，长标签截断不撑破行），
-  行容器超宽时 flex-wrap 换行兜底——换行后每行重新分配，stepper 仍不低于 150px。
+  明细行布局约束：数量/单价为 el-input（无步进按钮），最小宽度按可容纳
+  "99999.99" 精度的串长设定；select/备注给足 basis + 允许收缩 + min-width 下限
+  （EP .el-select__selection 自带 min-width 归零加 ellipsis，长标签截断不撑破行），
+  行容器超宽时 flex-wrap 换行兜底。明细行的表单校验项（el-form-item 包裹）去默认下边距。
 */
 .transfer-item-row {
   display: flex;
@@ -682,6 +765,9 @@ const handleSubmit = async () => {
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
+}
+.transfer-item-row .inline-form-item {
+  margin-bottom: 0;
 }
 .transfer-item-row .item-product {
   flex: 2 1 160px;
@@ -696,12 +782,8 @@ const handleSubmit = async () => {
   min-width: 100px;
 }
 .transfer-item-row .item-number {
-  flex: 1 0 150px;
-  min-width: 150px;
-}
-.transfer-item-row .item-number {
-  flex: 1 0 150px;
-  min-width: 150px;
+  flex: 1 0 130px;
+  min-width: 130px;
 }
 .transfer-item-row .item-remark {
   flex: 1.5 1 120px;

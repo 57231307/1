@@ -164,10 +164,51 @@
                 <span class="trace-label">
                   {{ t('purchaseReceipt.form.itemsHeader.grade') }}
                 </span>
-                <el-input
+                <!-- 等级取值域唯一来源 constants/stock-grade 词表（后端 inbound_admission 按同表
+                     校验，词表外值 400）；留空=本次未定级，该行走待检通道，真入账（确认入库）
+                     由后端强制定级，界面不设缺省档以免把未定级伪装成质检结论 -->
+                <el-select
                   v-model="item.grade"
                   size="small"
+                  clearable
                   :placeholder="t('purchaseReceipt.form.placeholder.grade')"
+                >
+                  <el-option
+                    v-for="g in STOCK_GRADE_VALUES"
+                    :key="g"
+                    :label="t(STOCK_GRADE_LABEL_KEY[g])"
+                    :value="g"
+                  />
+                </el-select>
+              </label>
+              <label class="trace-field">
+                <span class="trace-label">
+                  {{ t('purchaseReceipt.form.itemsHeader.gramWeight') }}
+                </span>
+                <el-input
+                  :model-value="item.gram_weight"
+                  size="small"
+                  :placeholder="t('purchaseReceipt.form.placeholder.gramWeight')"
+                  @update:model-value="
+                    (v: string) => {
+                      item.gram_weight = v === '' ? undefined : Number(v);
+                    }
+                  "
+                />
+              </label>
+              <label class="trace-field">
+                <span class="trace-label">
+                  {{ t('purchaseReceipt.form.itemsHeader.width') }}
+                </span>
+                <el-input
+                  :model-value="item.width"
+                  size="small"
+                  :placeholder="t('purchaseReceipt.form.placeholder.width')"
+                  @update:model-value="
+                    (v: string) => {
+                      item.width = v === '' ? undefined : Number(v);
+                    }
+                  "
                 />
               </label>
             </div>
@@ -193,8 +234,10 @@
 import { deepClone } from '@/utils';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReceiptItem } from '@/api/purchase-receipt';
+import { STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -300,12 +343,58 @@ const onProductChange = (item: ReceiptItem, productId: number) => {
   item.unit_master = opt.unit;
 };
 
+/**
+ * 明细行的度量受理预检（与后端 services/inv/inbound_admission 同口径，点名到行拒绝）：
+ * 已选产品的行数量必须是有限正数（零与负数不构成入库；留空塌 0 的行不得静默丢行提交）；
+ * 辅量与克重幅宽填了必须为有限正数（留空=未采集）；公斤数可确定（实称>0，或克重与幅宽
+ * 同时>0 由后端经 DualUnitConverter 推算）；单价填了必须是不小于 0 的有限数。
+ * 通过返回 true；拒绝以 ElMessage.warning 点名行号并返回 false，调用方中止提交。
+ */
+const validateItemRows = (): boolean => {
+  const items = (localForm.value.items || []).filter(i => (i.product_id ?? 0) > 0);
+  for (const item of items) {
+    const line = item.line_no ?? items.indexOf(item) + 1;
+    if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+      ElMessage.warning(t('purchaseReceipt.form.message.qtyInvalid', { line }));
+      return false;
+    }
+    if (!Number.isFinite(item.unit_price ?? 0) || (item.unit_price ?? 0) < 0) {
+      ElMessage.warning(t('purchaseReceipt.form.message.priceInvalid', { line }));
+      return false;
+    }
+    const hasAlt = item.quantity_alt !== undefined && item.quantity_alt !== null;
+    if (hasAlt && (!Number.isFinite(item.quantity_alt) || (item.quantity_alt ?? 0) <= 0)) {
+      ElMessage.warning(t('purchaseReceipt.form.message.qtyAltInvalid', { line }));
+      return false;
+    }
+    const hasGram = item.gram_weight !== undefined && item.gram_weight !== null;
+    const hasWidth = item.width !== undefined && item.width !== null;
+    if (hasGram && (!Number.isFinite(item.gram_weight) || (item.gram_weight ?? 0) <= 0)) {
+      ElMessage.warning(t('purchaseReceipt.form.message.gramInvalid', { line }));
+      return false;
+    }
+    if (hasWidth && (!Number.isFinite(item.width) || (item.width ?? 0) <= 0)) {
+      ElMessage.warning(t('purchaseReceipt.form.message.widthInvalid', { line }));
+      return false;
+    }
+    // 公斤数二选一（与后端 resolve_inbound_quantity_kg 完全同口径）：实称>0，或克重与幅宽齐
+    const gramWidthPair =
+      hasGram && hasWidth && (item.gram_weight ?? 0) > 0 && (item.width ?? 0) > 0;
+    if (!(hasAlt && (item.quantity_alt ?? 0) > 0) && !gramWidthPair) {
+      ElMessage.warning(t('purchaseReceipt.form.message.kgUnresolvable', { line }));
+      return false;
+    }
+  }
+  return true;
+};
+
 /** 点击确定：先校验再发 submit */
 const onSubmit = async () => {
   if (props.submitting) return;
   if (!formRef.value) return;
   await formRef.value.validate(async (valid: boolean) => {
     if (!valid) return;
+    if (!validateItemRows()) return;
     emit('submit');
   });
 };

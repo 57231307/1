@@ -938,6 +938,9 @@ export default {
       typeIncrease: 'Increase',
       typeDecrease: 'Decrease',
       adjustQty: 'Adjustment Qty',
+      qtyPlaceholder: 'Enter adjustment quantity (meters, greater than 0)',
+      qtyRequired: 'Adjustment quantity is required',
+      qtyPositive: 'Adjustment quantity must be a number greater than 0',
       reason: 'Adjustment Reason',
       reasonPlaceholder: 'Enter adjustment reason',
       cancel: 'Cancel',
@@ -2142,6 +2145,12 @@ export default {
       colColorNo: 'Color No.',
       colBatchNo: 'Batch No.',
       colDyeLotNo: 'Dye Lot No.',
+      qtyPositive: 'Transfer quantity must be a number greater than 0',
+      priceNonNegative:
+        'Leave unit price empty if not collected; if filled it must be a number >= 0',
+      productSelectPlaceholder: 'Select product (searchable)',
+      productSelectRequired: 'Please select a product',
+      noValidItem: 'Provide at least one complete transfer item (product and quantity > 0)',
     },
     approveTransfer: {
       dialogTitle: 'Approve Transfer Order',
@@ -9421,6 +9430,8 @@ export default {
         lotNo: 'Lot no. (required when color set)',
         grade: 'Grade (optional)',
         quantityAlt: 'Blank = not measured',
+        gramWeight: 'Blank = not measured',
+        width: 'Blank = not measured',
       },
       itemsHeader: {
         product: 'Product',
@@ -9433,6 +9444,8 @@ export default {
         colorNo: 'Color No.',
         lotNo: 'Lot No.',
         grade: 'Grade',
+        gramWeight: 'Gram Weight (g/m2)',
+        width: 'Width (cm)',
         action: 'Action',
       },
       button: {
@@ -9440,6 +9453,15 @@ export default {
         addItem: '+ Add Item',
         cancel: 'Cancel',
         submit: 'Confirm',
+      },
+      message: {
+        qtyInvalid: 'Receipt line {line}: quantity must be a number greater than 0; zero and negative are not a valid receipt',
+        priceInvalid: 'Receipt line {line}: unit price must be a number >= 0',
+        qtyAltInvalid: 'Receipt line {line}: alt quantity must be a number greater than 0 when filled; blank means not weighed',
+        gramInvalid: 'Receipt line {line}: gram weight must be a number greater than 0 when filled',
+        widthInvalid: 'Receipt line {line}: width must be a number greater than 0 when filled',
+        kgUnresolvable:
+          'Receipt line {line}: kilogram quantity cannot be resolved; enter the weighed kg, or enter both gram weight and width for conversion',
       },
     },
     detail: {
@@ -11969,6 +11991,14 @@ export default {
       adjustmentTypeDecrease: 'Decrease',
       adjustmentTypeIncrease: 'Increase',
       labelAdjustmentType: 'Adjustment type',
+      placeholderStock: 'Select stock row (searchable by product and batch)',
+      stockRequired: 'Select the stock row to adjust',
+      stockLoadFailed: 'Failed to load stock rows',
+      qtyPositive: 'Adjustment quantity must be a number greater than 0',
+      priceNonNegative: 'Leave unit cost empty if not collected; if filled it must be a number >= 0',
+      colBatchNo: 'Batch',
+      colColorNo: 'Color',
+      availableQty: 'Available',
     },
     approveDialogTab: {
       title: 'Approve Adjustment Order',

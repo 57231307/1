@@ -63,7 +63,7 @@ export interface PurchaseReceiptEntity {
  * 为 rust_decimal 序列化的**十进制字符串**（可空列无值时为 null）；本接口把表单
  * 模型声明为 number（历史沿用，usePi 等跨域消费方依赖），加载边界必须显式解析
  * （见 views/purchase-receipt/composables/usePrcProc.ts 的 normalizeReceiptItemForForm），
- * 禁止把未解析的字符串直接绑进 el-input-number 或调 .toFixed。
+ * 禁止把未解析的字符串直接绑进数值 el-input 或调 .toFixed。
  */
 export interface ReceiptItem {
   id?: number;
