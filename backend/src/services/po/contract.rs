@@ -269,6 +269,7 @@ impl PurchaseOrderService {
         order_active.approved_at = Set(Some(now));
         order_active.updated_by = Set(Some(user_id));
         order_active.updated_at = Set(now);
+        let bpm_opinion = approval_reason.clone();
         if let Some(reason) = approval_reason {
             order_active.approval_reason = Set(Some(reason));
         }
@@ -293,13 +294,14 @@ impl PurchaseOrderService {
         });
 
         // 快捷审批回写 BPM 待办：关闭该单据对应的 BPM pending 任务，
-        // 使 BPM 审批中心与单据快捷审批状态一致。
+        // 使 BPM 审批中心与单据快捷审批状态一致。操作人采集的通过理由原样转达给
+        // approve_task 落 bpm_task.approval_opinion，与流程审批中心同一轨迹落点同源。
         let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
         bpm.close_pending_tasks_for_business(
             "purchase_order",
             i64::from(order_id),
             crate::services::bpm_ops::task::APPROVE_ACTION,
-            None,
+            bpm_opinion,
             user_id,
         )
         .await;

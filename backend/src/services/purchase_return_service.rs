@@ -420,6 +420,7 @@ impl PurchaseReturnService {
         let mut pending_events: Vec<BusinessEvent> = Vec::new();
 
         let return_order = Self::load_and_validate_return_for_approval(&txn, return_id).await?;
+        let bpm_opinion = approval_reason.clone();
         let return_order =
             Self::update_return_status_to_approved(&txn, return_order, user_id, approval_reason)
                 .await?;
@@ -457,12 +458,14 @@ impl PurchaseReturnService {
 
         // 快捷审批回写 BPM 待办：单据在业务侧被批准后关闭该退货单对应的 BPM pending
         // 任务，与审批中心共用同一条引擎办理腿（approve_task），消除两入口状态分裂。
+        // 操作人采集的通过理由原样转达 approve_task 落 bpm_task.approval_opinion，
+        // 与流程审批中心同一轨迹落点同源。
         BpmService::new(self.db.clone())
             .close_pending_tasks_for_business(
                 "purchase_return",
                 i64::from(return_id),
                 APPROVE_ACTION,
-                None,
+                bpm_opinion,
                 user_id,
             )
             .await;

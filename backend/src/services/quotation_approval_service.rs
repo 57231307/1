@@ -319,6 +319,7 @@ impl QuotationApprovalService {
         &self,
         quotation_id: i64,
         approver_id: i32,
+        approval_opinion: Option<String>,
     ) {
         let bpm_service = BpmService::new(self.db.clone());
         let instance = match bpm_service
@@ -382,7 +383,7 @@ impl QuotationApprovalService {
                         handler_id: approver_id,
                         handler_name: String::new(),
                         action: APPROVE_ACTION.to_string(),
-                        approval_opinion: None,
+                        approval_opinion: approval_opinion.clone(),
                         attachment_urls: None,
                     },
                     Some(approver_id),
@@ -409,8 +410,11 @@ impl QuotationApprovalService {
     /// 经理/总经理审批通过
     ///
     /// `approval_reason` 为业务侧通过理由（handler 已收口 trim 非空），真实落
-    /// `approval_reason` 列；BPM 待办的裁决意见另由 `bpm_task.approval_opinion` 承载，
-    /// 本方法不把业务理由回灌 BPM、也不从 BPM 反灌业务列（禁双写）。
+    /// `approval_reason` 列。BPM 待办的裁决意见由 `bpm_task.approval_opinion` 承载，
+    /// 是两入口共用的「历史轨迹」唯一落点：快捷审批采集的这条意见必须原样转达给
+    /// `approve_task`（与流程审批中心传 execute_approval→approve_task 的 approval_opinion
+    /// 同源），否则同一单据经两入口办理后审批轨迹不一致（历史上通过侧回写成 None，
+    /// 中心侧有值，即两入口轨迹分裂根因）。业务列与引擎轨迹列各承载各采集通道，不互灌伪值。
     pub async fn approve(
         &self,
         quotation_id: i64,
@@ -422,6 +426,7 @@ impl QuotationApprovalService {
         let quotation = self
             .lock_and_validate_quotation_for_approval_txn(quotation_id, &txn)
             .await?;
+        let bpm_opinion = Some(approval_reason.clone());
         let active =
             Self::build_approved_quotation_active_model(quotation, approver_id, approval_reason);
         let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
@@ -434,7 +439,7 @@ impl QuotationApprovalService {
         txn.commit().await?;
         // 完成 BPM 任务（事务外，容错）
         if updated.approval_instance_id.is_some() {
-            self.handle_bpm_quotation_approval_after_commit(quotation_id, approver_id)
+            self.handle_bpm_quotation_approval_after_commit(quotation_id, approver_id, bpm_opinion)
                 .await;
         } else {
             // 状态已是 pending_approval 却无实例：提交时 BPM 启动失败或旧数据遗留，

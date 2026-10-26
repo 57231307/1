@@ -363,6 +363,7 @@ impl SalesService {
 
         let order = self.lookup_order_for_approval(&txn, order_id).await?;
         self.validate_order_for_approval(&order)?;
+        let bpm_opinion = reason.clone();
         let order = self
             .update_order_to_approved(&txn, order, user_id, reason)
             .await?;
@@ -372,13 +373,15 @@ impl SalesService {
         // B-P1-4 修复（批次 361 v13 复审）：commit 后发布 SalesOrderApproved 事件
         self.publish_approval_event(order_id, order.customer_id, user_id);
 
-        // 快捷审批回写 BPM 待办：关闭该销售订单对应的 BPM pending 任务
+        // 快捷审批回写 BPM 待办：关闭该销售订单对应的 BPM pending 任务。
+        // 操作人采集的通过理由原样转达 approve_task 落 bpm_task.approval_opinion，
+        // 与流程审批中心同一轨迹落点同源。
         let bpm = crate::services::bpm_service::BpmService::new(self.db.clone());
         bpm.close_pending_tasks_for_business(
             "sales_order",
             i64::from(order_id),
             crate::services::bpm_ops::task::APPROVE_ACTION,
-            None,
+            bpm_opinion,
             user_id,
         )
         .await;
