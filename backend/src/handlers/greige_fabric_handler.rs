@@ -708,11 +708,14 @@ pub async fn stock_in(
     fabric.quantity_kg = Set(Some(current_qty_kg + in_weight));
     fabric.quantity_meters = Set(Some(current_qty_meters + in_length));
     fabric.status = Set(Some(greige_fabric_status::IN_STOCK.to_string()));
-    if let Some(grade) = normalize_text(req.quality_grade) {
-        fabric.quality_grade = Set(grade);
+    // 入库的等级与备注是单层 Option（StockInRequest 非三态键）：给值且非空白才覆盖，
+    // 缺席或纯空白保持原值。blank_to_none 与 stock_out 的备注归一同源，不走 normalize_text
+    // （那是给 Update 请求双层 Option 三态用的，类型不匹配）
+    if let Some(grade) = blank_to_none(req.quality_grade) {
+        fabric.quality_grade = Set(Some(grade));
     }
-    if let Some(remarks) = normalize_text(req.remarks) {
-        fabric.remarks = Set(remarks);
+    if let Some(remarks) = blank_to_none(req.remarks) {
+        fabric.remarks = Set(Some(remarks));
     }
     // 缺陷 1.1：入库时关联采购入库单
     if let Some(receipt_id) = req.purchase_receipt_id {
