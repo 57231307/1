@@ -299,8 +299,25 @@ test.describe('39c 导出内容断言', () => {
   test('色卡发放导出丙档：发放一条后读回，共条数=列表total=数据行', async ({ page }) => {
     test.setTimeout(420_000);
     await ensureTestEntities(page);
-    const ctx = getCtx();
-    expect(ctx.customerId, '色卡发放腿需要 ensureTestEntities 备好客户').toBeTruthy();
+
+    // 发放闸门 3（backend/src/services/color_card_issue_service.rs
+    // check_customer_credit_and_status）要求 customers.credit_limit > 0 且 status=active。
+    // ensureTestEntities 的 ctx.customerId 借用列表首个活跃客户，其 credit_limit 不保证为正
+    // （POST /crm/customers 的 credit_limit 缺省与空串都落 0，customer_handler.rs
+    // CreateCustomerRequest），借用即改写在门收紧后必以 BUSINESS_ERROR 拒绝发放，
+    // 属前置真值不成立，不是导出腿的问题。造数对齐 flow/110 库存登记腿的官方范式
+    // （createCustomer，credit_limit 显式正值数值字符串），本用例自建专属客户。
+    const issuedCustomer = await apiCall<{ id?: number }>(page, 'POST', '/crm/customers', {
+      customer_name: `E2E 色卡发放专属客户 ${Date.now()}`,
+      customer_type: 'wholesale',
+      status: 'active',
+      credit_limit: '1000',
+    });
+    const customerId = issuedCustomer.data?.id;
+    expect(
+      customerId,
+      `丙档前置专属客户创建失败（发放闸门要求 credit_limit 正值）：${JSON.stringify(issuedCustomer)}`
+    ).toBeTruthy();
 
     // 写：档案色卡（draft 卡 + 色号明细，状态门=可发放词表值）后发放一条
     const seed = await seedColorCardArchive(page, { context: '39c-issue' });
@@ -309,7 +326,7 @@ test.describe('39c 导出内容断言', () => {
     await apiCall(page, 'PUT', `/color-cards/${seed.cardId}`, { stock_quantity: 10 });
     const issued = await apiCall<{ id?: number }>(page, 'POST', '/color-cards/issues', {
       color_card_id: seed.cardId,
-      customer_id: ctx.customerId,
+      customer_id: customerId,
       issue_qty: 1,
     });
     expect(issued.data?.id, `丙档前置发放色卡失败：${JSON.stringify(issued)}`).toBeTruthy();
