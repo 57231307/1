@@ -117,7 +117,10 @@ export function useGreigePicker(
       pinned.value = [];
       return;
     }
-    if (pinned.value.some(item => item.id === id) || candidates.value.some(item => item.id === id)) {
+    if (
+      pinned.value.some(item => item.id === id) ||
+      candidates.value.some(item => item.id === id)
+    ) {
       return;
     }
     try {

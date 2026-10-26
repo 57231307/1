@@ -149,7 +149,9 @@
         </el-descriptions-item>
       </el-descriptions>
 
-      <el-divider content-position="left">{{ t('greigeFabrics.detail.sectionRemarks') }}</el-divider>
+      <el-divider content-position="left">{{
+        t('greigeFabrics.detail.sectionRemarks')
+      }}</el-divider>
       <el-descriptions :column="1" border size="small">
         <el-descriptions-item :label="t('greigeFabrics.form.labelRemarks')">
           {{ row.remarks ?? '-' }}
@@ -172,11 +174,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Loading } from '@element-plus/icons-vue';
 
-import {
-  GREIGE_STATUS,
-  getGreigeFabric,
-  type GreigeFabric,
-} from '@/api/greige-fabric';
+import { GREIGE_STATUS, getGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
 import { getSupplierById } from '@/api/supplier';
 import { getWarehouseById } from '@/api/warehouse';
 import { getProductById } from '@/api/product';

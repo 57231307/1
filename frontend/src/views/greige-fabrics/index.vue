@@ -2,11 +2,7 @@
   <div class="greige-fabrics-page">
     <div class="header">
       <h2>{{ t('greigeFabrics.index.pageTitle') }}</h2>
-      <el-button
-        v-permission="'greige-fabrics:create'"
-        type="primary"
-        @click="handleCreate"
-      >
+      <el-button v-permission="'greige-fabrics:create'" type="primary" @click="handleCreate">
         {{ t('greigeFabrics.index.buttonCreate') }}
       </el-button>
     </div>
@@ -233,11 +229,7 @@
           >
             {{ t('greigeFabrics.index.buttonStockOut') }}
           </el-button>
-          <el-button
-            v-permission="'greige-fabrics:update'"
-            size="small"
-            @click="handleEdit(row)"
-          >
+          <el-button v-permission="'greige-fabrics:update'" size="small" @click="handleEdit(row)">
             {{ t('greigeFabrics.index.buttonEdit') }}
           </el-button>
           <el-button
@@ -275,10 +267,7 @@
       :row="stockRow"
       @done="handleSaved"
     />
-    <GreigeDetailDialog
-      v-model:visible="detailDialogVisible"
-      :row-id="detailRowId"
-    />
+    <GreigeDetailDialog v-model:visible="detailDialogVisible" :row-id="detailRowId" />
   </div>
 </template>
 
@@ -287,11 +276,7 @@ import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 
-import {
-  GREIGE_STATUS,
-  deleteGreigeFabric,
-  type GreigeFabric,
-} from '@/api/greige-fabric';
+import { GREIGE_STATUS, deleteGreigeFabric, type GreigeFabric } from '@/api/greige-fabric';
 import { getSupplierList } from '@/api/supplier';
 import { getWarehouseList } from '@/api/warehouse';
 import { useTableApi } from '@/composables/useTableApi';
@@ -316,7 +301,7 @@ import GreigeDetailDialog from './components/GreigeDetailDialog.vue';
  */
 const { t } = useI18n({ useScope: 'global' });
 
-/** 与建档对话框同一取值域（建表列注释声明 A/B/C，见 system/m0002:56） */
+/** 与建档对话框同一取值域（建表列注释声明 A/B/C） */
 const QUALITY_GRADES = ['A', 'B', 'C'] as const;
 
 /**

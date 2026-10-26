@@ -412,8 +412,8 @@ pub async fn create_greige_fabric(
             .ok_or_else(|| AppError::business("仓库不存在，请重新选择"))?;
     }
     // product_id/purchase_order_id/purchase_receipt_id 三列库里没有外键约束（只有 supplier/warehouse
-    // 两条，见 system/m0002_add_crm_and_greige_tables.rs:59-60），脏 id 不会撞约束、会静默存成
-    // 悬空引用；实体侧却声明了 belongs_to（models/greige_fabric.rs:74-97）。建单面按与
+    // 两条，见 system 域建坯布表迁移的外键段），脏 id 不会撞约束、会静默存成
+    // 悬空引用；实体侧却声明了 belongs_to（models/greige_fabric.rs 的 Relation 声明）。建单面按与
     // supplier/warehouse 同一口径预检为 400 business，缺外键约束本身另列数据层待办。
     if let Some(pid) = req.product_id {
         product::Entity::find_by_id(pid)

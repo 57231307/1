@@ -6,8 +6,8 @@
 //!    `handlers/greige_fabric_handler.rs::UpdateGreigeFabricRequest`）：
 //!    键缺席=保持原值、显式 `null`=清空为 NULL、有值=覆盖；可空文本列的空白串与显式
 //!    `null` 同义（库里不存在「空串」与 NULL 的语义差别，白坯即 `color_no` 为空）。
-//!    覆盖列取 `models/greige_fabric.rs` 与 `migration/src/domain/system/m0002:13-34`、
-//!    `system/mod.rs:153-169` 声明为可空的那批：color_code/width_cm/weight_kg/length_m/
+//!    覆盖列取 `models/greige_fabric.rs` 与 system 域建坯布表迁移、
+//!    `system/mod.rs` 声明为可空的那批：color_code/width_cm/weight_kg/length_m/
 //!    supplier_id/batch_no/warehouse_id/location/quality_grade/remarks/safety_stock/
 //!    reorder_point/max_stock_point/reorder_quantity/dye_lot_no/color_no。
 //! 2. `status` 不开清空：删除门控（handler `delete_greige_fabric` 只拦 `在库`）与出库状态
@@ -16,7 +16,7 @@
 //! 3. 数值入参门禁：width_cm/weight_kg/length_m 与四个库存策略列拒绝负数与非有限值；
 //!    入库数量与出库数量必须是正数（`stock_in` 是累加、`stock_out` 是扣减，0 或负数会把
 //!    当前库存与累计入库量带偏）；出库超过现有量或超过累计入库量都拒成业务错误。
-//! 4. 外键预检：supplier_id/warehouse_id 有库内外键（system/m0002:59-60），product_id/
+//! 4. 外键预检：supplier_id/warehouse_id 有库内外键（system 域建坯布表迁移），product_id/
 //!    purchase_order_id/purchase_receipt_id 无库内外键，脏 id 一律预检成 4xx 业务错误，
 //!    不许裸抛 500，也不许静默存成悬空引用。
 //!
@@ -74,7 +74,7 @@ async fn inject_auth(
     next.run(request).await
 }
 
-/// 坯布写面路由：与 `routes/production.rs:63-98` 的更新/删除/入库/出库四端点同 handler。
+/// 坯布写面路由：与 `routes/production.rs` 的更新/删除/入库/出库四端点同 handler。
 /// 路径参数写法跟 axum 0.8 的 `{id}`，与既有 greige 用例同形。
 fn build_app(db: sea_orm::DatabaseConnection, auth: AuthContext) -> Router {
     let state = AppState {

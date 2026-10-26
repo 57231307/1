@@ -246,11 +246,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('greigeFabrics.form.labelQuantityMeters')" prop="quantity_meters">
-            <el-input
-              v-model="formData.quantity_meters"
-              :disabled="isEdit"
-              :placeholder="unitM"
-            />
+            <el-input v-model="formData.quantity_meters" :disabled="isEdit" :placeholder="unitM" />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -451,12 +447,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' });
 
-/** 质量等级候选：库里该列无 CHECK，取值域只在建表列注释里声明（system/m0002:56 的 A/B/C） */
+/** 质量等级候选：库里该列无 CHECK，取值域只在建表列注释里声明（A/B/C） */
 const QUALITY_GRADES = ['A', 'B', 'C'] as const;
 
 /**
  * 采购单据候选与回查的单页条数。后端列表对 page_size 做 clamp(1,100)
- * （handlers/purchase_receipt_handler.rs:38,102），取上限值本身而不是超过它的数，
+ * （见 handlers/purchase_receipt_handler.rs 的分页钳制），取上限值本身而不是超过它的数，
  * 避免拿到被静默削过的结果还以为取全了。
  */
 const REFERENCE_PAGE_SIZE = 100;
@@ -471,7 +467,9 @@ const dialogTitle = computed(() =>
 const unitKg = computed(() => t('greigeFabrics.form.placeholderUnit', { unit: 'kg' }));
 const unitM = computed(() => t('greigeFabrics.form.placeholderUnit', { unit: 'm' }));
 const productPlaceholder = computed(() =>
-  isEdit.value ? t('greigeFabrics.form.lockedValue') : t('greigeFabrics.form.placeholderRemoteSearch')
+  isEdit.value
+    ? t('greigeFabrics.form.lockedValue')
+    : t('greigeFabrics.form.placeholderRemoteSearch')
 );
 const receiptPlaceholder = computed(() =>
   formData.supplier_id === null
@@ -828,7 +826,8 @@ const handleClosed = (): void => {
 
 /** 建单载荷：可空列留空即整键省略（后端 Option 缺省为 NULL），空串不提交 */
 const buildCreatePayload = (): CreateGreigeFabricPayload => {
-  const text = (value: string): string | undefined => (value.trim() === '' ? undefined : value.trim());
+  const text = (value: string): string | undefined =>
+    value.trim() === '' ? undefined : value.trim();
   const num = (value: string): number | undefined => {
     const parsed = toPayloadNumber(value);
     return typeof parsed === 'number' ? parsed : undefined;

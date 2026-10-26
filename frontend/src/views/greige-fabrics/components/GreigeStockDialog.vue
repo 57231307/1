@@ -164,9 +164,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n({ useScope: 'global' });
 
-/** 与建档对话框同一取值域（建表列注释声明 A/B/C，见 system/m0002:56） */
+/** 与建档对话框同一取值域（建表列注释声明 A/B/C） */
 const QUALITY_GRADES = ['A', 'B', 'C'] as const;
-/** 入库单候选单页条数，取后端 clamp 上限以内（handlers/purchase_receipt_handler.rs:38,102） */
+/** 入库单候选单页条数，取后端 clamp 上限以内（见 handlers/purchase_receipt_handler.rs 的分页钳制） */
 const RECEIPT_PAGE_SIZE = 100;
 
 const formRef = ref<FormInstance>();
@@ -214,20 +214,27 @@ const rules = computed<FormRules>(() =>
           },
         ],
         weight_kg: [
-          { validator: requiredPositiveDecimal('greigeFabrics.index.labelWeightKg'), trigger: 'blur' },
+          {
+            validator: requiredPositiveDecimal('greigeFabrics.index.labelWeightKg'),
+            trigger: 'blur',
+          },
         ],
         length_m: [
-          { validator: requiredPositiveDecimal('greigeFabrics.index.labelLengthM'), trigger: 'blur' },
+          {
+            validator: requiredPositiveDecimal('greigeFabrics.index.labelLengthM'),
+            trigger: 'blur',
+          },
         ],
       }
     : {
         weight_kg: [
           {
             validator: (_rule, value, callback) => {
-              if (String(form.length_m ?? '').trim() === '' && toPayloadNumber(value) === undefined) {
-                callback(
-                  new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength'))
-                );
+              if (
+                String(form.length_m ?? '').trim() === '' &&
+                toPayloadNumber(value) === undefined
+              ) {
+                callback(new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength')));
                 return;
               }
               callback();
@@ -238,10 +245,11 @@ const rules = computed<FormRules>(() =>
         length_m: [
           {
             validator: (_rule, value, callback) => {
-              if (String(form.weight_kg ?? '').trim() === '' && toPayloadNumber(value) === undefined) {
-                callback(
-                  new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength'))
-                );
+              if (
+                String(form.weight_kg ?? '').trim() === '' &&
+                toPayloadNumber(value) === undefined
+              ) {
+                callback(new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength')));
                 return;
               }
               callback();
