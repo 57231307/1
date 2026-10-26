@@ -447,6 +447,36 @@ jobs:
           name: bingxi-erp-android-debug
           path: apk
 
+      - name: 定位待安装 APK 并导出
+        # 调用方 下一步 Android Emulator 端到端 的装包行与装包守卫行。
+        # 入参 上一步 download-artifact 落盘的 apk 目录。
+        # 做什么 在 apk 目录内解析出唯一 .apk，取其绝对路径经 GITHUB_ENV 交给下一步的装包行消费，
+        #        并把选中的路径与字节数打在日志上。
+        # 为什么 GitHub Actions 每个 run step 是独立 shell，android-emulator-runner 的 script
+        #        更是逐行以独立 sh 执行，step 内与行内的 shell 变量都不跨边界。本轮判红就是
+        #        find 的结果留在上一个 shell，装包行的 APK 变量展开成空串，adb 直接以
+        #        文件名不以 apk 结尾拒收。放本步导出是唯一能跨 step 存住值的正规通道。
+        #        本步放在模拟器启动之前，产物问题当场点名，不占用七分钟的开机时间。
+        # 选哪个包 本 job 只下载 bingxi-erp-android-debug，即 universal debug APK，
+        #        装包后的 run-as 与 WebView 首选项断言要求 debuggable，release 签名包不满足；
+        #        发布轮的 bingxi-erp-android-release-signed 不由本 job 消费，两个包不共享产物名也不互查。
+        #        因此 apk 目录内的 .apk 必须恰好 1 个，多包说明产物被扩大，拒绝猜测装哪个。
+        # 存哪里 只写 GITHUB_ENV 中的 APK 一个键，不落盘、不改仓库、不外发。
+        run: |
+          set -euo pipefail
+          test -d apk || { echo "::error::apk 目录不存在，下载 debug APK 步未落盘"; exit 1; }
+          APKS="$(find apk -type f -name '*.apk' | sort)"
+          COUNT="$(printf '%s\n' "$APKS" | grep -c . || true)"
+          test -n "$APKS" || { echo "::error::无 APK 产物，bingxi-erp-android-debug 产物内没有 .apk 文件"; ls -laR apk; exit 1; }
+          test "$COUNT" = 1 || { echo "::error::apk 目录下 .apk 应恰有 1 个（本 job 只下载 debug 产物），实际 $COUNT 个，拒绝猜要装哪一个"; printf '%s\n' "$APKS"; exit 1; }
+          APK_PATH="$(printf '%s\n' "$APKS" | head -1)"
+          # 导绝对路径，避免装包行的 shell 与本步工作目录不一致时找不到文件。
+          APK_ABS="$PWD/$APK_PATH"
+          test -f "$APK_ABS" || { echo "::error::APK 文件不存在 $APK_ABS"; exit 1; }
+          test -s "$APK_ABS" || { echo "::error::APK 文件为空 $APK_ABS"; exit 1; }
+          echo "APK=$APK_ABS" >> "$GITHUB_ENV"
+          echo "模拟器消费的 APK：$APK_ABS（$(stat -c%s "$APK_ABS") 字节）"
+
       - name: Android Emulator 端到端
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -455,10 +485,12 @@ jobs:
           disable-animations: true
           script: |
             # runner 逐行以独立 sh 执行，跨行变量与续行均不保留。赋值守卫使用须同处一行。
+            # 跨 step 传值只认前序 step 写入 GITHUB_ENV 的变量（APK 由 定位待安装 APK 并导出 步导出，
+            # APP_ID 由工作流 env 注入），环境变量能进每一行的 shell，shell 内赋的变量不能。
             # 设备侧只核对 API 34 上仍生效的权限。maxSdkVersion 低于平台 SDK 的 uses-permission
             # 由 PackageParser 在解析期丢弃（BLUETOOTH 与 BLUETOOTH_ADMIN 为 30，READ_EXTERNAL_STORAGE 为 32，
             # WRITE_EXTERNAL_STORAGE 为 28），这四条声明的完整性由 APK 静态断言 assert-apk-permissions.py 负责。
-            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }
+            test -n "${APK:-}" && test -f "${APK:-}" || { echo "E2E: 无 APK 产物，装包行取不到有效路径（当前 APK='${APK:-}'）"; ls -laR apk 2>/dev/null | head -40; exit 1; }; echo "E2E: 待安装 APK $APK"
             # sys.boot_completed 置 1 早于 package 服务可用，此时装包只会得到找不到 package 服务的报错。
             # 装包前先轮询 package 服务，装包本身再做有界重试，把启动竞态与真正的装包失败区分开。
             i=0; until adb shell service check package 2>/dev/null | grep -q found; do i=$((i+1)); if [ "$i" -ge 40 ]; then echo 'E2E: package 服务 120 秒内未就绪'; adb shell service list | head -20; exit 1; fi; sleep 3; done; echo 'E2E: package 服务已就绪'
@@ -475,12 +507,10 @@ jobs:
             adb shell run-as "${APP_ID}" true || { echo 'E2E: run-as 不可用，debug 包应可调试'; exit 1; }
             i=0; WV=""; while [ "$i" -lt 30 ]; do i=$((i+1)); adb shell run-as "${APP_ID}" ls shared_prefs 2>/dev/null | grep -qi webview && { WV=1; break; }; sleep 3; done; test -n "$WV" || { echo 'E2E: 本应用 WebView 未初始化（shared_prefs 内无 WebView 首选项）'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: 本应用 WebView 已初始化'
             adb logcat -d --pid="$(adb shell pidof -s "${APP_ID}" | tr -d '\r')" | tail -20
-            CRASH_BUF="$(adb logcat -d -b crash)"
-            echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"
             # 无外设的 headless 模拟器上系统进程（如蓝牙栈）会自行 SIGABRT，崩溃缓冲不能整体当本应用崩溃。
             # 判据只认本应用自身的崩溃：native 崩溃行含本应用包名，或 Java 崩溃块的 Process 行含本应用包名。
-            printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true
-            printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
+            # 取缓冲与打印以及两条崩溃判据必须同处一行，跨行取 shell 变量会让判据消费到空串而恒判通过。
+            CRASH_BUF="$(adb logcat -d -b crash)"; echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"; printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true; printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_anr.*${APP_ID}" && { echo 'E2E: 应用发生 ANR'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_crash.*${APP_ID}" && { echo 'E2E: 应用发生进程崩溃事件'; exit 1; } || true
             echo 'E2E: 装包，启动，前台，WebView 初始化，无 ANR 与崩溃 全部通过'
