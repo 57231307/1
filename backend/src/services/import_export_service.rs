@@ -118,6 +118,8 @@ impl ImportExportService {
             "products" => Ok(Self::build_products_template()),
             "customers" => Ok(Self::build_customers_template()),
             "inventory" => Ok(Self::build_inventory_template()),
+            "sku_mapping" => Self::build_sku_mapping_template(),
+            "crm_leads" => Ok(Self::build_crm_leads_template()),
             _ => Err(AppError::validation_displayable(format!(
                 "不支持的导入类型: {}",
                 import_type
@@ -239,6 +241,97 @@ impl ImportExportService {
                     example: Some("1000".to_string()),
                 },
             ],
+        }
+    }
+
+    /// 构建 SKU 对照表导入模板
+    /// 调用方 导入模板下载端点。入参 无，列名与必需性逐列取自
+    /// `handlers::sku_mapping_handler::SKU_MAPPING_IMPORT_COLUMNS`（导入器实际解析的权威表），
+    /// 本函数只补每列的数据类型与示例值，不再抄第二套列清单，避免模板与解析列漂移。
+    /// 表头文本必须等于解析键，否则用户按模板填的文件会被表头校验判成未知列。
+    /// 返回列元数据缺失时点名该列并报错，不静默给缺省类型。
+    pub(crate) fn build_sku_mapping_template() -> Result<ImportTemplate, AppError> {
+        let mut columns = Vec::new();
+        for (field, required) in crate::handlers::sku_mapping_handler::sku_mapping_import_columns() {
+            let (data_type, example) = Self::sku_mapping_column_meta(field).ok_or_else(|| {
+                AppError::internal(format!("SKU 导入模板缺少列元数据，列名 {}", field))
+            })?;
+            columns.push(ImportColumnDef {
+                field: field.to_string(),
+                title: field.to_string(),
+                data_type: data_type.to_string(),
+                required: *required,
+                example: Some(example.to_string()),
+            });
+        }
+        Ok(ImportTemplate {
+            import_type: "sku_mapping".to_string(),
+            name: "SKU 对照表导入模板".to_string(),
+            description: "用于批量导入我方产品色号与供应商色号的对照关系。product_code 与 supplier_code 与 supplier_product_code 三列为必填，且必须填库里已存在的编码。整列缺失只当该列未填，不报错；布尔列接受 true 与 false 与 1 与 0 与 是 与 否。".to_string(),
+            columns,
+        })
+    }
+
+    /// SKU 对照表导入列的数据类型与示例值。入参 列名，返回 None 表示该列未登记元数据。
+    /// 调用方 build_sku_mapping_template。示例值必须落在导入器各列校验器接受的取值域内，
+    /// 否则模板自己的示例行就导不进去。
+    fn sku_mapping_column_meta(field: &str) -> Option<(&'static str, &'static str)> {
+        match field {
+            "product_code" => Some(("string", "P001")),
+            "color_no" => Some(("string", "大红-001")),
+            "supplier_code" => Some(("string", "S001")),
+            "supplier_product_code" => Some(("string", "SP-8801")),
+            "supplier_color_no" => Some(("string", "SP-RED-1")),
+            "supplier_price" => Some(("decimal", "12.50")),
+            "min_order_quantity" => Some(("integer", "500")),
+            "lead_time" => Some(("integer", "7")),
+            "is_primary" => Some(("boolean", "false")),
+            "priority" => Some(("integer", "1")),
+            "is_enabled" => Some(("boolean", "true")),
+            "remarks" => Some(("string", "按样确认")),
+            _ => None,
+        }
+    }
+
+    /// 构建 CRM 线索导入模板
+    /// 调用方 导入模板下载端点。入参 无。列序即线索导入器按位置读列的次序
+    /// （`services/crm/lead.rs` 的 build_lead_request_from_row 逐列下标），
+    /// 顺序变了就会把手机号读进邮箱列，故列序与列数由配对锁钉住，不许单边改动。
+    /// 第 10 列负责人与第 12 列创建时间由导出列序带出、导入器不消费，位置必须留。
+    pub(crate) fn build_crm_leads_template() -> ImportTemplate {
+        let spec: [(&str, &str, bool, &str); 12] = [
+            ("lead_no", "线索编号", false, "留空由系统自动生成"),
+            ("company_name", "公司名称", true, "杭州某某纺织有限公司"),
+            ("contact_name", "联系人", false, "张工"),
+            ("contact_title", "职位", false, "采购经理"),
+            ("mobile_phone", "手机号", false, "13800000000"),
+            ("tel_phone", "座机", false, "0571-88888888"),
+            ("email", "邮箱", false, "buyer@example.com"),
+            ("lead_source", "线索来源", false, "OTHER"),
+            (
+                "lead_status",
+                "线索状态",
+                false,
+                "new 或 contacted 或 qualified 或 assigned 或 converted 或 pool 或 lost",
+            ),
+            ("owner_name", "负责人", false, "导入器不消费此列，仅与导出列序对齐"),
+            ("priority", "优先级", false, "high"),
+            ("created_at", "创建时间", false, "导入器不消费此列，仅与导出列序对齐"),
+        ];
+        ImportTemplate {
+            import_type: "crm_leads".to_string(),
+            name: "CRM 线索导入模板".to_string(),
+            description: "用于批量导入销售线索。第一行为表头，数据从第二行起，列序固定不可调换。线索状态填写时必须属于权威词表，填其他值整行拒绝。仅支持 xlsx 格式。".to_string(),
+            columns: spec
+                .iter()
+                .map(|(field, title, required, example)| ImportColumnDef {
+                    field: field.to_string(),
+                    title: title.to_string(),
+                    data_type: "string".to_string(),
+                    required: *required,
+                    example: Some(example.to_string()),
+                })
+                .collect(),
         }
     }
 

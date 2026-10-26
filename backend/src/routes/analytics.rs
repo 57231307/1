@@ -191,6 +191,10 @@ pub fn imports() -> Router<AppState> {
             "/templates/download/{import_type}",
             get(import_export_handler::download_template),
         )
+        .route(
+            "/templates/meta/{import_type}",
+            get(import_export_handler::describe_import_template),
+        )
 }
 
 /// 导出路由
