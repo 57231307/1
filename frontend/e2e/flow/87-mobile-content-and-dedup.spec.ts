@@ -18,6 +18,12 @@ import { loginViaUI, BASE_URL, API_PREFIX, apiCallRaw, genCode, tryCleanup } fro
  * 存什么，防重两条用例各向真实接口建一行数据（打印目标编码与客户名都带时间戳加随机位，跑完按
  *   回读到的主键删除）。路由拦截只延迟放行并记录请求体，响应全部来自真实后端，
  *   断言落在接口回读与页面真实渲染上。
+ * 另有一族蓝牙权限入口契约，打印目标页不再常驻权限申请入口，连接动作才调壳内系统授权，
+ *   依据是用户真机反馈与移除常驻入口后的新契约。桌面 Playwright 视口拿不到真实壳桥，
+ *   打印卡片在 v-if 处即为假、断言会空跑，故按壳侧 Kotlin 插件同款命令名与返回形态
+ *   注入内存桩驱动页面，桩语义逐条对齐壳侧插件，见下方安装函数的注释。
+ * 还有一族壳内连续凭证失败回弹契约，同 host 连续 5 次 401 才调 reopen_gateway，
+ *   前 4 次只在页内计数，凭证失败由真实登录接口给出，非生产环境不做账号锁定。
  */
 
 const MOBILE_PORTRAIT = { width: 360, height: 780 };
@@ -423,5 +429,241 @@ test.describe('重复提交与重复入口', () => {
 
     const periodEntries = page.locator('.aside .el-menu-item').filter({ hasText: '会计期间' });
     await expect(periodEntries, '会计期间只允许存在一个菜单入口').toHaveCount(1);
+  });
+});
+
+/**
+ * 蓝牙权限用时申请，契约用例的桩桥。
+ *
+ * 为什么要桩，桌面 Playwright 视口拿不到真实安卓壳桥，window.__TAURI__ 缺失时
+ * 打印卡片整个被 v-if 隐藏，权限契约断言会空跑成恒真。桩在页面脚本执行前注入，
+ * 语义逐条对齐壳侧 Kotlin 插件，未授权时已配对列表只回空数组且 enabled 报 false，
+ * 授权命令按预设的弹窗结果改写入参，未授权的连接命令被拒绝。
+ * 入参 promptGrants 模拟系统弹窗用户选择，true 为允许 false 为拒绝。
+ * 桩把前端发来的命令名逐条记进页内数组，供断言核对调用次序。
+ * 传给谁，本文件蓝牙权限契约两条用例。存什么，命令序列与适配器状态只在页内内存。
+ * 存哪里，window.__bridgeState，不落盘不上报。
+ */
+interface BluetoothStubConfig {
+  /** 系统弹窗预设结果，true 为用户允许，false 为用户拒绝 */
+  promptGrants: boolean;
+}
+
+async function installBluetoothBridgeStub(page: Page, cfg: BluetoothStubConfig): Promise<void> {
+  await page.addInitScript((config: BluetoothStubConfig) => {
+    interface PrinterStub {
+      name: string;
+      address: string;
+    }
+    interface StateStub {
+      granted: boolean;
+      sdkInt: number;
+      supported: boolean;
+      enabled: boolean;
+      printers: PrinterStub[];
+      connectedAddress: string | null;
+      calls: string[];
+    }
+    const state: StateStub = {
+      granted: false,
+      sdkInt: 35,
+      supported: true,
+      enabled: true,
+      printers: [],
+      connectedAddress: null,
+      calls: [],
+    };
+    Object.defineProperty(window, '__bridgeState', { value: state });
+    Object.defineProperty(window, '__TAURI__', {
+      value: {
+        core: {
+          invoke(command: string, args?: Record<string, unknown>): Promise<unknown> {
+            state.calls.push(command);
+            if (command === 'bluetooth_request_permission') {
+              if (config.promptGrants) {
+                state.granted = true;
+                // 壳侧插件授权通过后已配对设备才可读，桩同步补齐这一形态
+                state.printers = [{ name: 'e2e 热敏打印机', address: 'AA:BB:CC:DD:EE:FF' }];
+              }
+              return Promise.resolve({ granted: state.granted, sdkInt: state.sdkInt });
+            }
+            if (command === 'bluetooth_list_printers') {
+              return Promise.resolve({
+                sdkInt: state.sdkInt,
+                granted: state.granted,
+                supported: state.supported,
+                // 壳侧同款口径，BLUETOOTH_CONNECT 未授予时 isEnabled 读不了只能报 false
+                enabled: state.granted ? state.enabled : false,
+                printers: state.granted ? state.printers : [],
+              });
+            }
+            if (command === 'bluetooth_connect') {
+              if (!state.granted) {
+                return Promise.reject(new Error('缺少蓝牙权限，请先授权'));
+              }
+              state.connectedAddress = String(args?.address ?? '');
+              return Promise.resolve({ address: state.connectedAddress, name: 'e2e 热敏打印机' });
+            }
+            return Promise.reject(new Error(`桩桥未实现命令 ${command}`));
+          },
+        },
+      },
+    });
+  }, cfg);
+}
+
+/** 读页内桩记录的前端命令序列，入参 page，返回命令名数组的快照。 */
+async function readBridgeCalls(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    interface StateView {
+      calls: string[];
+    }
+    const view = (window as unknown as { __bridgeState?: StateView }).__bridgeState;
+    return view ? [...view.calls] : [];
+  });
+}
+
+test.describe('打印目标页蓝牙权限用时申请契约', () => {
+  // UA 含 Android 且存在壳桥时前端才判定为壳内客户端，打印卡片据此渲染
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36',
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize(MOBILE_PORTRAIT);
+  });
+
+  test('常驻权限入口已移除且用户在拒绝授权后拿到可见反馈', async ({ page }) => {
+    await installBluetoothBridgeStub(page, { promptGrants: false });
+    await loginViaUI(page);
+    await gotoRoute(page, '/print-targets');
+
+    await expect(page.locator('.bluetooth-card')).toBeVisible();
+    // 新契约，页面不再常驻申请蓝牙权限按钮，也不再常驻未授权告警条
+    await expect(page.getByRole('button', { name: '申请蓝牙权限' })).toHaveCount(0);
+    await expect(page.getByText('未获得附近设备权限')).toHaveCount(0);
+    // 保留的入口，打开设置与刷新两颗按钮仍在
+    await expect(page.getByRole('button', { name: /打开系统蓝牙设置/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /刷新已配对设备/ })).toBeVisible();
+
+    const mountCalls = await readBridgeCalls(page);
+    expect(mountCalls, '打开页面只应读一次适配器状态，不应自动调起系统授权').toEqual([
+      'bluetooth_list_printers',
+    ]);
+
+    // 新契约，系统授权只在用户点连接时调起，拒绝后给出可见提示并中止本次连接
+    await page.getByRole('button', { name: '连接', exact: true }).click();
+    await expect(page.getByText('蓝牙权限未授予，无法列出打印机')).toBeVisible();
+
+    const calls = await readBridgeCalls(page);
+    expect(calls, '连接动作应触发壳侧系统授权命令').toContain('bluetooth_request_permission');
+    expect(calls, '授权被拒必须中止，不得带着未授权状态去连打印机').not.toContain(
+      'bluetooth_connect'
+    );
+  });
+
+  test('用户在系统弹窗允许后同一次连接完成连接打印机', async ({ page }) => {
+    await installBluetoothBridgeStub(page, { promptGrants: true });
+    await loginViaUI(page);
+    await gotoRoute(page, '/print-targets');
+
+    await expect(page.locator('.bluetooth-card')).toBeVisible();
+    // 未授权时列表为空，点连接才调起系统授权，授权后前端自动重读一轮适配器状态
+    await page.getByRole('button', { name: '连接', exact: true }).click();
+    await expect(page.getByText('打印机已连接')).toBeVisible();
+
+    // 真实可达链路断言，授权放行后已配对列表可用，下拉里能列出这台打印机
+    await page.locator('.bluetooth-form .el-select').click();
+    await expect(page.locator('.el-select-dropdown__item')).toHaveCount(1);
+    await expect(page.locator('.el-select-dropdown__item').first()).toContainText('e2e 热敏打印机');
+
+    const calls = await readBridgeCalls(page);
+    const requestIndex = calls.indexOf('bluetooth_request_permission');
+    const connectIndex = calls.indexOf('bluetooth_connect');
+    expect(requestIndex, '连接动作应先调起系统授权').toBeGreaterThanOrEqual(0);
+    expect(connectIndex, '授权放行后同一次连接应继续发出连接命令').toBeGreaterThan(requestIndex);
+    const listIndexes = calls
+      .map((command, index) => (command === 'bluetooth_list_printers' ? index : -1))
+      .filter(index => index >= 0);
+    expect(
+      listIndexes.some(index => index > requestIndex),
+      '授权放行后应重读一次设备列表，否则下拉永远是空的'
+    ).toBe(true);
+  });
+});
+
+test.describe('移动端壳内连续凭证失败回弹网关', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize(MOBILE_PORTRAIT);
+  });
+
+  test('同 host 连续 5 次 401 才调壳内回弹命令，前 4 次只在页内计数', async ({ page }) => {
+    // 走真实后端取 401。非生产环境的登录接口跳过账号锁定检查（auth_handler 的
+    // check_account_lockout 按 APP_ENV 放行），错误口令只会落下 FAILED 登录记录，
+    // 不会把分片账号锁住而连累同分片其它用例。
+    // 桩桥只记录壳命令名，桌面视口无真实 Tauri 桥，回弹动作以调用序列断言。
+    await page.addInitScript(() => {
+      const calls: string[] = [];
+      Object.defineProperty(window, '__shellCalls', { value: calls });
+      Object.defineProperty(window, '__TAURI__', {
+        value: {
+          core: {
+            invoke(command: string): Promise<unknown> {
+              calls.push(command);
+              return Promise.resolve(null);
+            },
+          },
+        },
+      });
+    });
+
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+
+    await page
+      .locator('input[placeholder="用户名"], input[placeholder="Username"]')
+      .first()
+      .fill(process.env.TEST_USERNAME ?? process.env.E2E_BASE_USERNAME ?? 'e2e_admin');
+    await page
+      .locator('input[placeholder="密码"], input[placeholder="Password"]')
+      .first()
+      .fill('definitely-wrong-1');
+    await page.locator('.el-checkbox__inner').first().click();
+
+    // 前 4 次只累计不落回弹，阈值语义靠这一段守住，不能被第 5 次一把盖过
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      await page.getByRole('button', { name: '登录', exact: true }).click();
+      await expect
+        .poll(
+          async () => {
+            const raw = await page.evaluate(() =>
+              window.localStorage.getItem('bingxi.login.failCount')
+            );
+            if (!raw) return 0;
+            return (JSON.parse(raw) as { count: number }).count;
+          },
+          { message: `第 ${attempt} 次凭证失败后应累计到 ${attempt}` }
+        )
+        .toBe(attempt);
+    }
+
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect
+      .poll(
+        async () => {
+          const calls = await page.evaluate(
+            () => (window as unknown as { __shellCalls?: string[] }).__shellCalls ?? []
+          );
+          return calls.filter(command => command === 'reopen_gateway').length;
+        },
+        { message: '第 5 次凭证失败应触发恰好一次壳内回弹' }
+      )
+      .toBe(1);
+
+    const cleared = await page.evaluate(() =>
+      window.localStorage.getItem('bingxi.login.failCount')
+    );
+    expect(cleared, '回弹后连续失败计数应清零').toBeNull();
   });
 });

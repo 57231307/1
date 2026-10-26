@@ -163,6 +163,9 @@ impl ColorCardCrudService {
             return Err(CrudError::InvalidState);
         }
 
+        // 库存登记的下界校验要读库中已发放量，须在 existing 被搬入 ActiveModel 前取出
+        let issued_quantity = existing.issued_quantity;
+
         let mut active: ColorCardActive = existing.into();
         if let Some(v) = dto.card_name {
             active.card_name = Set(v);
@@ -182,6 +185,14 @@ impl ColorCardCrudService {
         }
         if let Some(v) = dto.cover_image_url {
             active.cover_image_url = Set(Some(v));
+        }
+        // 色卡实物库存登记入口：缺省即不改，显式提交才写 stock_quantity。
+        // 发放侧的可用量口径是 stock_quantity - issued_quantity
+        // （services/color_card_issue_service.rs 发放闸门 2 与并发重检），
+        // 故本列低于已发放量会让可用量算成负数、发放台账失真，一律点名拒绝。
+        if let Some(v) = dto.stock_quantity {
+            Self::validate_stock_quantity(v, issued_quantity)?;
+            active.stock_quantity = Set(v);
         }
         active.updated_at = Set(Utc::now());
 
@@ -354,5 +365,24 @@ impl ColorCardCrudService {
                 card_type
             ))),
         }
+    }
+
+    /// 校验登记的色卡总库存张数
+    ///
+    /// 入参：待写入的 stock_quantity 与库中当前 issued_quantity。
+    /// 调用方为本服务的 update；两条拒绝各点名一个提交字段违反的公开规则并给出填法方向，
+    /// 不内插记录标识、不回显数量（数量由色卡详情与列表出参自身提供，前端可据以自查）。
+    /// 失败经 CrudError::Validation 由 handlers/color_card/error_map.rs::crud_err
+    /// 映射为 HTTP 400 且外显真实原因。
+    fn validate_stock_quantity(stock_quantity: i32, issued: i32) -> Result<(), CrudError> {
+        if stock_quantity < 0 {
+            return Err(CrudError::Validation("库存数量不能为负数".to_string()));
+        }
+        if stock_quantity < issued {
+            return Err(CrudError::Validation(
+                "库存数量不能低于已发放数量，请填写不小于当前已发放数量的值".to_string(),
+            ));
+        }
+        Ok(())
     }
 }

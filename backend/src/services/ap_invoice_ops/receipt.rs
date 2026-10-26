@@ -119,8 +119,12 @@ impl ApInvoiceService {
         // 1. 查询入库单 + 检查是否已生成应付 + 校验供应商
         let receipt = Self::find_receipt_and_check_exists(&txn, receipt_id).await?;
 
-        // 2. 生成应付单
-        let invoice_no = self.generate_invoice_no().await?;
+        // 2. 生成应付单（在本事务内取号）
+        // 前缀级 advisory 锁随本事务存活，号段占用到本事务提交才释放；
+        // 若改用自开事务形态取号，锁在内层事务提交时就消失，
+        // build_and_insert_receipt_invoice 的 INSERT 之前存在并发窗口，
+        // 两次并发结算会取到同一单号并撞 invoice_no 唯一约束。
+        let invoice_no = self.generate_invoice_no(&txn).await?;
         let invoice =
             Self::build_and_insert_receipt_invoice(&txn, &receipt, invoice_no, user_id).await?;
 
@@ -591,8 +595,11 @@ impl ApInvoiceService {
             ));
         }
 
-        // 3. 生成红字应付单（负数）
-        let invoice_no = self.generate_invoice_no().await?;
+        // 3. 生成红字应付单（负数，在本事务内取号）
+        // 前缀级 advisory 锁随本事务存活，号段占用到本事务提交才释放；
+        // 若改用自开事务形态取号，锁在内层事务提交时就消失，与下面的 INSERT 之间存在
+        // 并发窗口，两次并发红冲会取到同一单号并撞 invoice_no 唯一约束。
+        let invoice_no = self.generate_invoice_no(&txn).await?;
         let invoice_date = return_doc.return_date;
         let payment_terms = 0; // 退货立即冲销
         let due_date = invoice_date;
