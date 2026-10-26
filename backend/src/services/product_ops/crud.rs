@@ -24,7 +24,7 @@ use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_category;
 use crate::services::product_service::{
     CreateProductArgs, ProductService, UpdateProductArgs, validate_product_create_fields,
-    validate_product_numeric_domains,
+    validate_product_numeric_domains, validate_product_safety_category,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
@@ -188,6 +188,11 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            width_needle_included_cm,
+            weight_tolerance,
+            spandex_percent,
+            usage,
+            safety_category,
             meters_per_piece,
             meters_per_roll,
         } = args;
@@ -212,6 +217,8 @@ impl ProductService {
             standard_price,
             cost_price,
         )?;
+        // 安全类别取值域（GB 18401 三类）与必录门、数值域门分权：出现即必须在词表内，缺席或未录入放行。
+        validate_product_safety_category(safety_category.as_deref())?;
         // 校验已保证类型非空且去空白，落库取校验后的规范值（products.product_type 为 NOT NULL）。
         // 缺省即被拒，不再回落成成品布，与 validate_product_create_fields 的显式类型判据同源。
         let product_type = product_type
@@ -268,6 +275,13 @@ impl ProductService {
             factory_name: Set(factory_name),
             factory_address: Set(factory_address),
             product_grade: Set(product_grade),
+            // m0106 扩的规格列：带针幅宽/克重公差/氨纶含量/用途/安全类别，透传录入值，未录入落 NULL。
+            // 带针幅与公差与氨纶含量全程 Decimal 不 f64 往返；安全类别取值已由服务层词表判据把关。
+            width_needle_included_cm: Set(width_needle_included_cm),
+            weight_tolerance: Set(weight_tolerance),
+            spandex_percent: Set(spandex_percent),
+            usage: Set(usage),
+            safety_category: Set(safety_category),
             // 匹/卷换算元数据：透传录入值（码↔匹↔卷换算单一真源入参，供 dual_unit_converter 读取）；
             // 未录入为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量
             meters_per_piece: Set(meters_per_piece),
@@ -418,6 +432,8 @@ impl ProductService {
             args.standard_price.flatten(),
             args.cost_price.flatten(),
         )?;
+        // 安全类别出现时按词表判据把关（与创建侧共用同一函数，不抄第二套），键缺席不判。
+        validate_product_safety_category(args.safety_category.as_deref())?;
 
         let mut product = self.fetch_product_active(id).await?;
         Self::apply_product_basic_fields(&mut product, &mut args);
@@ -519,6 +535,24 @@ impl ProductService {
         }
         if let Some(pg) = args.product_grade.take() {
             product.product_grade = Set(Some(pg));
+        }
+        // m0106 扩的规格列三态更新：带针幅宽/克重公差/氨纶含量为 DECIMAL，外层 Some 即本次带了这个键，
+        // 内层 None 清空为 NULL、Some(v) 覆盖，形态同幅宽克重。
+        if let Some(v) = args.width_needle_included_cm.take() {
+            product.width_needle_included_cm = Set(v);
+        }
+        if let Some(v) = args.weight_tolerance.take() {
+            product.weight_tolerance = Set(v);
+        }
+        if let Some(v) = args.spandex_percent.take() {
+            product.spandex_percent = Set(v);
+        }
+        // 用途与安全类别为文本列，单层条件更新（键缺席即不更新该列），语义同组织与后整理。
+        if let Some(v) = args.usage.take() {
+            product.usage = Set(Some(v));
+        }
+        if let Some(v) = args.safety_category.take() {
+            product.safety_category = Set(Some(v));
         }
         // 每匹米数与每卷米数三态部分更新。外层 None 即键缺席、本列保持原值（遵循可选数值
         // 字段条件 Set 惯例）。外层 Some 即本次带了这个键，内层 Option 的取值原样落 Set，

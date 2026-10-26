@@ -19,6 +19,8 @@ use rust_decimal::Decimal;
 use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
+use crate::models::status::color_fastness;
+use crate::models::status::product_safety_category;
 use crate::models::status::product_type;
 use crate::search::{SearchClient, SearchSyncer};
 use crate::utils::error::AppError;
@@ -32,6 +34,8 @@ pub struct CreateProductColorInput {
     pub color_type: String,
     pub dye_formula: Option<String>,
     pub extra_cost: f64,
+    /// 色牢度等级（GB 18401 九档，可空即未考核或未录入）。取值域由 color_fastness 词表判定。
+    pub color_fastness_grade: Option<String>,
 }
 
 /// 更新产品色号参数对象（批次 330 v10 复审 P3 修复：引入参数对象消除 too_many_arguments 警告）
@@ -51,6 +55,8 @@ pub struct UpdateProductColorParams {
     pub extra_cost: Option<f64>,
     /// 是否启用
     pub is_active: Option<bool>,
+    /// 色牢度等级（GB 18401 九档，单层条件更新，键缺席即不改，空串按清空语义处理）
+    pub color_fastness_grade: Option<String>,
     /// 操作人 ID（审计日志）
     pub user_id: i32,
 }
@@ -134,6 +140,9 @@ pub struct CreateProductArgs {
     pub spandex_percent: Option<Decimal>,
     /// 用途（自由文本，如 服装面料/家纺/产业用）
     pub usage: Option<String>,
+    /// 安全类别（GB 18401-2010 的 A/B/C，可空即未定级）。取值以 product_safety_category 词表为唯一源，
+    /// A 类另须满足 GB 31701-2015，该条件判据落应用层不由本列表达。
+    pub safety_category: Option<String>,
     /// 每匹米数（匹↔米换算元数据，可选数值，None 表示未录入）
     pub meters_per_piece: Option<Decimal>,
     /// 每卷米数（卷↔米换算元数据，可选数值，None 表示未录入）
@@ -199,6 +208,8 @@ pub struct UpdateProductArgs {
     pub spandex_percent: Option<Option<Decimal>>,
     /// 用途（自由文本，单层条件更新，键缺席即不更新该列），语义同组织结构与后整理。
     pub usage: Option<String>,
+    /// 安全类别（GB 18401-2010 的 A/B/C，单层条件更新，键缺席即不更新该列），语义同用途。
+    pub safety_category: Option<String>,
     /// 每匹米数（匹↔米换算元数据，三态部分更新）。外层 None 即键缺席、本列保持原值，
     /// Some(None) 即显式 null、清空为 NULL，Some(Some(v)) 即覆盖为该值。
     pub meters_per_piece: Option<Option<Decimal>>,
@@ -346,6 +357,48 @@ pub fn validate_product_numeric_domains(
     }
     if cost_price.is_some_and(|p| p < Decimal::ZERO) {
         return Err(AppError::validation_displayable("成本价格不能为负数"));
+    }
+    Ok(())
+}
+
+/// 产品安全类别取值域校验（GB 18401-2010 三类，创建与更新共用）。
+///
+/// 读的是本次提交的安全类别值（键缺席或未录入即 None，不判）。写给谁调用：
+/// crud::create_product 与 crud::update_product，以及批量建品逐行前置检查；判据一份，多路同门。
+/// 存什么：不落库，只做拒绝。
+///
+/// 规则。出现值时必须在 product_safety_category::ALL_CLASSES（A/B/C）内，词表外值点名拒绝；
+/// 空白串等同未录入放行（必填性不属本判据）。A 类另须满足 GB 31701-2015 这一条件判据是
+/// 跨标准联动的考核口径，落在检验判定侧，不在本入参校验里伪装成拒绝。
+/// 文案走 validation_displayable：只描述用户自己提交字段的取值规则，不涉表名与 SQL。
+pub fn validate_product_safety_category(value: Option<&str>) -> Result<(), AppError> {
+    if let Some(v) = value.map(str::trim).filter(|s| !s.is_empty())
+        && !product_safety_category::ALL_CLASSES.contains(&v)
+    {
+        return Err(AppError::validation_displayable(format!(
+            "安全类别「{v}」不在词表内，允许值：A、B、C（GB 18401-2010）"
+        )));
+    }
+    Ok(())
+}
+
+/// 色牢度等级取值域校验（GB 18401 九档，色号创建与更新共用）。
+///
+/// 读的是本次色号提交或编辑的色牢度等级值（键缺席或未录入即 None，不判）。写给谁调用：
+/// product_ops::color 的 create_product_color 与 update_product_color。判据一份，色牢度权威词表
+/// 与 DB CHECK（product_vocab_check 域 m0108）单源，均在 models::status::general::color_fastness。
+/// 存什么：不落库，只做拒绝。
+///
+/// 规则。出现值时必须在 color_fastness::ALL_GRADES 九档内（含半级 1-2、2-3、3-4、4-5，半级是合法档
+/// 不是脏值），词表外值点名拒绝。耐唾液项目只对 A 类考核、本色漂白与传统手工着色不考核这两条是
+/// 条件性判据，留在检验判定侧，不在本入参校验里表达。
+pub fn validate_product_color_fastness_grade(value: Option<&str>) -> Result<(), AppError> {
+    if let Some(v) = value.map(str::trim).filter(|s| !s.is_empty())
+        && !color_fastness::ALL_GRADES.contains(&v)
+    {
+        return Err(AppError::validation_displayable(format!(
+            "色牢度等级「{v}」不在词表内，允许值：1、1-2、2、2-3、3、3-4、4、4-5、5"
+        )));
     }
     Ok(())
 }

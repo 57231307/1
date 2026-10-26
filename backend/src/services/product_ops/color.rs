@@ -66,6 +66,10 @@ impl ProductService {
         product_id: i32,
         input: CreateProductColorInput,
     ) -> Result<product_color::Model, AppError> {
+        // 色牢度等级出现时按 GB 18401 九档词表判据把关（与 DB CHECK 单源），缺席或未录入放行。
+        crate::services::product_service::validate_product_color_fastness_grade(
+            input.color_fastness_grade.as_deref(),
+        )?;
         let active_model = product_color::ActiveModel {
             id: Default::default(),
             product_id: Set(product_id),
@@ -75,6 +79,8 @@ impl ProductService {
             color_type: Set(input.color_type),
             dye_formula: Set(input.dye_formula),
             extra_cost: Set(Decimal::from_f64_retain(input.extra_cost).unwrap_or(Decimal::ZERO)),
+            // 色牢度等级（GB 18401 九档，m0106 加列、m0108 收 CHECK），未录入落 NULL
+            color_fastness_grade: Set(input.color_fastness_grade),
             is_active: Set(true),
             created_at: Set(Utc::now()),
             updated_at: Set(Utc::now()),
@@ -112,7 +118,13 @@ impl ProductService {
         let dye_formula = params.dye_formula;
         let extra_cost = params.extra_cost;
         let is_active = params.is_active;
+        let color_fastness_grade = params.color_fastness_grade;
         let user_id = params.user_id;
+
+        // 色牢度等级出现时按词表判据把关（与创建侧共用同一函数），键缺席不判。
+        crate::services::product_service::validate_product_color_fastness_grade(
+            color_fastness_grade.as_deref(),
+        )?;
 
         let mut color: product_color::ActiveModel = ProductColorEntity::find_by_id(id)
             .one(&*self.db)
@@ -137,6 +149,12 @@ impl ProductService {
         }
         if let Some(active) = is_active {
             color.is_active = Set(active);
+        }
+        // 色牢度等级单层条件更新：键缺席即不改。出现值时去掉两端空白后为空视为清空该列（落 NULL），
+        // 非空按去空白后的规范档落库，避免带空白的 " 3 " 撞 DB CHECK 的词表字面量。
+        if let Some(grade) = color_fastness_grade {
+            let trimmed = grade.trim().to_string();
+            color.color_fastness_grade = Set(if trimmed.is_empty() { None } else { Some(trimmed) });
         }
 
         color.updated_at = Set(Utc::now());

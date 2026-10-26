@@ -72,6 +72,15 @@ pub struct CreateProductRequest {
     pub structure: Option<String>,
     #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
+    // 带针幅宽与克重公差与氨纶含量：m0106 扩的规格列，DECIMAL 列统一收 Decimal（JSON 数字与十进制字符串两形态）。
+    // 创建侧两态即可（缺席与 null 都落 NULL）。
+    pub width_needle_included_cm: Option<Decimal>,
+    pub weight_tolerance: Option<Decimal>,
+    pub spandex_percent: Option<Decimal>,
+    #[validate(length(max = 200, message = "用途长度不能超过200个字符"))]
+    pub usage: Option<String>,
+    #[validate(length(max = 1, message = "安全类别长度不能超过1个字符"))]
+    pub safety_category: Option<String>,
     pub min_order_quantity: Option<Decimal>,
     pub lead_time: Option<i32>,
     // V15 P1 合规字段（《产品质量法》第 27 条）
@@ -133,6 +142,19 @@ pub struct UpdateProductRequest {
     pub structure: Option<String>,
     #[validate(length(max = 100, message = "后整理长度不能超过100个字符"))]
     pub finish: Option<String>,
+    // 带针幅宽与克重公差与氨纶含量：DECIMAL 列，更新侧走三态（键缺席保持原值、显式 null 清空、有值覆盖），
+    // 与幅宽克重同由，出参为十进制字符串、编辑清空只发 null 时单层 Option 与缺席不可区分会静默丢弃。
+    #[serde(default, deserialize_with = "double_option")]
+    pub width_needle_included_cm: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub weight_tolerance: Option<Option<Decimal>>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub spandex_percent: Option<Option<Decimal>>,
+    // 用途与安全类别为文本列，单层条件更新（键缺席即不更新该列），语义同组织与后整理。
+    #[validate(length(max = 200, message = "用途长度不能超过200个字符"))]
+    pub usage: Option<String>,
+    #[validate(length(max = 1, message = "安全类别长度不能超过1个字符"))]
+    pub safety_category: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     pub min_order_quantity: Option<Option<Decimal>>,
     // 交货期为数值列，清空诉求与 DECIMAL 各列同型，一并走三态：键缺席保持原值、显式 null 清空、有值覆盖。
@@ -167,6 +189,8 @@ pub struct CreateProductColorRequest {
     pub color_type: String,
     pub dye_formula: Option<String>,
     pub extra_cost: f64,
+    /// 色牢度等级（GB 18401 九档，可空即未录入）。取值域由服务层词表判定。
+    pub color_fastness_grade: Option<String>,
 }
 
 /// 更新产品色号请求
@@ -179,6 +203,8 @@ pub struct UpdateProductColorRequest {
     pub dye_formula: Option<String>,
     pub extra_cost: Option<f64>,
     pub is_active: Option<bool>,
+    /// 色牢度等级（单层条件更新，键缺席即不改；显式空串按清空该列处理）
+    pub color_fastness_grade: Option<String>,
 }
 
 /// 批量创建色号请求
@@ -479,6 +505,11 @@ pub async fn create_product(
             gram_weight: req.gram_weight,
             structure: req.structure,
             finish: req.finish,
+            width_needle_included_cm: req.width_needle_included_cm,
+            weight_tolerance: req.weight_tolerance,
+            spandex_percent: req.spandex_percent,
+            usage: req.usage,
+            safety_category: req.safety_category,
             min_order_quantity: req.min_order_quantity,
             lead_time: req.lead_time,
             execution_standard: req.execution_standard,
@@ -532,6 +563,11 @@ pub async fn update_product(
             gram_weight: req.gram_weight,
             structure: req.structure,
             finish: req.finish,
+            width_needle_included_cm: req.width_needle_included_cm,
+            weight_tolerance: req.weight_tolerance,
+            spandex_percent: req.spandex_percent,
+            usage: req.usage,
+            safety_category: req.safety_category,
             min_order_quantity: req.min_order_quantity,
             lead_time: req.lead_time,
             execution_standard: req.execution_standard,
@@ -607,6 +643,7 @@ pub async fn create_product_color(
                 color_type: req.color_type,
                 dye_formula: req.dye_formula,
                 extra_cost: req.extra_cost,
+                color_fastness_grade: req.color_fastness_grade,
             },
         )
         .await?;
@@ -635,6 +672,7 @@ pub async fn update_product_color(
         dye_formula: req.dye_formula,
         extra_cost: req.extra_cost,
         is_active: req.is_active,
+        color_fastness_grade: req.color_fastness_grade,
         user_id: auth.user_id,
     };
     let color = product_service.update_product_color(params).await?;
@@ -679,6 +717,7 @@ pub async fn batch_create_colors(
                 color_type: c.color_type,
                 dye_formula: c.dye_formula,
                 extra_cost: c.extra_cost,
+                color_fastness_grade: c.color_fastness_grade,
             },
         )
         .collect();

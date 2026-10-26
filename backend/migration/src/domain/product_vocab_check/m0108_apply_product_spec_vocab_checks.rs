@@ -1,9 +1,11 @@
 //! 产品主档规格扩展列取值域收口，施加 CHECK 与收尾自证（配套 m0107 只读点名）
 //!
-//! 语义定案。本批四列的权威词表唯一出现在 backend 侧 models::status::general::
-//! color_fastness（色牢度九档，GB 18401 定案含半级），数值三列的边界口径由本文件与 m0107
-//! 各携带同一份。色牢度取值形态 1 与 1-2 与 2 与 2-3 与 3 与 3-4 与 4 与 4-5 与 5，
-//! 半级是标准内的合法档位不是脏值，收口必须一并放行。
+//! 语义定案。本批五列中，两列为封闭词表枚举，权威词表唯一出现在 backend 侧 models::status::general::
+//! color_fastness（色牢度九档，GB 18401 定案含半级）与 product_safety_category（安全类别 A/B/C，
+//! GB 18401-2010），数值三列的边界口径由本文件与 m0107 各携带同一份。色牢度取值形态 1 与 1-2 与 2 与
+//! 2-3 与 3 与 3-4 与 4 与 4-5 与 5，半级是标准内的合法档位不是脏值，收口必须一并放行。
+//! 安全类别 A/B/C 是 GB 18401 国家强制分类的封闭枚举，恰三值无歧义分布，且 safety_category 为 m0106
+//! 新列、存量全为 NULL，先约束不触碰任何既有行，符合先探测后约束（新列探测恒得全空即安全）。
 //!
 //! 本批不收口的列与理由，组织结构 structure 与后整理 finish 与用途 usage 三列是既有自由文本列
 //! （usage 为 m0106 新列但列注释定案为自由文本），产品类型 product_type 的取值域至今只落在
@@ -24,7 +26,7 @@
 //! 4. 收尾回读自证，逐列读 pg_constraint 与 information_schema，任一项不满足即 RAISE
 //!    EXCEPTION 点名。约束必须 contype 为 c 且 convalidated 为真且同名恰一条，
 //!    NOT VALID 会放行存量脏行不算收口。列必须 is_nullable 为 YES 且 column_default 为空，
-//!    本批四列全部保持可空无默认，NULL 语义为未录入，钉这两项是定案的回读印证。
+//!    本批五列全部保持可空无默认，NULL 语义为未录入，钉这两项是定案的回读印证。
 //!
 //! 不加 DEFAULT 的理由。给可空数值列硬造 0 默认会把未录入显示成 0，与「不以 0 兜底掩盖缺值」
 //! 口径冲突，且氨纶含量 0 与克重公差 0 都是真实业务值，用作默认会与合法取值混淆。
@@ -51,6 +53,10 @@ pub struct Migration;
 /// 逐项逐字符一致，与同域 m0107 携带同一份，由纸面锁钉两支迁移逐字相等。
 const COLOR_FASTNESS_ALLOWED: &str = "'1','1-2','2','2-3','3','3-4','4','4-5','5'";
 
+/// 安全类别三档 SQL 字面量清单，与 models::status::general::product_safety_category::ALL_CLASSES
+/// 逐项逐字符一致（GB 18401-2010 的 A/B/C），与同域 m0107 携带同一份，禁止任一侧单独改动。
+const SAFETY_CATEGORY_ALLOWED: &str = "'A','B','C'";
+
 /// 一列的收口配方。谓词模板里 {col} 换成本列名，{allowed} 换成本列词表清单。
 struct ColumnCheck<'a> {
     table: &'a str,
@@ -64,7 +70,7 @@ struct ColumnCheck<'a> {
     vocab: &'a str,
 }
 
-/// 四列收口清单，取值域与同域 m0107 的点名清单逐字相等。
+/// 五列收口清单，取值域与同域 m0107 的点名清单逐字相等。
 const COLUMN_CHECKS: &[ColumnCheck] = &[
     ColumnCheck {
         table: "product_colors",
@@ -97,6 +103,14 @@ const COLUMN_CHECKS: &[ColumnCheck] = &[
         predicate: "\"{col}\" IS NULL OR \"{col}\" > 0",
         allowed: "",
         vocab: "产品带针幅宽严格为正（单位 cm，含针边，不参与克重换算）",
+    },
+    ColumnCheck {
+        table: "products",
+        column: "safety_category",
+        constraint: "chk_products_safety_category",
+        predicate: "\"{col}\" IS NULL OR \"{col}\" IN ({allowed})",
+        allowed: SAFETY_CATEGORY_ALLOWED,
+        vocab: "models::status::general::product_safety_category::ALL_CLASSES",
     },
 ];
 
@@ -222,7 +236,7 @@ BEGIN
 
         RAISE NOTICE 'm0108 自证 %.% 约束 % 已达形态，contype 为 c 且 convalidated 为真且可空无默认', rec.tbl, rec.col, rec.con;
     END LOOP;
-    RAISE NOTICE 'm0108 收口完成，四列取值域已全部钉进数据库';
+    RAISE NOTICE 'm0108 收口完成，五列取值域已全部钉进数据库';
 END
 $$;
 "#,
@@ -242,7 +256,7 @@ $$;
                 spec.table, spec.constraint
             ));
         }
-        sql.push_str("DO $$ BEGIN RAISE NOTICE 'm0108 回滚完成，四列 CHECK 已撤除'; END $$;");
+        sql.push_str("DO $$ BEGIN RAISE NOTICE 'm0108 回滚完成，五列 CHECK 已撤除'; END $$;");
         manager.get_connection().execute_unprepared(&sql).await?;
         Ok(())
     }

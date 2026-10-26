@@ -407,6 +407,12 @@ impl ProductService {
             factory_name,
             factory_address,
             product_grade,
+            // CSV 导入模板不含带针幅宽/克重公差/氨纶含量/用途/安全类别列，保持 NULL（不臆造换算值与定级）。
+            width_needle_included_cm: None,
+            weight_tolerance: None,
+            spandex_percent: None,
+            usage: None,
+            safety_category: None,
             // CSV 导入模板不含匹/卷换算元数据列，保持 NULL（不臆造换算值）
             meters_per_piece: None,
             meters_per_roll: None,

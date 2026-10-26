@@ -1,14 +1,15 @@
 //! 产品主档规格扩展列收口前存量取值只读点名（配套 m0108）
 //!
-//! 为什么单独存在一支只读迁移。m0106 为 products 与 product_colors 补了五列，其中四列
+//! 为什么单独存在一支只读迁移。m0106 为 products 与 product_colors 补了六列，其中五列
 //! 由后续 m0108 施加 CHECK 收口。m0108 在施加前会逐列守卫拒绝越界残留，但那只是结果不是现场。
-//! 本迁移把这四列在收口前的现状以 RAISE NOTICE 摊进迁移日志，使 CI 与人工能核对
+//! 本迁移把这五列在收口前的现状以 RAISE NOTICE 摊进迁移日志，使 CI 与人工能核对
 //! m0108 的取值域口径是否覆盖真实分布，日志本身成为可追溯的点名报告。
 //!
 //! 口径来源，逐字符对齐，勿在本文件另立词表。色牢度九档取自 backend 侧
 //! models::status::general::color_fastness::ALL_GRADES（GB 18401 定案含半级 1 与 1-2 与 2
-//! 与 2-3 与 3 与 3-4 与 4 与 4-5 与 5）。氨纶含量上限 100、克重公差非负、带针幅为正
-//! 三条数值口径与本域 m0108 施加的 CHECK 表达式逐字相等，两支各携带同一份清单，
+//! 与 2-3 与 3 与 3-4 与 4 与 4-5 与 5）。安全类别三档取自 models::status::general::
+//! product_safety_category::ALL_CLASSES（GB 18401-2010 的 A/B/C）。氨纶含量上限 100、克重公差非负、
+//! 带针幅为正三条数值口径与本域 m0108 施加的 CHECK 表达式逐字相等，两支各携带同一份清单，
 //! 由纸面锁钉彼此相等，禁止任一侧单独改动。
 //!
 //! 严格只读。up 仅 SELECT 聚合与 RAISE NOTICE，无 UPDATE、无 DELETE、无 DDL、不 RAISE
@@ -32,6 +33,10 @@ pub struct Migration;
 /// 逐项逐字符一致。守卫、点名与本域 m0108 的 CHECK 共用同一份形态，禁止另写第二套。
 const COLOR_FASTNESS_ALLOWED: &str = "'1','1-2','2','2-3','3','3-4','4','4-5','5'";
 
+/// 安全类别三档 SQL 字面量清单，与 models::status::general::product_safety_category::ALL_CLASSES
+/// 逐项逐字符一致（GB 18401-2010 的 A/B/C），与本域 m0108 携带同一份，禁止另写第二套。
+const SAFETY_CATEGORY_ALLOWED: &str = "'A','B','C'";
+
 /// 一列的收口配方。谓词模板里 {col} 换成本列名，{allowed} 换成本列词表清单。
 /// NULL 一律视为未录入即合法，本批不给任何列加 NOT NULL，也不加 DEFAULT。
 struct ColGuard<'a> {
@@ -45,35 +50,44 @@ struct ColGuard<'a> {
     domain_display: &'a str,
 }
 
-/// 四列收口清单，取值域与本域 m0108 的施加清单逐字相等。
+/// 五列收口清单，取值域与本域 m0108 的施加清单逐字相等。
+/// 谓词一律写成 `"{col}" IS NULL OR ...` 形态（Postgres 的 IS NULL 是需左操作数的后缀判据，
+/// 裸 `IS NULL` 会解析失败），与 m0108 的 ColumnCheck predicate 同形。
 const COL_GUARDS: &[ColGuard] = &[
     ColGuard {
         table: "product_colors",
         column: "color_fastness_grade",
-        predicate: "IS NULL OR \"{col}\" IN ({allowed})",
+        predicate: "\"{col}\" IS NULL OR \"{col}\" IN ({allowed})",
         allowed: COLOR_FASTNESS_ALLOWED,
         domain_display: "色牢度等级 空值或 1 与 1-2 与 2 与 2-3 与 3 与 3-4 与 4 与 4-5 与 5",
     },
     ColGuard {
         table: "products",
         column: "spandex_percent",
-        predicate: "IS NULL OR (\"{col}\" >= 0 AND \"{col}\" <= 100)",
+        predicate: "\"{col}\" IS NULL OR (\"{col}\" >= 0 AND \"{col}\" <= 100)",
         allowed: "",
         domain_display: "氨纶含量百分比 空值或 0 到 100 闭区间",
     },
     ColGuard {
         table: "products",
         column: "weight_tolerance",
-        predicate: "IS NULL OR \"{col}\" >= 0",
+        predicate: "\"{col}\" IS NULL OR \"{col}\" >= 0",
         allowed: "",
         domain_display: "克重公差 空值或非负",
     },
     ColGuard {
         table: "products",
         column: "width_needle_included_cm",
-        predicate: "IS NULL OR \"{col}\" > 0",
+        predicate: "\"{col}\" IS NULL OR \"{col}\" > 0",
         allowed: "",
         domain_display: "带针幅宽 空值或严格为正（单位 cm）",
+    },
+    ColGuard {
+        table: "products",
+        column: "safety_category",
+        predicate: "\"{col}\" IS NULL OR \"{col}\" IN ({allowed})",
+        allowed: SAFETY_CATEGORY_ALLOWED,
+        domain_display: "安全类别 空值或 A 与 B 与 C（GB 18401-2010）",
     },
 ];
 
@@ -168,7 +182,7 @@ $$;
             sql.push_str(&block);
         }
         sql.push_str(
-            "DO $$ BEGIN RAISE NOTICE 'm0107 点名完成，四列收口口径与四列自由文本现状已全部写入迁移日志，本迁移未做任何写入'; END $$;",
+            "DO $$ BEGIN RAISE NOTICE 'm0107 点名完成，五列收口口径与四列自由文本现状已全部写入迁移日志，本迁移未做任何写入'; END $$;",
         );
         manager.get_connection().execute_unprepared(&sql).await?;
         Ok(())

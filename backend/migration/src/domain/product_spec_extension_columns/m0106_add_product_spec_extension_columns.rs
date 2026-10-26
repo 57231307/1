@@ -1,9 +1,12 @@
-//! 产品主档规格扩展列迁移（公差、带针幅宽、氨纶含量、用途、色牢度等级）
+//! 产品主档规格扩展列迁移（公差、带针幅宽、氨纶含量、用途、色牢度等级、安全类别）
 //!
 //! 背景：面料成交规格是八维一套档（品种组织与单双面、纱支根数与原料、克重目标值与公差、
 //! 幅宽有效值与公差且分有效幅宽与带针幅宽、弹性要求行业口径为氨纶含量、颜色色号与色牢度等级、
 //! 后整理工艺、用途）。products 既有列覆盖了组织、纱支、密度、克重目标值、有效幅宽、后整理与
-//! 色号（product_colors 表），缺公差、带针幅宽、氨纶含量、用途与色牢度等级五处，本迁移补齐。
+//! 色号（product_colors 表），缺公差、带针幅宽、氨纶含量、用途、色牢度等级与安全类别六处，本迁移补齐。
+//! 安全类别是 GB 18401-2010 国家纺织产品基本安全技术规范的强制分类（A 婴幼儿、B 直接接触皮肤、
+//! C 非直接接触皮肤），与既有 execution_standard（产品执行标准号）分列，前者是安全强制类别、
+//! 后者是产品推荐性执行标准，语义不同不可合并。
 //!
 //! 语义定案：
 //! - products.width 列语义钉死为「有效幅宽（净幅，cm），不含针边」，米↔公斤换算与出米数
@@ -37,11 +40,13 @@ impl MigrationTrait for Migration {
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "weight_tolerance" DECIMAL(10,2);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "spandex_percent" DECIMAL(5,2);
 ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "usage" VARCHAR(200);
+ALTER TABLE "products" ADD COLUMN IF NOT EXISTS "safety_category" VARCHAR(1);
 COMMENT ON COLUMN "products"."width" IS '有效幅宽（净幅，单位 cm，不含针边）；米↔公斤换算与每公斤出米数公式的唯一幅宽入参源；带针幅存 width_needle_included_cm，两列独立可空';
 COMMENT ON COLUMN "products"."width_needle_included_cm" IS '带针幅宽（含针边，单位 cm，可空）；开幅/预缩交付参考，不参与克重换算';
 COMMENT ON COLUMN "products"."weight_tolerance" IS '克重公差（±g/m²，非负，可空）；目标值存 gram_weight，本列记允差幅度';
 COMMENT ON COLUMN "products"."spandex_percent" IS '氨纶含量（%，0~100，可空）；弹性要求的行业口径，与 fabric_composition 成分文本并存，本列供过滤与换算';
 COMMENT ON COLUMN "products"."usage" IS '用途（自由文本，可空，如 服装面料/家纺/产业用）；词表 CHECK 由后续批收口';
+COMMENT ON COLUMN "products"."safety_category" IS '安全类别（GB 18401-2010 的 A/B/C 三类，可空即未定级）；A 类婴幼儿另须满足 GB 31701-2015，该条件判据落应用层；取值域 CHECK 由后续批收口';
 ALTER TABLE "product_colors" ADD COLUMN IF NOT EXISTS "color_fastness_grade" VARCHAR(20);
 COMMENT ON COLUMN "product_colors"."color_fastness_grade" IS '色牢度等级（可空；GB 等级形态 1/1-2/2/2-3/3/3-4/4/4-5/5，词表 CHECK 由后续批收口）';"#;
         manager.get_connection().execute_unprepared(sql).await?;
@@ -53,6 +58,7 @@ COMMENT ON COLUMN "product_colors"."color_fastness_grade" IS '色牢度等级（
 ALTER TABLE "products" DROP COLUMN IF EXISTS "weight_tolerance";
 ALTER TABLE "products" DROP COLUMN IF EXISTS "spandex_percent";
 ALTER TABLE "products" DROP COLUMN IF EXISTS "usage";
+ALTER TABLE "products" DROP COLUMN IF EXISTS "safety_category";
 ALTER TABLE "product_colors" DROP COLUMN IF EXISTS "color_fastness_grade";
 COMMENT ON COLUMN "products"."width" IS NULL;"#;
         manager.get_connection().execute_unprepared(sql).await?;

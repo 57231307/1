@@ -103,6 +103,11 @@ pub struct Model {
     pub factory_address: Option<String>,
     /// 产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 安全类别（GB 18401-2010 的 A/B/C 三类，可空即未定级）。
+    /// A 类为婴幼儿（身高 100cm 及以下）纺织产品，另须满足 GB 31701-2015；
+    /// B 类为直接接触皮肤的产品；C 类为非直接接触皮肤的产品。
+    /// 取值以 models::status::general::product_safety_category 为唯一词表源，DB CHECK 由 product_vocab_check 域收口。
+    pub safety_category: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
