@@ -13,7 +13,7 @@ on:
   workflow_call:
     inputs:
       build_release:
-        description: '是否构建并签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）'
+        description: '是否构建并签名 release APK（release 档需要四枚安卓签名 secret 配齐，缺任一即判红，不再临时自签）'
         type: boolean
         default: false
       run_e2e:
@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       build_release:
-        description: "同时构建签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）"
+        description: "同时构建签名 release APK（release 档需要四枚安卓签名 secret 配齐，缺任一即判红，不再临时自签）"
         type: boolean
         default: false
       run_e2e:
@@ -263,11 +263,16 @@ jobs:
           python3 scripts/assert-apk-permissions.py "$APK" "$AAPT2"
 
       - name: 准备签名证书
-        # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
-        # secret 四项齐备走固定证书，全缺走 keytool 按版权方固定 DN 生成临时自签，半配判红。
+        # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret 与
+        # 一枚仓库变量 ANDROID_CERT_FINGERPRINT，全部经 env 注入，既不进命令行拼接也不进日志。
+        # 口径 发布轮只用版权方指定的那把固定证书，四枚 secret 缺任一即判红，不再回退临时自签。
+        # 换一把钥匙就是换一个签名身份，跨版本升级与应用商店上架都会认不出是同一个应用，
+        # 所以这里宁可判红也不出包。
+        # 密钥文件按头两字节分派 BKS 与 JKS 与 PKCS12 三种来源。BKS 属 BouncyCastle 私有格式，
+        # JDK 自带 provider 读不了，故只在现场按固定版本与固定校验和取一次 jar，把它转成 JKS
+        # 再交给签名步；转换后的库与两枚口令只留在 RUNNER_TEMP，随作业结束销毁，不作为产物外发。
         # 存什么存哪里 生成物落 RUNNER_TEMP 下 bingxi-signing 目录（keystore 与口令文件与证书），
-        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志；
-        # 临时自签的 keystore 与口令只留在 RUNNER_TEMP，随 job 结束销毁，不作为产物外发。
+        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志。
         id: signing
         if: env.BUILD_RELEASE == 'true'
         env:
@@ -275,46 +280,93 @@ jobs:
           KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
           KS_STOREPASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KS_KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KS_FP_EXPECT: ${{ vars.ANDROID_CERT_FINGERPRINT }}
+          BC_URL: https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/1.78.1/bcprov-jdk18on-1.78.1.jar
+          BC_SHA256: add5915e6acfc6ab5836e1fd8a5e21c6488536a8c1f21f386eeb3bf280b702d7
+          BC_BYTES: 8324412
         run: |
           set -euo pipefail
           KS_DIR="$RUNNER_TEMP/bingxi-signing"
           rm -rf "$KS_DIR"
           mkdir -p "$KS_DIR"
-          # 版权方名称与 LICENSE 一致，别名与包名同源，DN 全程固定不随轮次变
-          DN='CN=Chengdu Bingxi Fabric Trading Co.,O=Chengdu Bingxi Fabric Trading Co.,C=CN'
-          if [ -n "$KS_B64" ] && [ -n "$KS_ALIAS" ] && [ -n "$KS_STOREPASS" ] && [ -n "$KS_KEYPASS" ]; then
-            printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/release.jks"
-            printf '%s' "$KS_STOREPASS" > "$KS_DIR/storepass.txt"
-            printf '%s' "$KS_KEYPASS" > "$KS_DIR/keypass.txt"
-            printf '%s' "$KS_ALIAS" > "$KS_DIR/alias.txt"
-            SOURCE=fixed
-            echo "签名证书来源 固定证书（仓库 secret 配置齐全）"
-          elif [ -n "$KS_B64" ] || [ -n "$KS_ALIAS" ] || [ -n "$KS_STOREPASS" ] || [ -n "$KS_KEYPASS" ]; then
-            echo "::error::签名 secret 半配（ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与两枚口令必须四项齐备或全缺），拒绝回退临时自签"
+          if [ -z "$KS_B64" ] || [ -z "$KS_ALIAS" ] || [ -z "$KS_STOREPASS" ] || [ -z "$KS_KEYPASS" ]; then
+            echo "::error::安卓签名四枚 secret 未配齐（ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD），发布轮拒绝改用临时自签出包"
             exit 1
-          else
-            STOREPASS="$(openssl rand -hex 16)"
-            KEYPASS="$(openssl rand -hex 16)"
-            keytool -genkeypair -keystore "$KS_DIR/release.jks" -storetype JKS \
-              -alias "$APP_ID" -keyalg RSA -keysize 2048 -validity 10950 \
-              -dname "$DN" -storepass "$STOREPASS" -keypass "$KEYPASS"
-            printf '%s' "$STOREPASS" > "$KS_DIR/storepass.txt"
-            printf '%s' "$KEYPASS" > "$KS_DIR/keypass.txt"
-            printf '%s' "$APP_ID" > "$KS_DIR/alias.txt"
-            SOURCE=selfsigned
-            echo "签名证书来源 临时生成（keytool 按版权方固定 DN 自签）"
-            echo "本轮为临时自签，跨轮指纹变化即说明尚未固定；临时 keystore 与其口令只留在 runner 临时目录，随作业结束销毁，不作为产物外发"
-            echo "固定出路 在本地用同一版权方 DN 自行生成一份长期 keystore（keytool -genkeypair -alias $APP_ID -keyalg RSA -keysize 2048 -validity 10950），把 keystore 文件转 base64 连同别名与两枚口令写入 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD 四个 secret，下一轮起即走固定证书路且指纹恒定"
-            echo "本轮临时自签包只能装在同设备上覆盖安装，不能作为跨版本升级或应用商店上架的签名"
           fi
+          printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/keystore.src"
+          MAGIC=$(od -An -tx1 -N2 "$KS_DIR/keystore.src" | tr -d ' \n')
+          # 转成 JKS 是既有签名步已验证可吃的形态，三种来源在此合流成同一种，签名步不必再分叉
+          to_jks() {
+            local src="$1" type="$2"
+            keytool -importkeystore \
+              -srckeystore "$src" -srcstoretype "$type" \
+              -srcstorepass "$KS_STOREPASS" -srckeypass "$KS_KEYPASS" \
+              -destkeystore "$KS_DIR/release.jks" -deststoretype JKS \
+              -deststorepass "$KS_STOREPASS" -destkeypass "$KS_KEYPASS" \
+              -alias "$KS_ALIAS" -noprompt
+          }
+          case "$MAGIC" in
+            feed)
+              cp "$KS_DIR/keystore.src" "$KS_DIR/release.jks"
+              KS_ORIGIN=jks
+              echo "密钥库来源 JKS（secret 内即 JDK 原生格式，直接采用）"
+              ;;
+            3082)
+              to_jks "$KS_DIR/keystore.src" PKCS12
+              KS_ORIGIN=pkcs12
+              echo "密钥库来源 PKCS12（现场转 JKS 后采用）"
+              ;;
+            0000)
+              # BKS 头四字节是版本号 1 或 2，前两字节恒为 00 00
+              VER=$(od -An -tu1 -N4 "$KS_DIR/keystore.src" | tr -s ' ' | sed 's/^ //;s/ /,/g')
+              case "$VER" in
+                0,0,0,1|0,0,0,2) : ;;
+                *) echo "::error::密钥库头四字节 $VER 不是 BKS v1 也不是 v2，格式判不出来，拒绝猜"; exit 1 ;;
+              esac
+              curl -fsSLo "$KS_DIR/bcprov.jar" "$BC_URL"
+              echo "$BC_SHA256  $KS_DIR/bcprov.jar" | (cd / && sha256sum -c -)
+              test "$(wc -c < "$KS_DIR/bcprov.jar")" = "$BC_BYTES" \
+                || { echo "::error::BouncyCastle jar 字节数与钉住的值不符，拒绝用没核对过的包转密钥"; exit 1; }
+              to_jks "$KS_DIR/keystore.src" BKS
+              KS_ORIGIN=bks
+              echo "密钥库来源 BKS v 系（按钉住版本与校验和取 BouncyCastle 后现场转 JKS）"
+              ;;
+            *)
+              echo "::error::密钥库头两字节 $MAGIC 不属 JKS 与 PKCS12 与 BKS 任何一种，拒绝猜格式"
+              exit 1
+              ;;
+          esac
+          # 别名与口令真能取出私钥才算这份证书可用；取不出来在这里判红，
+          # 不留到签名步报一句 apksigner 的笼统失败
+          keytool -list -keystore "$KS_DIR/release.jks" -storepass "$KS_STOREPASS" \
+            -alias "$KS_ALIAS" > /dev/null \
+            || { echo "::error::固定证书里取不到别名对应的条目，口令或别名与密钥库不匹配"; exit 1; }
+          printf '%s' "$KS_STOREPASS" > "$KS_DIR/storepass.txt"
+          printf '%s' "$KS_KEYPASS" > "$KS_DIR/keypass.txt"
+          printf '%s' "$KS_ALIAS" > "$KS_DIR/alias.txt"
+          SOURCE=fixed
           keytool -exportcert -keystore "$KS_DIR/release.jks" \
             -storepass "$(cat "$KS_DIR/storepass.txt")" -alias "$(cat "$KS_DIR/alias.txt")" \
             -file "$KS_DIR/release.cer"
           test -s "$KS_DIR/release.cer" || { echo "::error::导出签名证书失败，无法核对指纹"; exit 1; }
           FP="$(sha256sum "$KS_DIR/release.cer" | cut -d' ' -f1)"
           echo "本轮 Release 用证书指纹 sha256 $FP"
+          # 指纹锁 仓库变量一旦钉住，换钥匙（哪怕 secret 被重新配置成另一把）就当场判红，
+          # 不出一个装不到老用户机器上的包。变量未设时只报指纹，供第一轮把真实指纹读出来钉上。
+          if [ -n "${KS_FP_EXPECT:-}" ] && [ "$KS_FP_EXPECT" != "$FP" ]; then
+            echo "::error::证书指纹与仓库变量 ANDROID_CERT_FINGERPRINT 钉住的不一致，本轮不是版权方那把固定钥匙，拒绝出包"
+            echo "期望 $KS_FP_EXPECT"
+            echo "实际 $FP"
+            exit 1
+          fi
+          if [ -n "${KS_FP_EXPECT:-}" ]; then
+            echo "指纹与钉住值一致 签名身份未变"
+          else
+            echo "仓库变量 ANDROID_CERT_FINGERPRINT 尚未设置 本轮只报指纹不比对 取这行输出的 sha256 设为该变量即启用指纹锁"
+          fi
           {
             echo "signing_source=$SOURCE"
+            echo "signing_keystore_origin=$KS_ORIGIN"
             echo "signing_fingerprint=$FP"
           } >> "$GITHUB_OUTPUT"
           {
@@ -348,8 +400,9 @@ jobs:
           if-no-files-found: error
 
       - name: 上传签名证书（公钥）
-        # 两条证书路都执行：外发的只有 X.509 公钥证书本体，私钥与其口令一律不外发。
-        # 用途是让任何人能独立核对本轮 APK 的签名指纹，并与下一轮比对是否已固定。
+        # 发布轮固定证书路执行。外发的只有 X.509 公钥证书本体，私钥与其口令一律不外发。
+        # 用途是让任何人能独立核对本轮 APK 的签名指纹，并与仓库变量 ANDROID_CERT_FINGERPRINT
+        # 钉住的那枚比对是否同一把钥匙。
         # 入参为准备签名证书步产出的 release.cer；存到产物 bingxi-erp-android-signing-certificate。
         if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
