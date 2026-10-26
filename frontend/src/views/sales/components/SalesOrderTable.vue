@@ -29,6 +29,7 @@ import type { SalesOrder } from '@/api/sales';
 import { useUserStore } from '@/store/user';
 import { canAccessDetailPermission, hasRoutePermission } from '@/router';
 import { PERMISSIONS } from '@/constants/permissions';
+import { SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES } from '@/utils/sales-status';
 
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
@@ -50,10 +51,10 @@ const canCreateBulkColor = computed(() =>
 // 1) 权限：转换端点运行期派生 sales-contracts:create（POST /sales/sales-contracts/from-order/{id}，
 //    末段非动作关键字按方法派生 create），无该键者不渲染（点了必 403 的死入口）。
 // 2) 状态：仅放行「已审核起活跃态」approved/partial_shipped/shipped/completed，与后端
-//    sales_contract_convert_service::ensure_convertible_status 逐态一致（draft/pending 未审核、
-//    cancelled/rejected 失效均不给入口）。是否已转（重复转换）由对话框打开 preview 后按
-//    existing_contract 提示，按钮侧不预判（避免列表多打一次 preview）。
-const CONVERTIBLE_STATUSES = ['approved', 'partial_shipped', 'shipped', 'completed'];
+//    sales_contract_convert_service::ensure_convertible_status 逐态一致（集合取自
+//    utils/sales-status 前端单源，draft/pending 未审核、cancelled/rejected 失效均不给入口）。
+//    是否已转（重复转换）由对话框打开 preview 后按 existing_contract 提示，按钮侧不预判
+//    （避免列表多打一次 preview）。
 const canConvertContract = computed(() =>
   hasRoutePermission(PERMISSIONS.SALES_CONTRACT_CREATE, userStore.userInfo?.permissions || [])
 );
@@ -241,7 +242,10 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
       }
       // 转合同入口：仅「已审核起活跃态」且持 sales-contracts:create 才渲染，与后端转换门同源。
       // 重复转换不在这里预判，点开后 preview 命中既有非终态合同会给跳转提示并禁用提交。
-      if (canConvertContract.value && CONVERTIBLE_STATUSES.includes(row.status)) {
+      if (
+        canConvertContract.value &&
+        (SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES as readonly string[]).includes(row.status)
+      ) {
         buttons.push(
           h(
             ElButton,

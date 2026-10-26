@@ -136,7 +136,11 @@ import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getSalesOrderById, type SalesOrder } from '@/api/sales';
-import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
+import {
+  SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES,
+  salesStatusLabelKey,
+  salesStatusTagType,
+} from '@/utils/sales-status';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useUserStore } from '@/store/user';
 import { hasRoutePermission } from '@/router';
@@ -159,11 +163,13 @@ const statusLabel = computed(() => {
 });
 
 // 转合同入口可见性与后端转换门同源：仅「已审核起活跃态」且持 sales-contracts:create 才给入口，
-// 与列表行操作一致（CONVERTIBLE_STATUSES 同一集合）。重复转换在对话框内按 preview 提示。
-const CONVERTIBLE_STATUSES = ['approved', 'partial_shipped', 'shipped', 'completed'];
+// 与列表行操作共用 utils/sales-status 的同一集合常量。重复转换在对话框内按 preview 提示。
 const canConvertContract = computed(() => {
   const status = order.value?.status;
-  if (!status || !CONVERTIBLE_STATUSES.includes(status)) return false;
+  if (!status) return false;
+  if (!(SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES as readonly string[]).includes(status)) {
+    return false;
+  }
   return hasRoutePermission(
     PERMISSIONS.SALES_CONTRACT_CREATE,
     userStore.userInfo?.permissions || []
