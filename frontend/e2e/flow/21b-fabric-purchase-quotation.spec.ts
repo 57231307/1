@@ -65,7 +65,10 @@ test.describe('面料单据专用字段全链路验证', () => {
           batch_no: batchNo,
           color_code: colorCode,
           lot_no: lotNo,
-          grade: 'A',
+          // 等级必须落在库存等级词表（一等品/二等品/等外品，
+          // models/status/purchase_inventory.rs::inventory_stock_grade）；
+          // 验布域的 A/B/C 属词表外值，建单口 check_stock_grade_if_present 即 400 拒
+          grade: '一等品',
           gram_weight: gramWeight,
           width: width,
           quantity: receiptQty,
@@ -116,7 +119,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       expect(item.color_code).toBe(colorCode);
       expect(item.lot_no).toBe(lotNo);
       expect(item.batch_no).toBe(batchNo);
-      expect(item.grade).toBe('A');
+      expect(item.grade).toBe('一等品');
       // gram_weight / width 后端为 Decimal（purchase_receipt_dto.rs:86,89 /
       // models/purchase_receipt_item.rs:24,26），serde 序列化为两位小数字符串
       // （"180.00"/"145.00"）。断言未对齐真实出参格式：比对前做数值归一（非放宽）。

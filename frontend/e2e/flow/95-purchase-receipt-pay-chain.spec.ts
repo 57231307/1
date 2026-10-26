@@ -359,7 +359,9 @@ async function createReceipt(
         batch_no: opts.batchNo,
         grade: opts.grade,
         quantity: opts.quantity,
-        quantity_alt: '0',
+        // 入库受理门 resolve_inbound_quantity_kg：公斤数必须可确定（实称大于 0 或
+        // 克重幅宽齐），造数显式给实称值，「无辅量填0」旧口径已失效
+        quantity_alt: opts.quantity,
         unit_master: opts.line.unit,
         unit_price: decText(opts.line.unitPrice),
       },
@@ -550,7 +552,8 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
           batch_no: batchOver,
           grade,
           quantity: overQty,
-          quantity_alt: '0',
+          // 公斤数先过受理门，拒绝原因才归因到超收门（辅量 0 会被公斤数门抢拒）
+          quantity_alt: overQty,
           unit_master: orderLine.unit,
           unit_price: decText(orderLine.unitPrice),
         },
@@ -869,7 +872,8 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
           batch_no: batch,
           grade,
           quantity: '6',
-          quantity_alt: '0',
+          // 入库受理门：公斤数显式实称（与主量同值仅为造数口径）
+          quantity_alt: '6',
           unit_master: pA.unit,
           unit_price: '20.00',
         },

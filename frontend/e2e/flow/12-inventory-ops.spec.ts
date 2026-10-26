@@ -344,7 +344,11 @@ test.describe('库存调拨完整流程', () => {
           material_name: 'E2E 白坯布',
           unit_master: 'm',
           quantity: String(inboundQty),
-          quantity_alt: '0',
+          // 入库受理门（resolve_inbound_quantity_kg + resolve_receipt_grade）：
+          // 公斤数必须可确定、确认入账前必须有验布定级结论，造数显式给值，
+          // 「无辅量填0」的旧口径已失效（0 视为未实称）
+          quantity_alt: '6',
+          grade: '一等品',
           batch_no: whiteBatch,
           // 白坯：故意不提供 color_code / lot_no
         },

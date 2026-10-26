@@ -610,6 +610,9 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
         grade: '一等品',
         quantity_meters: '10000',
         quantity_kg: '5000',
+        // 入库受理门 require_source_bill_no：直建入库必须登记来源单号（缺即 400），
+        // 造数按本仓口径显式给出，不靠后端兜底
+        source_bill_no: genCode('E2E-SRC'),
       });
       if (stock.data?.id) {
         ctx.stockIds.push(stock.data.id);
@@ -2271,6 +2274,8 @@ export async function ensureStockInWarehouse(
     grade: '一等品',
     quantity_meters: '10000',
     quantity_kg: '5000',
+    // 入库受理门 require_source_bill_no：直建入库来源单号必填，显式给号（缺省不落 0）
+    source_bill_no: genCode('E2E-SRC'),
   });
   const created = await listStock(preferredWarehouseId);
   if (created) return created;
@@ -2310,6 +2315,8 @@ export async function seedFourDimStockIn(
     grade: '一等品',
     quantity_meters: opts.quantityMeters,
     quantity_kg: opts.quantityMeters,
+    // 入库受理门 require_source_bill_no：来源单号必填，造数显式给号
+    source_bill_no: genCode('E2E-SRC'),
   });
   const row = await verifyStockFourDim(page, opts.productId, opts.colorNo, opts.dyeLotNo, {
     batchNo: opts.batchNo,
@@ -2327,16 +2334,17 @@ export async function seedFourDimStockIn(
  * 白坯布库存播种（color_no 为空、无缸号、有批次）。
  *
  * 入库端点选择：POST /inventory/stock（通用建库存 handler `create_stock`，
- * backend/src/handlers/inventory_stock_handler.rs:146）。
- * 该 handler 虽复用 `CreateStockFabricRequest` DTO（含 color_no min=1 校验注解），
- * 但**不调用 payload.validate()**（区别于 /stock/fabric 的 `create_stock_fabric`），
- * service 层 `create_stock`（inventory_stock_service.rs:276）直接 Set(color_no) 落库，
- * 且 DB 列 `inventory_stocks.color_no VARCHAR(255)` 无 CHECK 约束——
- * 因此传 color_no="" 可合法写入白坯库存行。
+ * backend/src/handlers/inventory_stock_handler.rs）。
+ * 该 handler 与 /stock/fabric 同一条业务，共用受理收口（payload.validate +
+ * admit_stock_fabric_measures + admit_stock_fabric_trace）。白坯口径在收口下依然合法：
+ * DTO 色号只限长度不设下限（inventory_stock_handler_dto 的 color_no max=50），
+ * `fabric_class::validate_fabric_trace` 判色号为空即白坯、免缸号，handler 侧再把
+ * 白坯缸号归一为 None（出库规划只接受 dye_lot_no IS NULL 的白坯行）；
+ * 等级/公斤数/来源单号为受理门必填项，本 seed 显式给值（quantity_kg 与米数同值
+ * 是造数口径，不为仿真换算，只保证过门与回读可判定）。
  *
- * 另一条合法路径为采购收货入库（purchase_receipt_private.rs:327
- * `item.color_code.clone().unwrap_or_default()` 当 color_code=None 时落空串），
- * 但构造完整采购链（订单→收货→确认）复杂度过高且非本用例意图，
+ * 另一条合法路径为采购收货入库（purchase_receipt_private.rs 收货确认入账），
+ * 但构造完整采购链（订单→收货→质检定级→确认）复杂度过高且非本用例意图，
  * 故 e2e seed 统一走 /inventory/stock 通用端点。
  *
  * seed 维度与调拨出库白坯口径一致：color_no=""、batch_no 必填、dye_lot_no 为空/不传。
@@ -2358,6 +2366,8 @@ export async function seedGreigeStockIn(
     grade: '一等品',
     quantity_meters: opts.quantityMeters,
     quantity_kg: opts.quantityMeters,
+    // 入库受理门 require_source_bill_no：来源单号必填，造数显式给号
+    source_bill_no: genCode('E2E-SRC'),
   });
   // 回读验证：按 product+warehouse+batch 查询，确认落库行 color_no 为空
   const path =
