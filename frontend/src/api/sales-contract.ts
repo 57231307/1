@@ -321,9 +321,7 @@ export interface ConvertFromOrderPayload {
 }
 
 /** 预填读取：按销售订单 id 带出合同预填数据（GET /sales/sales-contracts/preview-from-order/{id}） */
-export function previewConvertFromOrder(
-  orderId: number
-): Promise<ApiResponse<ContractPreview>> {
+export function previewConvertFromOrder(orderId: number): Promise<ApiResponse<ContractPreview>> {
   return request.get(`/sales/sales-contracts/preview-from-order/${orderId}`);
 }
 

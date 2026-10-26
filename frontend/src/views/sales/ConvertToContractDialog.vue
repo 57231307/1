@@ -135,7 +135,13 @@
           </el-col>
         </el-row>
         <el-form-item :label="t('sales.convert.remark')">
-          <el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit />
+          <el-input
+            v-model="form.remark"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+          />
         </el-form-item>
 
         <el-divider content-position="left">{{ t('sales.convert.itemsTitle') }}</el-divider>
@@ -195,7 +201,9 @@
     </div>
 
     <template #footer>
-      <el-button @click="emit('update:visible', false)">{{ t('sales.convert.btnCancel') }}</el-button>
+      <el-button @click="emit('update:visible', false)">{{
+        t('sales.convert.btnCancel')
+      }}</el-button>
       <el-button
         type="primary"
         :loading="submitting"
@@ -355,7 +363,8 @@ watch(
 );
 
 function msgError(e: unknown) {
-  const message = e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : '';
+  const message =
+    e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : '';
   ElMessage.error(message || t('sales.convert.loadFailed'));
 }
 

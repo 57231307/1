@@ -801,7 +801,8 @@ export default {
       deliveryLocation: '交货地点',
       remark: '备注',
       itemsTitle: '合同明细行（带出订单行，可编辑数量与单价）',
-      amountHint: '带出金额按订单行原值展示，提交后系统会按修改后的数量、单价与订单折扣税率重新计算',
+      amountHint:
+        '带出金额按订单行原值展示，提交后系统会按修改后的数量、单价与订单折扣税率重新计算',
       colProduct: '产品',
       colWidthGram: '幅宽/克重',
       colUnit: '单位',

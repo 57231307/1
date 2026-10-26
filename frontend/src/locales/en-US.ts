@@ -804,7 +804,8 @@ export default {
       deliveryLocation: 'Delivery Location',
       remark: 'Remark',
       itemsTitle: 'Contract Lines (from order lines, quantity and unit price editable)',
-      amountHint: 'Carried amounts show the original order line values; after submit the system recalculates from the edited quantity, unit price and the order discount and tax rates',
+      amountHint:
+        'Carried amounts show the original order line values; after submit the system recalculates from the edited quantity, unit price and the order discount and tax rates',
       colProduct: 'Product',
       colWidthGram: 'Width/Grammage',
       colUnit: 'Unit',

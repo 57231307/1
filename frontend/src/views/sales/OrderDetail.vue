@@ -10,11 +10,7 @@
       <div class="header-actions">
         <!-- 转合同入口：与列表行操作同源门控（已审核起活跃态 + 持 sales-contracts:create）。
              重复转换在对话框内按 preview.existing_contract 提示，这里不预判。 -->
-        <el-button
-          v-if="canConvertContract"
-          type="primary"
-          @click="convertDialogVisible = true"
-        >
+        <el-button v-if="canConvertContract" type="primary" @click="convertDialogVisible = true">
           {{ t('sales.table.convertContract') }}
         </el-button>
         <el-button @click="router.push('/sales')">{{ t('sales.orderDetail.back') }}</el-button>
