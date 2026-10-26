@@ -103,8 +103,7 @@ fn center_entry_routes_through_single_engine_leg() {
         "approve_task 的状态门与落库态必须引 bpm_task 写入方词表常量，禁止别处另立一套大小写"
     );
     assert!(
-        task.contains("validate_approve_action")
-            && task.contains("ALL_APPROVE_ACTIONS"),
+        task.contains("validate_approve_action") && task.contains("ALL_APPROVE_ACTIONS"),
         "审批动作取值域必须由 validate_approve_action 单点校验，禁止各处裸比较 action 字符串"
     );
     // 快捷审批回写的引擎写口唯一：close_pending_tasks_for_business 内部必须调 approve_task
@@ -129,13 +128,11 @@ fn quick_approve_passes_must_not_drop_opinion_to_none() {
     let q = code_only(&read_rel("src/services/quotation_approval_service.rs"));
     let q_approve = fn_body(&q, "pub async fn approve(");
     assert!(
-        q_approve.contains("bpm_opinion") && q_approve.contains("handle_bpm_quotation_approval_after_commit"),
+        q_approve.contains("bpm_opinion")
+            && q_approve.contains("handle_bpm_quotation_approval_after_commit"),
         "报价快捷通过必须把采集的通过意见转达 BPM 回写（bpm_opinion），不得丢弃"
     );
-    let q_writeback = fn_body(
-        &q,
-        "async fn handle_bpm_quotation_approval_after_commit(",
-    );
+    let q_writeback = fn_body(&q, "async fn handle_bpm_quotation_approval_after_commit(");
     assert!(
         q_writeback.contains("approval_opinion: approval_opinion.clone()"),
         "报价回写 approve_task 的 approval_opinion 必须取转达值，禁止硬编码 None"
@@ -148,14 +145,8 @@ fn quick_approve_passes_must_not_drop_opinion_to_none() {
     // PO / SO / 采购退货 approve 侧：close_pending_tasks_for_business 的 APPROVE 实参不得为 None
     let cases = [
         ("src/services/po/contract.rs", "APPROVE_ACTION"),
-        (
-            "src/services/so/order_workflow.rs",
-            "APPROVE_ACTION",
-        ),
-        (
-            "src/services/purchase_return_service.rs",
-            "APPROVE_ACTION",
-        ),
+        ("src/services/so/order_workflow.rs", "APPROVE_ACTION"),
+        ("src/services/purchase_return_service.rs", "APPROVE_ACTION"),
     ];
     for (file, action) in cases {
         let body = collapse_ws(&code_only(&read_rel(file)));
@@ -316,10 +307,7 @@ async fn center_and_quick_are_state_identical_live() {
     // ---------- 正向（通过）----------
     let opinion = "同意：单价符合协议区间与报价口径";
     let a_id = seed_quotation(&db, customer_id, initiator).await;
-    let a_sub = svc
-        .submit(a_id, initiator)
-        .await
-        .expect("A 提交应启动 BPM");
+    let a_sub = svc.submit(a_id, initiator).await.expect("A 提交应启动 BPM");
     assert_eq!(a_sub.status, quotation_ext::PENDING_APPROVAL);
     let a_instance_id = a_sub.approval_instance_id.expect("A 应关联实例") as i32;
     let a_task = pending_task(&db, a_instance_id).await;
@@ -342,10 +330,7 @@ async fn center_and_quick_are_state_identical_live() {
         .expect("中心侧业务回写通过失败");
 
     let b_id = seed_quotation(&db, customer_id, initiator).await;
-    let b_sub = svc
-        .submit(b_id, initiator)
-        .await
-        .expect("B 提交应启动 BPM");
+    let b_sub = svc.submit(b_id, initiator).await.expect("B 提交应启动 BPM");
     let b_instance_id = b_sub.approval_instance_id.expect("B 应关联实例") as i32;
     let _ = pending_task(&db, b_instance_id).await;
     svc.approve(b_id, approver, opinion.to_string())
@@ -413,10 +398,7 @@ async fn center_and_quick_are_state_identical_live() {
     // ---------- 反向（驳回）----------
     let reason = "单价超出客户协议上限，拒绝";
     let c_id = seed_quotation(&db, customer_id, initiator).await;
-    let c_sub = svc
-        .submit(c_id, initiator)
-        .await
-        .expect("C 提交失败");
+    let c_sub = svc.submit(c_id, initiator).await.expect("C 提交失败");
     let c_instance_id = c_sub.approval_instance_id.expect("C 实例") as i32;
     let c_task = pending_task(&db, c_instance_id).await;
     BpmService::new(db.clone())
@@ -438,10 +420,7 @@ async fn center_and_quick_are_state_identical_live() {
         .expect("中心侧业务回写驳回失败");
 
     let d_id = seed_quotation(&db, customer_id, initiator).await;
-    let d_sub = svc
-        .submit(d_id, initiator)
-        .await
-        .expect("D 提交失败");
+    let d_sub = svc.submit(d_id, initiator).await.expect("D 提交失败");
     let d_instance_id = d_sub.approval_instance_id.expect("D 实例") as i32;
     svc.reject(d_id, approver, reason.to_string())
         .await

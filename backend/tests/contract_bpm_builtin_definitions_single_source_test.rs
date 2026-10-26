@@ -26,9 +26,7 @@ use std::path::PathBuf;
 
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -44,7 +42,8 @@ use bingxi_backend::utils::admin_checker::ADMIN_ROLE_CODE;
 
 fn read_rel(rel: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel);
-    fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {}", path, e))
+    fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("读取 {:?} 失败: {}", path, e))
         .replace('\r', "")
 }
 
@@ -313,8 +312,7 @@ fn new_quick_legs_start_and_close_bpm_from_single_source() {
         for fn_sig in [approve_sig, reject_sig] {
             let body = fn_body(&src, fn_sig);
             assert!(
-                body.contains("close_pending_tasks_for_business(")
-                    && body.contains(bt_literal),
+                body.contains("close_pending_tasks_for_business(") && body.contains(bt_literal),
                 "{file}::{fn_sig}：快捷审批必须经引擎唯一写口关闭 BPM 待办（两入口状态一致的机理本体）"
             );
         }
@@ -546,8 +544,7 @@ async fn builtin_seed_creates_and_disposes_every_definition_live() {
     let db = Arc::new(test_common::setup_test_db().await);
     let role_id = ensure_admin_role(&db).await;
     let tag = unique_tag();
-    let approver_id =
-        seed_user_with_role(&db, &format!("bpm_seed_approver_{tag}"), role_id).await;
+    let approver_id = seed_user_with_role(&db, &format!("bpm_seed_approver_{tag}"), role_id).await;
 
     // 出厂幂等种子：真实落库八枚 ACTIVE 定义
     bingxi_backend::services::bpm_definition_seed::seed_builtin_bpm_definitions(&db)
@@ -646,8 +643,7 @@ async fn builtin_seed_creates_and_disposes_every_definition_live() {
             .await
             .unwrap()
             .expect("任务行必须仍在");
-        let want_task_status = if dispose
-            == bingxi_backend::services::bpm_ops::task::APPROVE_ACTION
+        let want_task_status = if dispose == bingxi_backend::services::bpm_ops::task::APPROVE_ACTION
         {
             task_status::COMPLETED
         } else {
@@ -672,8 +668,7 @@ async fn builtin_seed_creates_and_disposes_every_definition_live() {
             .await
             .unwrap()
             .expect("实例行必须仍在");
-        let want_inst_status = if dispose
-            == bingxi_backend::services::bpm_ops::task::APPROVE_ACTION
+        let want_inst_status = if dispose == bingxi_backend::services::bpm_ops::task::APPROVE_ACTION
         {
             instance_status::COMPLETED
         } else {
@@ -787,16 +782,16 @@ async fn payment_request_bpm_integration_live() {
     assert_eq!(doc2row.approval_status, "REJECTED");
     assert_eq!(doc2row.rejected_reason.as_deref(), Some(reason));
     let task2 = bpm_task::Entity::find()
-        .filter(bpm_task::Column::InstanceId.eq(
-            bpm_process_instance::Entity::find()
+        .filter(
+            bpm_task::Column::InstanceId.eq(bpm_process_instance::Entity::find()
                 .filter(bpm_process_instance::Column::BusinessType.eq("ap_payment_request"))
                 .filter(bpm_process_instance::Column::BusinessId.eq(i64::from(doc2)))
                 .one(&*db)
                 .await
                 .unwrap()
                 .expect("实例必须存在")
-                .id,
-        ))
+                .id),
+        )
         .all(&*db)
         .await
         .unwrap()

@@ -6,9 +6,9 @@
 // Some(0) 占位符改为真实 user_id，调用方 create_item / update_item / delete_item / delete
 // 同步添加 user_id 参数透传（P2-3 / P2-4 / P2-5）。
 
+use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::status::purchase_order as po_status;
 use crate::models::status::purchase_return as pr_status;
-use crate::models::dto::bpm_dto::StartProcessRequest;
 use crate::models::{
     inventory_stock, product, purchase_order, purchase_order_item, purchase_return,
     purchase_return_item, supplier, user,
@@ -308,7 +308,9 @@ impl PurchaseReturnService {
             .start_purchase_return_bpm(return_id, &return_order.return_no, user_id)
             .await
         {
-            let document_state = match self.rollback_purchase_return_to_draft(return_id, user_id).await
+            let document_state = match self
+                .rollback_purchase_return_to_draft(return_id, user_id)
+                .await
             {
                 Ok(()) => "采购退货单已退回草稿状态",
                 Err(rb_err) => {
@@ -1008,12 +1010,7 @@ impl PurchaseReturnService {
                 "purchase_return",
                 i64::from(return_id),
                 REJECT_ACTION,
-                Some(
-                    return_order
-                        .rejected_reason
-                        .clone()
-                        .unwrap_or_default(),
-                ),
+                Some(return_order.rejected_reason.clone().unwrap_or_default()),
                 user_id,
             )
             .await;

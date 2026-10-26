@@ -2,8 +2,8 @@
 //!
 //! 销售退货服务层，负责销售退货的核心业务逻辑
 
-use crate::models::status::sales_return as sr_status;
 use crate::models::dto::bpm_dto::StartProcessRequest;
+use crate::models::status::sales_return as sr_status;
 use crate::models::{
     customer, inventory_stock, product, sales_delivery, sales_delivery_item, sales_order,
     sales_order_item, sales_return, sales_return_item,
@@ -727,7 +727,9 @@ impl SalesReturnService {
             .start_sales_return_bpm(return_id, &return_order.return_no, user_id)
             .await
         {
-            let document_state = match self.rollback_sales_return_to_draft(return_id, user_id).await
+            let document_state = match self
+                .rollback_sales_return_to_draft(return_id, user_id)
+                .await
             {
                 Ok(()) => "销售退货单已退回草稿状态",
                 Err(rb_err) => {

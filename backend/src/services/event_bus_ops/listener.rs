@@ -1496,7 +1496,10 @@ async fn handle_bpm_ap_payment_request(
             .reject(request_id, "BPM审批拒绝".to_string(), approver_id)
             .await
         {
-            Ok(_) => tracing::info!("Successfully rejected ap_payment_request {} via BPM", request_id),
+            Ok(_) => tracing::info!(
+                "Successfully rejected ap_payment_request {} via BPM",
+                request_id
+            ),
             Err(e) => tracing::error!(
                 "Failed to reject ap_payment_request {} via BPM: {}",
                 request_id,
@@ -1528,7 +1531,10 @@ async fn handle_bpm_purchase_return(
         // BPM 裁决意见唯一载体仍是 bpm_task.approval_opinion（本域口径与 PO/SO 一致），
         // 业务列 approval_reason 只承载快捷审批采集通道的值，不互写、不伪造。
         match svc.approve_return(return_id, approver_id, None).await {
-            Ok(_) => tracing::info!("Successfully approved purchase_return {} via BPM", return_id),
+            Ok(_) => tracing::info!(
+                "Successfully approved purchase_return {} via BPM",
+                return_id
+            ),
             Err(e) => tracing::error!(
                 "Failed to approve purchase_return {} via BPM: {}",
                 return_id,
@@ -1540,7 +1546,10 @@ async fn handle_bpm_purchase_return(
             .reject_return(return_id, "BPM审批拒绝".to_string(), approver_id)
             .await
         {
-            Ok(_) => tracing::info!("Successfully rejected purchase_return {} via BPM", return_id),
+            Ok(_) => tracing::info!(
+                "Successfully rejected purchase_return {} via BPM",
+                return_id
+            ),
             Err(e) => tracing::error!(
                 "Failed to reject purchase_return {} via BPM: {}",
                 return_id,
@@ -1570,7 +1579,11 @@ async fn handle_bpm_sales_return(
     if approved {
         match svc.approve_return(return_id, approver_id).await {
             Ok(_) => tracing::info!("Successfully approved sales_return {} via BPM", return_id),
-            Err(e) => tracing::error!("Failed to approve sales_return {} via BPM: {}", return_id, e),
+            Err(e) => tracing::error!(
+                "Failed to approve sales_return {} via BPM: {}",
+                return_id,
+                e
+            ),
         }
     } else {
         match svc
@@ -1596,7 +1609,10 @@ async fn handle_bpm_export_approval(
     approved: bool,
     approver_id: i32,
 ) {
-    let approver = match crate::models::user::Entity::find_by_id(approver_id).one(&*db).await {
+    let approver = match crate::models::user::Entity::find_by_id(approver_id)
+        .one(&*db)
+        .await
+    {
         Ok(Some(u)) => u,
         Ok(None) => {
             tracing::error!(

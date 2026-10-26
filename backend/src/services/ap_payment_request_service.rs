@@ -3,8 +3,8 @@
 //! 付款申请服务层，负责付款申请的核心业务逻辑
 //! 包含付款申请创建、提交、审批、拒绝等全流程管理
 
-use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::models::dto::bpm_dto::StartProcessRequest;
+use crate::models::{ap_invoice, ap_payment_request, ap_payment_request_item};
 use crate::services::bpm_ops::task::{APPROVE_ACTION, REJECT_ACTION};
 use crate::services::bpm_ops::{bpm_start_failure_error, process_key};
 use crate::services::bpm_service::BpmService;
@@ -525,8 +525,7 @@ impl ApPaymentRequestService {
             .ok_or_else(|| {
                 AppError::not_found(format!("补偿回滚时付款申请 {} 不存在", request_id))
             })?;
-        if request.approval_status
-            != crate::models::status::ap_payment_request::APPROVAL_APPROVING
+        if request.approval_status != crate::models::status::ap_payment_request::APPROVAL_APPROVING
         {
             return Err(AppError::business_displayable(format!(
                 "付款申请 {} 的状态已被其他操作改为 {}，本次提交不再回退状态，请按当前状态处理",
@@ -534,8 +533,7 @@ impl ApPaymentRequestService {
             )));
         }
         let mut active: ap_payment_request::ActiveModel = request.into();
-        active.approval_status =
-            Set(crate::models::status::common::STATUS_DRAFT.to_string());
+        active.approval_status = Set(crate::models::status::common::STATUS_DRAFT.to_string());
         active.updated_at = Set(Utc::now());
         crate::services::audit_log_service::AuditLogService::update_with_audit(
             &txn,

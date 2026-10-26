@@ -620,7 +620,10 @@ impl BpmService {
         reason: Option<String>,
         user_id: i32,
     ) {
-        let instance = match self.get_process_by_business(business_type, business_id).await {
+        let instance = match self
+            .get_process_by_business(business_type, business_id)
+            .await
+        {
             Ok(Some(inst)) => inst,
             Ok(None) => {
                 tracing::debug!(
