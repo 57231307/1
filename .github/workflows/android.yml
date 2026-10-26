@@ -295,7 +295,9 @@ jobs:
           fi
           printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/keystore.src"
           MAGIC=$(od -An -tx1 -N2 "$KS_DIR/keystore.src" | tr -d ' \n')
-          # 转成 JKS 是既有签名步已验证可吃的形态，三种来源在此合流成同一种，签名步不必再分叉
+          # 转成 JKS 是既有签名步已验证可吃的形态，三种来源在此合流成同一种，签名步不必再分叉。
+          # 标准输入接空设备 keytool 找不到口令参数时会转交互式提问，CI 里没有终端就是无限挂起，
+          # 宁可让它当场失败并报出口令与别名不匹配这条最可能的原因。
           to_jks() {
             local src="$1" type="$2"
             keytool -importkeystore \
@@ -303,7 +305,8 @@ jobs:
               -srcstorepass "$KS_STOREPASS" -srckeypass "$KS_KEYPASS" \
               -destkeystore "$KS_DIR/release.jks" -deststoretype JKS \
               -deststorepass "$KS_STOREPASS" -destkeypass "$KS_KEYPASS" \
-              -alias "$KS_ALIAS" -noprompt
+              -alias "$KS_ALIAS" -noprompt < /dev/null \
+              || { echo "::error::把 $type 密钥库转成 JKS 失败，最可能是库口令 私钥口令或别名三者与这份密钥对不上"; exit 1; }
           }
           case "$MAGIC" in
             feed)
