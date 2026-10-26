@@ -188,7 +188,7 @@ async fn live_db_has_all_four_partial_unique_indexes() {
     let db = setup_test_db().await;
     for (index, table, column) in FOUR_INDEXES {
         let rows = db
-            .query_all(Statement::from_sql_and_values(
+            .query_all_raw(Statement::from_sql_and_values(
                 DbBackend::Postgres,
                 "SELECT indexdef FROM pg_indexes WHERE schemaname = current_schema AND tablename = $1 AND indexname = $2",
                 [table.into(), index.into()],
@@ -198,8 +198,7 @@ async fn live_db_has_all_four_partial_unique_indexes() {
         let defs: Vec<String> = rows
             .iter()
             .map(|r: &QueryResult| {
-                r.try_get_by_index::<String>("", "indexdef")
-                    .expect("indexdef 解码失败")
+                r.try_get_by_index::<String>(0).expect("indexdef 解码失败")
             })
             .collect();
         assert_eq!(
