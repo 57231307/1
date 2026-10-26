@@ -28,6 +28,9 @@ pub struct SalesContractQueryParams {
     pub keyword: Option<String>,
     pub status: Option<String>,
     pub customer_id: Option<i32>,
+    /// 按来源销售订单筛选（订单转合同入口的重复判定与前端跳转取数用）。
+    /// None=不过滤；非空=只回 source_order_id 等于该订单的合同
+    pub source_order_id: Option<i32>,
     pub page: i64,
     pub page_size: i64,
 }
@@ -54,6 +57,10 @@ pub struct CreateSalesContractRequest {
     pub payment_method: Option<String>,
     pub delivery_location: Option<String>,
     pub remark: Option<String>,
+    /// 来源销售订单 ID：手工建档链路恒为 None（列保持 NULL=手工合同）；
+    /// 仅订单转合同链路（sales_contract_convert_service）传入真实订单 ID，
+    /// 落 sales_contracts.source_order_id 溯源列（m_sales_contract_source_order）
+    pub source_order_id: Option<i32>,
     /// 合同明细行
     pub items: Option<Vec<CreateContractItemRequest>>,
 }
@@ -465,6 +472,11 @@ impl SalesContractService {
         // 客户筛选
         if let Some(customer_id) = &params.customer_id {
             query = query.filter(sales_contract::Column::CustomerId.eq(*customer_id));
+        }
+
+        // 来源订单筛选（订单转合同链路的重复判定读口）
+        if let Some(source_order_id) = &params.source_order_id {
+            query = query.filter(sales_contract::Column::SourceOrderId.eq(*source_order_id));
         }
 
         // 行级数据权限下推：scope 过滤在 total 计算之前注入，保证分页总数与可见集一致
