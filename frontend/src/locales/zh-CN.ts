@@ -1338,6 +1338,7 @@ export default {
     saveSuccess: '保存成功',
     saveFailed: '保存失败',
     createSuccess: '创建成功',
+    createSuccessWithNo: '创建成功，单号 {no}',
     createFailed: '创建失败',
     updateSuccess: '更新成功',
     updateFailed: '更新失败',

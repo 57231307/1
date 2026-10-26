@@ -138,10 +138,6 @@ export function getVoucherTypes(): Promise<ApiResponse<VoucherTypeDefinition[]>>
   return request.get('/vouchers/types');
 }
 
-export function generateVoucherNo(): Promise<ApiResponse<{ voucher_no: string }>> {
-  return request.get('/vouchers/generate-no');
-}
-
 // ===== 凭证基础操作：实现收敛至 finance.ts（原 voucher.ts 重复定义已删除）=====
 // 以下为类型适配包装：保留本域 VoucherEntity 类型契约，调用方零破坏
 export async function getVoucherList(

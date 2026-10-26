@@ -294,13 +294,3 @@ export function updateReceiptItem(id: number, itemId: number, data: UpdateReceip
 export function deleteReceiptItem(id: number, itemId: number) {
   return request.delete<ApiResponse<void>>(`/purchase/receipts/${id}/items/${itemId}`);
 }
-
-/**
- * 生成采购入库单号
- * GET /purchase/receipts/generate-no
- *
- * 单据号格式：`RK{yyyyMMdd}{4 位流水}`，例如 `RK202605140001`。
- * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
- */
-export const generatePurchaseReceiptNo = (): Promise<ApiResponse<{ receipt_no: string }>> =>
-  request.get('/purchase/receipts/generate-no');

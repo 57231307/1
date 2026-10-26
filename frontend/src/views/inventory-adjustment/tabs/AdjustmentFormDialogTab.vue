@@ -248,7 +248,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -258,7 +258,6 @@ import { Plus, Delete } from '@element-plus/icons-vue';
 import {
   createInventoryAdjustment,
   updateInventoryAdjustment,
-  generateInventoryAdjustmentNo,
   getInventoryAdjustment,
   createAdjustmentItem,
   updateAdjustmentItem,
@@ -333,18 +332,6 @@ const removeItem = (index: number) => {
   if (formData.items.length > 1) formData.items.splice(index, 1);
 };
 
-const generateNo = async () => {
-  try {
-    const res = await generateInventoryAdjustmentNo();
-    formData.adjustment_no = res.data?.adjustment_no || '';
-  } catch (error) {
-    logger.error(
-      t('inventoryAdjustment.formDialogTab.messageGenerateNoFailed'),
-      (error as Error).message
-    );
-  }
-};
-
 watch(
   () => props.modelValue,
   async val => {
@@ -357,17 +344,10 @@ watch(
         if (props.mode === 'view' && formData.id) await fetchServerItems();
       } else {
         resetForm();
-        await generateNo();
       }
     }
   }
 );
-
-onMounted(() => {
-  if (props.modelValue && !props.currentRow) {
-    generateNo();
-  }
-});
 
 // ===== 查看模式：后端明细回源与行级维护（getInventoryAdjustment + 明细 CRUD） =====
 interface ServerItem {
@@ -494,7 +474,9 @@ const handleSubmit = async () => {
         reason_description: formData.reason_description || null,
       });
     } else {
-      await createInventoryAdjustment({
+      // 建单响应回带 AdjustmentResponse（含事务内生成的真实 adjustment_no），
+      // 展示位回读该值，成功提示外显真实单号
+      const res = await createInventoryAdjustment({
         ...fields,
         items: formData.items.map(item => ({
           stock_id: item.product_id,
@@ -503,8 +485,13 @@ const handleSubmit = async () => {
           notes: item.remark,
         })),
       });
+      formData.adjustment_no = res.data?.adjustment_no ?? '';
     }
-    ElMessage.success(t('inventoryAdjustment.formDialogTab.messageSuccess'));
+    ElMessage.success(
+      formData.id
+        ? t('inventoryAdjustment.formDialogTab.messageSuccess')
+        : t('message.createSuccessWithNo', { no: formData.adjustment_no })
+    );
     emit('update:modelValue', false);
     emit('submitted');
   } catch (error) {

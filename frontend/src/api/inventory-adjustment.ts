@@ -1,5 +1,4 @@
 import { request } from './request';
-import type { ApiResponse } from '@/types/api';
 
 /**
  * 库存调整单列表行出参：与后端
@@ -118,7 +117,7 @@ export function getInventoryAdjustment(id: number) {
 }
 
 export function createInventoryAdjustment(data: CreateInventoryAdjustmentPayload) {
-  return request.post('/inventory/adjustments', data);
+  return request.post<ApiResponse<AdjustmentCreateResponse>>('/inventory/adjustments', data);
 }
 
 export function updateInventoryAdjustment(id: number, data: UpdateInventoryAdjustmentPayload) {
@@ -152,13 +151,3 @@ export function updateAdjustmentItem(itemId: number, data: AdjustmentItemPayload
 export function deleteAdjustmentItem(itemId: number) {
   return request.delete(`/inventory/adjustments/items/${itemId}`);
 }
-
-/**
- * 生成库存调整单号
- * GET /inventory/adjustments/generate-no
- *
- * 单据号格式：`IA{yyyyMMdd}{4 位流水}`，例如 `IA202605140001`。
- * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
- */
-export const generateInventoryAdjustmentNo = (): Promise<ApiResponse<{ adjustment_no: string }>> =>
-  request.get('/inventory/adjustments/generate-no');

@@ -28,8 +28,13 @@
       :disabled="mode === 'view'"
       :aria-label="t('inventoryCount.formDialogTab.ariaLabelForm')"
     >
-      <el-form-item :label="t('inventoryCount.formDialogTab.labelCountNo')" prop="count_no">
-        <el-input v-model="formData.count_no" :disabled="!!formData.id" />
+      <el-form-item
+        v-if="formData.id"
+        :label="t('inventoryCount.formDialogTab.labelCountNo')"
+        prop="count_no"
+      >
+        <!-- 单号只在编辑/查看态展示真实值（建单入参不含 count_no，新建态无可展示值） -->
+        <el-input v-model="formData.count_no" disabled />
       </el-form-item>
       <el-form-item :label="t('inventoryCount.formDialogTab.labelCountDate')" prop="count_date">
         <el-date-picker
@@ -74,14 +79,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import {
   createInventoryCount,
   updateInventoryCount,
-  generateInventoryCountNo,
   type InventoryCountEntity,
 } from '@/api/inventory-count';
 import type { Warehouse } from '@/api/warehouse';
@@ -126,37 +130,17 @@ const resetForm = () => {
   formData.notes = '';
 };
 
-const generateNo = async () => {
-  try {
-    const res = await generateInventoryCountNo();
-    formData.count_no = res.data?.count_no || '';
-  } catch (error) {
-    logger.error(
-      t('inventoryCount.formDialogTab.messageGenerateNoFailure'),
-      (error as Error).message
-    );
-  }
-};
-
 watch(
   () => props.modelValue,
-  async val => {
-    if (val) {
-      if (props.currentRow) {
-        Object.assign(formData, props.currentRow);
-      } else {
-        resetForm();
-        await generateNo();
-      }
+  val => {
+    if (!val) return;
+    if (props.currentRow) {
+      Object.assign(formData, props.currentRow);
+    } else {
+      resetForm();
     }
   }
 );
-
-onMounted(() => {
-  if (props.modelValue && !props.currentRow) {
-    generateNo();
-  }
-});
 
 const handleSubmit = async () => {
   if (submitLoading.value) return;
@@ -176,13 +160,19 @@ const handleSubmit = async () => {
         notes: formData.notes || null,
       });
     } else {
-      await createInventoryCount({
+      // 建单响应回带 CountResponse（含事务内生成的真实 count_no），成功提示外显真实单号
+      const res = await createInventoryCount({
         warehouse_id: formData.warehouse_id,
         count_date,
         notes: formData.notes,
       });
+      formData.count_no = res.data?.count_no ?? '';
     }
-    ElMessage.success(t('inventoryCount.formDialogTab.messageSuccess'));
+    ElMessage.success(
+      formData.id
+        ? t('inventoryCount.formDialogTab.messageSuccess')
+        : t('message.createSuccessWithNo', { no: formData.count_no })
+    );
     emit('update:modelValue', false);
     emit('submitted');
   } catch (error) {

@@ -203,16 +203,6 @@ export function deleteTransferItem(itemId: number) {
 }
 
 /**
- * 生成库存调拨单号
- * GET /inventory/transfers/generate-no
- *
- * 单据号格式：`IT{yyyyMMdd}{4 位流水}`，例如 `IT202605140001`。
- * 后端通过 DocumentNumberGenerator 统计当日同前缀单据数量 + 1 计算流水。
- */
-export const generateInventoryTransferNo = (): Promise<ApiResponse<{ transfer_no: string }>> =>
-  request.get('/inventory/transfers/generate-no');
-
-/**
  * 匹状态词表（出库第四维选择器用到的取值）。唯一事实来源 = 后端写入方
  * `models/status/purchase_inventory.rs::inventory_piece`（大写 token，与
  * `handlers/inventory_piece_handler.rs` 的 PIECE_STATUS_DOMAIN 逐字符相同）。

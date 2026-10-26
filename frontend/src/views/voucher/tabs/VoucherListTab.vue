@@ -73,9 +73,9 @@ const vchrProc = useVchrLstProc(toRef(vchr, 'tableData'), vchr.loadData);
 // 对话框可见性本地 ref
 const dialogVisible = ref(false);
 const viewDialogVisible = ref(false);
-/** 新增凭证：composable 准备数据，本地打开对话框 */
-const onAdd = async () => {
-  await vchr.openAddDialog();
+/** 新增凭证：composable 重置表单，本地打开对话框（单号由建单响应回带，不在新增态预取） */
+const onAdd = () => {
+  vchr.openAddDialog();
   dialogVisible.value = true;
 };
 

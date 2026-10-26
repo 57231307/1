@@ -22,7 +22,6 @@ use crate::services::inventory_count_service::{
 };
 use crate::utils::data_scope::check_resource_owner_by_member_scope;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
@@ -445,26 +444,6 @@ pub async fn reject_count(
     let mut resp: CountResponse = updated.into();
     resp.items = detail.items.into_iter().map(Into::into).collect();
     Ok(Json(ApiResponse::success(resp)))
-}
-
-/// 生成库存盘点单号 GET /api/v1/erp/inventory/counts/generate-no；单据号格式：`IC{yyyyMMdd}{3 位流水}`
-/// 流水位数与落库权威 `InventoryCountService::create_count` 内
-/// `generate_no_with_txn("IC")`（默认 3 位）对齐； 修复同前缀不同位数
-/// 导致列表与库内单号长度不一致（原展示 4 位）。
-/// 对应前端 api/inventory-count.ts 的 generateInventoryCountNo。
-pub async fn generate_no(
-    State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let count_no = DocumentNumberGenerator::generate_no(
-        &*state.db,
-        "IC",
-        inventory_count::Entity,
-        inventory_count::Column::CountNo,
-    )
-    .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "count_no": count_no
-    }))))
 }
 
 /// 更新单条盘点明细 PUT /api/v1/erp/inventory/counts/items/{itemId}

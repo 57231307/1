@@ -17,6 +17,8 @@
  *   不再硬编码 general/customized；voucher_type 必填、无伪造默认值。
  * - 编辑回显走详情端点（flatten voucher::Model + entries 双命名分录），
  *   查看详情的借贷合计由 entries 前端派生（后端列表/详情无合计列）。
+ * - 单号新增态不预取：建单入参不含 voucher_no，落库权威在事务内按 voucher_type
+ *   分派前缀生成；界面单号一律取创建响应回带的真实值（voucher::Model 天然含之）。
  */
 import { ref, watch, reactive, computed } from 'vue';
 import { msg } from '@/utils/message';
@@ -25,7 +27,6 @@ import {
   createVoucher,
   updateVoucher,
   getVoucherTypes,
-  generateVoucherNo,
   type VoucherEntity,
   type CreateVoucherPayload,
   type UpdateVoucherPayload,
@@ -203,20 +204,12 @@ export function useVchrLst() {
     });
   };
 
-  /** 准备新增对话框数据（父组件调用后需自行打开对话框） */
-  const openAddDialog = async () => {
+  /** 准备新增对话框数据（父组件调用后需自行打开对话框）
+   * 单号不在新增态预取：建单入参不含 voucher_no，落库权威在事务内按 voucher_type
+   * 分派前缀生成，界面单号一律取创建响应回带的真实值。 */
+  const openAddDialog = () => {
     dialogTitle.value = '新增凭证';
     resetForm();
-    try {
-      const res = await generateVoucherNo();
-      const data = (res as { data?: { voucher_no?: string } | string }).data;
-      const voucherNo =
-        typeof data === 'string' ? data : (data as { voucher_no?: string })?.voucher_no || '';
-      form.voucher_no = voucherNo;
-    } catch (error) {
-      logger.error('生成凭证号失败', error);
-      msg.error('generateVoucherNoFailed');
-    }
   };
 
   /**
@@ -270,12 +263,10 @@ export function useVchrLst() {
 
   /** 校验通过后写凭证；只由 handleSubmit 调用，在途判定与释放都在外层 */
   const submitVoucherForm = async () => {
-    if (!form.voucher_no || !form.voucher_date) {
-      msg.warning('requiredFieldsMissing');
-      return false;
-    }
+    // 提交判据三项：类型、日期、借贷平衡。单号由后端建单事务内按类型分派前缀生成，
+    // 不入入参，故不设"单号非空"门（原硬门依赖已废除的预取端点，属死端点阻塞依赖）。
     // P0 修复：凭证类型为后端词表必填键（原前端自创 type 键 + 'general' 值后端不识别）
-    if (!form.voucher_type) {
+    if (!form.voucher_type || !form.voucher_date) {
       msg.warning('requiredFieldsMissing');
       return false;
     }
@@ -308,8 +299,13 @@ export function useVchrLst() {
           voucher_date: form.voucher_date,
           items,
         };
-        await createVoucher(payload);
-        msg.success('createSuccess');
+        // 建单响应回带 voucher::Model（含事务内生成的真实 voucher_no），
+        // 回读写入表单并在成功提示外显，界面不再展示任何未落库的预取值
+        const res = await createVoucher(payload);
+        if (res.data?.voucher_no) {
+          form.voucher_no = res.data.voucher_no;
+        }
+        msg.success('createSuccessWithNo', { no: res.data?.voucher_no ?? '' });
       }
       await loadData();
       return true;

@@ -397,26 +397,6 @@ pub async fn get_voucher_types()
     ))
 }
 
-/// 生成凭证编号
-pub async fn generate_voucher_no(
-    State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    use crate::models::voucher;
-    use crate::utils::number_generator::DocumentNumberGenerator;
-
-    let voucher_no = DocumentNumberGenerator::generate_no(
-        &*state.db,
-        "JZ",
-        voucher::Entity,
-        voucher::Column::VoucherNo,
-    )
-    .await?;
-
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "voucher_no": voucher_no
-    }))))
-}
-
 /// 更新凭证请求 DTO
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, serde::Deserialize)]

@@ -210,10 +210,6 @@ pub fn gl() -> Router<AppState> {
             get(account_subject_handler::export_subjects),
         )
         .route("/vouchers/types", get(voucher_handler::get_voucher_types))
-        .route(
-            "/vouchers/generate-no",
-            get(voucher_handler::generate_voucher_no),
-        )
         .route("/vouchers", get(voucher_handler::list_vouchers))
         .route(
             "/vouchers/{id}",

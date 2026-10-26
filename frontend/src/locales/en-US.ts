@@ -1344,6 +1344,7 @@ export default {
     saveSuccess: 'Saved successfully',
     saveFailed: 'Save failed',
     createSuccess: 'Created successfully',
+    createSuccessWithNo: 'Created successfully, document no. {no}',
     createFailed: 'Creation failed',
     updateSuccess: 'Updated successfully',
     updateFailed: 'Update failed',

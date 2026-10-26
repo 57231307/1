@@ -104,10 +104,6 @@ fn transfer_routes() -> Router<AppState> {
             get(inventory_transfer_handler::list_transfers),
         )
         .route(
-            "/transfers/generate-no",
-            get(inventory_transfer_handler::generate_no),
-        )
-        .route(
             "/transfers",
             post(inventory_transfer_handler::create_transfer),
         )
@@ -150,10 +146,6 @@ fn adjustment_routes() -> Router<AppState> {
         .route(
             "/adjustments",
             get(inventory_adjustment_handler::list_adjustments),
-        )
-        .route(
-            "/adjustments/generate-no",
-            get(inventory_adjustment_handler::generate_no),
         )
         .route(
             "/adjustments",
@@ -239,10 +231,6 @@ fn count_routes() -> Router<AppState> {
         .route(
             "/counts/{id}/reject",
             post(inventory_count_handler::reject_count),
-        )
-        .route(
-            "/counts/generate-no",
-            get(inventory_count_handler::generate_no),
         )
         .route(
             "/counts/items/{item_id}",

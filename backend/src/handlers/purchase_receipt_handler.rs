@@ -13,7 +13,6 @@ use crate::services::purchase_receipt_dto::{
 };
 use crate::services::purchase_receipt_service::PurchaseReceiptService;
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
@@ -444,26 +443,6 @@ pub async fn delete_receipt_item(
         (),
         "入库明细删除成功",
     )))
-}
-
-/// 生成采购入库单号 GET /api/v1/erp/purchase/receipts/generate-no；单据号格式：`PR{yyyyMMdd}{3 位流水}`
-/// 例如 `PR20260514001`。前缀/位数与落库权威
-/// `PurchaseReceiptService::generate_receipt_no`（impl_generate_no! "PR"，默认 3 位）逐字一致，
-/// 保证展示码与落库码同源。
-/// 依赖数据库 `purchase_receipt.receipt_no` 列上的 `UNIQUE` 约束保证最终唯一性。
-pub async fn generate_no(
-    State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let receipt_no = DocumentNumberGenerator::generate_no(
-        &*state.db,
-        "PR",
-        purchase_receipt::Entity,
-        purchase_receipt::Column::ReceiptNo,
-    )
-    .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "receipt_no": receipt_no
-    }))))
 }
 
 /// POST /api/v1/erp/purchase/receipts/:id/recalculate - 手动重算入库单总金额（运维兜底入口）

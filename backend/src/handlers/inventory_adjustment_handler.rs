@@ -7,7 +7,6 @@ use crate::services::inventory_adjustment_service::{
     UpdateAdjustmentRequest,
 };
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::response::ApiResponse;
 use axum::{
     Json,
@@ -644,24 +643,4 @@ pub async fn delete_item(
 
     service.delete_item(item_id).await?;
     Ok(Json(ApiResponse::success(())))
-}
-
-/// 生成库存调整单号 GET /api/v1/erp/inventory/adjustments/generate-no；单据号格式：`ADJ{yyyyMMdd}{3 位流水}`
-/// 例如 `ADJ20260514001`。前缀/位数与落库权威
-/// `InventoryAdjustmentService::generate_adjustment_no`（impl_generate_no! "ADJ"，默认 3 位）逐字一致，
-/// 修复展示码≠落库码双轨缺陷（原展示 "IA"/4 位）。
-/// 数据库列 `inventory_adjustments.adjustment_no` 上的 `UNIQUE` 约束负责最终去重。
-pub async fn generate_no(
-    State(state): State<AppState>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    let adjustment_no = DocumentNumberGenerator::generate_no(
-        &*state.db,
-        "ADJ",
-        inventory_adjustment::Entity,
-        inventory_adjustment::Column::AdjustmentNo,
-    )
-    .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({
-        "adjustment_no": adjustment_no
-    }))))
 }

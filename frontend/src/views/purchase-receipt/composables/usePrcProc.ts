@@ -21,7 +21,6 @@ import {
   createReceiptItem,
   updateReceiptItem,
   deleteReceiptItem,
-  generatePurchaseReceiptNo,
   concedePurchaseReceipt,
   rejudgePurchaseReceipt,
 } from '@/api/purchase-receipt';
@@ -132,7 +131,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     cb.loadData();
   };
 
-  /** 打开新增对话框（预生成单号供参考，后端保存时以最终生成为准） */
+  /** 打开新增对话框（单号新增态不预取：建单入参不含该字段，界面单号取建单响应回带的真实值） */
   const openAddDialog = () => {
     cb.dialogTitle = msg.translate('addReceiptTitle');
     // 编辑态残留（已删行 / 辅量原值表）随新建作废
@@ -159,18 +158,6 @@ export function usePrcProc(cb: PrcCallbacks) {
       ],
     };
     cb.dialogVisible = true;
-    // 预生成单号展示（generatePurchaseReceiptNo，后端保存时最终生成）
-    void generatePurchaseReceiptNo()
-      .then(res => {
-        const no = res.data?.receipt_no;
-        if (no && !cb.form.id) {
-          cb.form.receipt_no = no;
-          cb.dialogTitle = msg.translate('addReceiptTitleWithNo', { no });
-        }
-      })
-      .catch(error => {
-        logger.error(msg.translate('pregenReceiptNoFailed'), error);
-      });
   };
 
   /** 打开编辑对话框 */
@@ -390,8 +377,12 @@ export function usePrcProc(cb: PrcCallbacks) {
           receipt_date: cb.form.receipt_date as string,
           items: validItems.map(mapItem),
         };
-        await createPurchaseReceipt(payload);
-        msg.success('createSuccess');
+        // 建单响应回带真实 receipt_no（后端落库权威生成），回读外显，不展示预取值
+        const res = await createPurchaseReceipt(payload);
+        if (res.data?.receipt_no) {
+          cb.form.receipt_no = res.data.receipt_no;
+        }
+        msg.success('createSuccessWithNo', { no: res.data?.receipt_no ?? '' });
       }
       cb.dialogVisible = false;
       await cb.loadData();

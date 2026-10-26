@@ -105,9 +105,6 @@
           >
             <el-icon><Plus /></el-icon>{{ t('inventoryTransfer.transferList.button.create') }}
           </el-button>
-          <el-button plain @click="handleGenerateNo">
-            {{ t('inventoryTransfer.transferList.button.generateNo') }}
-          </el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -238,10 +235,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Document, Clock, CircleCheck, Money, Plus } from '@element-plus/icons-vue';
 import { executeInventoryTransfer } from '@/api/inventory';
-import {
-  generateInventoryTransferNo,
-  type InventoryTransferEntity,
-} from '@/api/inventory-transfer';
+import { type InventoryTransferEntity } from '@/api/inventory-transfer';
 import { useTableApi } from '@/composables/useTableApi';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { formatCurrency } from '@/utils';
@@ -352,20 +346,7 @@ const handleShip = async (row: InventoryTransferEntity) => {
   }
 };
 
-// 取号：预生成调拨单号（供线下单据核对/登记使用）
-const handleGenerateNo = async () => {
-  try {
-    const res = await generateInventoryTransferNo();
-    const no =
-      (res.data as { transfer_no?: string })?.transfer_no ??
-      (res as { transfer_no?: string })?.transfer_no;
-    ElMessageBox.alert(no || '-', t('inventoryTransfer.transferList.message.generateNoTitle'));
-  } catch (error) {
-    ElMessage.error(
-      (error as Error).message || t('inventoryTransfer.transferList.message.failure')
-    );
-  }
-};
+// 取号按钮与预取号端点整体废除：本仓无号段预留机制，未落库的号展示给员工抄单属虚假承诺
 </script>
 
 <style scoped>
