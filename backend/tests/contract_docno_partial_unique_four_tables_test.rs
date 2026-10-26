@@ -23,12 +23,12 @@
 
 mod test_common;
 
-use bingxi_backend::models::{
-    cost_collection, process_wage_rate, production_recipe, production_recipe_addition, wage_record,
-};
 use bingxi_backend::models::status::{
     production_recipe as recipe_status, production_recipe_addition as addition_status,
     wage_rate_status, wage_record_status, wage_type,
+};
+use bingxi_backend::models::{
+    cost_collection, process_wage_rate, production_recipe, production_recipe_addition, wage_record,
 };
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
@@ -57,7 +57,11 @@ const FOUR_INDEXES: [(&str, &str, &str); 4] = [
         "process_wage_rate",
         "rate_no",
     ),
-    ("uq_wage_record_record_no_active", "wage_record", "record_no"),
+    (
+        "uq_wage_record_record_no_active",
+        "wage_record",
+        "record_no",
+    ),
 ];
 
 fn migration_src() -> String {
@@ -147,9 +151,7 @@ async fn live_db_has_no_existing_active_duplicate_doc_no() {
         assert_eq!(
             dup_groups, 0,
             "{} 表 {} 列存在 {} 组活跃重复单号，m0104 守卫应已拒绝建索引，走到这里说明约束缺失或数据被旁路洗过",
-            table,
-            column,
-            dup_groups
+            table, column, dup_groups
         );
     }
 }
@@ -199,9 +201,7 @@ async fn live_db_has_all_four_partial_unique_indexes() {
             .unwrap_or_else(|e| panic!("查询 {} 的索引回读失败: {e}", index));
         let defs: Vec<String> = rows
             .iter()
-            .map(|r: &QueryResult| {
-                r.try_get_by_index::<String>(0).expect("indexdef 解码失败")
-            })
+            .map(|r: &QueryResult| r.try_get_by_index::<String>(0).expect("indexdef 解码失败"))
             .collect();
         assert_eq!(
             defs.len(),
@@ -276,7 +276,10 @@ async fn live_db_rejects_duplicate_active_doc_no_on_five_tables() {
     .expect("哨兵加料处方插入失败");
     let mut dup = seed.clone().into_active_model();
     dup.id = Default::default();
-    expect_unique_violation(dup.insert(&db).await, "production_recipe_addition.addition_no");
+    expect_unique_violation(
+        dup.insert(&db).await,
+        "production_recipe_addition.addition_no",
+    );
 
     let seed = process_wage_rate::ActiveModel {
         rate_no: Set("UQPWRB-SEED".to_string()),
