@@ -210,9 +210,9 @@
               <el-table-column :label="$t('budget.item.period.amount')" width="150">
                 <template #default="{ row }">
                   <el-input
-                    v-model="periodAmountField(row).text"
+                    v-model="periodAmountField(row, 'planned_amount').text"
                     style="width: 100%"
-                    @blur="periodAmountField(row).normalize()"
+                    @blur="periodAmountField(row, 'planned_amount').normalize()"
                   />
                 </template>
               </el-table-column>

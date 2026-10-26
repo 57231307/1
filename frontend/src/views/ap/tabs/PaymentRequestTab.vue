@@ -234,9 +234,9 @@
               <el-table-column :label="t('apModule.paymentRequest.colApplyAmount')" width="170">
                 <template #default="{ row }">
                   <el-input
-                    v-model="applyAmountField(row).text"
+                    v-model="applyAmountField(row, 'apply_amount').text"
                     style="width: 100%"
-                    @blur="applyAmountField(row).normalize()"
+                    @blur="applyAmountField(row, 'apply_amount').normalize()"
                   />
                 </template>
               </el-table-column>

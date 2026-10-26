@@ -164,12 +164,17 @@ export function useNumberField(
 /**
  * 表格行内单元格的桥接池 按行对象惰性建桥 同一行同一列共用一个草稿
  * 桥的 watch 挂在独立 effectScope 上 宿主组件销毁时统一回收
- * 行数组 splice 或整表重建时调用 forget 释放旧行桥（行对象身份失效后草稿无意义）
+ * 行数组整体重建时调用 forget 释放旧行桥（行对象身份失效后草稿无意义）
  */
+export interface NumberFieldPool {
+  <T extends object>(row: T, key: keyof T): NumberFieldBridge;
+  forget: () => void;
+}
+
 export function createNumberFieldPool(
   spec: NumberFieldSpec,
   emptyAs: 'null' | 'undefined' = 'null'
-) {
+): NumberFieldPool {
   const scope = effectScope();
   const pool = new Map<object, NumberFieldBridge>();
   onScopeDispose(() => scope.stop());
@@ -185,6 +190,7 @@ export function createNumberFieldPool(
     pool.set(row, created);
     return created;
   };
-  accessor.forget = () => pool.clear();
-  return accessor;
+  const pool2 = accessor as NumberFieldPool;
+  pool2.forget = () => pool.clear();
+  return pool2;
 }
