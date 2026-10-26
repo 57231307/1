@@ -38,8 +38,11 @@ pub mod quality_dyeing;
 pub mod wage_energy_chemical_business;
 pub mod export_inspection;
 pub mod print;
+// 合同模板体系词表，八组取值域，DB 侧 CHECK 与本文件各 ALL 逐元素相等
+pub mod contract_template;
 
 pub use bpm_crm_contract::*;
+pub use contract_template::*;
 pub use export_inspection::*;
 pub use finance::*;
 pub use general::*;
