@@ -2510,7 +2510,8 @@ async function ensureGlobalBusinessSeed(
                 lot_no: dyeLotNo,
                 grade: '一等品',
                 quantity: '10000',
-                quantity_alt: '0',
+                // 库存种子必经确认入账腿，公斤数必须可确定（与主量同值为造数口径）
+                quantity_alt: '10000',
                 unit_master: unitMaster,
               },
             ],
@@ -2666,7 +2667,9 @@ async function ensureGlobalBusinessSeed(
                   lot_no: `E2E-IL${ts}`,
                   grade: '一等品',
                   quantity: quantity,
-                  quantity_alt: '0',
+                  // 该种子既用于 pending（不确认）也用于已确认入库行（确认腿），
+                  // 公斤数必须可确定，统一显式给值（与主量同值为造数口径）
+                  quantity_alt: quantity,
                   unit_master: insUnit,
                   unit_price: '15.00',
                 },

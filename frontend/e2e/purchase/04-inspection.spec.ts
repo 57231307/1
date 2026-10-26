@@ -136,7 +136,8 @@ async function seedConfirmedReceipt(page: import('@playwright/test').Page): Prom
         lot_no: `E2E-IL${ts}`,
         grade: '一等品',
         quantity: '500',
-        quantity_alt: '0',
+        // 确认入账腿经受理门 resolve_inbound_quantity_kg，公斤数必须可确定（与主量同值为造数口径）
+        quantity_alt: '500',
         unit_master: unitMaster,
         unit_price: '15.00',
       },

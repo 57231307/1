@@ -331,6 +331,10 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       dye_lot_no: '',
       grade: '一等品',
       quantity_meters: '100.00',
+      // 受理门顺序为 度量收口先于追溯收口，公斤数与来源单号先给足，
+      // 本负例的拒绝原因才归因到缸号门而非被公斤数或来源单号门抢拒
+      quantity_kg: '60.00',
+      source_bill_no: genCode('E2E67SRC'),
     });
     expectVisibleBusinessRejection(
       r,
@@ -368,6 +372,9 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       dye_lot_no: dyeLotOk,
       grade: '一等品',
       quantity_meters: '100.00',
+      // 正例补齐受理门必填的公斤数与来源单号，落库后按四维可回读
+      quantity_kg: '60.00',
+      source_bill_no: genCode('E2E67SRC'),
     });
     const stockId = Number(stocked.data?.id);
     expect(stockId, `[67-04] 补齐缸号后应入库成功：${JSON.stringify(stocked)}`).toBeGreaterThan(0);
@@ -435,6 +442,9 @@ test.describe.serial('67 业务拒绝文案可见性（被拒不等于一片脱�
       color_no: '',
       grade: '一等品',
       quantity_meters: '50.00',
+      // 白坯同样经受理门，公斤数与来源单号必填，显式给足后才走白坯免缸号的追溯放行
+      quantity_kg: '30.00',
+      source_bill_no: genCode('E2E67SRC'),
     });
     const greigeId = Number(greige.data?.id);
     expect(greigeId, `[67-05] 补齐批次后白坯应入库：${JSON.stringify(greige)}`).toBeGreaterThan(0);

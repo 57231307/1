@@ -304,7 +304,10 @@ test.describe.serial('44f 真实实体全流转链', () => {
           // 此前该用例被 44f-3 串行失败挡在门外从未执行，掩盖了同一建单入参缺陷。
           batch_no: `44F-B${Date.now().toString().slice(-6)}`,
           quantity: 10,
-          quantity_alt: 0,
+          // 确认入账腿经受理门 require_stock_grade 与 resolve_inbound_quantity_kg，
+          // 等级必须是库存词表值、公斤数必须可确定，造数显式给足（公斤数与主量同值为造数口径）
+          quantity_alt: 10,
+          grade: '一等品',
           unit_master: prod.unit,
         },
       ],

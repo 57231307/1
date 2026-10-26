@@ -885,7 +885,8 @@ test.describe('95 采购收货→入库→应付→付款 数值对账链', () =
           batch_no: batch,
           grade,
           quantity: '4',
-          quantity_alt: '0',
+          // 确认入账腿经受理门 resolve_inbound_quantity_kg，公斤数必须可确定（与主量同值为造数口径）
+          quantity_alt: '4',
           unit_master: pB.unit,
           unit_price: '25.00',
         },

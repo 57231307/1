@@ -131,6 +131,8 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           unit_master: 'm',
           quantity: 500,
           quantity_alt: 100,
+          // 确认入账腿经受理门 require_stock_grade，验布定级结论必须是库存等级词表值
+          grade: '一等品',
           color_code: 'RED-001',
           lot_no: dyeLotNo,
           batch_no: 'B001',
@@ -144,6 +146,7 @@ test.describe.serial('Shard 1: 现货模式 P2P 闭环（grey_trading）', () =>
           unit_master: 'm',
           quantity: 500,
           quantity_alt: 100,
+          grade: '一等品',
           color_code: 'RED-001',
           lot_no: dyeLotNo,
           batch_no: 'B001',

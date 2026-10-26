@@ -79,7 +79,9 @@ test.describe.serial('48 静默降级补偿断言（P2C/O2C 全链）', () => {
             // 四维不全，拒绝建单」。收货明细须带批次号才能落库并进入后续确认→AP 补偿链。
             batch_no: `M48-B${Date.now().toString().slice(-6)}`,
             quantity: 10,
-            quantity_alt: 0,
+            // 本用例断言确认入库应成功，须过确认入账腿受理门，等级落库存词表、公斤数可确定
+            quantity_alt: 10,
+            grade: '一等品',
             unit_master: '米',
           },
         ],
