@@ -15,7 +15,9 @@ use bingxi_backend::services::sku_mapping_service::{
     BatchCreateMappingResult, SkuMappingService, UpsertSkuMappingInput,
 };
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, EntityTrait, PaginatorTrait};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
+};
 use std::sync::Arc;
 
 const SERVICE_SRC: &str = include_str!("../src/services/sku_mapping_service.rs");
@@ -140,23 +142,49 @@ fn batch_reference_checks_are_set_based() {
 }
 
 /// 五条引用规则在单条臂与批量臂成对存在，改一臂必须改另一臂。
+///
+/// 判据按两臂各自的取数语法成对给出：单条臂逐行 find_by_id 后比归属字段，
+/// 批量臂按 id 全集 IN 一次取回后在内存比同一归属语义。规则本体一致，
+/// 语法形态不同，故不能用同一串判据硬套两臂。
 #[test]
 fn both_validation_arms_cover_the_same_five_reference_rules() {
     let code = code_only(SERVICE_SRC);
     let single = extract_fn(&code, "async fn validate_refs");
     let batch = extract_fn(&code, "async fn collect_batch_failures");
-    // 每条规则用「归属比对所读的列」作判据，两臂都要命中，缺一臂即判红
-    for needle in [
-        "product::Column::Id",
-        "supplier::Column::Id",
-        "supplier_product::Column::SupplierId",
-        "product_color::Column::ProductId",
-        "supplier_product_color::Column::SupplierProductId",
+    for (single_needle, batch_needle, rule) in [
+        (
+            "product::Entity::find_by_id(input.product_id)",
+            "product::Column::Id.is_in(",
+            "我方产品存在性",
+        ),
+        (
+            "pc.product_id != input.product_id",
+            "(pc.id, pc.product_id)",
+            "我方色号存在且归属所选产品",
+        ),
+        (
+            "supplier::Column::Id.eq(input.supplier_id)",
+            "supplier::Column::Id.is_in(",
+            "供应商存在性",
+        ),
+        (
+            "sp.supplier_id != input.supplier_id",
+            "(sp.id, sp.supplier_id)",
+            "供应商商品存在且归属所选供应商",
+        ),
+        (
+            "spc.supplier_product_id != input.supplier_product_id",
+            "(spc.id, spc.supplier_product_id)",
+            "供应商色号存在且归属所选供应商商品",
+        ),
     ] {
-        assert!(canon_contains(single, needle), "单条臂缺引用规则 {needle}");
         assert!(
-            canon_contains(batch, needle),
-            "批量臂缺引用规则 {needle}，两臂口径会漂移"
+            canon_contains(single, single_needle),
+            "单条臂缺引用规则（{rule}）判据 {single_needle}"
+        );
+        assert!(
+            canon_contains(batch, batch_needle),
+            "批量臂缺引用规则（{rule}）判据 {batch_needle}，两臂口径会漂移"
         );
     }
 }
@@ -189,7 +217,7 @@ fn duplicate_reasons_are_separated_by_cause() {
 fn batch_route_is_registered() {
     let code = code_only(ROUTES_SRC);
     assert!(
-        canon_contains(code, "\"/sku-mappings/batch\""),
+        canon_contains(&code, "\"/sku-mappings/batch\""),
         "批量新增路由未注册，前端调用会 404"
     );
     let at = code
@@ -240,7 +268,7 @@ fn frontend_consumes_the_same_batch_contract() {
         .split("interface SkuMappingBatchResult")
         .nth(1)
         .expect("前端应声明批量新增出参类型")
-        .split(';')
+        .split('}')
         .next()
         .unwrap_or_default()
         .to_string();
@@ -305,8 +333,7 @@ async fn seed_sku_chain(
     .await
     .expect("夹具应能写入对照产品");
 
-    let zero_tz = chrono::FixedOffset::east_opt(0).unwrap();
-    let sup_now = zero_tz.from_utc_datetime(&now.naive_utc());
+    let sup_now = now.with_timezone(&chrono::FixedOffset::east_opt(0).unwrap());
     let supplier = bingxi_backend::models::supplier::ActiveModel {
         supplier_code: Set(format!("SUP-BATCH-{suffix}")),
         supplier_name: Set(format!("批量对照测试供应商-{suffix}")),
@@ -332,7 +359,7 @@ async fn seed_sku_chain(
 
     let supplier_product = bingxi_backend::models::supplier_product::ActiveModel {
         supplier_id: Set(supplier.id),
-        product_code: Set(format("SP-BATCH-{suffix}")),
+        product_code: Set(format!("SP-BATCH-{suffix}")),
         product_name: Set("批量对照测试供应商面料".to_string()),
         unit: Set("米".to_string()),
         is_enabled: Set(true),
@@ -881,6 +908,7 @@ fn canon(src: &str) -> String {
         }
         out = next;
     }
+    out
 }
 
 #[allow(dead_code)]
@@ -888,15 +916,30 @@ fn canon_contains(src: &str, needle: &str) -> bool {
     canon(src).contains(&canon(needle))
 }
 
-/// 以签名行为锚点取函数体，锚点丢失必须点名 panic，不允许回退成文件头。
+/// 以签名行为锚点取函数体（从签名后第一个花括号起做配平取到函数尾，
+/// 嵌套控制块与多行字面量的花括号都计入配平），锚点丢失必须点名 panic，
+/// 不允许回退成文件头。
 #[allow(dead_code)]
 fn extract_fn<'a>(code_src: &'a str, sig: &str) -> &'a str {
     let start = code_src
         .find(sig)
         .unwrap_or_else(|| panic!("源码锚点丢失，{sig}"));
     let rest = &code_src[start..];
-    match rest.find("\n    }") {
-        Some(end) => &rest[..end],
-        None => rest,
+    let brace_at = rest
+        .find('{')
+        .unwrap_or_else(|| panic!("源码锚点后未找到函数体起点，{sig}"));
+    let mut depth = 0usize;
+    for (idx, ch) in rest[brace_at..].char_indices() {
+        match ch {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &rest[..brace_at + idx + 1];
+                }
+            }
+            _ => {}
+        }
     }
+    rest
 }
