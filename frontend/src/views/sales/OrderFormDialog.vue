@@ -198,19 +198,9 @@
             <div class="total-amount">¥{{ calculateTotal().toLocaleString() }}</div>
           </el-form-item>
         </el-col>
-        <el-col :span="8">
-          <el-form-item :label="t('sales.orderForm.taxAmount')">
-            <div class="total-amount">¥{{ (calculateTotal() * 0.13).toLocaleString() }}</div>
-          </el-form-item>
-        </el-col>
-        <el-col :span="8">
-          <el-form-item :label="t('sales.orderForm.totalWithTax')">
-            <div class="total-amount highlight">
-              ¥{{ (calculateTotal() * 1.13).toLocaleString() }}
-            </div>
-          </el-form-item>
-        </el-col>
       </el-row>
+      <!-- 税额与含税总额不在建单表单里由前端乘税率造出：本表单不采集税率档位，
+           价税分离一律由后端按真实 tax_rate 除法反算回传，见 OrderViewDialog 的详情展示 -->
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{

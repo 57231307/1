@@ -225,7 +225,12 @@ import {
 } from '@/api/quotation';
 import { getCustomerList } from '@/api/customer';
 import { useUserStore } from '@/store/user';
-import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
+import {
+  decimalWireToNumber,
+  formatDecimalAmount,
+  netFromInclusive,
+  roundToCent,
+} from '@/utils/money';
 import QuotationItemEditor from './components/QuotationItemEditor.vue';
 import TermEditor from './components/TermEditor.vue';
 
@@ -338,20 +343,29 @@ const rules: FormRules = {
 
 const customers = ref<Array<{ id: number; customer_name?: string; name?: string }>>([]);
 
-/** 金额计算：编辑态 quantity/unit_price/tax_rate 是 number，直接算得本地展示值；提交时才转字符串 */
-const subtotal = computed(
-  () =>
-    form.items.reduce(
-      (sum: number, i: QuotationItemEditForm) => sum + (i.quantity || 0) * (i.unit_price || 0),
-      0
-    ) || 0
-);
-/** 税额展示，含税价口径下税额为 0，不含税时按单据税率（百分数）算，税率未填不出数（不做数字兜底） */
-const taxAmount = computed(() => {
-  if (form.tax_inclusive || form.tax_rate === undefined) return 0;
-  return (subtotal.value * form.tax_rate) / 100;
+/** 金额计算，编辑态 quantity/unit_price_with_tax/tax_rate 是 number，直接算得本地展示值；提交时才转字符串。
+ *  方向口径与后端 utils/tax.rs 与 quotation_ops 同源：含税单价是录入事实，
+ *  含税总额是「含税单价 × 数量」的事实聚合（税率不进此乘法），不含税净额由除法反算，
+ *  税额取「含税合计 − 净额合计」的差额，本模块绝不写「净额 × 税率」造税额或「× (1+税率)」造含税。 */
+const headerTotals = computed(() => {
+  const rate = form.tax_rate;
+  let gross = 0;
+  let net = 0;
+  for (const i of form.items) {
+    const lineInclusive = roundToCent((i.quantity || 0) * (i.unit_price_with_tax || 0));
+    gross += lineInclusive;
+    net += rate === undefined ? 0 : netFromInclusive(lineInclusive, rate);
+  }
+  const total = roundToCent(gross);
+  const subtotalNet = roundToCent(net);
+  return { subtotal: subtotalNet, tax: roundToCent(total - subtotalNet), total };
 });
-const totalAmount = computed(() => subtotal.value + taxAmount.value);
+/** 不含税净额合计（税率未填时无法反算，留 0 待税率到位） */
+const subtotal = computed(() => headerTotals.value.subtotal);
+/** 税额是含税与净额之差，不是任何税率乘法的结果（税率未填不出数，不做数字兜底） */
+const taxAmount = computed(() => headerTotals.value.tax);
+/** 含税总额是录入含税事实的聚合 */
+const totalAmount = computed(() => headerTotals.value.total);
 
 /** 加载客户下拉 */
 async function loadCustomers() {

@@ -120,13 +120,8 @@
 
       <el-table-column :label="t('quotations.itemEditor.colUnitPrice')" min-width="130">
         <template #default="{ row }">
-          <el-input-number
-            v-model="row.unit_price"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-            @change="(v: number | undefined) => recalcTax(row, v)"
-          />
+          <!-- 不含税单价是派生只读值：由含税单价按单据税率除法反算得出，不可手输 -->
+          {{ currency }} {{ formatAmount(row.unit_price) }}
         </template>
       </el-table-column>
 
@@ -137,6 +132,7 @@
             :min="0"
             :precision="2"
             style="width: 100%"
+            @change="(v: number | undefined) => recalcNet(row, v)"
           />
         </template>
       </el-table-column>
@@ -166,7 +162,8 @@
 // - v-model 双向绑定
 // - 产品：服务端搜索选择 + 主档缓存回查（GET /products 分页上限 100，本地全量过滤不可靠）
 // - 单位与规格写入行对象随保存落库；编码/成分/幅宽/克重只读展示自产品主档
-// - 含税单价 = 单价 乘 (1 + 单据税率% 除 100)，税率由父组件（单据）传入
+// - 含税单价是录入事实（主输入），不含税单价由内核同源算法除法反算得出、只读展示；
+//   本组件绝不写「不含税单价 × (1 + 税率)」造含税价，税率由父组件（单据）传入
 import { onMounted, ref, watch } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
@@ -175,7 +172,7 @@ import { Plus } from '@element-plus/icons-vue';
 import { getProductColorList, getProductById, getProductList } from '@/api/product';
 import type { Product } from '@/api/product';
 import type { QuotationItemEditForm } from '@/api/quotation';
-import { formatDecimalAmount } from '@/utils/money';
+import { formatDecimalAmount, netFromInclusive } from '@/utils/money';
 
 // 明细行编辑态：金额/数量字段是 number 与 el-input-number 双向绑定；
 // 提交时由 quotationToWire 在 create.vue 边界转 DecimalWire 字符串上送后端
@@ -352,12 +349,13 @@ async function handleProductChange(row: QuotationItemRow, productId: number | un
   emit('update:modelValue', [...props.modelValue]);
 }
 
-/** 单价变化时按单据税率（百分数）重算含税单价，税率未填写则不造含税价 */
-function recalcTax(row: QuotationItemRow, unitPrice: number | undefined) {
-  if (unitPrice === undefined) return;
-  row.unit_price = unitPrice;
-  row.unit_price_with_tax =
-    props.taxRate === undefined ? 0 : +(unitPrice * (1 + props.taxRate / 100)).toFixed(2);
+/** 含税单价（录入事实）变化时，按单据税率（百分数）除法反算不含税单价；
+ *  税率未填写则净额无法反算，置 0 待税率到位后由税率 watch 重算，本函数绝不做「净额 × (1+税率)」造含税 */
+function recalcNet(row: QuotationItemRow, inclusiveUnitPrice: number | undefined) {
+  if (inclusiveUnitPrice === undefined) return;
+  row.unit_price_with_tax = inclusiveUnitPrice;
+  row.unit_price =
+    props.taxRate === undefined ? 0 : netFromInclusive(inclusiveUnitPrice, props.taxRate);
   // 触发金额更新
   emit('update:modelValue', [...props.modelValue]);
 }
@@ -373,13 +371,13 @@ watch(
   { deep: true }
 );
 
-/** 单据税率变化后重算所有已填单价行的含税单价（先填价后填税率是常见顺序） */
+/** 单据税率变化后重算所有已填含税单价行的不含税净额（先填价后填税率是常见顺序） */
 watch(
   () => props.taxRate,
   () => {
     props.modelValue.forEach((i: QuotationItemRow) => {
-      if (i.unit_price) {
-        recalcTax(i, i.unit_price);
+      if (i.unit_price_with_tax) {
+        recalcNet(i, i.unit_price_with_tax);
       }
     });
   }

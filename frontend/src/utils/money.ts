@@ -60,3 +60,26 @@ export function formatDecimalAmount(
 export function numberToDecimalWire(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);
 }
+
+/**
+ * 分位收敛（四舍五入到分，half-up），与后端 rust_decimal `round_dp(2)` 同一口径。
+ * 加 Number.EPSILON 抵消浮点乘除尾差，仅供前端本地预览用；落库权威值仍由后端 Decimal 收敛，
+ * 本函数不参与任何真实金额生成，只保证预览展示的分位与后端一致。
+ * 调用方：本文件 [`netFromInclusive`]，以及需要「先收敛再比较」的含税预览腿。
+ */
+export function roundToCent(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * 含税金额（或含税单价）反算不含税净额，四舍五入到分（唯一合法方向：除法反算）。
+ * 与后端 `backend/src/utils/tax.rs` 的 `net_from_inclusive` 同一算法：
+ * `净额 = 含税 ÷ (1 + 税率% ÷ 100)`，0 税率与免税走同一条除法（退化为等值），函数内无税率分支。
+ * 入参，inclusive 是含税事实（录入或带入），taxPercent 是百分数口径税率（13 表示 13%）。
+ * 出参是不含税净额预览值。前端只用本函数派生只读展示，绝不写 `净额 × (1 + 税率)` 造含税；
+ * 落库权威值由后端按真实 tax_rate 反算，本函数仅供编辑态预览与钩稽展示。
+ * 调用方：报价明细编辑器与报价表头合计（views/quotations），不含税单价与税额的只读派生展示。
+ */
+export function netFromInclusive(inclusive: number, taxPercent: number): number {
+  return roundToCent(roundToCent(inclusive) / (1 + taxPercent / 100));
+}
