@@ -221,8 +221,12 @@
           >
             {{ t('greigeFabrics.index.buttonStockIn') }}
           </el-button>
+          <!-- 出库走 POST /greige-fabrics/{id}/stock-out，与入库同为 POST，后端权限中间件按
+               方法派生动作得 create（stock-in/stock-out 不在路径动作关键字表内），故入库与
+               出库两个入口的可达键都必须是 greige-fabrics:create，与后端逐字符一致，否则只持
+               update 不含 create 的账号点了必 403，成了假可供按钮 -->
           <el-button
-            v-permission="'greige-fabrics:update'"
+            v-permission="'greige-fabrics:create'"
             size="small"
             type="warning"
             @click="handleStock('out', row)"
