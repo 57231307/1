@@ -239,13 +239,12 @@
     >
       <el-form label-width="96px" @submit.prevent>
         <el-form-item :label="$t('colorCards.detail.stockDialog.field')">
-          <el-input-number
-            v-model="stockInput"
-            :min="0"
-            :step="1"
-            :precision="0"
-            :placeholder="$t('colorCards.detail.stockDialog.placeholder')"
-          />
+          <NumericInput
+v-model="stockInput"
+:placeholder="$t('colorCards.detail.stockDialog.placeholder')"
+:min="0"
+:integer="true"
+/>
         </el-form-item>
         <el-form-item>
           <span class="stock-hint">{{
@@ -354,6 +353,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';

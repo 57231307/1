@@ -83,7 +83,11 @@
           <el-input v-model="form.fabric_name" />
         </el-form-item>
         <el-form-item label="备布重量" required>
-          <el-input-number v-model="form.fabric_weight" :min="1" style="width: 100%" />
+          <NumericInput
+v-model="form.fabric_weight"
+style="width: 100%"
+:min="1"
+/>
         </el-form-item>
         <el-form-item label="色号">
           <el-input v-model="form.color_no" />
@@ -171,7 +175,11 @@
           />
         </el-form-item>
         <el-form-item label="总成本">
-          <el-input-number v-model="additionForm.total_cost" :min="0" :precision="2" />
+          <NumericInput
+v-model="additionForm.total_cost"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item label="备注"><el-input v-model="additionForm.remarks" /></el-form-item>
       </el-form>
@@ -186,13 +194,21 @@
     <el-dialog v-model="calcVisible" title="配方试算（按备布重量/浴比）" width="600px">
       <el-form :model="calcForm" label-width="110px">
         <el-form-item label="备布重量 kg" required>
-          <el-input-number v-model="calcForm.fabric_weight" :min="0.01" :precision="2" />
+          <NumericInput
+v-model="calcForm.fabric_weight"
+:min="0.01"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item label="浴比" required>
           <el-input v-model="calcForm.liquor_ratio" placeholder="如 1:8" />
         </el-form-item>
         <el-form-item label="调整系数">
-          <el-input-number v-model="calcForm.adjustment_factor" :min="0" :precision="2" />
+          <NumericInput
+v-model="calcForm.adjustment_factor"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item label="物料明细" required>
           <el-input
@@ -221,6 +237,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { logger } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useI18n } from 'vue-i18n';

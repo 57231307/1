@@ -99,7 +99,12 @@
           <el-input v-model="form.symbol" :placeholder="t('currency.dialog.symbolPlaceholder')" />
         </el-form-item>
         <el-form-item :label="t('currency.dialog.precision')">
-          <el-input-number v-model="form.precision" :min="0" :max="6" style="width: 100%" />
+          <NumericInput
+v-model="form.precision"
+style="width: 100%"
+:min="0"
+:max="6"
+/>
         </el-form-item>
         <el-form-item :label="t('currency.dialog.isBase')">
           <el-switch v-model="form.is_base" />
@@ -155,13 +160,12 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.rate')" prop="rate">
-          <el-input-number
-            v-model="rateForm.rate"
-            :min="0"
-            :precision="6"
-            :step="0.0001"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="rateForm.rate"
+style="width: 100%"
+:min="0"
+:precision="6"
+/>
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effective_date">
           <el-date-picker
@@ -187,6 +191,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';

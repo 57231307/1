@@ -3,6 +3,7 @@
  * P2-4 质量预测列表 + 创建
  */
 import { reactive, ref, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -284,12 +285,11 @@ const detailRecommendations = computed(() => {
         :aria-label="$t('aiExtend.qualityPrediction.filterAriaLabel')"
       >
         <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')">
-          <el-input-number
-            v-model="queryFilter.product_id"
-            :min="1"
-            controls-position="right"
-            style="width: 140px"
-          />
+          <NumericInput
+v-model="queryFilter.product_id"
+style="width: 140px"
+:min="1"
+/>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="queryFilter.inspection_type" clearable style="width: 140px">
@@ -494,12 +494,11 @@ const detailRecommendations = computed(() => {
         :aria-label="$t('aiExtend.qualityPrediction.formAriaLabel')"
       >
         <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')" required>
-          <el-input-number
-            v-model="form.product_id"
-            :min="1"
-            controls-position="right"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="form.product_id"
+style="width: 100%"
+:min="1"
+/>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="form.inspection_type" style="width: 100%">
@@ -511,7 +510,11 @@ const detailRecommendations = computed(() => {
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.timeWindow')">
-          <el-input-number v-model="form.window_days" :min="7" :max="365" />
+          <NumericInput
+v-model="form.window_days"
+:min="7"
+:max="365"
+/>
           <span class="hint">{{ $t('aiExtend.qualityPrediction.timeWindowHint') }}</span>
         </el-form-item>
         <el-alert
@@ -657,7 +660,11 @@ const detailRecommendations = computed(() => {
     <!-- 按产品查询（getQualityPredictionListByProduct） -->
     <el-dialog v-model="byProductVisible" title="按产品查询预测历史" width="680">
       <div class="toolbar" style="margin-bottom: 8px">
-        <el-input-number v-model="byProductId" :min="1" placeholder="产品 ID" />
+        <NumericInput
+v-model="byProductId"
+placeholder="产品 ID"
+:min="1"
+/>
         <el-button type="primary" plain :loading="byProductLoading" @click="loadByProduct">
           查询
         </el-button>

@@ -916,7 +916,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
   try {
     await safeGoto(page, '/custom-orders/new');
     await page.waitForTimeout(800);
-    // customer_id / product_id 是 el-input-number（手填数字 ID）
+    // customer_id / product_id 是手写数字录入（手填数字 ID）
     const inputs = page.locator('input[type="number"]');
     const inputCount = await inputs.count();
     if (inputCount >= 2) {
@@ -948,7 +948,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
     // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
-    // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
+    // 数值录入项，.last() 会误选 total_amount 导致 quantity 空校验失败
     const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
     await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
@@ -959,7 +959,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     await quantityInput.fill('100').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
+    // 数值录入框需 blur/Enter 同步模型，fill 后触发 blur
     await quantityInput.press('Tab').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });

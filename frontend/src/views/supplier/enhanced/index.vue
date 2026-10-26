@@ -283,12 +283,12 @@
               style="width: 130px"
               :placeholder="t('supplier.enhanced.history.periodPlaceholder')"
             />
-            <el-input-number
-              v-model="evalForm.score"
-              :min="0"
-              :max="selectedIndicatorMaxScore"
-              :placeholder="t('supplier.enhanced.history.scorePlaceholder')"
-            />
+            <NumericInput
+v-model="evalForm.score"
+:placeholder="t('supplier.enhanced.history.scorePlaceholder')"
+:min="0"
+:max="selectedIndicatorMaxScore"
+/>
             <el-input
               v-model="evalForm.remark"
               :placeholder="t('supplier.enhanced.history.remarkPlaceholder')"
@@ -527,6 +527,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';

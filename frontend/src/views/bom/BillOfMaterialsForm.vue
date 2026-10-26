@@ -93,13 +93,12 @@
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.quantity')" width="120">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.quantity"
-              :min="0"
-              :precision="2"
-              controls-position="right"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="row.quantity"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.unit')" width="100">
@@ -118,14 +117,13 @@
             <!-- 损耗率 = API 百分比数值口径（10 = 10%），键名与后端 scrap_rate 同名；
                  0–100 + 两位小数（0.01% 粒度）与后端写边界校验同口径，
                  比率换算只发生在后端边界，前端不二次乘除 -->
-            <el-input-number
-              v-model="row.scrap_rate"
-              :min="0"
-              :max="100"
-              :precision="2"
-              controls-position="right"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="row.scrap_rate"
+style="width: 100%"
+:min="0"
+:max="100"
+:precision="2"
+/>
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.operation')" width="80" fixed="right">
@@ -149,6 +147,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -175,7 +174,7 @@ interface BomItemEcho {
 }
 
 /**
- * 控件绑定态行形状：el-input-number 需要 number。仅在「回显数据灌入控件」这一点
+ * 控件绑定态行形状：数值录入归一需要 number。仅在「回显数据灌入控件」这一点
  * 由 toFormRow 归一得到，属绑定边界，不在数据层（api / index.vue props）伪造类型。
  */
 interface BomFormRow {
@@ -200,7 +199,7 @@ const props = defineProps<{
     // 行对象键名对齐后端 BomItemResponse（见 api/bom.ts BomItem 注释）：
     // 编辑回显直接灌 GET /boms/:id 的 items，同名键才接得住；
     // quantity/scrap_rate 类型如实为 string/string|null（Decimal 序列化是字符串），
-    // 喂 el-input-number 的 number 归一只发生在下方 toFormRow 控件绑定边界。
+    // 喂数值绑定归一的 number 只在下方 toFormRow 控件绑定边界完成。
     items: BomItemEcho[];
   };
   mode: 'create' | 'edit';
@@ -232,7 +231,7 @@ const loadProducts = async () => {
 onMounted(loadProducts);
 
 /**
- * 归一灌入点（回显 → 控件）：后端 rust_decimal 序列化为 JSON 字符串，el-input-number 需 number，
+ * 归一灌入点（回显 → 控件）：后端 rust_decimal 序列化为 JSON 字符串，数值录入需要 number，
  * 只在数据进入控件的这一点显式 Number()，不在数据层（api/index.vue props）伪造类型。
  * 判空一律 `== null`：scrap_rate 合法 0（"0"/"0.00"）须保留为数字 0，
  * 不可被 `!value` / `Number('')` 误杀成空（本仓已多次因 `!value` 误杀合法 0 返工）。

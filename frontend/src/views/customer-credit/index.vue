@@ -251,14 +251,13 @@
           :label="t('customerCredit.index.table.column.creditLimit')"
           prop="credit_limit"
         >
-          <el-input-number
-            v-model="editForm.credit_limit"
-            :min="0"
-            :precision="2"
-            controls-position="right"
-            style="width: 100%"
-            :aria-label="t('customerCredit.index.table.column.creditLimit')"
-          />
+          <NumericInput
+v-model="editForm.credit_limit"
+style="width: 100%"
+:aria-label="t('customerCredit.index.table.column.creditLimit')"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -279,6 +278,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';

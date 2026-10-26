@@ -93,12 +93,11 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number
-              :model-value="row.inspected_quantity"
-              :min="0"
-              size="small"
-              @update:model-value="(v: number) => (row.inspected_quantity = v)"
-            />
+            <NumericInput
+v-model="row.inspected_quantity"
+size="small"
+:min="0"
+/>
           </template>
         </el-table-column>
         <el-table-column
@@ -107,12 +106,11 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number
-              :model-value="row.passed_quantity"
-              :min="0"
-              size="small"
-              @update:model-value="(v: number) => (row.passed_quantity = v)"
-            />
+            <NumericInput
+v-model="row.passed_quantity"
+size="small"
+:min="0"
+/>
           </template>
         </el-table-column>
         <el-table-column
@@ -121,12 +119,11 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number
-              :model-value="row.failed_quantity"
-              :min="0"
-              size="small"
-              @update:model-value="(v: number) => (row.failed_quantity = v)"
-            />
+            <NumericInput
+v-model="row.failed_quantity"
+size="small"
+:min="0"
+/>
           </template>
         </el-table-column>
         <el-table-column
@@ -157,6 +154,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import NumericInput from '@/components/NumericInput.vue';
 import { deepClone } from '@/utils';
 import { ref, watch, nextTick } from 'vue';
 import { type FormInstance, type FormRules } from 'element-plus';

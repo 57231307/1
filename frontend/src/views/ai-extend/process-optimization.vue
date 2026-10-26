@@ -3,6 +3,7 @@
  * P2-4 工艺优化列表 + 创建
  */
 import { reactive, ref, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -412,7 +413,11 @@ const appliedOptions = computed(() => [
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.process.knnKValue')">
-          <el-input-number v-model="form.k" :min="1" :max="20" />
+          <NumericInput
+v-model="form.k"
+:min="1"
+:max="20"
+/>
           <span class="hint">{{ $t('aiExtend.process.knnHint') }}</span>
         </el-form-item>
         <el-alert

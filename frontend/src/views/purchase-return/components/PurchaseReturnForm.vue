@@ -187,7 +187,11 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number v-model="row.quantity" :min="1" size="small" />
+            <NumericInput
+v-model="row.quantity"
+size="small"
+:min="1"
+/>
           </template>
         </el-table-column>
         <el-table-column
@@ -196,7 +200,12 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number v-model="row.unitPrice" :min="0" :precision="2" size="small" />
+            <NumericInput
+v-model="row.unitPrice"
+size="small"
+:min="0"
+:precision="2"
+/>
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="t('purchaseReturn.form.column.amount')" width="120">
@@ -233,6 +242,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';

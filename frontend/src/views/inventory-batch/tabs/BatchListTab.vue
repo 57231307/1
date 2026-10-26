@@ -228,13 +228,21 @@
           :label="t('inventoryBatch.batchListTab.labelTransferQuantityMeters')"
           prop="quantityMeters"
         >
-          <el-input-number v-model="transferForm.quantityMeters" :min="0" style="width: 100%" />
+          <NumericInput
+v-model="transferForm.quantityMeters"
+style="width: 100%"
+:min="0"
+/>
         </el-form-item>
         <el-form-item
           :label="t('inventoryBatch.batchListTab.labelTransferQuantityKg')"
           prop="quantityKg"
         >
-          <el-input-number v-model="transferForm.quantityKg" :min="0" style="width: 100%" />
+          <NumericInput
+v-model="transferForm.quantityKg"
+style="width: 100%"
+:min="0"
+/>
         </el-form-item>
         <el-form-item :label="t('inventoryBatch.batchListTab.labelRemarks')">
           <el-input
@@ -258,6 +266,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { logAuxLoadFailure, logger } from '@/utils/logger';

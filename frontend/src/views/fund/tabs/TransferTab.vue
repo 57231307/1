@@ -126,14 +126,14 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('fund.transferTab.fieldAmount')" prop="amount">
-          <el-input-number
-            v-model="transferForm.amount"
-            :min="0.01"
-            :max="availableBalance"
-            :precision="2"
-            style="width: 100%"
-            :placeholder="t('fund.transferTab.placeholderAmount')"
-          />
+          <NumericInput
+v-model="transferForm.amount"
+style="width: 100%"
+:placeholder="t('fund.transferTab.placeholderAmount')"
+:min="0.01"
+:max="availableBalance"
+:precision="2"
+/>
           <div v-if="selectedFromAccount" class="balance-hint">
             {{ t('fund.transferTab.availableBalance') }}:
             <span class="balance-available"
@@ -168,6 +168,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Money } from '@element-plus/icons-vue';

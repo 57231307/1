@@ -47,12 +47,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('mrp.calc.demandQuantity')" prop="demand_quantity">
-              <el-input-number
-                v-model="calcForm.demand_quantity"
-                :min="1"
-                :precision="0"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="calcForm.demand_quantity"
+style="width: 100%"
+:min="1"
+:integer="true"
+/>
             </el-form-item>
           </el-col>
         </el-row>
@@ -193,6 +193,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { useI18n } from 'vue-i18n';

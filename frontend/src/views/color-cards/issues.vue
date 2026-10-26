@@ -38,20 +38,19 @@
               </el-select>
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.customerId')" prop="customer_id">
-              <el-input-number
-                v-model="issueForm.customer_id"
-                :min="1"
-                style="width: 100%"
-                :placeholder="$t('colorCards.issue.form.customerIdPlaceholder')"
-              />
+              <NumericInput
+v-model="issueForm.customer_id"
+style="width: 100%"
+:placeholder="$t('colorCards.issue.form.customerIdPlaceholder')"
+:min="1"
+/>
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.issueQty')">
-              <el-input-number
-                v-model="issueForm.issue_qty"
-                :min="1"
-                :step="1"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="issueForm.issue_qty"
+style="width: 100%"
+:min="1"
+/>
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.dyeLotNo')">
               <el-input
@@ -279,13 +278,12 @@
       </el-alert>
       <el-form label-width="100px" :aria-label="$t('colorCards.issue.lostDialog.formAriaLabel')">
         <el-form-item :label="$t('colorCards.issue.lostDialog.compensationAmount')" required>
-          <el-input-number
-            v-model="lostForm.compensation_amount"
-            :min="0.01"
-            :precision="2"
-            :step="100"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="lostForm.compensation_amount"
+style="width: 100%"
+:min="0.01"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item :label="$t('colorCards.issue.lostDialog.lostReason')">
           <el-input v-model="lostForm.remark" type="textarea" :rows="2" />
@@ -310,13 +308,12 @@
     >
       <el-form label-width="100px" :aria-label="$t('colorCards.issue.damagedDialog.formAriaLabel')">
         <el-form-item :label="$t('colorCards.issue.damagedDialog.compensationAmount')">
-          <el-input-number
-            v-model="damagedForm.compensation_amount"
-            :min="0"
-            :precision="2"
-            :step="100"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="damagedForm.compensation_amount"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item :label="$t('colorCards.issue.damagedDialog.damagedReason')">
           <el-input v-model="damagedForm.remark" type="textarea" :rows="2" />
@@ -361,6 +358,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';

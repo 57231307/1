@@ -24,7 +24,12 @@
         :aria-label="$t('accountingPeriod.filter.ariaLabel')"
       >
         <el-form-item :label="$t('accountingPeriod.filter.year')">
-          <el-input-number v-model="queryForm.year" :min="2000" :max="2100" style="width: 140px" />
+          <NumericInput
+v-model="queryForm.year"
+style="width: 140px"
+:min="2000"
+:max="2100"
+/>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">{{
@@ -138,10 +143,20 @@
       >
         <template v-if="!isEdit">
           <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
-            <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
+            <NumericInput
+v-model="form.year"
+style="width: 100%"
+:min="2000"
+:max="2100"
+/>
           </el-form-item>
           <el-form-item :label="$t('accountingPeriod.dialog.month')" prop="period">
-            <el-input-number v-model="form.period" :min="1" :max="12" style="width: 100%" />
+            <NumericInput
+v-model="form.period"
+style="width: 100%"
+:min="1"
+:max="12"
+/>
           </el-form-item>
           <!-- 起止日期由后端按 year/period 推导（CreateAccountingPeriodPayload 无日期字段），
                这里仅只读预览，不可编辑，避免"填了不生效"的假采集 -->
@@ -173,6 +188,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

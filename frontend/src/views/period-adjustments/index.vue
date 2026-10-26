@@ -129,13 +129,13 @@
           </div>
         </el-form-item>
         <el-form-item label="调整金额" prop="amount">
-          <el-input-number
-            v-model="formData.amount"
-            :min="0.01"
-            :precision="2"
-            style="width: 100%"
-            placeholder="必填"
-          />
+          <NumericInput
+v-model="formData.amount"
+style="width: 100%"
+placeholder="必填"
+:min="0.01"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" />
@@ -198,6 +198,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';

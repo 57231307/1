@@ -104,15 +104,20 @@
     <el-dialog v-model="provisionVisible" title="运行坏账计提" width="460">
       <el-form :model="provisionForm" label-width="120px">
         <el-form-item label="计提年度" required>
-          <el-input-number
-            v-model="provisionForm.period_year"
-            :min="2000"
-            :max="2100"
-            class="w-full"
-          />
+          <NumericInput
+v-model="provisionForm.period_year"
+class="w-full"
+:min="2000"
+:max="2100"
+/>
         </el-form-item>
         <el-form-item label="计提月份" required>
-          <el-input-number v-model="provisionForm.period_month" :min="1" :max="12" class="w-full" />
+          <NumericInput
+v-model="provisionForm.period_month"
+class="w-full"
+:min="1"
+:max="12"
+/>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -125,6 +130,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { logAuxLoadFailure } from '@/utils/logger';

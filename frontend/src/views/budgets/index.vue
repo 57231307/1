@@ -163,22 +163,22 @@
           <el-input v-model="formData.item_type" placeholder="选填" />
         </el-form-item>
         <el-form-item label="预算年度" prop="budget_year">
-          <el-input-number
-            v-model="formData.budget_year"
-            :min="2000"
-            :max="2100"
-            :precision="0"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="formData.budget_year"
+style="width: 100%"
+:min="2000"
+:max="2100"
+:integer="true"
+/>
         </el-form-item>
         <el-form-item label="计划金额" prop="planned_amount">
-          <el-input-number
-            v-model="formData.planned_amount"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-            placeholder="必填"
-          />
+          <NumericInput
+v-model="formData.planned_amount"
+style="width: 100%"
+placeholder="必填"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="formData.remark" type="textarea" :rows="2" />
@@ -223,6 +223,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

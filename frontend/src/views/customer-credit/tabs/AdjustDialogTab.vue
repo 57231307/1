@@ -24,7 +24,12 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.amount')" prop="amount">
-        <el-input-number v-model="form.amount" :min="0" :precision="2" style="width: 100%" />
+        <NumericInput
+v-model="form.amount"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.reason')" prop="reason">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
@@ -47,6 +52,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

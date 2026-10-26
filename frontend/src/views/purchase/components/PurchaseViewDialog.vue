@@ -19,6 +19,7 @@
  *   走与创建路径同一套映射反查逻辑派生，前端不提交、只回显。
  */
 import { computed, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { msg } from '@/utils/message';
@@ -49,7 +50,7 @@ const emit = defineEmits<{
 }>();
 
 /** 单行明细编辑草稿（仅写侧四字段，键名 = UpdatePurchaseOrderItemPayload）。
- * el-input-number 清空时回写 null，与未填 undefined 一并视为「本次不提交该键」 */
+ * 数值录入框清空时回写 null，与未填 undefined 一并视为「本次不提交该键」 */
 interface ItemDraft {
   color_no: string;
   quantity_alt_ordered: number | null | undefined;
@@ -244,14 +245,14 @@ async function saveItem(item: PurchaseOrderItem) {
           <el-table-column prop="quantity" :label="t('purchase.viewDlg.colQuantity')" width="90" />
           <el-table-column prop="quantity_alt" :label="t('purchase.viewDlg.colAltQty')" width="110">
             <template #default="{ row }">
-              <el-input-number
-                v-if="editable"
-                v-model="drafts[row.id].quantity_alt_ordered"
-                size="small"
-                :controls="false"
-                :min="0"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="drafts[row.id].quantity_alt_ordered"
+v-if="editable"
+size="small"
+style="width: 100%"
+:clear-value="null"
+:min="0"
+/>
               <!-- Decimal 出参是字符串：Number() 归一后展示，禁止对字符串直接 .toFixed -->
               <span v-else>{{ Number(row.quantity_alt ?? 0) }}</span>
             </template>
@@ -263,15 +264,15 @@ async function saveItem(item: PurchaseOrderItem) {
             align="right"
           >
             <template #default="{ row }">
-              <el-input-number
-                v-if="editable"
-                v-model="drafts[row.id].discount_percent"
-                size="small"
-                :controls="false"
-                :min="0"
-                :max="100"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="drafts[row.id].discount_percent"
+v-if="editable"
+size="small"
+style="width: 100%"
+:clear-value="null"
+:min="0"
+:max="100"
+/>
               <span v-else>{{
                 row.discount_percent != null ? Number(row.discount_percent) + '%' : '-'
               }}</span>
@@ -284,15 +285,15 @@ async function saveItem(item: PurchaseOrderItem) {
             align="right"
           >
             <template #default="{ row }">
-              <el-input-number
-                v-if="editable"
-                v-model="drafts[row.id].quantity_tolerance_pct"
-                size="small"
-                :controls="false"
-                :min="0"
-                :max="100"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="drafts[row.id].quantity_tolerance_pct"
+v-if="editable"
+size="small"
+style="width: 100%"
+:clear-value="null"
+:min="0"
+:max="100"
+/>
               <span v-else>{{
                 row.quantity_tolerance_pct != null ? Number(row.quantity_tolerance_pct) + '%' : '-'
               }}</span>

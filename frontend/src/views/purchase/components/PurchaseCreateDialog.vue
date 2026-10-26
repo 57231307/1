@@ -131,28 +131,28 @@
               class="col-color"
               @change="onColorSelect(index)"
             />
-            <el-input-number
-              v-model="item.quantity"
-              :min="1"
-              class="col-qty"
-              @change="onCalculateSubtotal(item)"
-            />
-            <el-input-number
-              v-model="item.unit_price"
-              :min="0"
-              :precision="2"
-              class="col-price"
-              :placeholder="t('purchase.createDlg.unitPricePlaceholder')"
-              @change="onCalculateSubtotal(item)"
-            />
-            <el-input-number
-              v-model="item.tax_rate"
-              :min="0"
-              :max="999.9999"
-              :precision="4"
-              :placeholder="t('purchase.createDlg.taxRatePlaceholder')"
-              class="col-tax"
-            />
+            <NumericInput
+v-model="item.quantity"
+class="col-qty"
+@change="onCalculateSubtotal(item)"
+:min="1"
+/>
+            <NumericInput
+v-model="item.unit_price"
+class="col-price"
+:placeholder="t('purchase.createDlg.unitPricePlaceholder')"
+@change="onCalculateSubtotal(item)"
+:min="0"
+:precision="2"
+/>
+            <NumericInput
+v-model="item.tax_rate"
+:placeholder="t('purchase.createDlg.taxRatePlaceholder')"
+class="col-tax"
+:min="0"
+:max="999.9999"
+:precision="4"
+/>
             <div class="col-supplier-info">
               <template v-if="item.resolved">
                 <span class="resolved-text">
@@ -164,7 +164,12 @@
               </template>
               <span v-else class="resolved-placeholder">--</span>
             </div>
-            <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
+            <NumericInput
+v-model="item.subtotal"
+class="col-amount"
+readonly
+:precision="2"
+/>
             <el-button
               v-if="localForm.items.length > 1"
               size="small"
@@ -195,6 +200,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormRules, FormInstance } from 'element-plus';
@@ -330,7 +336,7 @@ watch(
 }
 
 /* 定宽列一律不参与收缩，对话框宽度不足时改由 items-table 横向滚动承接。
-   允许收缩会把 el-input-number 的输入框压到零宽，数量与税率在界面上填不进去 */
+   允许收缩会把数值录入框压到零宽，数量与税率在界面上填不进去 */
 .col-color,
 .col-qty,
 .col-price,

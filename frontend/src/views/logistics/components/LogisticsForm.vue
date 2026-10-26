@@ -75,7 +75,11 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('logistics.form.label.freight')">
-            <el-input-number v-model="localForm.freight_fee" :min="0" :precision="2" />
+            <NumericInput
+v-model="localForm.freight_fee"
+:min="0"
+:precision="2"
+/>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -111,6 +115,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import {

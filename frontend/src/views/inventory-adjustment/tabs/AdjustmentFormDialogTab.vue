@@ -135,19 +135,19 @@
             :value="p.id"
           />
         </el-select>
-        <el-input-number
-          v-model="item.quantity"
-          :min="1"
-          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
-          style="flex: 1"
-        />
-        <el-input-number
-          v-model="item.cost_price"
-          :min="0"
-          :precision="2"
-          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderPrice')"
-          style="flex: 1"
-        />
+        <NumericInput
+v-model="item.quantity"
+:placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+style="flex: 1"
+:min="1"
+/>
+        <NumericInput
+v-model="item.cost_price"
+:placeholder="t('inventoryAdjustment.formDialogTab.placeholderPrice')"
+style="flex: 1"
+:min="0"
+:precision="2"
+/>
         <el-input
           v-model="item.remark"
           :placeholder="t('inventoryAdjustment.formDialogTab.placeholderRemark')"
@@ -190,13 +190,12 @@
           />
           <el-table-column :label="t('inventoryAdjustment.formDialogTab.colQuantity')" width="150">
             <template #default="{ row }">
-              <el-input-number
-                v-if="isPending"
-                v-model="row.quantity"
-                :min="0"
-                size="small"
-                controls-position="right"
-              />
+              <NumericInput
+v-model="row.quantity"
+v-if="isPending"
+size="small"
+:min="0"
+/>
               <span v-else>{{ row.quantity }}</span>
             </template>
           </el-table-column>
@@ -224,18 +223,18 @@
           </el-table-column>
         </el-table>
         <div v-if="isPending" class="add-item-bar">
-          <el-input-number
-            v-model="newItem.stock_id"
-            :min="1"
-            :placeholder="t('inventoryAdjustment.formDialogTab.colStockId')"
-            style="width: 150px"
-          />
-          <el-input-number
-            v-model="newItem.quantity"
-            :min="1"
-            style="width: 130px"
-            :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
-          />
+          <NumericInput
+v-model="newItem.stock_id"
+:placeholder="t('inventoryAdjustment.formDialogTab.colStockId')"
+style="width: 150px"
+:min="1"
+/>
+          <NumericInput
+v-model="newItem.quantity"
+style="width: 130px"
+:placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+:min="1"
+/>
           <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">{{
             t('inventoryAdjustment.formDialogTab.buttonAddItem')
           }}</el-button>
@@ -255,6 +254,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';

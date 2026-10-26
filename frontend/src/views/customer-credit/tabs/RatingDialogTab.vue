@@ -42,29 +42,35 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditScore')" prop="creditScore">
-        <el-input-number
-          v-model="form.creditScore"
-          :min="0"
-          :max="100"
-          :value-on-clear="null"
+        <el-input
+          :model-value="numericView(form.creditScore)"
+          inputmode="decimal"
           style="width: 100%"
+          @change="
+            v => (form.creditScore = bindNullableNumeric(v, form.creditScore, { min: 0, max: 100 }))
+          "
         />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditLimit')" prop="creditLimit">
-        <el-input-number
-          v-model="form.creditLimit"
-          :min="0"
-          :precision="2"
-          :value-on-clear="null"
+        <el-input
+          :model-value="numericView(form.creditLimit)"
+          inputmode="decimal"
           style="width: 100%"
+          @change="
+            v =>
+              (form.creditLimit = bindNullableNumeric(v, form.creditLimit, {
+                min: 0,
+                precision: 2,
+              }))
+          "
         />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditDays')" prop="creditDays">
-        <el-input-number
-          v-model="form.creditDays"
-          :min="0"
-          :value-on-clear="null"
+        <el-input
+          :model-value="numericView(form.creditDays)"
+          inputmode="numeric"
           style="width: 100%"
+          @change="v => (form.creditDays = bindNullableNumeric(v, form.creditDays, { min: 0 }))"
         />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.remark')" prop="remark">
@@ -88,6 +94,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import { bindNumeric, numericView, type NumericBindOptions } from '@/utils/number-input';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -117,6 +124,22 @@ const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
 /**
+ * 可空数值字段的手写录入归一（change/blur 提交边界调用）：清空回 null（未填态，required 规则拦得住），
+ * 非法文本维持当前值，其余走数值绑定归一的 min max precision 钳制。
+ * 入参 提交文本与当前可空值与边界词表；返回值写回原字段，null 保持 null。
+ */
+function bindNullableNumeric(
+  val: string | number,
+  current: number | null,
+  opts: NumericBindOptions
+): number | null {
+  const text = String(val).trim();
+  if (text === '') return null;
+  const bound = bindNumeric(text, current ?? undefined, opts);
+  return bound ?? current;
+}
+
+/**
  * 未填态一律是 null / undefined，绝不预置 0。
  *
  * 缘由：async-validator 的 required 对数字 0 判为有效值——若把未填初值设成 0，
@@ -127,7 +150,7 @@ const formRef = ref<FormInstance>();
  * 本表单的口径：
  * - 初值 null = 未填，required 拦得住（null/undefined 视为空），提交不出去；
  * - 用户显式输入的 0 是合法业务值（额度清零、现结=0 天账期、信用分 0 分），照原样上送；
- * - value-on-clear 设为 null，让"清空输入框"回到未填态，而不是被 min=0 拍平成 0。
+ * - 清空输入框由绑定归一回到 null 未填态，而不是被 min=0 拍平成 0。
  * 三个键都不由前端替用户补默认值；后端对 None 的兜底（等级 B / 分数 60 / 账期 30）
  * 是后端的产品口径，前端不预先替它填上，也不假装它不存在。
  */

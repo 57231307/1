@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';?
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -10,7 +11,6 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
-  ElInputNumber,
   ElSelect,
   ElOption,
   ElDatePicker,
@@ -529,26 +529,26 @@ loadCustomers();
               <!-- 编辑态：PUT 端点仅支持修改期初/发票总额/回款总额/备注（closing_balance 后端自动重算） -->
               <template v-if="form.id">
                 <ElFormItem :label="$t('arReconciliationModule.index.openingBalance')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.opening_balance"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>
                 <ElFormItem :label="$t('arReconciliationModule.index.invoiceAmount')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.total_invoices"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>
                 <ElFormItem :label="$t('arReconciliationModule.index.paymentAmount')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.total_collections"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>

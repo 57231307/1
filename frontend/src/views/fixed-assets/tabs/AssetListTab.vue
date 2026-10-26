@@ -204,12 +204,12 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="original_value">
-              <el-input-number
-                v-model="form.original_value"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="form.original_value"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -217,12 +217,11 @@
               :label="$t('fixedAssets.dialog.usefulLifeMonths')"
               prop="useful_life_months"
             >
-              <el-input-number
-                v-model="form.useful_life_months"
-                :min="1"
-                :step="12"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="form.useful_life_months"
+style="width: 100%"
+:min="1"
+/>
             </el-form-item>
           </el-col>
         </el-row>
@@ -293,12 +292,12 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.value')" prop="disposal_value">
-          <el-input-number
-            v-model="disposalForm.disposal_value"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="disposalForm.disposal_value"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.date')" prop="disposal_date">
           <el-date-picker
@@ -375,6 +374,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -413,7 +413,7 @@ const disposalDialogVisible = ref(false);
 const disposalSubmitting = ref(false);
 const disposalFormRef = ref<FormInstance>();
 const disposalTargetId = ref<number | undefined>(undefined);
-// 视图态金额保持 number（el-input-number 绑定），线格式在提交处按后端
+// 视图态金额保持 number（数值录入绑定），线格式在提交处按后端
 // rust_decimal 口径转两位小数十进制字符串（DisposalRequest.disposal_value）。
 const disposalForm = reactive({
   disposal_type: 'SALE',

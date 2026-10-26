@@ -304,12 +304,12 @@
           >
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldAmount')" prop="amount">
-          <el-input-number
-            v-model="operationForm.amount"
-            :min="0.01"
-            :precision="2"
-            style="width: 100%"
-          />
+          <NumericInput
+v-model="operationForm.amount"
+style="width: 100%"
+:min="0.01"
+:precision="2"
+/>
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldRemark')">
           <el-input
@@ -334,6 +334,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';

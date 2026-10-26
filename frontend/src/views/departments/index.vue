@@ -101,7 +101,10 @@
           />
         </el-form-item>
         <el-form-item :label="t('departments.index.colSortOrder')" prop="sort_order">
-          <el-input-number v-model="formData.sort_order" :min="0" />
+          <NumericInput
+v-model="formData.sort_order"
+:min="0"
+/>
         </el-form-item>
         <el-form-item :label="t('departments.index.colStatus')" prop="is_active">
           <el-select
@@ -128,6 +131,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { PERMISSIONS } from '@/constants/permissions';
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';

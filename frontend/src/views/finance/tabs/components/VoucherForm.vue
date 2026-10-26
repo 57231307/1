@@ -77,24 +77,22 @@
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnDebitAmount')" width="130">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.debit"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="row.debit"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
           </template>
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnCreditAmount')" width="130">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.credit"
-              :min="0"
-              :precision="2"
-              :controls="false"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="row.credit"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
           </template>
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnAction')" width="80">
@@ -135,6 +133,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';

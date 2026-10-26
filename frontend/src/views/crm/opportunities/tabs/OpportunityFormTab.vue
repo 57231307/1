@@ -91,13 +91,13 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('crmOpportunityForm.estimatedAmount')" prop="estimated_amount">
-            <el-input-number
-              v-if="estimatedAmountViewable"
-              v-model="formData.estimated_amount"
-              :precision="2"
-              :min="0"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="formData.estimated_amount"
+v-if="estimatedAmountViewable"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
             <!-- 2026-10-02 裁定：金额对"仅非本人行"不外显（后端整键移除）；
                  无权时只给中性占位，不显示任何判定原因 -->
             <span v-else class="amount-hidden-text">{{
@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -193,7 +194,7 @@ const formData = reactive({
   customer_id: '' as string | number,
   opportunity_type: '',
   opportunity_stage: '',
-  // 出参真实契约：Decimal = JSON 字符串、可空；el-input-number 需数值，回填时归一
+  // 出参真实契约：Decimal = JSON 字符串、可空；数值录入需数值模型，回填时归一
   estimated_amount: 0 as number | undefined,
   // 赢率后端权威（services/crm/opp.rs::default_win_probability_by_stage）：未上送时创建按
   // 阶段默认填充、阶段流转按新阶段默认刷新；undefined = 未设置（新建无既有值/库中无值）。

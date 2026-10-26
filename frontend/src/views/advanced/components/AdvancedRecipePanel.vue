@@ -7,6 +7,7 @@
  * P9-3 批次 F 重构：移除 vue/no-mutating-props 抑制，改用本地 ref 镜像 + watch 防循环
  */
 import { computed, ref, watch, nextTick } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import {
   RECIPE_FABRIC_TYPE_LABEL_KEY,
@@ -127,13 +128,12 @@ function sourceLabel(source: string): string {
             />
           </el-form-item>
           <el-form-item :label="$t('advancedModule.recipe.kValue')">
-            <el-input-number
-              v-model="localForm.k"
-              :min="0"
-              :max="20"
-              :step="1"
-              style="width: 100%"
-            />
+            <NumericInput
+v-model="localForm.k"
+style="width: 100%"
+:min="0"
+:max="20"
+/>
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="recipeLoading" @click="runRecipeOptimization">{{

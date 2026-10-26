@@ -22,7 +22,11 @@
       :aria-label="t('customerCredit.amount.formAriaLabel')"
     >
       <el-form-item :label="t('customerCredit.amount.label.amount')" prop="amount">
-        <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
+        <NumericInput
+v-model="form.amount"
+style="width: 100%"
+:min="0"
+/>
       </el-form-item>
     </el-form>
     <template #footer>
@@ -43,6 +47,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

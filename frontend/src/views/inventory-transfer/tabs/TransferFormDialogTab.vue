@@ -128,19 +128,19 @@
             :value="p.piece_no"
           />
         </el-select>
-        <el-input-number
-          v-model="item.quantity"
-          :min="1"
-          :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
-          class="item-number"
-        />
-        <el-input-number
-          v-model="item.cost_price"
-          :min="0"
-          :precision="2"
-          :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
-          class="item-number"
-        />
+        <NumericInput
+v-model="item.quantity"
+:placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
+class="item-number"
+:min="1"
+/>
+        <NumericInput
+v-model="item.cost_price"
+:placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
+class="item-number"
+:min="0"
+:precision="2"
+/>
         <el-input
           v-model="item.remark"
           :placeholder="$t('inventoryTransfer.transferForm.remarkPlaceholder')"
@@ -179,13 +179,12 @@
           />
           <el-table-column :label="$t('inventoryTransfer.transferForm.colQuantity')" width="150">
             <template #default="{ row }">
-              <el-input-number
-                v-if="editable"
-                v-model="row.quantity"
-                :min="1"
-                size="small"
-                controls-position="right"
-              />
+              <NumericInput
+v-model="row.quantity"
+v-if="editable"
+size="small"
+:min="1"
+/>
               <span v-else>{{ row.quantity }}</span>
             </template>
           </el-table-column>
@@ -218,13 +217,17 @@
           </el-table-column>
         </el-table>
         <div v-if="editable" class="add-item-bar">
-          <el-input-number
-            v-model="newItem.product_id"
-            :min="1"
-            :placeholder="$t('inventoryTransfer.transferForm.colProductId')"
-            style="width: 150px"
-          />
-          <el-input-number v-model="newItem.quantity" :min="1" style="width: 130px" />
+          <NumericInput
+v-model="newItem.product_id"
+:placeholder="$t('inventoryTransfer.transferForm.colProductId')"
+style="width: 150px"
+:min="1"
+/>
+          <NumericInput
+v-model="newItem.quantity"
+style="width: 130px"
+:min="1"
+/>
           <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
             {{ $t('inventoryTransfer.transferForm.addItem') }}
           </el-button>
@@ -244,6 +247,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
@@ -666,15 +670,13 @@ const handleSubmit = async () => {
 
 <style scoped>
 /*
-  明细行布局约束（数量/单价 stepper 可用宽度不变式）：
-  EP 2.14.4 `.el-input-number .el-input__wrapper{padding-left:42px;padding-right:42px}`
-  为左右 −/+ 步进按钮预留 84px；内层数字 input 的计算宽度 = stepper 盒宽 − 84px，
-  stepper 盒宽必须严格大于 84px 数字区才存在（否则 input 宽 0、不可填也不可聚焦）。
-  `flex: N` 速记会把 flex-basis 归零、宽度纯按比例分配且无 min-width 保底，
-  因此这里给两个 stepper 显式 flex-basis=150px 且 flex-shrink:0（150 = 84 + 约 64px
-  数字区，可容 "99999.99" 精度的单价），select/备注给足 basis + 允许收缩 + min-width
+  明细行布局约束（数量/单价数值录入可用宽度不变式）：
+  控件已换成手写 el-input，不再有步进按钮占位，但 `flex: N` 速记会把 flex-basis
+  归零、宽度纯按比例分配且无 min-width 保底，窄对话框下数字区仍会被压到不可填。
+  因此这里给两个数值录入项显式 flex-basis=150px 且 flex-shrink:0（足以容纳
+  "99999.99" 精度的单价），select/备注给足 basis + 允许收缩 + min-width
   下限（EP `.el-select__selection` 自带 min-width:0 + ellipsis，长标签截断不撑破行），
-  行容器超宽时 flex-wrap 换行兜底——换行后每行重新分配，stepper 仍不低于 150px。
+  行容器超宽时 flex-wrap 换行兜底——换行后每行重新分配，数字区仍不低于 150px。
 */
 .transfer-item-row {
   display: flex;

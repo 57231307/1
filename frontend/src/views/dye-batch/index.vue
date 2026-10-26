@@ -307,12 +307,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('dyeBatch.index.colQuantity')" prop="planned_quantity">
-              <el-input-number
-                v-model="formData.planned_quantity"
-                :precision="2"
-                :min="0"
-                style="width: 100%"
-              />
+              <NumericInput
+v-model="formData.planned_quantity"
+style="width: 100%"
+:min="0"
+:precision="2"
+/>
             </el-form-item>
           </el-col>
         </el-row>
@@ -346,6 +346,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';

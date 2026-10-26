@@ -164,13 +164,13 @@
         <!-- 页签三：客户价值 -->
         <el-tab-pane label="客户价值" name="clv">
           <div class="toolbar">
-            <el-input-number
-              v-model="clvCustomerId"
-              :min="1"
-              :precision="0"
-              placeholder="客户 ID"
-              style="width: 180px"
-            />
+            <NumericInput
+v-model="clvCustomerId"
+placeholder="客户 ID"
+style="width: 180px"
+:min="1"
+:integer="true"
+/>
             <el-select
               v-model="auditOperation"
               placeholder="全部操作"
@@ -406,6 +406,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
