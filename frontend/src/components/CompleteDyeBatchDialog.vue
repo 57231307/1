@@ -103,7 +103,11 @@ const formRules: FormRules = {
   actual_output_kg: [
     ...requiredPositive('dyeBatch.complete.ruleRequiredKg'),
     // 原控件 min=0 precision=2 的硬约束逐条落到 rules
-    ...numberInputRules({ label: t('dyeBatch.complete.labelActualOutputKg'), min: 0, precision: 2 }),
+    ...numberInputRules({
+      label: t('dyeBatch.complete.labelActualOutputKg'),
+      min: 0,
+      precision: 2,
+    }),
   ],
   actual_output_m: [
     ...requiredPositive('dyeBatch.complete.ruleRequiredM'),

@@ -52,11 +52,7 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item
-        :label="t('printDialog.copies')"
-        prop="copies"
-        :rules="copiesRules"
-      >
+      <el-form-item :label="t('printDialog.copies')" prop="copies" :rules="copiesRules">
         <!-- 手写录入 打印份数 正整数 1 到 99（原步进控件 min max 与默认精度 0 落到 rules 与提交门） -->
         <el-input v-model="form.copies" inputmode="numeric" />
       </el-form-item>
