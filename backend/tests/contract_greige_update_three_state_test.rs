@@ -39,8 +39,9 @@ use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::greige_fabric_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
 use bingxi_backend::models::greige_fabric;
+use bingxi_backend::models::supplier;
 use bingxi_backend::models::warehouse;
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, EntityTrait};
@@ -121,7 +122,37 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
 }
 
 /// 种一条全字段有值的坯布：可空列全部非 NULL，三态用例才有「保持/清空」两种可观测态。
+/// supplier_id 指向固定 7，故先补种 suppliers(7) 满足 fk_greige_fabric_supplier，
+/// 否则夹具 insert 会撞外键违例（setup_test_db 每用例先 TRUNCATE，这里内联种子即可自洽）。
+async fn seed_supplier_7(db: &sea_orm::DatabaseConnection) {
+    let now = Utc::now().fixed_offset();
+    supplier::ActiveModel {
+        id: Set(7),
+        supplier_code: Set("SUP-GREIGE-007".to_string()),
+        supplier_name: Set("坯布契约供应商".to_string()),
+        supplier_short_name: Set("坯供".to_string()),
+        supplier_type: Set("面料供应商".to_string()),
+        credit_code: Set("91330000GREIGE007X1".to_string()),
+        registered_address: Set("契约测试注册地址".to_string()),
+        legal_representative: Set("契约法人".to_string()),
+        registered_capital: Set(Decimal::ZERO),
+        establishment_date: Set(NaiveDate::from_ymd_opt(2020, 1, 1).expect("夹具日期常量")),
+        taxpayer_type: Set("一般纳税人".to_string()),
+        bank_name: Set("契约测试银行".to_string()),
+        bank_account: Set("6222000000000007".to_string()),
+        contact_phone: Set("13800000000".to_string()),
+        is_processor: Set(false),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("seed 供应商 7 失败: {e}"));
+}
+
 async fn seed_full_greige(db: &sea_orm::DatabaseConnection, id: i32) {
+    seed_supplier_7(db).await;
     greige_fabric::ActiveModel {
         id: Set(id),
         fabric_no: Set(format!("GF-TEST-{id:04}")),
