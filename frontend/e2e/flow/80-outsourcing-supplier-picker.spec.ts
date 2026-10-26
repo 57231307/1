@@ -52,7 +52,8 @@ async function fillNonSupplierRequired(dialog: Locator, page: Page): Promise<voi
     [LABEL_FREIGHT_FEE, '50'],
     [LABEL_TAX_AMOUNT, '10'],
   ] as const) {
-    const numInput = formItemByExactLabel(dialog, label).locator('.el-input-number input').first();
+    // 建单数值项已换手写 el-input（禁步进控件），label 锚定的 .el-input input 即录入框
+    const numInput = formItemByExactLabel(dialog, label).locator('.el-input input').first();
     await numInput.fill(value);
     await numInput.press('Tab');
     await page.waitForTimeout(120);
