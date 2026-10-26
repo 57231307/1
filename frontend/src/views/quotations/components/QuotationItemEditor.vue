@@ -142,7 +142,7 @@ import type { Product, ProductColor } from '@/api/product';
 import type { QuotationItemEditForm } from '@/api/quotation';
 import { formatDecimalAmount } from '@/utils/money';
 
-// 明细行编辑态：金额/数量字段是 number 与 el-input-number 双向绑定；
+// 明细行编辑态：金额/数量字段是 number 与 数值录入控件 双向绑定；
 // 提交时由 quotationToWire 在 create.vue 边界转 DecimalWire 字符串上送后端
 interface QuotationItemRow extends QuotationItemEditForm {
   product_id?: number;

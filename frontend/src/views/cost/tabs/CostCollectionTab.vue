@@ -465,7 +465,7 @@ const rules: FormRules = {
 
 // 与后端 total_cost 重算口径逐项一致：五项费用求和
 // （create：cost_collection_service.rs:82-86；update：:265-272）。
-// form 金额恒为 number（初始化/el-input-number/openDialog 归一三路保证），直接 + 求和；
+// form 金额恒为 number（初始化/数值录入控件/openDialog 归一三路保证），直接 + 求和；
 // 原先的 `|| 0` 会把字符串金额放行（"100.50"||0 仍是非空串）导致 + 变字符串拼接——归一后不再需要。
 const totalCost = computed(
   () =>
@@ -507,7 +507,7 @@ const openDialog = (row?: CostCollection) => {
   if (row) {
     // 后端 rust_decimal 仅 serde 特性 → 金额序列化为十进制字符串（models/cost_collection.rs:24-30，
     // 本文件列表列 :93 的 Number() 归一即佐证）。金额直灌进 form 会让 totalCost 的 + 变字符串拼接、
-    // el-input-number 收到 string，故进 form 即逐键归一为 number；
+    // 数值录入控件 收到 string，故进 form 即逐键归一为 number；
     // 词表外脏值 Number() 得 NaN 会显式暴露，不静默吞。
     // 提交方向：后端 Decimal 反序列化 string/number 均可（service CreateCostCollectionRequest:48-52
     // 为非 Option Decimal 直收），按表单模型送 number。

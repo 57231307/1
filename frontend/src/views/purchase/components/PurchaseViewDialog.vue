@@ -49,7 +49,7 @@ const emit = defineEmits<{
 }>();
 
 /** 单行明细编辑草稿（仅写侧四字段，键名 = UpdatePurchaseOrderItemPayload）。
- * el-input-number 清空时回写 null，与未填 undefined 一并视为「本次不提交该键」 */
+ * 数值录入控件 清空时回写 null，与未填 undefined 一并视为「本次不提交该键」 */
 interface ItemDraft {
   color_no: string;
   quantity_alt_ordered: number | null | undefined;

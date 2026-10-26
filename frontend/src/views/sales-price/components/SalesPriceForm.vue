@@ -191,7 +191,7 @@ import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单数据类型 = 编辑态（el-input-number/el-select/el-date-picker 的原生值形态），
+// 表单数据类型 = 编辑态（数值录入控件/el-select/el-date-picker 的原生值形态），
 // 与父组件 useSp.ts formData 一一对应；price/min_order_qty 在此保持 number|undefined，
 // undefined=未填（占位为空，不再伪造 0）。写线格式（Decimal 十进制字符串、缺值省略键）
 // 由 useSp.handleSubmitForm 在提交边界换算（SalesPriceCreateInput/SalesPriceUpdateInput，

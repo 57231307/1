@@ -193,7 +193,7 @@ const formData = reactive({
   customer_id: '' as string | number,
   opportunity_type: '',
   opportunity_stage: '',
-  // 出参真实契约：Decimal = JSON 字符串、可空；el-input-number 需数值，回填时归一
+  // 出参真实契约：Decimal = JSON 字符串、可空；数值录入控件 需数值，回填时归一
   estimated_amount: 0 as number | undefined,
   // 赢率后端权威（services/crm/opp.rs::default_win_probability_by_stage）：未上送时创建按
   // 阶段默认填充、阶段流转按新阶段默认刷新；undefined = 未设置（新建无既有值/库中无值）。

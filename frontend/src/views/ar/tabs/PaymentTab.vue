@@ -236,7 +236,7 @@ const openEditDialog = (row: ARPayment) => {
   form.customer_id = row.customer_id;
   form.payment_date = row.payment_date;
   form.payment_method = row.payment_method;
-  // 后端响应金额为 string（rust_decimal），回填数值供 el-input-number 编辑；
+  // 后端响应金额为 string（rust_decimal），回填数值供 数值录入控件 编辑；
   // 形态异常（缺键/非数字）时为 NaN，必填规则（type number）当场拒绝，不兜底 0
   form.amount = Number(row.amount);
   form.remark = row.remark || '';

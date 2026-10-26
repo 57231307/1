@@ -848,7 +848,7 @@ const openEdit = (row: OutsourcingOrder) => {
     supplier_id: row.supplier_id,
     issue_date: row.issue_date || '',
     expected_return_date: row.expected_return_date || '',
-    // 后端 Decimal 列出参为字符串（如 "100.0000"），el-input-number 绑定必须 Number() 归一
+    // 后端 Decimal 列出参为字符串（如 "100.0000"），数值录入控件 绑定必须 Number() 归一
     // （NOT NULL 列键恒在，无需 ?? 兜底缺键）
     issue_quantity: Number(row.issue_quantity),
     issue_unit: row.issue_unit || '',
@@ -1182,7 +1182,7 @@ const openMeasuredDialog = (row: OutsourcingReceipt) => {
   measuredOriginal.weight = row.weight;
   measuredOriginal.width = row.width;
   measuredOriginal.gram_weight = row.gram_weight;
-  // 回显：Decimal 出参为字符串，el-input-number 绑定须 Number() 归一；null=未补录=留空
+  // 回显：Decimal 出参为字符串，数值录入控件 绑定须 Number() 归一；null=未补录=留空
   measuredForm.weight = row.weight == null ? undefined : Number(row.weight);
   measuredForm.width = row.width == null ? undefined : Number(row.width);
   measuredForm.gram_weight = row.gram_weight == null ? undefined : Number(row.gram_weight);

@@ -175,7 +175,7 @@ interface BomItemEcho {
 }
 
 /**
- * 控件绑定态行形状：el-input-number 需要 number。仅在「回显数据灌入控件」这一点
+ * 控件绑定态行形状：数值录入控件 需要 number。仅在「回显数据灌入控件」这一点
  * 由 toFormRow 归一得到，属绑定边界，不在数据层（api / index.vue props）伪造类型。
  */
 interface BomFormRow {
@@ -200,7 +200,7 @@ const props = defineProps<{
     // 行对象键名对齐后端 BomItemResponse（见 api/bom.ts BomItem 注释）：
     // 编辑回显直接灌 GET /boms/:id 的 items，同名键才接得住；
     // quantity/scrap_rate 类型如实为 string/string|null（Decimal 序列化是字符串），
-    // 喂 el-input-number 的 number 归一只发生在下方 toFormRow 控件绑定边界。
+    // 喂 数值录入控件 的 number 归一只发生在下方 toFormRow 控件绑定边界。
     items: BomItemEcho[];
   };
   mode: 'create' | 'edit';
@@ -232,7 +232,7 @@ const loadProducts = async () => {
 onMounted(loadProducts);
 
 /**
- * 归一灌入点（回显 → 控件）：后端 rust_decimal 序列化为 JSON 字符串，el-input-number 需 number，
+ * 归一灌入点（回显 → 控件）：后端 rust_decimal 序列化为 JSON 字符串，数值录入控件 需 number，
  * 只在数据进入控件的这一点显式 Number()，不在数据层（api/index.vue props）伪造类型。
  * 判空一律 `== null`：scrap_rate 合法 0（"0"/"0.00"）须保留为数字 0，
  * 不可被 `!value` / `Number('')` 误杀成空（本仓已多次因 `!value` 误杀合法 0 返工）。

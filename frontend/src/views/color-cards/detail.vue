@@ -659,7 +659,7 @@ const stockSubmitting = ref(false);
 const stockFormRef = ref<FormInstance>();
 const stockForm = reactive<{ stock_quantity: string }>({ stock_quantity: '' });
 
-// 后端 update_color_card 只接受非负整数 stock_quantity（原 el-input-number 的 min=0 precision=0 硬约束）
+// 后端 update_color_card 只接受非负整数 stock_quantity（原步进数字控件 的 min=0 precision=0 硬约束）
 // 逐条落到 rules，越界或含小数即前端拒发，避免 422 兜底
 const stockRules = computed<FormRules>(() => ({
   stock_quantity: numberInputRules({
