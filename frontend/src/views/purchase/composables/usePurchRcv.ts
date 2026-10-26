@@ -253,7 +253,8 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
     // 数值录入合法性先于业务门：填了却解析不出有限数的行必须点名拒绝，
     // 不能与"未填本行不收"混同后被 filter 静默丢行（静默丢行=吞错）
     const badQty = receiveForm.value.items.find(
-      item => item.receive_quantity.trim() !== '' && parseReceiveQty(item.receive_quantity) === undefined
+      item =>
+        item.receive_quantity.trim() !== '' && parseReceiveQty(item.receive_quantity) === undefined
     );
     if (badQty) {
       msg.warning('receiveQtyInvalid', { line: badQty.line_no });
@@ -292,8 +293,7 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
     // 就是实称录入值——未录入或填了不大于 0 的都在建单口被后端 400 拒，
     // 本地点名拦下，改后界面直接说缺哪一列，而不是让后端打哑谜。
     const missingAlt = validItems.find(
-      item =>
-        item.receive_quantity_alt == null || item.receive_quantity_alt.trim() === ''
+      item => item.receive_quantity_alt == null || item.receive_quantity_alt.trim() === ''
     );
     if (missingAlt) {
       msg.warning('receiptItemAltQtyRequired', { line: missingAlt.line_no });

@@ -300,7 +300,12 @@ export function usePrcProc(cb: PrcCallbacks) {
       const gram = it.gram_weight;
       const width = it.width;
       return (
-        gram != null && Number.isFinite(gram) && gram > 0 && width != null && Number.isFinite(width) && width > 0
+        gram != null &&
+        Number.isFinite(gram) &&
+        gram > 0 &&
+        width != null &&
+        Number.isFinite(width) &&
+        width > 0
       );
     };
     const kgBlindIndex = validItems.findIndex(it => isCreateRow(it) && !kgResolvable(it));

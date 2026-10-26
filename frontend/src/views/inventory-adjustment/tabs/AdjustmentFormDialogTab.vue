@@ -67,11 +67,7 @@
         :label="t('inventoryAdjustment.formDialogTab.labelWarehouse')"
         prop="warehouse_id"
       >
-        <el-select
-          v-model="formData.warehouse_id"
-          style="width: 100%"
-          @change="onWarehouseChange"
-        >
+        <el-select v-model="formData.warehouse_id" style="width: 100%" @change="onWarehouseChange">
           <el-option
             v-for="wh in warehouses"
             :key="wh.id"
@@ -497,7 +493,12 @@ watch(
         // 服务端明细归一为建单行形状（Decimal 串原样保留；备注列服务端键名为 notes）
         const serverItems = (
           props.currentRow as {
-            items?: { stock_id: number; quantity?: string; unit_cost?: string | null; notes?: string | null }[];
+            items?: {
+              stock_id: number;
+              quantity?: string;
+              unit_cost?: string | null;
+              notes?: string | null;
+            }[];
           }
         ).items;
         formData.items =
