@@ -117,7 +117,9 @@ fn m0104_migration_text_pins_partial_unique_shape() {
         text.matches("RAISE EXCEPTION '").count()
     );
     assert!(
-        !text.contains("uq_cost_collections_collection_no"),
+        // 只拦“对 cost_collections 建索引”的 DDL 形态。迁移头文档为说明对照口径
+        // 会写出 uq_cost_collections_collection_no 约束名，数裸名会把文档提及误判成回潮。
+        !text.contains("ON \"cost_collections\""),
         "cost_collections 已由 m0063 全表 UNIQUE 兜底（该表无 is_deleted 列），\
          m0104 不得为它重复建活跃行索引制造第二套口径"
     );
