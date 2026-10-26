@@ -5,7 +5,7 @@
 //! 建单、改版、启停、法务复核与签约固化都以本 mod 常量为唯一 token 来源，比较点与门控值
 //! 必须逐字符相同。数据库侧 CHECK 约束与各 `ALL` 逐元素相等，由建表迁移
 //! `migration/src/domain/contract_template_schema/mod.rs` 的八枚词表常量与契约锁用例
-//! `tests/contract_template_schema_migration_test.rs` 锁定，两侧任一侧单独增删值判红。
+//! `tests/contract_template_schema_migration_lock_test.rs` 锁定，两侧任一侧单独增删值判红。
 //!
 //! 取值域清单
 //! - `contract_type`，合同类别，闭合十值，对应模板清单十类
