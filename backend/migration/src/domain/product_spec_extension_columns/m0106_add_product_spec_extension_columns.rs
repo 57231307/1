@@ -19,6 +19,11 @@
 //!
 //! down 对称删列，不触碰任何既有业务数据；新列删除即回到未加列形态。
 //! 幂等前置 IF NOT EXISTS / IF EXISTS，重跑安全。
+//!
+//! 域与注册位置，本迁移注册在 product_spec_extension_columns 独立顶层域的 lib.rs 链尾，
+//! 晚于 business 域（该域 m0008 建 products 与 product_colors 两表），也晚于全部建表域。
+//! 独立成域而非并入 business 域的理由是该域在复用库上台账已记账会整体跳过，
+//! 并入即等于加列在存量库永不执行，本域在复用库上属 pending 必然执行。
 
 use sea_orm_migration::prelude::*;
 

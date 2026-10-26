@@ -59,6 +59,19 @@ pub struct Model {
     pub structure: Option<String>,
     /// 后整理：防水/防油/阻燃
     pub finish: Option<String>,
+    /// 带针幅宽（cm，含针边）。与 width（有效幅宽，净幅，不含针边）两列独立可空，
+    /// 开幅与预缩交付参考用本列；克重与米数换算一律以 width 为源，本列不参与换算。
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub width_needle_included_cm: Option<Decimal>,
+    /// 克重公差（±g/m²，非负）。目标值存 gram_weight，本列记允许偏差幅度，NULL 为未录入。
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub weight_tolerance: Option<Decimal>,
+    /// 氨纶含量（百分比，0 到 100）。弹性要求的行业口径，与 fabric_composition 成分文本并存，
+    /// 本列供过滤与换算。
+    #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
+    pub spandex_percent: Option<Decimal>,
+    /// 用途（自由文本，如 服装面料/家纺/产业用）。本批不收口为词表 CHECK，分布见迁移点名日志。
+    pub usage: Option<String>,
     /// 最小起订量（米）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub min_order_quantity: Option<Decimal>,

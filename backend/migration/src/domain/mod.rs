@@ -104,3 +104,7 @@ pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
+// 产品主档规格扩展列。独立顶层域，理由见域头（并入 business 域会在复用库被整体跳过）。
+pub mod product_spec_extension_columns;
+// 产品主档规格扩展列的词表收口域，晚于上一域（先加列，再点名，再收口）。
+pub mod product_vocab_check;

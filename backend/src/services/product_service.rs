@@ -125,6 +125,15 @@ pub struct CreateProductArgs {
     pub factory_address: Option<String>,
     /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 带针幅宽（cm，含针边，DECIMAL(10,2) 列）。与 width（有效幅宽，净幅）两列独立可空，
+    /// 本列不参与克重与米数换算。
+    pub width_needle_included_cm: Option<Decimal>,
+    /// 克重公差（±g/m²，DECIMAL(10,2) 列，非负）。目标值在 gram_weight，本列记允差幅度。
+    pub weight_tolerance: Option<Decimal>,
+    /// 氨纶含量（百分比，DECIMAL(5,2) 列，0 到 100）。弹性要求的行业口径。
+    pub spandex_percent: Option<Decimal>,
+    /// 用途（自由文本，如 服装面料/家纺/产业用）
+    pub usage: Option<String>,
     /// 每匹米数（匹↔米换算元数据，可选数值，None 表示未录入）
     pub meters_per_piece: Option<Decimal>,
     /// 每卷米数（卷↔米换算元数据，可选数值，None 表示未录入）
@@ -182,6 +191,14 @@ pub struct UpdateProductArgs {
     pub factory_address: Option<String>,
     /// V15 P1 合规字段：产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 带针幅宽（cm，含针边，DECIMAL(10,2) 列，三态部分更新），形态与语义同幅宽。
+    pub width_needle_included_cm: Option<Option<Decimal>>,
+    /// 克重公差（±g/m²，DECIMAL(10,2) 列，三态部分更新），形态与语义同克重。
+    pub weight_tolerance: Option<Option<Decimal>>,
+    /// 氨纶含量（百分比，DECIMAL(5,2) 列，三态部分更新），形态与语义同克重。
+    pub spandex_percent: Option<Option<Decimal>>,
+    /// 用途（自由文本，单层条件更新，键缺席即不更新该列），语义同组织结构与后整理。
+    pub usage: Option<String>,
     /// 每匹米数（匹↔米换算元数据，三态部分更新）。外层 None 即键缺席、本列保持原值，
     /// Some(None) 即显式 null、清空为 NULL，Some(Some(v)) 即覆盖为该值。
     pub meters_per_piece: Option<Option<Decimal>>,

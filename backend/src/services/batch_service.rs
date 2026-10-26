@@ -8,9 +8,11 @@ use crate::models::status::master_data;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 // 每匹米数与每卷米数的同源补齐与产品单条链路共用同一真源，避免批量入口各写一套语义
 use crate::services::product_service::pair_piece_roll_meters;
-// 建品必录校验（产品类型显式 + 面料类幅宽/克重/成分）与单条、CSV 导入共用同一判据函数，
-// 批量入口不得绕过，否则「按品类分级必填」在批量面失守
-use crate::services::product_service::validate_product_create_fields;
+// 建品必录校验（产品类型显式 加 面料类幅宽与克重与成分）与取值域校验（词表内、幅宽克重为正、量价非负）
+// 与单条、CSV 导入共用同一判据函数组，批量入口不得绕过，否则按品类分级必填在批量面失守
+use crate::services::product_service::{
+    validate_product_create_fields, validate_product_numeric_domains,
+};
 use crate::utils::error::AppError;
 use sea_orm::DatabaseConnection;
 use sea_orm::DatabaseTransaction;
@@ -18,6 +20,7 @@ use sea_orm::TransactionTrait;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 /// 批量操作结果
@@ -138,35 +141,70 @@ impl BatchService {
         let mut errors = Vec::new();
 
         for (index, req) in requests.iter().enumerate() {
-            // 建品必录校验（产品类型显式 + 面料类幅宽/克重/成分）与单条 HTTP、CSV 导入共用
-            // 同一判据函数 validate_product_create_fields；批量入口逐行先校验，任一不过即整体回滚，
+            // 建品必录校验（产品类型显式 加 面料类幅宽与克重与成分）与单条 HTTP、CSV 导入共用
+            // 同一判据函数 validate_product_create_fields。批量入口逐行先校验，任一不过即整体回滚，
             // 与下方插入失败的整单回滚语义一致，避免部分写入。
-            // 批量入参 width/gram_weight 本就是 Decimal，直接透传比较，不做 f64 往返、不兜底。
-            if let Err(e) = validate_product_create_fields(
-                req.product_type.as_deref(),
-                req.width,
-                req.gram_weight,
-                req.fabric_composition.as_deref(),
-            ) {
-                txn.rollback().await.ok();
-                errors.push(BatchError {
-                    index,
-                    message: e.to_string(),
+            // 取值域校验（类型在词表内、幅宽克重为正、量价非负）与创建侧和更新侧共用
+            // validate_product_numeric_domains。批量此前只过必录门不过取值域门，
+            // 导致词表外类型与负幅宽这类入参在批量面能落库、在单条面被拒，三入口判据不齐。
+            // 批量入参 width 与 gram_weight 本就是 Decimal，直接透传比较，不做 f64 往返、不兜底。
+            // 价格两列在批量入参里是字符串形态（DECIMAL 列的线上形态），先严格按十进制解析再交
+            // 取值域判据，解析不了就点名拒绝，不再在构造处静默折叠成 None 把单价写空。
+            let normalized = Self::parse_batch_decimal(req.standard_price.as_ref(), "标准价格")
+                .and_then(|sp| {
+                    Self::parse_batch_decimal(req.cost_price.as_ref(), "成本价格")
+                        .map(|cp| (sp, cp))
+                })
+                .and_then(|(standard_price, cost_price)| {
+                    validate_product_create_fields(
+                        req.product_type.as_deref(),
+                        req.width,
+                        req.gram_weight,
+                        req.fabric_composition.as_deref(),
+                    )
+                    .and_then(|()| {
+                        validate_product_numeric_domains(
+                            req.product_type.as_deref(),
+                            req.width,
+                            req.gram_weight,
+                            req.min_order_quantity,
+                            req.lead_time,
+                            standard_price,
+                            cost_price,
+                        )
+                    })
+                    .map(|()| (standard_price, cost_price))
                 });
-                let failed = errors.len();
-                Self::record_batch_create_audit(&self.db, user_id, &requests, 0, &errors, true);
-                return Ok(BatchResult {
-                    success: false,
-                    total: requests.len(),
-                    created: 0,
-                    updated: 0,
-                    failed,
-                    data: vec![],
-                    errors,
-                });
-            }
+            let (standard_price, cost_price) = match normalized {
+                Ok(prices) => prices,
+                Err(e) => {
+                    txn.rollback().await.ok();
+                    errors.push(BatchError {
+                        index,
+                        message: e.to_string(),
+                    });
+                    let failed = errors.len();
+                    Self::record_batch_create_audit(
+                        &self.db,
+                        user_id,
+                        &requests,
+                        0,
+                        &errors,
+                        true,
+                    );
+                    return Ok(BatchResult {
+                        success: false,
+                        total: requests.len(),
+                        created: 0,
+                        updated: 0,
+                        failed,
+                        data: vec![],
+                        errors,
+                    });
+                }
+            };
 
-            let product = Self::build_product_active_model(req);
+            let product = Self::build_product_active_model(req, standard_price, cost_price);
 
             match product.insert(&txn).await {
                 Ok(model) => {
@@ -211,18 +249,35 @@ impl BatchService {
         })
     }
 
-    /// 从请求构建产品 ActiveModel
-    fn build_product_active_model(req: &BatchCreateProductRequest) -> product::ActiveModel {
-        // 解析价格
-        let standard_price = req
-            .standard_price
-            .as_ref()
-            .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
-        let cost_price = req
-            .cost_price
-            .as_ref()
-            .and_then(|s| s.parse::<rust_decimal::Decimal>().ok());
+    /// 批量入参的 DECIMAL 字符串列严格解析。入参 raw 为批量请求里的原值，label 为该列的用户可见名称。
+    /// 返回 Ok(None) 表示未提交该列，Ok(Some(v)) 表示解析成功，解析不了即点名拒绝。
+    /// 调用方为 batch_create_products 的逐行前置检查，解析结果随后下传 build_product_active_model
+    /// 落库，并交 validate_product_numeric_domains 判非负。
+    /// 为什么不再用 .ok() 静默折叠成 None。那等于把用户填了但写错的单价悄悄写成空值，
+    /// 用户看到的落库结果与自己提交的内容不一致，且价格列的取值意图被吞掉。
+    fn parse_batch_decimal(
+        raw: Option<&String>,
+        label: &str,
+    ) -> Result<Option<rust_decimal::Decimal>, AppError> {
+        let Some(text) = raw else {
+            return Ok(None);
+        };
+        if text.trim().is_empty() {
+            return Ok(None);
+        }
+        rust_decimal::Decimal::from_str(text.trim()).map(Some).map_err(|_| {
+            AppError::validation_displayable(format!("{label} \"{text}\" 不是合法十进制数"))
+        })
+    }
 
+    /// 从请求构建产品 ActiveModel
+    /// 价格两列由调用方在逐行校验阶段严格解析后下传（解析失败已在调用处点名拒绝），
+    /// 本函数不再自行 .ok() 解析，避免把用户填的单价静默丢成 None。
+    fn build_product_active_model(
+        req: &BatchCreateProductRequest,
+        standard_price: Option<rust_decimal::Decimal>,
+        cost_price: Option<rust_decimal::Decimal>,
+    ) -> product::ActiveModel {
         // 米数两列先过同源补齐再落 ActiveModel，只带一个值时另一列同值落库，
         // 两个都不带时两列落 NULL，与产品单条创建链路同一形态
         let (meters_per_piece, meters_per_roll) =

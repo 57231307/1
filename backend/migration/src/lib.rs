@@ -162,6 +162,10 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customers_nullable_columns_norm::Migration),
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
+            // 产品主档规格扩展列，链尾独立域（products 与 product_colors 由 business 域先建）
+            Box::new(domain::product_spec_extension_columns::Migration),
+            // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）
+            Box::new(domain::product_vocab_check::Migration),
         ]
     }
 }

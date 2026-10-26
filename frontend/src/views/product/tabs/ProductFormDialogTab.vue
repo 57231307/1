@@ -631,7 +631,7 @@ const formRules = computed<FormRules>(() => {
           message: t('product.productFormDialogTab.validateWidthRequiredFabric'),
           trigger: 'blur',
         },
-        numericFormatRule('product.productFormDialogTab.validateWidthRequiredFabric', 2, true),
+        numericFormatRule('product.productFormDialogTab.validateWidthFormat', 2, true),
       ];
       rules.gram_weight = [
         {
@@ -639,7 +639,11 @@ const formRules = computed<FormRules>(() => {
           message: t('product.productFormDialogTab.validateGramWeightRequiredFabric'),
           trigger: 'blur',
         },
-        numericFormatRule('product.productFormDialogTab.validateGramWeightRequiredFabric', 2, true),
+        numericFormatRule(
+          'product.productFormDialogTab.validateGramWeightFormat',
+          2,
+          true
+        ),
       ];
       rules.fabric_composition = [
         {
