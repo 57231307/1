@@ -7,7 +7,7 @@ import {
   BROWSER_NETWORK_NOISE,
   tryCleanup,
 } from './helpers';
-import { safeGoto, openScopedDropdown, dropdownItems, expectNoVisibleDropdown } from './ui-helpers';
+import { safeGoto, openScopedDropdown, dropdownItems, expectDropdownClosed } from './ui-helpers';
 
 // 覆盖前端改动：评估管理新增的供应商对比页签。
 // 用 UI 真实操作锁定：对比入口是按名称与编码向服务端远程搜索的多选下拉（不要求手填数字主键），
@@ -139,7 +139,7 @@ async function searchAndPick(page: Page, keyword: string): Promise<void> {
   // 第一段 Escape 清空关键字不收面板，第二段才收，与本仓 remote 多选既有用例的两段收法一致。
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
-  await expectNoVisibleDropdown(page);
+  await expectDropdownClosed(page);
 }
 
 test.describe('供应商对比页签端到端', () => {
