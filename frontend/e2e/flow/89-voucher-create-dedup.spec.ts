@@ -73,7 +73,8 @@ async function pickFirstSubjectInRow(row: Locator, page: Page): Promise<void> {
 
 async function fillAmount(control: Locator, value: string): Promise<void> {
   await control.fill(value);
-  await control.press('Enter');
+  // 手写录入框在 change 提交模型，Tab 触发 blur 让借/贷金额写入分录，逐键不写模型
+  await control.press('Tab');
 }
 
 test.describe('凭证新建防重', () => {
@@ -120,12 +121,13 @@ test.describe('凭证新建防重', () => {
     const rows = dialog.locator('.entries-row');
     await expect(rows, '新建凭证默认给出一行分录').toHaveCount(1, { timeout: 10000 });
     await pickFirstSubjectInRow(rows.nth(0), page);
-    await fillAmount(rows.nth(0).locator('.el-input-number input').first(), '100');
+    await expect(rows.nth(0).getByRole('spinbutton'), '分录金额不应是步进角色').toHaveCount(0);
+    await fillAmount(rows.nth(0).locator('.col-debit input'), '100');
 
     await dialog.getByRole('button', { name: '+ 添加分录' }).click();
     await expect(rows, '添加后应得到第二行分录').toHaveCount(2, { timeout: 10000 });
     await pickFirstSubjectInRow(rows.nth(1), page);
-    await fillAmount(rows.nth(1).locator('.el-input-number input').nth(1), '100');
+    await fillAmount(rows.nth(1).locator('.col-credit input'), '100');
 
     // 借贷平衡是提交前置校验的真实结果，未平衡时 handleSubmit 会在锁内早退，计数断言会失真
     await expect(dialog.getByText('借贷平衡'), '两行分录应真实平衡').toBeVisible({
