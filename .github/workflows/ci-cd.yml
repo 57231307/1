@@ -372,13 +372,37 @@ jobs:
   # 合并 job：原先 3 个 job 各跑一次 checkout + setup-frontend（npm ci），
   # 而三者互不依赖、总耗时 < 2 分钟；合并后 5 个 runner 启动与 2 次 npm ci 被省掉。
   ci-static-checks:
-    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线 / 键名与 e2e 类型棘轮）
+    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线 / 键名与 e2e 类型棘轮 / actionlint）
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
+
+      - name: 工作流与 composite action 静态校验（actionlint）
+        # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action
+        # 静态零发现才绿。
+        # 为什么要有这一步 分支名 github.head_ref 被直接内插进 shell 属脚本注入面，
+        #   以及 action 元数据缺 description 这两类缺陷原先没有任何门禁会报，
+        #   在主干躺了很久（本轮已清零，本步负责防再发）。
+        # 版本与完整性 固定 1.7.12，取官方校验清单做 sha256 完整性核对后再解包；
+        #   下载或校验不过当场判红，不许退化成"取不到就跳过检查"。
+        # 与本机同源 本机用的也是 actionlint 1.7.12，两边判据一致才不会本地绿 CI 红。
+        run: |
+          VER=1.7.12
+          BASE="https://github.com/rhysd/actionlint/releases/download/v${VER}"
+          TGZ="actionlint_${VER}_linux_amd64.tar.gz"
+          curl -sSfL --retry 3 -o "$TGZ" "$BASE/$TGZ" \
+            || { echo "::error::actionlint 下载失败（固定版本 $VER），拒绝跳过检查"; exit 1; }
+          curl -sSfL --retry 3 -o checksums.txt "$BASE/actionlint_${VER}_checksums.txt" \
+            || { echo "::error::actionlint 校验清单下载失败，拒绝跳过检查"; exit 1; }
+          sha256sum --ignore-missing -c checksums.txt \
+            || { echo "::error::actionlint 产物 sha256 完整性校验未通过"; exit 1; }
+          tar -xzf "$TGZ"
+          chmod +x ./actionlint
+          ./actionlint
+          echo "actionlint 零发现，工作流与 composite action 静态面通过"
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
