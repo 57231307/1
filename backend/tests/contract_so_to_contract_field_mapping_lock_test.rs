@@ -259,11 +259,29 @@ fn client_channel_problems(
     }
     for f in FORBIDDEN_CLIENT_FIELDS {
         let needle = format!("{f}:");
-        if dialog.contains(&needle) {
+        if has_key_position(dialog, &needle) {
             problems.push(format!("对话框提交体出现禁用字段字面量 {needle}"));
         }
     }
     problems
+}
+
+/// 键位判定：needle 出现且其前一字符不是标识符字符或点号（排除 source_amount: 这类
+/// 前缀粘连与非键位取值位置的误报）
+fn has_key_position(hay: &str, needle: &str) -> bool {
+    let mut from = 0usize;
+    while let Some(rel) = hay[from..].find(needle) {
+        let idx = from + rel;
+        let prev_ok = match hay[..idx].chars().next_back() {
+            None => true,
+            Some(c) => !(c.is_ascii_alphanumeric() || c == '_' || c == '.'),
+        };
+        if prev_ok {
+            return true;
+        }
+        from = idx + 1;
+    }
+    false
 }
 
 /// DTO 字段到服务入参搬运的正向判定器（表头 with self 前缀、行 with 闭包参数名）
@@ -578,13 +596,15 @@ fn status_gate_problems(convert: &str, table: &str, detail: &str, utils: &str) -
         "COMPLETED",
         "DRAFT",
         "PENDING",
-        "CANCELLED",
-        "REJECTED",
     ] {
         let needle = format!("so_status::{c}");
         if !gate.contains(&needle) {
             problems.push(format!("可转状态门未引用词表常量 {needle}"));
         }
+    }
+    // 未审核组与兜底组消息分流：cancelled/rejected 与词表外取值一律走兜底拒绝（fail-closed）
+    if !gate.contains("尚未审核通过") || !gate.contains("已了结或失效") {
+        problems.push("可转状态门的两组拒绝文案分流丢失".to_string());
     }
     if utils
         .find("SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES")
@@ -811,11 +831,11 @@ fn mutation_replacing_preview_carry_with_constant_is_detected() {
 
 #[test]
 fn mutation_reintroducing_second_status_array_in_view_is_detected() {
-    let mutated = norm(FE_TABLE).replace(
-        "(SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES as readonly string[]).includes(row.status)",
-        "['approved', 'partial_shipped', 'shipped', 'completed'].includes(row.status)",
+    // 变异形态：列表视图回退成自抄一份字面量数组（判定器要点名第二套集合）
+    let mutated = format!(
+        "{}\nconst CONVERTIBLE_STATUSES = ['approved', 'partial_shipped', 'shipped', 'completed'];\n",
+        norm(FE_TABLE)
     );
-    assert_ne!(mutated, norm(FE_TABLE), "变异目标串不在视图源码里，自证未生效");
     let problems = status_gate_problems(
         &norm(CONVERT),
         &mutated,
