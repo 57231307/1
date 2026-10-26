@@ -20,7 +20,11 @@ import type { Product } from '@/api/product';
  * 收货明细行数据结构
  */
 export type ReceiveItem = PurchaseOrderItem & {
-  receive_quantity: number;
+  /**
+   * 本次实收米数（el-input 按十进制串采集，提交前经 parseReceiveQty 解析并校验
+   * 大于零与可收量上限；留空表示本行不收，被填进 validItems 之外）。
+   */
+  receive_quantity: string;
   remarks: string;
   /**
    * 收货批次号：入库四维之一，后端 create_receipt→validate_receipt_item_dimensions
@@ -28,15 +32,17 @@ export type ReceiveItem = PurchaseOrderItem & {
    */
   batch_no: string;
   /**
-   * 实收辅助数量（提交时映射到契约键 quantity_alt）：
+   * 实收公斤数（提交时映射到契约键 quantity_alt）：
    * 后端 CreateReceiptItemRequest.quantity_alt 为**非 Option 必填**十进制
    * （backend/src/services/purchase_receipt_dto 内定义），缺键即 serde 反序列化拒绝；
-   * 该列为 NOT NULL 且累加进 received_quantity_alt/total_quantity_alt，
-   * 未录入不得塌成 0 伪造成「实收为 0」的假量（0 只允许是用户显式输入的实测值）。
+   * 受理门 `services::inv::inbound_admission::resolve_inbound_quantity_kg` 把公斤数
+   * 定成两条来源：实称大于 0，或克重与幅宽齐由系统推算。本快录对话框不采集克重/幅宽，
+   * 公斤数即唯一来源，必须显式录入且大于 0——0 在后端门是「未实称」信号而非合法实收值，
+   * 留空或未录都会在建单口被 400 拒，故提交前本地点名拦下。
    * 命名与主量 receive_quantity 对齐：订单行自带的 quantity_alt 是**订购**辅量
    * （PurchaseOrderItem.quantity_alt: string，出参十进制字符串），语义不同，不复用键位。
    */
-  receive_quantity_alt?: number;
+  receive_quantity_alt?: string;
 };
 
 /**
@@ -83,8 +89,8 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
 
   /**
    * 十进制出参解析：明细的数量/单价列在后端是 DECIMAL（purchase_order_item 模型，
-   * rust_decimal 经 JSON 序列化为**字符串**，如 "20.0000"），el-input-number 与
-   * :max 计算只接受 number，加载边界必须显式解析：
+   * rust_decimal 经 JSON 序列化为**字符串**，如 "20.0000"），可收量上限计算只接受
+   * number，加载边界必须显式解析：
    * Number('')===0、Number(null)===0 会把缺值伪装成合法数量，NaN 会静默传导到
    * 可收量上限与提交 payload，故缺值/非法值一律抛错，由调用方拒绝打开并留痕。
    */
@@ -99,6 +105,19 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       );
     }
     return n;
+  };
+
+  /**
+   * 收货录入数值解析：本次实收米数与实收公斤数由 el-input 按十进制串采集
+   * （全项目禁步进框，范围与精度靠校验器不靠按钮）。
+   * 返回 undefined = 未录入（空/纯空白）；非空但解析不出有限数同样返回 undefined，
+   * 由调用方分流：填了却非法必须点名拒绝，不得与"未填"混同静默丢行。
+   */
+  const parseReceiveQty = (raw: string): number | undefined => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return undefined;
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : undefined;
   };
 
   /**
@@ -146,7 +165,8 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
           item.line_no
         ),
         unit_price: parseItemDecimal(item.unit_price, 'unit_price', item.line_no),
-        receive_quantity: 0,
+        receive_quantity: '',
+        receive_quantity_alt: undefined,
         remarks: '',
         batch_no: '',
       }));
@@ -179,10 +199,10 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
    * 逐字段映射（原 product_id/received_quantity/remark 是错误键名，后端 serde 拒绝）：
    *   - order_id/supplier_id 来自关联采购订单（supplier_id 为后端必填非 Option）；
    *   - material_id = 订单明细 product_id；material_code/material_name/unit_master 取产品主数据；
-   *   - batch_no 取收货人录入值；quantity = 本次收货数量；
-   *   - quantity_alt = 收货人实录入参的辅助数量（submitReceive 已按创建契约必填键拦截未录入行，
-   *     非空断言仅为类型收窄，禁止 ?? 0 把未采集伪装成实收 0）。
-   * 维度采集面只补批次+辅量，不造色号/缸号输入：后端建单期维度校验无条件强制的只有
+   *   - batch_no 取收货人录入值；quantity = 本次实收米数（submitReceive 已保证为正且不超可收量）；
+   *   - quantity_alt = 收货人录入的实收公斤数（submitReceive 已按入库受理门拦下未录入与
+   *     不大于零的行，此处仅做十进制串到 number 的契约转换）。
+   * 维度采集面只补批次+公斤数，不造色号/缸号输入：后端建单期维度校验无条件强制的只有
    * material_id 与 batch_no（backend/src/services/purchase_receipt_ops/crud 的
    * validate_receipt_item_dimensions），色号/缸号由同文件委托的
    * inv::fabric_class::validate_fabric_trace
@@ -203,11 +223,11 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
         material_code: product.product_code,
         material_name: product.product_name,
         batch_no: item.batch_no.trim(),
-        quantity: item.receive_quantity,
+        quantity: parseReceiveQty(item.receive_quantity)!,
         // 创建契约必填非 Option 键（backend/src/services/purchase_receipt_dto 的
-        // CreateReceiptItemRequest）；
-        // 未录入行已由 submitReceive 拦下，此处非空断言是类型收窄而非兜底
-        quantity_alt: item.receive_quantity_alt!,
+        // CreateReceiptItemRequest）；未录入与不大于零的行已由 submitReceive 点名拦下，
+        // 此处非空断言是类型收窄而非兜底
+        quantity_alt: parseReceiveQty(item.receive_quantity_alt ?? '')!,
         unit_master: product.unit,
         unit_price: item.unit_price,
       };
@@ -230,9 +250,34 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       msg.warning('pleaseSelectWarehouse');
       return;
     }
-    const validItems = receiveForm.value.items.filter(item => item.receive_quantity > 0);
+    // 数值录入合法性先于业务门：填了却解析不出有限数的行必须点名拒绝，
+    // 不能与"未填本行不收"混同后被 filter 静默丢行（静默丢行=吞错）
+    const badQty = receiveForm.value.items.find(
+      item => item.receive_quantity.trim() !== '' && parseReceiveQty(item.receive_quantity) === undefined
+    );
+    if (badQty) {
+      msg.warning('receiveQtyInvalid', { line: badQty.line_no });
+      return;
+    }
+    const validItems = receiveForm.value.items.filter(item => {
+      const n = parseReceiveQty(item.receive_quantity);
+      return n !== undefined && n > 0;
+    });
     if (validItems.length === 0) {
       msg.warning('pleaseFillItem');
+      return;
+    }
+    // 数量上限门（取代步进框 :max 的静默钳制——钳制会改用户输入数据且无提示）：
+    // 本次实收不得超过「订购 - 已收」的剩余可收量，超出即点名行号与剩余额拒绝
+    const exceeds = validItems.find(item => {
+      const remaining = item.quantity - item.received_quantity;
+      return (parseReceiveQty(item.receive_quantity) ?? 0) > remaining;
+    });
+    if (exceeds) {
+      msg.warning('receiveQtyExceedsReceivable', {
+        line: exceeds.line_no,
+        remaining: exceeds.quantity - exceeds.received_quantity,
+      });
       return;
     }
     // 批次号是后端建单期强校验维度，缺任一行的批次即整单拒绝；只能实测录入，禁止塞假值
@@ -242,17 +287,35 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
       logger.warn(`[收货] 产品 ${missingBatch.product_id} 未录入批次号，拒绝建单`);
       return;
     }
-    // 辅量必填拦截（与正规入库页 usePrcProc 同口径）：创建契约 quantity_alt 为非 Option 必填键
-    // （backend/src/services/purchase_receipt_dto 的 CreateReceiptItemRequest），本对话框未采集「省键」三态的能力，
-    // 未录入必须本地显式拦下提示，而不是让后端缺键 422 打哑谜；
-    // 「实收为 0」的合法口径是用户显式输入 0，不是留空塌成默认值。
-    const missingAltIndex = validItems.findIndex(
-      item => item.receive_quantity_alt == null || !Number.isFinite(item.receive_quantity_alt)
+    // 实收公斤数拦截（与后端受理门 resolve_inbound_quantity_kg 同口径）：创建契约
+    // quantity_alt 为非 Option 必填键，且本快录对话框不采集克重/幅宽，公斤数唯一来源
+    // 就是实称录入值——未录入或填了不大于 0 的都在建单口被后端 400 拒，
+    // 本地点名拦下，改后界面直接说缺哪一列，而不是让后端打哑谜。
+    const missingAlt = validItems.find(
+      item =>
+        item.receive_quantity_alt == null || item.receive_quantity_alt.trim() === ''
     );
-    if (missingAltIndex >= 0) {
-      msg.warning('receiptItemAltQtyRequired', { line: missingAltIndex + 1 });
+    if (missingAlt) {
+      msg.warning('receiptItemAltQtyRequired', { line: missingAlt.line_no });
       logger.warn(
-        `[收货] 第 ${missingAltIndex + 1} 行未录入辅助数量（创建契约必填键 quantity_alt），拒绝建单`
+        `[收货] 产品 ${missingAlt.product_id} 未录入实收公斤数（创建契约必填键 quantity_alt），拒绝建单`
+      );
+      return;
+    }
+    const badAltText = validItems.find(
+      item => parseReceiveQty(item.receive_quantity_alt ?? '') === undefined
+    );
+    if (badAltText) {
+      msg.warning('receiptItemAltQtyInvalid', { line: badAltText.line_no });
+      return;
+    }
+    const badAlt = validItems.find(
+      item => (parseReceiveQty(item.receive_quantity_alt ?? '') ?? 0) <= 0
+    );
+    if (badAlt) {
+      msg.warning('receiptItemAltQtyMustBePositive', { line: badAlt.line_no });
+      logger.warn(
+        `[收货] 产品 ${badAlt.product_id} 实收公斤数不大于 0（后端公斤数门把 0 视为未实称），拒绝建单`
       );
       return;
     }

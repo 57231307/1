@@ -76,32 +76,28 @@
           />
           <el-table-column :label="t('purchase.receiveDlg.colThisReceive')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <!-- 数值录入按 el-input 十进制串采集（全项目禁步进框），
+                   大于零与可收量上限由 usePurchRcv.submitReceive 校验器点名拒绝 -->
+              <el-input
                 v-model="row.receive_quantity"
-                :min="0"
-                :max="row.quantity - row.received_quantity"
                 size="small"
+                :placeholder="t('purchase.receiveDlg.qtyPlaceholder')"
               />
             </template>
           </el-table-column>
           <!--
-            辅量：收货实收的辅助单位数量（面料按匹/公斤等双计量），入库登记必填——
-            无辅量也要显式输入 0，留空会被提交拦截（usePurchRcv.submitReceive 镜像
-            后端创建契约 quantity_alt 必填键，backend/src/services/purchase_receipt_dto 的
-            CreateReceiptItemRequest）。
+            实收公斤数（辅量，提交映射契约键 quantity_alt）：入库受理门
+            services/inv/inbound_admission.rs::resolve_inbound_quantity_kg 要求公斤数
+            必须可确定（实称大于 0，或克重与幅宽齐由系统推算）；本快录对话框不采集
+            克重/幅宽，实称公斤数为唯一必填项——留空或填 0 都会被建单口拒绝，
+            usePurchRcv.submitReceive 已按行点名拦下（无辅量填 0 的旧口径不再成立）。
           -->
           <el-table-column :label="t('purchase.receiveDlg.colAltQty')" width="130">
             <template #default="{ row }">
-              <el-input-number
-                :model-value="row.receive_quantity_alt"
-                :min="0"
+              <el-input
+                v-model="row.receive_quantity_alt"
                 size="small"
                 :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
-                @update:model-value="
-                  (v: number | undefined) => {
-                    row.receive_quantity_alt = v ?? undefined;
-                  }
-                "
               />
             </template>
           </el-table-column>

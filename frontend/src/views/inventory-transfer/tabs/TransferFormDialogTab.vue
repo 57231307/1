@@ -284,6 +284,7 @@ import {
   type InventoryTransferItemPayload,
 } from '@/api/inventory-transfer';
 import { getStockList, type InventoryStock } from '@/api/inventory';
+import { INVENTORY_STOCK_STATUS, INVENTORY_QUALITY_STATUS } from '@/constants/stock-status';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
 import { logger } from '@/utils/logger';
@@ -417,9 +418,15 @@ const loadStockRows = async (productId: number) => {
   if (!formData.from_warehouse_id || !productId) return;
   if (stockRowsMap.value[productId]) return;
   try {
+    // 出库候选口径后端唯一（services/inv/stock.rs is_outbound_eligible）：台账「正常」
+    // 且质量「合格」才可出，报废、待检与不合格行不得出现在可选清单。必须走查询参数
+    // 下推而不是前端过滤——list 默认只排软删行（报废行仍返回），且分页截断会让
+    // 前端只筛到已加载的一页、把后页的合格行整页丢掉。
     const res = await getStockList({
       warehouse_id: formData.from_warehouse_id,
       product_id: productId,
+      stock_status: INVENTORY_STOCK_STATUS.NORMAL,
+      quality_status: INVENTORY_QUALITY_STATUS.PASS,
       page: 1,
       page_size: 100,
     });

@@ -1154,11 +1154,12 @@ export default {
       colOrderedQty: '订购数量',
       colReceivedQty: '已收货',
       colThisReceive: '本次收货',
+      qtyPlaceholder: '本次实收米数',
       colUnitPrice: '单价',
       colBatch: '批次号',
       batchPlaceholder: '收货批次号',
       colAltQty: '辅助数量',
-      altQtyPlaceholder: '请输入辅助数量，无辅量填0',
+      altQtyPlaceholder: '实收公斤数，须大于0',
       colRemark: '备注',
       remarkPlaceholder: '备注',
       concession: {
@@ -1506,7 +1507,15 @@ export default {
       '第 {line} 行缺少物料编码/名称/主单位：主单位来自产品档案，请先在产品档案维护计量单位后重新选择该产品',
     lotNoRequiredForColor: '已填色号的行必须录入缸号',
     receiptItemAltQtyRequired:
-      '第 {line} 行未录入辅助数量：入库创建契约该键必填（quantity_alt），请实测录入（实收为 0 可显式填 0）',
+      '第 {line} 行未录入实收公斤数：入库登记必须给出过磅公斤数，无磅单请到正规入库页用克重与幅宽推算',
+    receiptItemAltQtyInvalid: '第 {line} 行实收公斤数不是合法数字，请按过磅单录入',
+    receiptItemAltQtyMustBePositive:
+      '第 {line} 行实收公斤数必须大于 0：0 不构成实称，无磅单请到正规入库页用克重与幅宽推算',
+    receiptItemKgUnresolvable:
+      '第 {line} 行公斤数无法确定：请录入大于 0 的实称公斤数，或同时录入克重与幅宽由系统换算',
+    receiveQtyInvalid: '第 {line} 行本次实收米数不是合法数字，请按码单录入',
+    receiveQtyExceedsReceivable:
+      '第 {line} 行本次实收超过剩余可收量 {remaining}，请按码单实收数录入',
     addReceiptTitle: '新增入库单',
     addReceiptTitleWithNo: '新增入库（预生成单号 {no}）',
     editReceiptTitle: '编辑入库单',

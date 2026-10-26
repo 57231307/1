@@ -286,19 +286,28 @@ export function usePrcProc(cb: PrcCallbacks) {
       return;
     }
 
-    // 辅量（quantity_alt）录入拦截：创建契约中该键为**非 Option 必填**
-    // （backend/src/services/purchase_receipt_dto 的 CreateReceiptItemRequest：
-    // `pub quantity_alt: Decimal` 非 Option，缺键=反序列化直接拒绝），故新建单行与编辑态追加分录行必须由操作人实测录入——
-    // 未采集不得塌成 0（0 会被累加进 received_quantity_alt/total_quantity_alt 成为假量，
-    // 正是本批要消灭的辅量断链镜像）。三态中的「留空省略键」仅更新契约可表达，见 mapItemUpdate。
+    // 公斤数二选一拦截（与 PurchaseReceiptForm.validateItemRows 及后端受理门
+    // services::inv::inbound_admission::resolve_inbound_quantity_kg 同口径）：
+    // 实称公斤数大于 0，或克重与幅宽齐（由后端经 DualUnitConverter 单入口推算）。
+    // 创建契约 quantity_alt 为非 Option 必填键（缺键=serde 直接拒绝），故未实称的行
+    // 在映射时送 0 作「按克重幅宽推算」信号——0 不被后端当作实称量，推算不出照样 400，
+    // 不存在把假辅量落库的通道；两条来源都缺的行在此点名拦下，不发请求。
+    // 「实收为 0 可显式填 0」的旧口径已随受理门失效：0 不构成入库量。
     const isCreateRow = (it: ReceiptItem) => !cb.form.id || it.id == null;
-    const missingAltIndex = validItems.findIndex(
-      it => isCreateRow(it) && (it.quantity_alt == null || !Number.isFinite(it.quantity_alt))
-    );
-    if (missingAltIndex >= 0) {
-      msg.warning('receiptItemAltQtyRequired', { line: missingAltIndex + 1 });
+    const kgResolvable = (it: ReceiptItem): boolean => {
+      const alt = it.quantity_alt;
+      if (alt != null && Number.isFinite(alt) && alt > 0) return true;
+      const gram = it.gram_weight;
+      const width = it.width;
+      return (
+        gram != null && Number.isFinite(gram) && gram > 0 && width != null && Number.isFinite(width) && width > 0
+      );
+    };
+    const kgBlindIndex = validItems.findIndex(it => isCreateRow(it) && !kgResolvable(it));
+    if (kgBlindIndex >= 0) {
+      msg.warning('receiptItemKgUnresolvable', { line: kgBlindIndex + 1 });
       logger.warn(
-        `[入库明细] 第 ${missingAltIndex + 1} 行未录入辅助数量（创建契约必填键 quantity_alt），拒绝提交`
+        `[入库明细] 第 ${kgBlindIndex + 1} 行公斤数无法确定（既无大于 0 的实称，也无克重与幅宽），拒绝提交`
       );
       return;
     }
@@ -319,8 +328,10 @@ export function usePrcProc(cb: PrcCallbacks) {
       lot_no: it.lot_no?.trim() || undefined,
       grade: it.grade?.trim() || undefined,
       quantity: it.quantity,
-      // 非空断言：创建路径的辅量已由上方拦截保证已采集（quantity_alt 必填键，禁止 ?? 0 伪装）
-      quantity_alt: it.quantity_alt!,
+      // 创建契约必填非 Option 键。公斤数可确定性已由上方二选一拦截保证：有实称送实称，
+      // 未实称送 0 作为「按克重与幅宽推算」信号（后端把不大于 0 的公斤数视为未实称，
+      // 推算失败照样拒绝），禁止在两路都缺时送值伪装实收
+      quantity_alt: it.quantity_alt ?? 0,
       unit_master: it.unit_master!,
       unit_price: it.unit_price || undefined,
     });

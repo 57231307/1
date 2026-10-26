@@ -1160,11 +1160,12 @@ export default {
       colOrderedQty: 'Ordered Qty',
       colReceivedQty: 'Received',
       colThisReceive: 'This Receipt',
+      qtyPlaceholder: 'Meters received now',
       colUnitPrice: 'Unit Price',
       colBatch: 'Batch No.',
       batchPlaceholder: 'Receipt batch no.',
       colAltQty: 'Alt Qty',
-      altQtyPlaceholder: 'Enter alt qty; use 0 if none',
+      altQtyPlaceholder: 'Weighed kg, must be > 0',
       colRemark: 'Remark',
       remarkPlaceholder: 'Remark',
       concession: {
@@ -1516,7 +1517,15 @@ export default {
       'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
     lotNoRequiredForColor: 'Lines with a color code must also record a lot number',
     receiptItemAltQtyRequired:
-      'Line {line} has no auxiliary quantity: quantity_alt is a required key in the receipt creation contract — record the measured value (enter 0 explicitly if the measured alt qty is 0)',
+      'Line {line}: no weighed kg entered — receiving must record the weighed kilogram amount; without a weight slip, use gram weight and width on the full receipt page to derive it',
+    receiptItemAltQtyInvalid: 'Line {line}: the weighed kg value is not a valid number, enter it from the weight slip',
+    receiptItemAltQtyMustBePositive:
+      'Line {line}: weighed kg must be greater than 0 — 0 is not an actual weigh; without a weight slip, use gram weight and width on the full receipt page',
+    receiptItemKgUnresolvable:
+      'Line {line}: kilogram amount cannot be determined — enter a weighed kg greater than 0, or both gram weight and width for the system to convert',
+    receiveQtyInvalid: 'Line {line}: the received-meters value is not a valid number, enter it from the count sheet',
+    receiveQtyExceedsReceivable:
+      'Line {line}: this receipt exceeds the remaining receivable {remaining}; enter the actual received meters',
     addReceiptTitle: 'Add Receipt',
     addReceiptTitleWithNo: 'Add Receipt (pre-generated no. {no})',
     editReceiptTitle: 'Edit Receipt',
