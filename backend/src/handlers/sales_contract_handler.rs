@@ -2,7 +2,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract;
 use crate::services::sales_contract_convert_service::{
-    ConvertFromOrderRequest, ConvertOrderItemInput, ContractPreview, SalesContractConvertService,
+    ContractPreview, ConvertFromOrderRequest, ConvertOrderItemInput, SalesContractConvertService,
 };
 use crate::services::sales_contract_service::{
     CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
@@ -218,11 +218,7 @@ pub struct ConvertItemDto {
 /// 客户不在入参内：合同签约主体必须与来源订单一致，服务端直取订单 customer_id，客户端无法改派。
 #[derive(Debug, Deserialize, Validate)]
 pub struct ConvertFromOrderDto {
-    #[validate(length(
-        min = 1,
-        max = 200,
-        message = "合同名称不能为空且不能超过200字符"
-    ))]
+    #[validate(length(min = 1, max = 200, message = "合同名称不能为空且不能超过200字符"))]
     pub contract_name: String,
     pub contract_type: Option<String>,
     pub payment_terms: Option<String>,

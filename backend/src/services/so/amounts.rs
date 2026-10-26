@@ -117,12 +117,7 @@ mod tests {
 
     #[test]
     fn line_amounts_taxes_the_discounted_base_not_the_gross() {
-        let line = calculate_line_amounts(
-            dec("100"),
-            dec("10"),
-            Some(dec("10")),
-            Some(dec("13")),
-        );
+        let line = calculate_line_amounts(dec("100"), dec("10"), Some(dec("10")), Some(dec("13")));
         assert_eq!(line.discount_amount, dec("100"));
         assert_eq!(line.amount_after_discount, dec("900"));
         assert_eq!(line.tax_amount, dec("117"));

@@ -224,12 +224,7 @@ const FORBIDDEN_CLIENT_FIELDS: &[&str] = &[
 ];
 
 /// 客户端四结构 + 对话框提交体的禁用通道判定器，返回问题清单
-fn client_channel_problems(
-    handler: &str,
-    convert: &str,
-    api: &str,
-    dialog: &str,
-) -> Vec<String> {
+fn client_channel_problems(handler: &str, convert: &str, api: &str, dialog: &str) -> Vec<String> {
     let mut problems = Vec::new();
     let _ = convert;
     let dto_sets = [
@@ -288,8 +283,10 @@ fn has_key_position(hay: &str, needle: &str) -> bool {
 fn header_carry_problems(handler: &str) -> Vec<String> {
     let mut problems = Vec::new();
     let fn_inner = block_inner(handler, "fn into_request");
-    let carried =
-        top_level_entries(&strip_comments(&block_inner(&fn_inner, "ConvertFromOrderRequest {")));
+    let carried = top_level_entries(&strip_comments(&block_inner(
+        &fn_inner,
+        "ConvertFromOrderRequest {",
+    )));
     let dto = struct_field_names(handler, "pub struct ConvertFromOrderDto {");
     for f in &dto {
         match carried.get(f) {
@@ -430,7 +427,10 @@ fn item_active_model_problems(convert: &str) -> Vec<String> {
         ),
         ("unit_price", &["li.unit_price"]),
         ("amount", &["line.subtotal"]),
-        ("delivery_date", &["li.delivery_date", "header_delivery_date"]),
+        (
+            "delivery_date",
+            &["li.delivery_date", "header_delivery_date"],
+        ),
         ("color_no", &["li.color_no", "src.color_no"]),
         ("discount_percent", &["line.discount_percent"]),
         ("discount_amount", &["line.discount_amount"]),
@@ -477,7 +477,9 @@ fn item_active_model_problems(convert: &str) -> Vec<String> {
 /// 建头请求逐点判定器：来源订单回指、合计与编号的来源
 fn header_active_model_problems(convert: &str, contract_svc: &str) -> Vec<String> {
     let mut problems = Vec::new();
-    let convert_fn = &convert[convert.find("pub async fn convert").expect("找不到 convert 函数")..];
+    let convert_fn = &convert[convert
+        .find("pub async fn convert")
+        .expect("找不到 convert 函数")..];
     let req = top_level_entries(&strip_comments(&block_inner(
         convert_fn,
         "CreateSalesContractRequest {",
@@ -497,14 +499,10 @@ fn header_active_model_problems(convert: &str, contract_svc: &str) -> Vec<String
         }
     }
     let line_amounts = block_inner(convert_fn, "calculate_line_amounts(");
-    if !squeeze(&convert_fn[convert_fn
-        .find(".map(|li|")
-        .expect("找不到行金额映射闭包")..])
+    if !squeeze(&convert_fn[convert_fn.find(".map(|li|").expect("找不到行金额映射闭包")..])
         .contains("src.discount_percent")
-        || !squeeze(
-            &convert_fn[convert_fn.find(".map(|li|").expect("找不到行金额映射闭包")..],
-        )
-        .contains("src.tax_percent")
+        || !squeeze(&convert_fn[convert_fn.find(".map(|li|").expect("找不到行金额映射闭包")..])
+            .contains("src.tax_percent")
     {
         problems.push(format!(
             "行金额重算未回读订单行折扣税率原值: {line_amounts}"
@@ -636,7 +634,9 @@ fn duplicate_gate_problems(convert: &str) -> Vec<String> {
             problems.push(format!("重复转换判据缺少 {needle}"));
         }
     }
-    let convert_fn = &convert[convert.find("pub async fn convert").expect("找不到 convert")..];
+    let convert_fn = &convert[convert
+        .find("pub async fn convert")
+        .expect("找不到 convert")..];
     if !convert_fn.contains("不能重复转换") || !convert_fn.contains("exist.contract_no") {
         problems.push("重复转换拒绝文案未点名既有合同号，用户不可识别".to_string());
     }
@@ -691,19 +691,13 @@ fn convert_dto_header_fields_are_all_carried_into_service_request() {
 #[test]
 fn convert_dto_item_fields_are_all_carried_into_service_input() {
     let problems = item_carry_problems(&norm(HANDLER));
-    assert!(
-        problems.is_empty(),
-        "行字段搬运逐点检查失败: {problems:?}"
-    );
+    assert!(problems.is_empty(), "行字段搬运逐点检查失败: {problems:?}");
 }
 
 #[test]
 fn preview_carries_order_line_and_product_values_point_by_point() {
     let problems = preview_carry_problems(&norm(CONVERT));
-    assert!(
-        problems.is_empty(),
-        "预填带出逐点检查失败: {problems:?}"
-    );
+    assert!(problems.is_empty(), "预填带出逐点检查失败: {problems:?}");
 }
 
 #[test]
@@ -750,19 +744,13 @@ fn convertible_status_gate_stays_single_sourced() {
         &norm(FE_DETAIL),
         &norm(FE_SALES_STATUS),
     );
-    assert!(
-        problems.is_empty(),
-        "可转状态门单源检查失败: {problems:?}"
-    );
+    assert!(problems.is_empty(), "可转状态门单源检查失败: {problems:?}");
 }
 
 #[test]
 fn duplicate_conversion_is_detected_and_named_to_the_user() {
     let problems = duplicate_gate_problems(&norm(CONVERT));
-    assert!(
-        problems.is_empty(),
-        "重复转换互斥检查失败: {problems:?}"
-    );
+    assert!(problems.is_empty(), "重复转换互斥检查失败: {problems:?}");
 }
 
 #[test]
@@ -796,7 +784,8 @@ fn mutation_adding_discount_channel_to_item_dto_is_detected() {
         "pub struct ConvertItemDto {",
         "pub struct ConvertItemDto { pub discount_percent: Option<String>,",
     );
-    let problems = client_channel_problems(&mutated, &norm(CONVERT), &norm(FE_API), &norm(FE_DIALOG));
+    let problems =
+        client_channel_problems(&mutated, &norm(CONVERT), &norm(FE_API), &norm(FE_DIALOG));
     assert!(
         problems
             .iter()

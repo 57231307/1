@@ -162,10 +162,8 @@ impl MigrationTrait for Migration {
         )
         .await?;
 
-        conn.execute_unprepared(
-            r#"DROP INDEX IF EXISTS "idx_sales_contracts_source_order_id";"#,
-        )
-        .await?;
+        conn.execute_unprepared(r#"DROP INDEX IF EXISTS "idx_sales_contracts_source_order_id";"#)
+            .await?;
         conn.execute_unprepared(
             r#"ALTER TABLE "sales_contracts" DROP COLUMN IF EXISTS "source_order_id";"#,
         )

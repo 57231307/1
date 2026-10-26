@@ -31,8 +31,8 @@
 
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder,
+    QuerySelect, Set, TransactionTrait,
 };
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -159,7 +159,9 @@ impl SalesContractConvertService {
     }
 
     pub fn from_state(state: &crate::container::AppState) -> Self {
-        Self { db: state.db.clone() }
+        Self {
+            db: state.db.clone(),
+        }
     }
 
     /// 可转状态门（与销售订单生产入口门同源）。
@@ -235,10 +237,8 @@ impl SalesContractConvertService {
         Ok(sales_contract::Entity::find()
             .filter(sales_contract::Column::SourceOrderId.eq(order_id))
             .filter(
-                sales_contract::Column::Status.is_in([
-                    contract_status::DRAFT,
-                    contract_status::ACTIVE,
-                ]),
+                sales_contract::Column::Status
+                    .is_in([contract_status::DRAFT, contract_status::ACTIVE]),
             )
             .order_by(sales_contract::Column::Id, Order::Asc)
             .one(conn)
@@ -353,9 +353,7 @@ impl SalesContractConvertService {
         // 4. 订单全部行 + 产品主档
         let order_items = Self::load_order_items(order_id, &txn).await?;
         if order_items.is_empty() {
-            return Err(AppError::business(
-                "销售订单没有明细行，无法转销售合同",
-            ));
+            return Err(AppError::business("销售订单没有明细行，无法转销售合同"));
         }
         let product_map = Self::load_product_map(&order_items, &txn).await?;
         let item_map: HashMap<i32, &sales_order_item::Model> =
@@ -405,11 +403,10 @@ impl SalesContractConvertService {
             source_order_id: Some(order_id),
             items: None,
         };
-        let stamp_tax =
-            SalesContractService::calculate_stamp_tax(
-                create_req.contract_type.as_deref(),
-                create_req.total_amount,
-            );
+        let stamp_tax = SalesContractService::calculate_stamp_tax(
+            create_req.contract_type.as_deref(),
+            create_req.total_amount,
+        );
 
         let contract = DocumentNumberGenerator::insert_with_no_retry(
             &txn,
@@ -455,12 +452,14 @@ impl SalesContractConvertService {
                 product_spec: Set(product.specification.clone()),
                 unit: Set(product.unit.clone()),
                 quantity: Set(li.quantity),
-                quantity_tolerance_pct: Set(li.quantity_tolerance_pct.or(src.quantity_tolerance_pct)),
+                quantity_tolerance_pct: Set(li
+                    .quantity_tolerance_pct
+                    .or(src.quantity_tolerance_pct)),
                 unit_price: Set(li.unit_price),
                 amount: Set(line.subtotal),
                 delivery_date: Set(li.delivery_date.or(header_delivery_date)),
                 color_no: Set(Some(
-                    li.color_no.clone().unwrap_or_else(|| src.color_no.clone())
+                    li.color_no.clone().unwrap_or_else(|| src.color_no.clone()),
                 )),
                 discount_percent: Set(Some(line.discount_percent)),
                 discount_amount: Set(Some(line.discount_amount)),
