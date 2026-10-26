@@ -679,6 +679,14 @@ fn cell<'r>(record: &'r HashMap<String, String>, column: &str) -> Option<&'r str
         .filter(|value| !value.is_empty())
 }
 
+/// 请求体数值文本单元格：未填（None）或 trim 后为空串 → None（该列不写），否则返回 trim 后的借用。
+///
+/// 判据与文件导入臂 `cell`、批量新增臂 `parse_batch_decimal` 同源（空即不写，不兜底成 0）。
+/// 写成带命名生命周期的自由函数而非闭包：闭包无法推断「返回借用随入参生命周期」的高阶约束。
+fn trimmed_cell<'a>(raw: &'a Option<String>) -> Option<&'a str> {
+    raw.as_deref().map(str::trim).filter(|value| !value.is_empty())
+}
+
 /// 行级解析失败：冠以文件行号后透传 FieldValidator 的公开规则文案
 /// （只描述用户提交字段，属可外显的参数校验类）。
 fn row_level_error(file_row: usize, reason: String) -> AppError {
@@ -702,16 +710,14 @@ fn to_upsert_input(
 ) -> Result<UpsertSkuMappingInput, AppError> {
     // 数值文本的唯一判据是 FieldValidator::decimal（与文件导入、批量新增三臂同源），
     // 本臂把它的失败文案直接转成可外显的 400；空串/未填按「本列不写」处理，不兜底成 0。
-    let text_cell = |raw: &Option<String>| Option::from(raw.as_deref().map(str::trim)).flatten();
-
-    let sp = match text_cell(supplier_price) {
+    let sp = match trimmed_cell(supplier_price) {
         None => None,
         Some(text) => Some(
             FieldValidator::decimal(text, "supplier_price")
                 .map_err(AppError::validation_displayable)?,
         ),
     };
-    let moq = match text_cell(min_order_quantity) {
+    let moq = match trimmed_cell(min_order_quantity) {
         None => None,
         Some(text) => Some(
             FieldValidator::decimal(text, "min_order_quantity")
