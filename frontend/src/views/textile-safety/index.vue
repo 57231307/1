@@ -307,6 +307,11 @@ function onProductIdInput(v: string) {
 const detailVisible = ref(false);
 const detailId = ref<number | null>(null);
 
+function openDetail(id: number) {
+  detailId.value = id;
+  detailVisible.value = true;
+}
+
 async function loadList() {
   loading.value = true;
   try {
