@@ -42,7 +42,6 @@ interface QuotationItemRowRead {
   unit: string;
 }
 
-const CREATED_PRODUCT_IDS: number[] = [];
 const CREATED_QUOTATION_IDS: number[] = [];
 
 /** 自建一个资料可辨识的面料产品，返回「GET /products/{id} 回读的主档真值」作为后续断言基准 */
@@ -67,7 +66,6 @@ async function createIdentifiableProduct(
   });
   const id = created.data?.id;
   if (!id) throw new Error(`前置失败：带出产品(${tag})创建未返回 id: ${JSON.stringify(created)}`);
-  CREATED_PRODUCT_IDS.push(id);
   // 断言基准 = 回读真值（含 Decimal 序列化为字符串后的原样），不引用上面提交的字面量
   return await apiCallRaw<ProductMaster>(page, 'GET', `/products/${id}`);
 }
@@ -105,10 +103,12 @@ test.describe('04 明细选产品自动带出主档资料', () => {
       const id = CREATED_QUOTATION_IDS.pop();
       if (id != null) await tryCleanup(page, 'DELETE', `/quotations/${id}`, `quotation#${id}`);
     }
-    while (CREATED_PRODUCT_IDS.length) {
-      const id = CREATED_PRODUCT_IDS.pop();
-      if (id != null) await tryCleanup(page, 'DELETE', `/products/${id}`, `product#${id}`);
-    }
+    // 带出产品用后不删。ensureTestEntities 从全局产品池（GET /products 按 code 升序）取
+    // productIds 首位并可能对其补写色号，本用例的 E2E-AF 编码恰好排序最前、且为无色的新建产品，
+    // 正是被借用写色号的头号对象。用例结束即硬删产品时，同分片并发 worker 稍后向该 id
+    // POST /products/{id}/colors 会踩 product_colors 对 products 的外键约束，
+    // 后端原样映射为 DATABASE_ERROR，把无关用例（02-approval 夹具阶段）拖红。
+    // 通用夹具产品（E2E-P，E2E-QP 系）本仓约定即建而不删，CI 库每次重建，留存不影响断言正确性。
   });
 
   test('04-01 选中产品带出主档资料：只读列回读主档真值、切换清空不残留、提交与落库与主档一致', async ({
@@ -135,7 +135,9 @@ test.describe('04 明细选产品自动带出主档资料', () => {
       90
     );
     expect(masterA.id, '前置失败：A 产品回读缺 id').toBeTruthy();
-    expect(masterA.product_code, '前置失败：A 产品回读缺 product_code 别名').toBe(
+    // 断言形态修正  Playwright 的 toBe 走 Object.is 严格相等，不识别 expect.any 非对称匹配器，
+    // 对合法字符串也恒红；类型判定必须用 toEqual（深比较支持非对称匹配器），断言强度不变，仍要求该键为字符串
+    expect(masterA.product_code, '前置失败：A 产品回读缺 product_code 别名').toEqual(
       expect.any(String)
     );
 
