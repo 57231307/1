@@ -185,6 +185,12 @@ export function updateColorCard(
     brand: string;
     description: string;
     cover_image_url: string;
+    /**
+     * 色卡实物库存登记入口：省略该键即不改库存（后端"缺省即不改"语义），
+     * 显式提交才写 stock_quantity，取值不得为负且不得低于已发放数量，
+     * 越界由后端点名拒绝并回显该怎么填。建卡时库存恒为 0，印制完成是后续独立登记动作。
+     */
+    stock_quantity: number;
   }>
 ) {
   return request.put<{ data: ColorCardListItem }>(`/color-cards/${id}`, dto);
