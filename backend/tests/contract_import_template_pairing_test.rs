@@ -31,8 +31,11 @@ const FILE_IMPORT_ENDPOINTS: &[(&str, &str)] = &[
 
 /// 已归类的结构化批量端点（JSON 载荷，不是文件导入，因此不需要 xlsx 模板）。
 /// 判据是入参形态而非业务名，载荷为 JSON 数组的批量端点在此登记。
-const JSON_BATCH_ENDPOINTS: &[&str] =
-    &["/purchase-prices/import", "/items/batch", "/sku-mappings/batch"];
+const JSON_BATCH_ENDPOINTS: &[&str] = &[
+    "/purchase-prices/import",
+    "/items/batch",
+    "/sku-mappings/batch",
+];
 
 /// 登记了模板但没有对应文件导入端点的类型，必须写理由，不许静默空转。
 const TEMPLATE_TYPES_WITHOUT_IMPORT_ENDPOINT: &[(&str, &str)] = &[
@@ -103,7 +106,10 @@ fn parse_sku_authority_columns() -> Vec<(String, bool)> {
     let src = read_source(SKU_HANDLER_REL);
     let anchor = "const SKU_MAPPING_IMPORT_COLUMNS: &[(&str, bool)] = &[";
     let start = src.find(anchor).unwrap_or_else(|| {
-        panic!("sku_mapping_handler.rs 缺少权威表锚点 {}，权威表形态漂移", anchor)
+        panic!(
+            "sku_mapping_handler.rs 缺少权威表锚点 {}，权威表形态漂移",
+            anchor
+        )
     });
     let rest = &src[start + anchor.len()..];
     let end = rest
@@ -121,9 +127,12 @@ fn parse_sku_authority_columns() -> Vec<(String, bool)> {
             .trim_end_matches(|c| c == ',' || c == ')')
             .trim();
         let mut parts = inner.split(',').map(|p| p.trim()).filter(|p| !p.is_empty());
-        let name_ref = parts.next().unwrap_or_else(|| panic!("SKU 权威表条目缺列名: {}", trimmed));
-        let required_ref =
-            parts.next().unwrap_or_else(|| panic!("SKU 权威表条目缺必需位: {}", trimmed));
+        let name_ref = parts
+            .next()
+            .unwrap_or_else(|| panic!("SKU 权威表条目缺列名: {}", trimmed));
+        let required_ref = parts
+            .next()
+            .unwrap_or_else(|| panic!("SKU 权威表条目缺必需位: {}", trimmed));
         let field = resolve_column_const(&src, name_ref)
             .unwrap_or_else(|| panic!("SKU 权威表列名 {} 无法解析为常量定义", name_ref));
         columns.push((field, required_ref == "true"));
@@ -156,7 +165,9 @@ fn parse_lead_column_indices() -> (usize, Vec<usize>) {
     let mut indices = Vec::new();
     for line in body.lines() {
         let marker = "extract_cell_string(row, ";
-        let Some(at) = line.find(marker) else { continue };
+        let Some(at) = line.find(marker) else {
+            continue;
+        };
         let after = &line[at + marker.len()..];
         let digits: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
         assert!(
@@ -168,7 +179,10 @@ fn parse_lead_column_indices() -> (usize, Vec<usize>) {
     }
     indices.sort();
     indices.dedup();
-    assert!(!indices.is_empty(), "线索导入读列下标解析为空，判红不许放行");
+    assert!(
+        !indices.is_empty(),
+        "线索导入读列下标解析为空，判红不许放行"
+    );
     let max = *indices.last().expect("线索读列下标取最大值失败");
     (max, indices)
 }
@@ -200,10 +214,7 @@ fn parse_registered_template_types() -> Vec<String> {
             types.push(candidate.to_string());
         }
     }
-    assert!(
-        !types.is_empty(),
-        "模板类型登记清单解析为空，判红不许放行"
-    );
+    assert!(!types.is_empty(), "模板类型登记清单解析为空，判红不许放行");
     types
 }
 
@@ -283,10 +294,10 @@ fn sku_template_columns_match_importer_authority_table() {
         .iter()
         .map(|c| (c.field.clone(), c.required))
         .collect();
-    let expected: Vec<(String, bool)> =
-        authority.iter().map(|(f, r)| (f.clone(), *r)).collect();
+    let expected: Vec<(String, bool)> = authority.iter().map(|(f, r)| (f.clone(), *r)).collect();
     assert_eq!(
-        expected, actual,
+        expected,
+        actual,
         "SKU 模板列与导入器权威表不一致，权威表 {} 列，模板 {} 列",
         authority.len(),
         template.columns.len()

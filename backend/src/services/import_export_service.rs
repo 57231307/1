@@ -252,7 +252,8 @@ impl ImportExportService {
     /// 返回列元数据缺失时点名该列并报错，不静默给缺省类型。
     pub(crate) fn build_sku_mapping_template() -> Result<ImportTemplate, AppError> {
         let mut columns = Vec::new();
-        for (field, required) in crate::handlers::sku_mapping_handler::sku_mapping_import_columns() {
+        for (field, required) in crate::handlers::sku_mapping_handler::sku_mapping_import_columns()
+        {
             let (data_type, example) = Self::sku_mapping_column_meta(field).ok_or_else(|| {
                 AppError::internal(format!("SKU 导入模板缺少列元数据，列名 {}", field))
             })?;
@@ -314,9 +315,19 @@ impl ImportExportService {
                 false,
                 "new 或 contacted 或 qualified 或 assigned 或 converted 或 pool 或 lost",
             ),
-            ("owner_name", "负责人", false, "导入器不消费此列，仅与导出列序对齐"),
+            (
+                "owner_name",
+                "负责人",
+                false,
+                "导入器不消费此列，仅与导出列序对齐",
+            ),
             ("priority", "优先级", false, "high"),
-            ("created_at", "创建时间", false, "导入器不消费此列，仅与导出列序对齐"),
+            (
+                "created_at",
+                "创建时间",
+                false,
+                "导入器不消费此列，仅与导出列序对齐",
+            ),
         ];
         ImportTemplate {
             import_type: "crm_leads".to_string(),
