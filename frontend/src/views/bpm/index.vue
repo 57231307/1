@@ -436,12 +436,7 @@ import {
   getBpmBusinessRelation,
   getBpmMonitorStats,
 } from '@/api/bpm';
-import type {
-  BPMTask,
-  BPMInstance,
-  BpmBusinessRelation,
-  BpmInstanceDetail,
-} from '@/api/bpm';
+import type { BPMTask, BPMInstance, BpmBusinessRelation, BpmInstanceDetail } from '@/api/bpm';
 import {
   getProcessStatusLabel,
   getProcessStatusType,

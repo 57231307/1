@@ -25,7 +25,6 @@ import {
   transferBpmEnhancedTask,
   type ApprovalTask,
   type ApprovalChainNode,
-  type ExecuteApprovalResponse,
 } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
 
@@ -38,9 +37,9 @@ import { logger } from '@/utils/logger';
  */
 const BUSINESS_ROUTE_MAP: Record<string, (id: number) => string> = {
   purchase_order: () => '/purchase',
-  sales_order: (id) => `/sales/orders/${id}`,
+  sales_order: id => `/sales/orders/${id}`,
   production_order: () => '/production',
-  quotation: (id) => `/quotations/${id}`,
+  quotation: id => `/quotations/${id}`,
   ap_payment_request: () => '/ap',
   purchase_return: () => '/purchase-return',
   sales_return: () => '/sales-returns',
