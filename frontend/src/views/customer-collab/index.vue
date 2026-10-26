@@ -56,9 +56,9 @@
 
       <!-- 客户团队 -->
       <el-tab-pane label="客户团队" name="team">
-        <el-form inline class="mb">
-          <el-form-item label="客户ID"
-            ><el-input-number v-model="teamCustomerId" :min="1"
+        <el-form ref="teamQueryRef" :model="teamQuery" :rules="teamQueryRules" inline class="mb">
+          <el-form-item label="客户ID" prop="customer_id"
+            ><el-input v-model="teamQuery.customer_id" inputmode="numeric" placeholder="客户ID"
           /></el-form-item>
           <el-form-item
             ><el-button type="primary" plain @click="onLoadTeam">查询团队</el-button></el-form-item
@@ -66,8 +66,8 @@
           <el-form-item
             ><el-button plain @click="teamVisible = true">添加成员</el-button></el-form-item
           >
-          <el-form-item label="用户ID"
-            ><el-input-number v-model="teamUserId" :min="1"
+          <el-form-item label="用户ID" prop="user_id"
+            ><el-input v-model="teamQuery.user_id" inputmode="numeric" placeholder="用户ID"
           /></el-form-item>
           <el-form-item
             ><el-button plain @click="onListUserTeams">按用户查团队</el-button></el-form-item
@@ -98,7 +98,7 @@
     </el-tabs>
 
     <el-dialog v-model="signVisible" title="签署合同" width="480">
-      <el-form :model="signForm" label-width="110px">
+      <el-form ref="signFormRef" :model="signForm" :rules="signRules" label-width="110px">
         <el-form-item label="合同类型" required>
           <el-select v-model="signForm.contract_type" class="w-full">
             <el-option
@@ -115,11 +115,17 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="合同ID" required
-          ><el-input-number v-model="signForm.contract_id" :min="1" class="w-full"
+        <el-form-item label="合同ID" prop="contract_id" required
+          ><el-input
+            v-model="signForm.contract_id"
+            inputmode="numeric"
+            class="w-full"
         /></el-form-item>
-        <el-form-item label="签署人ID" required
-          ><el-input-number v-model="signForm.signer_id" :min="1" class="w-full"
+        <el-form-item label="签署人ID" prop="signer_id" required
+          ><el-input
+            v-model="signForm.signer_id"
+            inputmode="numeric"
+            class="w-full"
         /></el-form-item>
       </el-form>
       <template #footer>
@@ -129,12 +135,18 @@
     </el-dialog>
 
     <el-dialog v-model="shareVisible" title="共享客户" width="480">
-      <el-form :model="shareForm" label-width="110px">
-        <el-form-item label="客户ID" required
-          ><el-input-number v-model="shareForm.customer_id" :min="1" class="w-full"
+      <el-form ref="shareFormRef" :model="shareForm" :rules="shareRules" label-width="110px">
+        <el-form-item label="客户ID" prop="customer_id" required
+          ><el-input
+            v-model="shareForm.customer_id"
+            inputmode="numeric"
+            class="w-full"
         /></el-form-item>
-        <el-form-item :label="t('crmCustomerShare.sharedToUserId')" required
-          ><el-input-number v-model="shareForm.shared_to_user_id" :min="1" class="w-full"
+        <el-form-item :label="t('crmCustomerShare.sharedToUserId')" prop="shared_to_user_id" required
+          ><el-input
+            v-model="shareForm.shared_to_user_id"
+            inputmode="numeric"
+            class="w-full"
         /></el-form-item>
         <el-form-item label="权限" required>
           <!-- 后端词表唯一真相：customer_share.rs SHARE_PERMISSION_VIEW/EDIT/FULL = view/edit/full，
@@ -153,12 +165,15 @@
     </el-dialog>
 
     <el-dialog v-model="teamVisible" title="添加团队成员" width="460">
-      <el-form :model="teamForm" label-width="110px">
-        <el-form-item label="客户ID" required
-          ><el-input-number v-model="teamForm.customer_id" :min="1" class="w-full"
+      <el-form ref="teamFormRef" :model="teamForm" :rules="teamFormRules" label-width="110px">
+        <el-form-item label="客户ID" prop="customer_id" required
+          ><el-input
+            v-model="teamForm.customer_id"
+            inputmode="numeric"
+            class="w-full"
         /></el-form-item>
-        <el-form-item label="用户ID" required
-          ><el-input-number v-model="teamForm.user_id" :min="1" class="w-full"
+        <el-form-item label="用户ID" prop="user_id" required
+          ><el-input v-model="teamForm.user_id" inputmode="numeric" class="w-full"
         /></el-form-item>
         <el-form-item label="角色"
           ><el-input v-model="teamForm.role" placeholder="owner / member"
@@ -174,10 +189,11 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import {
   addTeamMember,
   createCustomerShare,
@@ -213,11 +229,18 @@ const signatures = ref<Array<Record<string, unknown>>>([]);
 const sigCols = ref<string[]>([]);
 const loadingSig = ref(false);
 const signVisible = ref(false);
+// 手写录入文本模型（ID 为正整数，范围靠 numberInputRules 单源校验器，不靠步进按钮）；
+// 提交前显式 Number() 归一为契约数值
 const signForm = reactive({
   contract_type: 'sales_contract',
-  contract_id: undefined as number | undefined,
-  signer_id: undefined as number | undefined,
+  contract_id: '',
+  signer_id: '',
 });
+const signFormRef = ref<FormInstance>();
+const signRules = computed<FormRules>(() => ({
+  contract_id: numberInputRules({ label: '合同ID', required: true, min: 1, integer: true }),
+  signer_id: numberInputRules({ label: '签署人ID', required: true, min: 1, integer: true }),
+}));
 
 async function loadSignatures() {
   loadingSig.value = true;
@@ -232,11 +255,20 @@ async function loadSignatures() {
 }
 
 async function onSign() {
-  if (!signForm.contract_id || !signForm.signer_id) {
+  if (signForm.contract_id.trim() === '' || signForm.signer_id.trim() === '') {
     ElMessage.warning('请填写合同与签署人');
     return;
   }
-  await signContract({ ...signForm });
+  let valid = false;
+  await signFormRef.value?.validate((ok) => {
+    valid = ok;
+  });
+  if (!valid) return;
+  await signContract({
+    contract_type: signForm.contract_type,
+    contract_id: Number(signForm.contract_id),
+    signer_id: Number(signForm.signer_id),
+  });
   ElMessage.success('签署成功');
   signVisible.value = false;
   await loadSignatures();
@@ -268,14 +300,25 @@ type SharePermission = (typeof SHARE_PERMISSIONS)[number];
 const isSharePermission = (v: string): v is SharePermission =>
   (SHARE_PERMISSIONS as readonly string[]).includes(v);
 
+// 手写录入文本模型（ID 为正整数，范围靠 numberInputRules 单源校验器）；提交前 Number() 归一
 const shareForm = reactive({
-  customer_id: undefined as number | undefined,
+  customer_id: '',
   // 后端 ShareCustomerRequest.shared_to_user_id（i32 非 Option，必填；
   //  customer_team_share_service.rs:57）；前端旧键名 target_user_id 不在契约内。
-  shared_to_user_id: undefined as number | undefined,
+  shared_to_user_id: '',
   // 默认值须落在后端词表内（旧值 read 会被 422 拒绝）；后端缺省口径同为 view。
   permission: 'view',
 });
+const shareFormRef = ref<FormInstance>();
+const shareRules = computed<FormRules>(() => ({
+  customer_id: numberInputRules({ label: '客户ID', required: true, min: 1, integer: true }),
+  shared_to_user_id: numberInputRules({
+    label: t('crmCustomerShare.sharedToUserId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+}));
 
 async function loadShares() {
   loadingShare.value = true;
@@ -290,10 +333,15 @@ async function loadShares() {
 }
 
 async function onShare() {
-  if (!shareForm.customer_id || !shareForm.shared_to_user_id) {
+  if (shareForm.customer_id.trim() === '' || shareForm.shared_to_user_id.trim() === '') {
     ElMessage.warning(t('crmCustomerShare.fillCustomerAndUser'));
     return;
   }
+  let valid = false;
+  await shareFormRef.value?.validate((ok) => {
+    valid = ok;
+  });
+  if (!valid) return;
   // 权限经显式类型守卫收窄为 SharePermission 后再赋值，匹配 CreateCustomerShareInput，
   // 不做 as any/裸断言（后端 read/write 会 422）。
   const permission = shareForm.permission;
@@ -303,8 +351,8 @@ async function onShare() {
   }
   try {
     await createCustomerShare({
-      customer_id: shareForm.customer_id,
-      shared_to_user_id: shareForm.shared_to_user_id,
+      customer_id: Number(shareForm.customer_id),
+      shared_to_user_id: Number(shareForm.shared_to_user_id),
       permission,
     });
     ElMessage.success(t('crmCustomerShare.shared'));
@@ -331,32 +379,63 @@ async function onExpireOverdue() {
 // 团队
 const teamMembers = ref<Array<Record<string, unknown>>>([]);
 const teamCols = ref<string[]>([]);
-const teamCustomerId = ref<number | undefined>();
+// 工具栏查询条件手写录入文本模型（正整数由 numberInputRules 单源校验，消费点 Number() 归一）
+const teamQuery = reactive({ customer_id: '', user_id: '' });
+const teamQueryRef = ref<FormInstance>();
+const teamQueryRules = computed<FormRules>(() => ({
+  customer_id: numberInputRules({ label: '客户ID', min: 1, integer: true }),
+  user_id: numberInputRules({ label: '用户ID', min: 1, integer: true }),
+}));
 const teamVisible = ref(false);
 const teamForm = reactive({
-  customer_id: undefined as number | undefined,
-  user_id: undefined as number | undefined,
+  customer_id: '',
+  user_id: '',
   role: 'member',
 });
+const teamFormRef = ref<FormInstance>();
+const teamFormRules = computed<FormRules>(() => ({
+  customer_id: numberInputRules({ label: '客户ID', required: true, min: 1, integer: true }),
+  user_id: numberInputRules({ label: '用户ID', required: true, min: 1, integer: true }),
+}));
 
 async function onLoadTeam() {
-  if (!teamCustomerId.value) {
+  if (teamQuery.customer_id.trim() === '') {
     ElMessage.warning('请填写客户ID');
     return;
   }
-  teamMembers.value = unwrapList(await listTeamMembers(teamCustomerId.value));
+  const valid = await validateTeamQuery();
+  if (!valid) return;
+  teamMembers.value = unwrapList(await listTeamMembers(Number(teamQuery.customer_id)));
   teamCols.value = cols(teamMembers.value, ['id'], 6);
 }
 
+/** 工具栏查询表单级校验（数字范围与整数性由单源校验器判定），失败即拦截动作 */
+async function validateTeamQuery(): Promise<boolean> {
+  let ok = false;
+  await teamQueryRef.value?.validate((valid) => {
+    ok = valid;
+  });
+  return ok;
+}
+
 async function onAddMember() {
-  if (!teamForm.customer_id || !teamForm.user_id) {
+  if (teamForm.customer_id.trim() === '' || teamForm.user_id.trim() === '') {
     ElMessage.warning('请填写客户与用户');
     return;
   }
-  await addTeamMember({ ...teamForm });
+  let valid = false;
+  await teamFormRef.value?.validate((ok) => {
+    valid = ok;
+  });
+  if (!valid) return;
+  await addTeamMember({
+    customer_id: Number(teamForm.customer_id),
+    user_id: Number(teamForm.user_id),
+    role: teamForm.role,
+  });
   ElMessage.success('成员已添加');
   teamVisible.value = false;
-  teamCustomerId.value = teamForm.customer_id;
+  teamQuery.customer_id = teamForm.customer_id;
   await onLoadTeam();
 }
 
@@ -417,32 +496,34 @@ async function onCheckSharePermission() {
   }
 }
 
-const teamUserId = ref<number | undefined>();
-
 async function onListUserTeams() {
-  if (!teamUserId.value) {
+  if (teamQuery.user_id.trim() === '') {
     ElMessage.warning('请填写用户ID');
     return;
   }
+  const valid = await validateTeamQuery();
+  if (!valid) return;
   try {
-    const res = await listUserTeams(teamUserId.value);
+    const res = await listUserTeams(Number(teamQuery.user_id));
     teamMembers.value = unwrapList(res);
     teamCols.value = cols(teamMembers.value, ['id'], 6);
-    ElMessage.success(`用户 ${teamUserId.value} 的团队已加载`);
+    ElMessage.success(`用户 ${teamQuery.user_id} 的团队已加载`);
   } catch (e) {
     ElMessage.error((e as Error).message || '查询失败');
   }
 }
 
 async function onCheckTeamMember() {
-  if (!teamCustomerId.value || !teamUserId.value) {
+  if (teamQuery.customer_id.trim() === '' || teamQuery.user_id.trim() === '') {
     ElMessage.warning('请填写客户ID与用户ID');
     return;
   }
+  const valid = await validateTeamQuery();
+  if (!valid) return;
   try {
     const res = await isTeamMember({
-      customer_id: teamCustomerId.value,
-      user_id: teamUserId.value,
+      customer_id: Number(teamQuery.customer_id),
+      user_id: Number(teamQuery.user_id),
     });
     const d = res.data as { is_member?: boolean } | undefined;
     ElMessageBox.alert(

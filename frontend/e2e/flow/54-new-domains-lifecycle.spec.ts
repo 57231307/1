@@ -495,8 +495,10 @@ test.describe.serial('新域业务流转链', () => {
     // getByRole(name:'签署') 默认子串匹配会同时命中「签署合同」+ 对话框「签署」→ strict 违例。
     const dlg = page.locator('.el-dialog:visible').last();
     // SignContractRequest { contract_id, signed_by_user_id, signature_image_url? }
-    await dlg.locator('.el-input-number input').first().fill('1');
-    await dlg.locator('.el-input-number input').nth(1).fill('1');
+    // 建单控件已换手写 el-input（禁步进控件），按精确 label 锚定真值输入并 blur 提交模型
+    await fillFieldByLabel(dlg, page, '合同ID', '1');
+    await fillFieldByLabel(dlg, page, '签署人ID', '1');
+    await page.keyboard.press('Tab');
     await dlg.getByRole('button', { name: '签署', exact: true }).click();
     await expect(page.locator('.el-message--success, .el-message--error').first()).toBeVisible({
       timeout: 8000,
