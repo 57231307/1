@@ -184,14 +184,16 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item :label="t('common.afterSales.formCustomer')" prop="customer_id">
-          <el-input-number v-model="form.customer_id" :min="1" />
+          <!-- 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字 -->
+          <el-input v-model="form.customer_id" inputmode="numeric" />
         </el-form-item>
         <el-form-item
           v-if="form.issue_type === 'refund'"
           :label="t('common.afterSales.formRefundAmount')"
           prop="refund_amount"
         >
-          <el-input-number v-model="form.refund_amount" :min="0" :precision="2" :step="100" />
+          <!-- 手写录入 退款金额 非负 两位小数 范围与精度靠 rules 不靠步进按钮 -->
+          <el-input v-model="form.refund_amount" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="t('common.afterSales.formDescription')" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" />
@@ -277,6 +279,7 @@ import {
   type QualityIssue,
 } from '@/api/custom-order';
 import { formatCurrency } from '@/utils';
+import { numberInputRules } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -301,9 +304,10 @@ const REASON_CATEGORY_KEYS = ['quality', 'logistics', 'customer_preference', 'ot
 
 const form = ref({
   issue_type: 'complaint',
-  customer_id: undefined as number | undefined,
+  // 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字
+  customer_id: '',
   description: '',
-  refund_amount: undefined as number | undefined,
+  refund_amount: '',
   reason_category: '',
   reason_detail: '',
   quality_issue_id: undefined as number | undefined,
@@ -317,6 +321,8 @@ const rules = computed(() => ({
   ],
   customer_id: [
     { required: true, message: t('common.afterSales.rule.customerRequired'), trigger: 'blur' },
+    // 客户 ID 为正整数（原步进控件的 min=1 硬约束逐条落到 rules）
+    ...numberInputRules({ label: t('common.afterSales.formCustomer'), min: 1, integer: true }),
   ],
   description: [
     { required: true, message: t('common.afterSales.rule.descriptionRequired'), trigger: 'blur' },
@@ -325,7 +331,10 @@ const rules = computed(() => ({
     {
       // validator 参数显式标注类型（unknown + 回调签名）
       validator: (_rule: unknown, val: unknown, cb: (error?: Error) => void) => {
-        if (form.value.issue_type === 'refund' && (val === undefined || val === null)) {
+        if (
+          form.value.issue_type === 'refund' &&
+          (val === undefined || val === null || val === '')
+        ) {
           cb(new Error(t('common.afterSales.rule.refundAmountRequired')));
         } else {
           cb();
@@ -333,6 +342,12 @@ const rules = computed(() => ({
       },
       trigger: 'blur',
     },
+    // 退款金额 非负 两位小数（原步进控件的 min=0 precision=2 硬约束逐条落到 rules）
+    ...numberInputRules({
+      label: t('common.afterSales.formRefundAmount'),
+      min: 0,
+      precision: 2,
+    }),
   ],
 }));
 
@@ -383,9 +398,9 @@ function formatDate(d: string | undefined) {
 function showCreateDialog() {
   form.value = {
     issue_type: 'complaint',
-    customer_id: undefined,
+    customer_id: '',
     description: '',
-    refund_amount: undefined,
+    refund_amount: '',
     reason_category: '',
     reason_detail: '',
     quality_issue_id: undefined,
@@ -399,10 +414,11 @@ function showCreateDialog() {
  *   不发送空串占位。 */
 function buildCreatePayload(): AfterSalesCreateDto {
   return {
-    customer_id: form.value.customer_id as number,
+    customer_id: Number(form.value.customer_id),
     issue_type: form.value.issue_type,
     description: form.value.description,
-    ...(form.value.issue_type === 'refund' && form.value.refund_amount != null
+    // refund_amount 契约为 rust_decimal（入参 string | number）：手写串原样上送，避免浮点中转
+    ...(form.value.issue_type === 'refund' && form.value.refund_amount !== ''
       ? { refund_amount: form.value.refund_amount }
       : {}),
     ...(form.value.quality_issue_id ? { quality_issue_id: form.value.quality_issue_id } : {}),

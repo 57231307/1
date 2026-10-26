@@ -26,31 +26,16 @@
         <span>{{ batch?.batch_no ?? '-' }}</span>
       </el-form-item>
       <el-form-item :label="t('dyeBatch.complete.labelActualOutputKg')" prop="actual_output_kg">
-        <el-input-number
-          v-model="formData.actual_output_kg"
-          :precision="2"
-          :min="0"
-          :controls="false"
-          style="width: 100%"
-        />
+        <!-- 手写录入 实际落布重量 正数 两位小数（原控件 min=0 precision=2 落到 rules） -->
+        <el-input v-model="formData.actual_output_kg" inputmode="decimal" style="width: 100%" />
       </el-form-item>
       <el-form-item :label="t('dyeBatch.complete.labelActualOutputM')" prop="actual_output_m">
-        <el-input-number
-          v-model="formData.actual_output_m"
-          :precision="2"
-          :min="0"
-          :controls="false"
-          style="width: 100%"
-        />
+        <!-- 手写录入 实际落布长度 正数 两位小数 -->
+        <el-input v-model="formData.actual_output_m" inputmode="decimal" style="width: 100%" />
       </el-form-item>
       <el-form-item :label="t('dyeBatch.complete.labelGreigeInputKg')" prop="greige_input_kg">
-        <el-input-number
-          v-model="formData.greige_input_kg"
-          :precision="2"
-          :min="0"
-          :controls="false"
-          style="width: 100%"
-        />
+        <!-- 手写录入 坯布投料量 正数 两位小数 -->
+        <el-input v-model="formData.greige_input_kg" inputmode="decimal" style="width: 100%" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -70,6 +55,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { completeDyeBatch, type CompleteDyeBatchPayload, type DyeBatch } from '@/api/dye-batch';
 import { logger } from '@/utils/logger';
+import { numberInputRules } from '@/utils/number-input';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -86,12 +72,13 @@ const { t } = useI18n({ useScope: 'global' });
 const formRef = ref<FormInstance>();
 const submitting = ref(false);
 
-// 三值必填：undefined（输入清空）与 <=0 都在提交前由前端规则拒绝；
+// 三值必填：空串（未填或清空）与 <=0 都在提交前由前端规则拒绝；
 // 后端 validate_amount_range 为第二道闸（正数/≤10亿/2位小数），文案外显 400。
+// 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字
 const formData = reactive({
-  actual_output_kg: undefined as number | undefined,
-  actual_output_m: undefined as number | undefined,
-  greige_input_kg: undefined as number | undefined,
+  actual_output_kg: '',
+  actual_output_m: '',
+  greige_input_kg: '',
 });
 
 const requiredPositive = (labelKey: string) => [
@@ -113,9 +100,23 @@ const requiredPositive = (labelKey: string) => [
 ];
 
 const formRules: FormRules = {
-  actual_output_kg: requiredPositive('dyeBatch.complete.ruleRequiredKg'),
-  actual_output_m: requiredPositive('dyeBatch.complete.ruleRequiredM'),
-  greige_input_kg: requiredPositive('dyeBatch.complete.ruleRequiredGreige'),
+  actual_output_kg: [
+    ...requiredPositive('dyeBatch.complete.ruleRequiredKg'),
+    // 原控件 min=0 precision=2 的硬约束逐条落到 rules
+    ...numberInputRules({ label: t('dyeBatch.complete.labelActualOutputKg'), min: 0, precision: 2 }),
+  ],
+  actual_output_m: [
+    ...requiredPositive('dyeBatch.complete.ruleRequiredM'),
+    ...numberInputRules({ label: t('dyeBatch.complete.labelActualOutputM'), min: 0, precision: 2 }),
+  ],
+  greige_input_kg: [
+    ...requiredPositive('dyeBatch.complete.ruleRequiredGreige'),
+    ...numberInputRules({
+      label: t('dyeBatch.complete.labelGreigeInputKg'),
+      min: 0,
+      precision: 2,
+    }),
+  ],
 };
 
 // 每次打开重置，避免上一缸号残值串单
@@ -123,9 +124,9 @@ watch(
   () => props.modelValue,
   visible => {
     if (visible) {
-      formData.actual_output_kg = undefined;
-      formData.actual_output_m = undefined;
-      formData.greige_input_kg = undefined;
+      formData.actual_output_kg = '';
+      formData.actual_output_m = '';
+      formData.greige_input_kg = '';
       formRef.value?.clearValidate();
     }
   }
@@ -145,14 +146,14 @@ const handleSubmit = async () => {
     const kg = formData.actual_output_kg;
     const meters = formData.actual_output_m;
     const greige = formData.greige_input_kg;
-    if (kg === undefined || meters === undefined || greige === undefined) {
+    if (kg === '' || meters === '' || greige === '') {
       logger.error(t('dyeBatch.complete.messageFailed'), 'incomplete form values');
       return;
     }
     const payload: CompleteDyeBatchPayload = {
-      actual_output_kg: kg,
-      actual_output_m: meters,
-      greige_input_kg: greige,
+      actual_output_kg: Number(kg),
+      actual_output_m: Number(meters),
+      greige_input_kg: Number(greige),
     };
     const res = await completeDyeBatch(props.batch.id, payload);
     ElMessage.success(t('dyeBatch.complete.messageSuccess'));
