@@ -223,7 +223,7 @@ const rules = computed<FormRules>(() =>
     : {
         weight_kg: [
           {
-            validator: (rule, value, callback) => {
+            validator: (_rule, value, callback) => {
               if (String(form.length_m ?? '').trim() === '' && toPayloadNumber(value) === undefined) {
                 callback(
                   new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength'))
@@ -237,7 +237,7 @@ const rules = computed<FormRules>(() =>
         ],
         length_m: [
           {
-            validator: (rule, value, callback) => {
+            validator: (_rule, value, callback) => {
               if (String(form.weight_kg ?? '').trim() === '' && toPayloadNumber(value) === undefined) {
                 callback(
                   new Error(t('greigeFabrics.index.messageAtLeastOneOfWeightOrLength'))

@@ -24,6 +24,8 @@ export interface GreigeFabric {
   composition?: string;
   yarn_count?: string;
   density?: string;
+  /** 织造方式与单双面（结构口径），建单后可录入但更新 DTO 未开放，编辑态锁为只读 */
+  structure?: string;
   // rust_decimal 出参一律为字符串（展示/计算前 Number() 归一，禁止对字符串直接 .toFixed）
   /** 幅宽（m） */
   width?: string | null;
