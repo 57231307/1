@@ -12,7 +12,7 @@
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use bingxi_backend::services::company_profile_service::{decode_logo_png, LOGO_MAX_BYTES};
+use bingxi_backend::services::company_profile_service::{LOGO_MAX_BYTES, decode_logo_png};
 
 /// 构造最小合法 PNG 头部字节（签名 8 + IHDR 块），魔数判据只需前 4 字节命中。
 fn png_bytes() -> Vec<u8> {
@@ -29,7 +29,10 @@ fn b64(data: &[u8]) -> String {
 }
 
 /// 拒绝路径小工具：Ok 视为判据失效直接 panic，Err 时取真实出参 message。
-fn reject_message(result: Result<Vec<u8>, bingxi_backend::utils::error::AppError>, ctx: &str) -> String {
+fn reject_message(
+    result: Result<Vec<u8>, bingxi_backend::utils::error::AppError>,
+    ctx: &str,
+) -> String {
     match result {
         Ok(_) => panic!("{ctx}：本应被拒却通过了"),
         Err(err) => err.to_response().message,
@@ -39,8 +42,12 @@ fn reject_message(result: Result<Vec<u8>, bingxi_backend::utils::error::AppError
 #[test]
 fn valid_png_bare_base64_passes() {
     let payload = b64(&png_bytes());
-    let decoded = decode_logo_png(&payload)
-        .unwrap_or_else(|e| panic!("合法 PNG 裸 base64 不应被拒，实际：{}", e.to_response().message));
+    let decoded = decode_logo_png(&payload).unwrap_or_else(|e| {
+        panic!(
+            "合法 PNG 裸 base64 不应被拒，实际：{}",
+            e.to_response().message
+        )
+    });
     assert_eq!(decoded, png_bytes());
 }
 
@@ -52,8 +59,12 @@ fn data_url_prefixed_and_mime_variant_png_pass_after_normalization() {
         format!("data:image/x-png;base64,{payload}"),
         format!("  data:image/png;base64,{payload}  "),
     ] {
-        let decoded = decode_logo_png(&prefixed)
-            .unwrap_or_else(|e| panic!("带前缀的合法 PNG 不应被拒（{prefixed}）：{}", e.to_response().message));
+        let decoded = decode_logo_png(&prefixed).unwrap_or_else(|e| {
+            panic!(
+                "带前缀的合法 PNG 不应被拒（{prefixed}）：{}",
+                e.to_response().message
+            )
+        });
         assert_eq!(decoded, png_bytes(), "前缀归一后应还原出同一 PNG 字节");
     }
 }
@@ -75,7 +86,11 @@ fn wrapped_base64_png_passes_after_normalization() {
 #[test]
 fn fake_png_is_rejected_with_actual_format_named() {
     let cases: Vec<(&str, Vec<u8>, &str)> = vec![
-        ("JPEG 伪装 png", vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4], "JPEG"),
+        (
+            "JPEG 伪装 png",
+            vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4],
+            "JPEG",
+        ),
         ("GIF 伪装 png", b"GIF89a\x01\x00".to_vec(), "GIF"),
         (
             "WebP 伪装 png",
@@ -103,7 +118,10 @@ fn fake_png_is_rejected_with_actual_format_named() {
 #[test]
 fn invalid_base64_and_oversize_each_get_distinct_messages() {
     let msg = reject_message(decode_logo_png("这不是base64!!!"), "非 base64 串必须被拒");
-    assert!(msg.contains("不是合法的 base64"), "应点名 base64 非法，实际：{msg}");
+    assert!(
+        msg.contains("不是合法的 base64"),
+        "应点名 base64 非法，实际：{msg}"
+    );
 
     let mut big = png_bytes();
     big.resize(LOGO_MAX_BYTES + 1, 0);
