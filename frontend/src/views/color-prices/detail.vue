@@ -159,23 +159,21 @@
         :aria-label="$t('colorPrices.detail.tierDialog.formAriaLabel')"
       >
         <el-form-item :label="$t('colorPrices.detail.tierDialog.minQuantity')" prop="min_quantity">
-          <el-input-number v-model="tierForm.min_quantity" :min="1" style="width: 100%" />
+          <el-input v-model="tierForm.min_quantity" inputmode="numeric" style="width: 100%" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.tierDialog.maxQuantity')">
-          <el-input-number
+        <el-form-item
+          :label="$t('colorPrices.detail.tierDialog.maxQuantity')"
+          prop="max_quantity"
+        >
+          <el-input
             v-model="tierForm.max_quantity"
-            :min="0"
+            inputmode="numeric"
             style="width: 100%"
             :placeholder="$t('colorPrices.detail.tierDialog.maxQuantityPlaceholder')"
           />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.tierDialog.tierPrice')" prop="tier_price">
-          <el-input-number
-            v-model="tierForm.tier_price"
-            :min="0"
-            :precision="4"
-            style="width: 100%"
-          />
+          <el-input v-model="tierForm.tier_price" inputmode="decimal" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.tierDialog.customerLevel')">
           <el-select
@@ -190,8 +188,8 @@
             <el-option label="C" value="C" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.tierDialog.sequence')">
-          <el-input-number v-model="tierForm.sequence" :min="1" style="width: 100%" />
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.sequence')" prop="sequence">
+          <el-input v-model="tierForm.sequence" inputmode="numeric" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -209,9 +207,13 @@
       :title="$t('colorPrices.detail.editDialog.title')"
       width="480"
     >
-      <el-form :model="editForm" label-width="110px">
-        <el-form-item :label="$t('colorPrices.detail.editDialog.basePrice')" required>
-          <el-input-number v-model="editForm.base_price" :precision="2" :min="0" />
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="110px">
+        <el-form-item
+          :label="$t('colorPrices.detail.editDialog.basePrice')"
+          prop="base_price"
+          required
+        >
+          <el-input v-model="editForm.base_price" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveFrom')" required>
           <el-input v-model="editForm.effective_from" placeholder="2026-01-01" />
@@ -219,8 +221,8 @@
         <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveTo')">
           <el-input v-model="editForm.effective_to" placeholder="2026-12-31" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.editDialog.priority')">
-          <el-input-number v-model="editForm.priority" :min="0" :max="999" />
+        <el-form-item :label="$t('colorPrices.detail.editDialog.priority')" prop="priority">
+          <el-input v-model="editForm.priority" inputmode="numeric" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.editDialog.notes')">
           <el-input v-model="editForm.notes" type="textarea" :rows="2" />
@@ -339,34 +341,54 @@ const tierDialogVisible = ref(false);
 const tierSubmitting = ref(false);
 const tierFormRef = ref<FormInstance>();
 const tierForm = reactive<{
-  min_quantity: number;
-  max_quantity: number | null;
-  tier_price: number;
+  // 手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
+  min_quantity: string;
+  max_quantity: string;
+  tier_price: string;
   customer_level: string | null;
-  sequence: number;
+  sequence: string;
 }>({
-  min_quantity: 1,
-  max_quantity: null,
-  tier_price: 0,
+  min_quantity: '1',
+  max_quantity: '',
+  tier_price: '0',
   customer_level: null,
-  sequence: 1,
+  sequence: '1',
 });
-// 表单校验规则（响应式：随语言切换自动更新提示文案）
+// 表单校验规则（响应式：随语言切换自动更新提示文案；范围与精度靠校验器，不靠步进按钮）
 const tierRules = computed<FormRules>(() => ({
   min_quantity: [
     { required: true, message: t('colorPrices.validation.minQuantityRequired'), trigger: 'blur' },
+    ...numberInputRules({
+      label: t('colorPrices.detail.tierDialog.minQuantity'),
+      min: 1,
+      integer: true,
+    }),
   ],
+  max_quantity: numberInputRules({
+    label: t('colorPrices.detail.tierDialog.maxQuantity'),
+    min: 0,
+  }),
   tier_price: [
     { required: true, message: t('colorPrices.validation.tierPriceRequired'), trigger: 'blur' },
+    ...numberInputRules({
+      label: t('colorPrices.detail.tierDialog.tierPrice'),
+      min: 0,
+      precision: 4,
+    }),
   ],
+  sequence: numberInputRules({
+    label: t('colorPrices.detail.tierDialog.sequence'),
+    min: 1,
+    integer: true,
+  }),
 }));
 
 const handleAddTier = () => {
-  tierForm.min_quantity = 1;
-  tierForm.max_quantity = null;
-  tierForm.tier_price = 0;
+  tierForm.min_quantity = '1';
+  tierForm.max_quantity = '';
+  tierForm.tier_price = '0';
   tierForm.customer_level = null;
-  tierForm.sequence = (tiers.value.length || 0) + 1;
+  tierForm.sequence = String((tiers.value.length || 0) + 1);
   tierDialogVisible.value = true;
 };
 
@@ -376,14 +398,14 @@ const onSubmitTier = async () => {
     if (!valid) return;
     tierSubmitting.value = true;
     try {
+      const maxQty = tierForm.max_quantity.trim() === '' ? 0 : Number(tierForm.max_quantity);
       const payload: CreatePriceTierDto = {
         product_color_price_id: priceId,
-        min_quantity: tierForm.min_quantity,
-        max_quantity:
-          tierForm.max_quantity && tierForm.max_quantity > 0 ? tierForm.max_quantity : null,
-        tier_price: tierForm.tier_price,
+        min_quantity: Number(tierForm.min_quantity),
+        max_quantity: maxQty && maxQty > 0 ? maxQty : null,
+        tier_price: Number(tierForm.tier_price),
         customer_level: tierForm.customer_level || null,
-        sequence: tierForm.sequence,
+        sequence: Number(tierForm.sequence),
       };
       await createTier(payload);
       ElMessage.success(t('colorPrices.message.tierAddSuccess'));
