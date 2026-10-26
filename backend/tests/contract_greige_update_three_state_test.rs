@@ -21,8 +21,11 @@
 //!    不许裸抛 500，也不许静默存成悬空引用。
 //!
 //! 覆盖策略：纯 serde 只锁 DTO 三态形状（不碰库）；其余全部走已迁移真库
-//! （`test_common::setup_test_db()`，夹具自身 TRUNCATE），真实 handler + 真实表回读，
-//! 无 mock、无同构 DDL。
+//! （`test_common::setup_test_db()`，夹具每用例清空业务表并 RESTART IDENTITY）。
+//! `suppliers` 属 `test_common::SEALED_REFERENCE_TABLES` 封存参照表**不被清空**，
+//! 供应商父行按业务唯一编码幂等种入并回读真实主键（形状照
+//! `contract_docno_ap_lock_scope_test::seed_supplier`），绝不依赖清表自洽。
+//! 真实 handler + 真实表回读，无 mock、无同构 DDL。
 
 mod test_common;
 use test_common::setup_test_db;
@@ -44,7 +47,7 @@ use bingxi_backend::models::warehouse;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, EntityTrait};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -121,13 +124,23 @@ async fn call(app: &Router, method: Method, uri: &str, body: Option<Value>) -> (
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
-/// 种一条全字段有值的坯布：可空列全部非 NULL，三态用例才有「保持/清空」两种可观测态。
-/// supplier_id 指向固定 7，故先补种 suppliers(7) 满足 fk_greige_fabric_supplier，
-/// 否则夹具 insert 会撞外键违例（setup_test_db 每用例先 TRUNCATE，这里内联种子即可自洽）。
-async fn seed_supplier_7(db: &sea_orm::DatabaseConnection) {
+/// 种一条坯布契约供应商父行并回读真实主键。suppliers 属封存参照表（test_common
+/// 的 SEALED_REFERENCE_TABLES），夹具每用例**不清空**它，固定 id 裸 insert 会让
+/// 串行轮第二个用到它的用例撞 suppliers_pkey。故按业务唯一键 supplier_code 先读回、
+/// 缺行才自增插入（形状照 `contract_docno_ap_lock_scope_test::seed_supplier`），
+/// 跨用例、跨轮次幂等，不依赖清表自洽。
+/// 调用方：seed_full_greige。返回的 id 供坯布种子挂外键与用例断言消费。
+async fn seed_supplier_greige(db: &sea_orm::DatabaseConnection) -> i32 {
+    if let Some(existing) = supplier::Entity::find()
+        .filter(supplier::Column::SupplierCode.eq("SUP-GREIGE-007"))
+        .one(db)
+        .await
+        .expect("按编码读回坯布契约供应商失败")
+    {
+        return existing.id;
+    }
     let now = Utc::now().fixed_offset();
-    supplier::ActiveModel {
-        id: Set(7),
+    let seeded = supplier::ActiveModel {
         supplier_code: Set("SUP-GREIGE-007".to_string()),
         supplier_name: Set("坯布契约供应商".to_string()),
         supplier_short_name: Set("坯供".to_string()),
@@ -148,11 +161,17 @@ async fn seed_supplier_7(db: &sea_orm::DatabaseConnection) {
     }
     .insert(db)
     .await
-    .unwrap_or_else(|e| panic!("seed 供应商 7 失败: {e}"));
+    .unwrap_or_else(|e| panic!("seed 坯布契约供应商失败: {e}"));
+    seeded.id
 }
 
-async fn seed_full_greige(db: &sea_orm::DatabaseConnection, id: i32) {
-    seed_supplier_7(db).await;
+/// 种一条全字段有值的坯布：可空列全部非 NULL，三态用例才有保持与清空两种可观测态。
+/// supplier_id 与 warehouse_id 有库内外键（system 域 m0002 建坯布表），种子链自带父行：
+/// 供应商走封存表编码幂等种子（seed_supplier_greige），仓库走 seed_warehouse 幂等补种。
+/// 返回种下的真实供应商 id，供用例断言键缺席时保持原值消费，不把主键钉死成某个数字。
+async fn seed_full_greige(db: &sea_orm::DatabaseConnection, id: i32) -> i32 {
+    let supplier_id = seed_supplier_greige(db).await;
+    seed_warehouse(db, 1).await;
     greige_fabric::ActiveModel {
         id: Set(id),
         fabric_no: Set(format!("GF-TEST-{id:04}")),
@@ -173,7 +192,7 @@ async fn seed_full_greige(db: &sea_orm::DatabaseConnection, id: i32) {
         length_m: Set(Some(dec("200.00"))),
         quantity_kg: Set(Some(dec("100.00"))),
         quantity_meters: Set(Some(dec("200.00"))),
-        supplier_id: Set(Some(7)),
+        supplier_id: Set(Some(supplier_id)),
         warehouse_id: Set(Some(1)),
         safety_stock: Set(Some(dec("10.00"))),
         reorder_point: Set(Some(dec("20.00"))),
@@ -186,10 +205,21 @@ async fn seed_full_greige(db: &sea_orm::DatabaseConnection, id: i32) {
     .insert(db)
     .await
     .unwrap();
+    supplier_id
 }
 
-async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) {
-    warehouse::ActiveModel {
+/// 种一条测试仓库父行并回读其主键。warehouses 为业务表（夹具每用例清空、自增从 1 起），
+/// 固定 id 合法；但同一用例内 seed_full_greige 的种子链与 D 组、F 组调用方会重复调用
+/// 本函数，故按 id 已有即跳过插入，保持用例内幂等。返回真实 id 供调用方引用。
+async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) -> i32 {
+    if let Some(existing) = warehouse::Entity::find_by_id(id)
+        .one(db)
+        .await
+        .expect("按 id 读回测试仓库失败")
+    {
+        return existing.id;
+    }
+    let inserted = warehouse::ActiveModel {
         id: Set(id),
         warehouse_code: Set(format!("WH-TEST-{id:04}")),
         name: Set(format!("测试仓库-{id}")),
@@ -202,6 +232,7 @@ async fn seed_warehouse(db: &sea_orm::DatabaseConnection, id: i32) {
     .insert(db)
     .await
     .unwrap();
+    inserted.id
 }
 
 async fn find_row(db: &sea_orm::DatabaseConnection, id: i32) -> greige_fabric::Model {
@@ -359,7 +390,7 @@ async fn update_explicit_null_clears_nullable_columns_to_db_null() {
 #[tokio::test]
 async fn update_absent_keys_keep_original_values() {
     let db = setup_test_db().await;
-    seed_full_greige(&db, 1).await;
+    let seeded_supplier = seed_full_greige(&db, 1).await;
 
     let app = build_app(db.clone(), make_auth(100));
     let (status, v) = call(
@@ -388,7 +419,11 @@ async fn update_absent_keys_keep_original_values() {
         row.safety_stock, Some(dec("10.00")),
         "键缺席的 safety_stock 必须保持原值"
     );
-    assert_eq!(row.supplier_id, Some(7), "键缺席的 supplier_id 必须保持原值");
+    assert_eq!(
+        row.supplier_id,
+        Some(seeded_supplier),
+        "键缺席的 supplier_id 必须保持种下的父行主键"
+    );
 }
 
 #[tokio::test]
@@ -529,10 +564,10 @@ async fn update_status_still_enforces_chinese_vocab() {
 #[tokio::test]
 async fn update_dirty_foreign_id_is_business_error_not_500() {
     let db = setup_test_db().await;
-    seed_full_greige(&db, 1).await;
+    let seeded_supplier = seed_full_greige(&db, 1).await;
 
     let app = build_app(db.clone(), make_auth(100));
-    // supplier_id=7 与 warehouse_id=1 是种子值，但本用例不种父表：脏 id 必须预检成 4xx
+    // 坯布原值挂在种子父行上；提交父表不存在的脏 id 99999997 与 99999998 必须预检成 4xx
     for (field, dirty) in [("supplier_id", 99999997_i64), ("warehouse_id", 99999998)] {
         let (status, v) = call(
             &app,
@@ -553,7 +588,7 @@ async fn update_dirty_foreign_id_is_business_error_not_500() {
     }
     assert_eq!(
         find_row(&db, 1).await.supplier_id,
-        Some(7),
+        Some(seeded_supplier),
         "被拒的 supplier_id 提交不得改库"
     );
 }
@@ -899,10 +934,12 @@ async fn stock_out_rejects_overdraft_on_both_current_and_cumulative() {
 ///      每公斤 = 1000 / (200 * 1.8) = 2.7778 米。
 /// 调用方：本文件 F 组三个双单位用例。
 /// 入参：db 活库连接，id 主键。
-/// 传给谁：直接 insert 到 greige_fabric 表。
+/// 传给谁：先经 seed_warehouse 幂等补种仓库父行（warehouse_id=1 有库内外键
+///      fk_greige_fabric_warehouse），再 insert 到 greige_fabric 表。
 /// 存什么：一条在库、created_by=100、带克重与幅宽的坯布，库存与累计量给足正数。
-/// 存哪里：greige_fabric 表，夹具自身 TRUNCATE 清理。
+/// 存哪里：greige_fabric 表（业务表，夹具每用例清空），仓库父行同由种子链保障。
 async fn seed_greige_with_density(db: &sea_orm::DatabaseConnection, id: i32) {
+    seed_warehouse(db, 1).await;
     greige_fabric::ActiveModel {
         id: Set(id),
         fabric_no: Set(format!("GF-DENS-{id:04}")),
