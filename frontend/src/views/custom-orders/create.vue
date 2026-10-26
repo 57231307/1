@@ -23,23 +23,23 @@
         :aria-label="t('customOrders.create.formAriaLabel')"
       >
         <el-form-item :label="t('customOrders.create.labelCustomer')" prop="customer_id">
-          <el-input-number
+          <el-input
             v-model="form.customer_id"
-            :min="1"
+            inputmode="numeric"
             :placeholder="t('customOrders.create.placeholderCustomer')"
           />
         </el-form-item>
         <el-form-item :label="t('customOrders.create.labelProduct')" prop="product_id">
-          <el-input-number
+          <el-input
             v-model="form.product_id"
-            :min="1"
+            inputmode="numeric"
             :placeholder="t('customOrders.create.placeholderProduct')"
           />
         </el-form-item>
-        <el-form-item :label="t('customOrders.create.labelColor')">
-          <el-input-number
+        <el-form-item :label="t('customOrders.create.labelColor')" prop="color_id">
+          <el-input
             v-model="form.color_id"
-            :min="1"
+            inputmode="numeric"
             :placeholder="t('customOrders.create.placeholderColor')"
           />
         </el-form-item>
@@ -51,13 +51,7 @@
           prop="quantity"
           for="co-create-quantity"
         >
-          <el-input-number
-            id="co-create-quantity"
-            v-model="form.quantity"
-            :min="0.01"
-            :precision="2"
-            :step="1"
-          />
+          <el-input id="co-create-quantity" v-model="form.quantity" inputmode="decimal" />
           <el-select v-model="form.unit" style="width: 100px; margin-left: 8px">
             <el-option :label="t('customOrders.create.unitMeter')" value="m" />
             <el-option :label="t('customOrders.create.unitKilogram')" value="kg" />
@@ -107,14 +101,13 @@
         </el-form-item>
         <el-form-item
           :label="t('customOrders.create.labelTotalAmount')"
+          prop="total_amount"
           for="co-create-total-amount"
         >
-          <el-input-number
+          <el-input
             id="co-create-total-amount"
             v-model="form.total_amount"
-            :min="0"
-            :precision="2"
-            :step="100"
+            inputmode="decimal"
           />
           <el-select v-model="form.currency" style="width: 100px; margin-left: 8px">
             <el-option label="CNY" value="CNY" />
@@ -122,10 +115,10 @@
             <el-option label="EUR" value="EUR" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('customOrders.create.labelSalesOrder')">
-          <el-input-number
+        <el-form-item :label="t('customOrders.create.labelSalesOrder')" prop="sales_order_id">
+          <el-input
             v-model="form.sales_order_id"
-            :min="1"
+            inputmode="numeric"
             :placeholder="t('customOrders.create.placeholderSalesOrder')"
           />
         </el-form-item>
@@ -163,6 +156,7 @@ import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { createCustomOrder } from '@/api/custom-order';
+import { numberInputRules } from '@/utils/number-input';
 
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
@@ -170,23 +164,28 @@ const formRef = ref();
 const submitting = ref(false);
 const customReqText = ref('');
 
+// 数值录入项统一为手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
 const form = ref({
-  customer_id: undefined as number | undefined,
-  product_id: undefined as number | undefined,
-  color_id: undefined as number | undefined,
+  customer_id: '',
+  product_id: '',
+  color_id: '',
   spec: '',
-  quantity: 1,
+  quantity: '1',
   unit: 'm',
   yarn_spec: '',
   dye_method: '',
   finishing_method: '',
   expected_delivery_date: '',
-  total_amount: undefined as number | undefined,
+  total_amount: '',
   currency: 'CNY',
-  sales_order_id: undefined as number | undefined,
+  sales_order_id: '',
   // v3 复审 P1-4：新增订单备注字段
   notes: '',
 });
+
+/** 手写文本模型转契约数值：空串回 undefined（可选键省略=不采集） */
+const numOpt = (text: string): number | undefined =>
+  text.trim() === '' ? undefined : Number(text);
 
 const rules = {
   customer_id: [
@@ -195,6 +194,11 @@ const rules = {
       message: t('customOrders.create.validationCustomerRequired'),
       trigger: 'blur',
     },
+    ...numberInputRules({
+      label: t('customOrders.create.labelCustomer'),
+      min: 1,
+      integer: true,
+    }),
   ],
   product_id: [
     {
@@ -202,7 +206,17 @@ const rules = {
       message: t('customOrders.create.validationProductRequired'),
       trigger: 'blur',
     },
+    ...numberInputRules({
+      label: t('customOrders.create.labelProduct'),
+      min: 1,
+      integer: true,
+    }),
   ],
+  color_id: numberInputRules({
+    label: t('customOrders.create.labelColor'),
+    min: 1,
+    integer: true,
+  }),
   spec: [
     { required: true, message: t('customOrders.create.validationSpecRequired'), trigger: 'blur' },
   ],
@@ -212,7 +226,22 @@ const rules = {
       message: t('customOrders.create.validationQuantityRequired'),
       trigger: 'blur',
     },
+    ...numberInputRules({
+      label: t('customOrders.create.labelQuantity'),
+      min: 0.01,
+      precision: 2,
+    }),
   ],
+  total_amount: numberInputRules({
+    label: t('customOrders.create.labelTotalAmount'),
+    min: 0,
+    precision: 2,
+  }),
+  sales_order_id: numberInputRules({
+    label: t('customOrders.create.labelSalesOrder'),
+    min: 1,
+    integer: true,
+  }),
 };
 
 async function handleSubmit() {
@@ -227,18 +256,29 @@ async function handleSubmit() {
   try {
     const custom_requirements = customReqText.value ? { note: customReqText.value } : null;
 
-    // P2-9a 修复配套：表单验证通过后 narrowing 必填字段，满足 CustomOrderCreateDto 类型
+    // 表单验证通过后 narrowing 必填字段，满足 CustomOrderCreateDto 类型
     if (!form.value.customer_id || !form.value.product_id) {
       throw new Error(t('customOrders.create.messageCustomerProductRequired'));
     }
     // 后端 expected_delivery_date 为日期类型，空串 "" 反序列化失败
-    //（"premature end of input" → 422）。先解构排除，空串时不携带该字段
-    const { expected_delivery_date, ...restForm } = form.value;
+    //（"premature end of input" → 422）。空串时不携带该字段；其余键与原提交面一致照发
     const payload = {
-      ...restForm,
-      customer_id: form.value.customer_id,
-      product_id: form.value.product_id,
-      ...(expected_delivery_date ? { expected_delivery_date } : {}),
+      customer_id: Number(form.value.customer_id),
+      product_id: Number(form.value.product_id),
+      color_id: numOpt(form.value.color_id),
+      spec: form.value.spec,
+      quantity: Number(form.value.quantity),
+      unit: form.value.unit,
+      yarn_spec: form.value.yarn_spec,
+      dye_method: form.value.dye_method,
+      finishing_method: form.value.finishing_method,
+      total_amount: numOpt(form.value.total_amount),
+      currency: form.value.currency,
+      sales_order_id: numOpt(form.value.sales_order_id),
+      notes: form.value.notes,
+      ...(form.value.expected_delivery_date
+        ? { expected_delivery_date: form.value.expected_delivery_date }
+        : {}),
       custom_requirements,
     };
     const res = await createCustomOrder(payload);
