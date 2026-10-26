@@ -125,14 +125,23 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
       });
       msg.success(approveAction.value === 'approve' ? 'approvePassed' : 'approveRejected');
       approveDialogVisible.value = false;
-      refresh.fetchPendingTasks();
-      refresh.fetchCompletedTasks();
-      // 审批完成后回跳来源单据（响应体携带 business_type/business_id 用于导航）
+      await Promise.all([refresh.fetchPendingTasks(), refresh.fetchCompletedTasks()]);
+      // 审批完成后回跳来源单据（响应体携带 business_type/business_id/instance_id 用于导航）。
+      // 链路补齐口径：目标路由必须带上 instanceId 与 source，让来源单据页能定位刚办理的那条
+      // 上下文并给出返回审批中心的入口；business_id 缺省（历史 unwrap_or(0)）时仍按 instanceId
+      // 回跳，避免"成功后没带 sourceId 回跳"落到无上下文的列表首页。
       const data = res.data;
       if (data && 'business_type' in data) {
         const navFn = BUSINESS_ROUTE_MAP[data.business_type];
-        if (navFn && data.business_id) {
-          router.push(navFn(data.business_id));
+        if (navFn) {
+          router.push({
+            path: navFn(data.business_id),
+            query: {
+              source: 'bpm-approval',
+              instanceId: String(data.instance_id),
+              businessId: String(data.business_id),
+            },
+          });
         }
       }
     } catch (e) {
