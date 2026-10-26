@@ -334,13 +334,13 @@ test.describe.serial('新域业务流转链', () => {
 
     // 委外单号由 openCreate() 客户端自动生成（generateUniqueDocNo），readonly 不可 fill。
     // 建单对话框内有两个 el-select：第一个「类型」（染色加工/后整理/其他），第二个
-    // 「供应商/加工商」——本次源码改动把供应商由裸手输 supplier_id 的 el-input-number 改为
+    // 「供应商/加工商」——本次源码改动把供应商由裸手输 supplier_id 的步进数字录入框改为
     // filterable 可搜索下拉（option 文案为「supplier_name（supplier_code）」）。
     // 类型下拉仍是 dialog 内首个 .el-select，按位置选即可；供应商下拉必须按精确 label 锚定
     // （pickSelectIn 内部走 formItemByExactLabel），否则 .el-select first 会误点到类型下拉。
     await pickSelect(page, dialog.locator('.el-select').first(), '染色加工');
     // 供应商：按 ctx.supplierId 取真实名称/编码作为搜索词与点选判据；取不到名称即显式抛错，
-    // 不兜底、不退回手填数字主键（旧 el-input-number 契约已失效）。
+    // 不兜底、不退回手填数字主键（旧步进数字录入框契约已失效）。
     const supplier = await apiCallRaw<{ supplier_name?: string; supplier_code?: string }>(
       page,
       'GET',
@@ -369,7 +369,7 @@ test.describe.serial('新域业务流转链', () => {
     await dateInput.click();
     await dateInput.fill(today);
     await page.keyboard.press('Enter');
-    // 发出数量：供应商改为 el-select 后不再是 el-input-number，dialog 内 .el-input-number
+    // 发出数量：供应商改为 el-select 后步进数字录入框少了一枚，dialog 内该类录入框
     // 顺序整体前移，原按位置的 `.nth(1)` 会错落到「材料成本」（材料成本/三费另由下方
     // fillFieldByLabel 覆盖填写），发出数量将恒空触发 onCreate 必填守卫（index.vue:865）
     // 复现同一「POST 不发 → waitForResponse 超时」假红。改为按精确 label 锚定，与源码变更解耦。

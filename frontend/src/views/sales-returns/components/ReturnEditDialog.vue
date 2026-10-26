@@ -170,48 +170,66 @@
           </el-table-column>
           <el-table-column :label="t('salesReturns.editDialog.columnQuantity')" width="120">
             <template #default="{ row }">
-              <el-input-number
-                v-model="row.quantity"
-                :min="1"
-                :precision="2"
+              <!-- 手写录入（禁步进控件），行模型保持数值：el-input 文本经 bindNumeric
+                   单源校验器归一（min 1 钳下界，precision 2 截位）后写回，提交与算术消费面不变 -->
+              <el-input
+                :model-value="numericView(row.quantity, 2)"
+                inputmode="decimal"
                 style="width: 100%"
+                @update:model-value="
+                  (v: string) => (row.quantity = bindNumeric(v, row.quantity, { min: 1, precision: 2 }))
+                "
                 @change="onCalculate"
               />
             </template>
           </el-table-column>
           <el-table-column :label="t('salesReturns.editDialog.columnUnitPrice')" width="120">
             <template #default="{ row }">
-              <el-input-number
-                v-model="row.unitPrice"
-                :min="0"
-                :precision="2"
+              <el-input
+                :model-value="numericView(row.unitPrice, 2)"
+                inputmode="decimal"
                 style="width: 100%"
+                @update:model-value="
+                  (v: string) =>
+                    row.unitPrice = bindNumeric(v, row.unitPrice, { min: 0, precision: 2 })
+                "
                 @change="onCalculate"
               />
             </template>
           </el-table-column>
           <el-table-column :label="t('salesReturns.editDialog.columnTaxPercent')" width="120">
             <template #default="{ row }">
-              <el-input-number
-                v-model="row.taxPercent"
-                :min="0"
-                :max="100"
-                :precision="2"
+              <!-- 税率三态：空串=未填（省略键，后端取订单税率）；清空显式回 undefined，
+                   非空经 bindNumeric 归一（0..100，2 位）后写回数值模型 -->
+              <el-input
+                :model-value="numericView(row.taxPercent, 2)"
+                inputmode="decimal"
                 :placeholder="t('salesReturns.editDialog.placeholderTaxPercent')"
-                controls-position="right"
                 style="width: 100%"
+                @update:model-value="
+                  (v: string) =>
+                    row.taxPercent =
+                      v.trim() === ''
+                        ? undefined
+                        : bindNumeric(v, row.taxPercent, { min: 0, max: 100, precision: 2 })
+                "
               />
             </template>
           </el-table-column>
           <el-table-column :label="t('salesReturns.editDialog.columnDiscountPercent')" width="120">
             <template #default="{ row }">
-              <el-input-number
-                v-model="row.discountPercent"
-                :min="0"
-                :max="100"
-                :precision="2"
-                controls-position="right"
+              <!-- 折扣三态同税率：空串=未填（省略键），非空经单源校验器归一 -->
+              <el-input
+                :model-value="numericView(row.discountPercent, 2)"
+                inputmode="decimal"
                 style="width: 100%"
+                @update:model-value="
+                  (v: string) =>
+                    row.discountPercent =
+                      v.trim() === ''
+                        ? undefined
+                        : bindNumeric(v, row.discountPercent, { min: 0, max: 100, precision: 2 })
+                "
                 @change="onCalculate"
               />
             </template>
@@ -243,10 +261,10 @@
       <el-row :gutter="20">
         <el-col :span="12" :offset="12">
           <el-form-item :label="t('salesReturns.editDialog.labelTotalAmount')">
-            <el-input-number
-              v-model="localFormData.totalAmount"
-              :precision="2"
-              :disabled="true"
+            <!-- 总额由 calculateTotal 维护，保持数值模型，只读展示经 numericView 按 2 位归一 -->
+            <el-input
+              :model-value="numericView(localFormData.totalAmount, 2)"
+              disabled
               style="width: 100%"
             />
           </el-form-item>
@@ -268,6 +286,7 @@ import { deepClone } from '@/utils';
 import { ref, watch, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
+import { bindNumeric, numericView } from '@/utils/number-input';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
 import { logAuxLoadFailure } from '@/utils/logger';
 // v11 批次 174 P2-1 修复：从 useSr 导入具体类型替代 any
