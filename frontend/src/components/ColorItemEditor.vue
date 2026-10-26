@@ -97,13 +97,7 @@ function parseField(v: string): number | undefined | null {
 }
 
 function inRangeRgb(n: number | undefined | null): boolean {
-  return (
-    n !== undefined &&
-    n !== null &&
-    Number.isInteger(n) &&
-    n >= 0 &&
-    n <= 255
-  );
+  return n !== undefined && n !== null && Number.isInteger(n) && n >= 0 && n <= 255;
 }
 
 const form = reactive<EditForm>({
@@ -131,7 +125,7 @@ const rules = reactive<FormRules>({
 
 const hexValue = computed({
   get: () => form.hex_value,
-  set: (v) => {
+  set: v => {
     form.hex_value = v ?? '#000000';
   },
 });
@@ -158,7 +152,7 @@ let lastEmitJson = '';
 
 watch(
   () => props.modelValue,
-  (val) => {
+  val => {
     incoming.value = { ...val };
     const json = JSON.stringify(val);
     if (json === lastEmitJson) return;
@@ -183,7 +177,7 @@ function emitModel() {
   const b = parseField(form.rgb_b);
   if (b !== null && inRangeRgb(b)) merged.rgb_b = b;
   const seq = parseField(form.sequence);
-  if (seq !== null && seq >= 0 && Number.isInteger(seq)) merged.sequence = seq;
+  if (seq !== null && seq !== undefined && seq >= 0 && Number.isInteger(seq)) merged.sequence = seq;
 
   lastEmitJson = JSON.stringify(merged);
   emit('update:modelValue', merged);
@@ -211,7 +205,7 @@ function onRgbChange() {
   form.hex_value =
     '#' +
     [r, g, b]
-      .map((v) => (v as number).toString(16).padStart(2, '0'))
+      .map(v => (v as number).toString(16).padStart(2, '0'))
       .join('')
       .toUpperCase();
 }
