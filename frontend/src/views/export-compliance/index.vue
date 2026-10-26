@@ -41,11 +41,11 @@
         <el-card shadow="never" class="mb">
           <div class="toolbar">
             <el-button type="primary" @click="declDialogVisible = true">新建报关单</el-button>
-            <el-input-number
-              v-model="verifyOrderId"
-              :min="1"
+            <el-input
+              v-model="verifyOrderField.text"
               placeholder="订单ID"
               style="width: 130px"
+              @blur="verifyOrderField.normalize()"
             />
             <el-button @click="onVerifyDocs">单证核验</el-button>
             <el-button plain @click="onCalcRefund">计算退税</el-button>
@@ -59,7 +59,7 @@
       <el-tab-pane label="贸易术语" name="incoterms">
         <el-form inline label-width="110px">
           <el-form-item label="报价单ID"
-            ><el-input-number v-model="quotationId" :min="1"
+            ><el-input v-model="quotationIdField.text" @blur="quotationIdField.normalize()"
           /></el-form-item>
           <el-form-item
             ><el-button type="primary" @click="onLoadPriceComposition"
@@ -122,11 +122,10 @@
               ><el-input v-model="dischargeForm.pollutant_name"
             /></el-form-item>
             <el-form-item label="排放量" required
-              ><el-input-number
-                v-model="dischargeForm.discharge_amount"
-                :min="0"
-                :precision="2"
+              ><el-input
+                v-model="dischargeAmountField.text"
                 class="w-full"
+                @blur="dischargeAmountField.normalize()"
             /></el-form-item>
             <el-form-item label="计量单位"
               ><el-input v-model="dischargeForm.discharge_unit"
@@ -140,11 +139,10 @@
                 class="w-full"
             /></el-form-item>
             <el-form-item label="浓度"
-              ><el-input-number
-                v-model="dischargeForm.concentration"
-                :min="0"
-                :precision="2"
+              ><el-input
+                v-model="concentrationField.text"
                 class="w-full"
+                @blur="concentrationField.normalize()"
             /></el-form-item>
             <el-form-item label="浓度单位"
               ><el-input v-model="dischargeForm.concentration_unit"
@@ -169,7 +167,10 @@
     <el-dialog v-model="declDialogVisible" title="新建报关单" width="480">
       <el-form :model="declForm" label-width="110px">
         <el-form-item label="销售订单ID" required
-          ><el-input-number v-model="declForm.sales_order_id" :min="1" class="w-full"
+          ><el-input
+            v-model="declSalesOrderField.text"
+            class="w-full"
+            @blur="declSalesOrderField.normalize()"
         /></el-form-item>
         <el-form-item label="报关单号" required
           ><el-input v-model="declForm.declaration_no"
@@ -178,10 +179,14 @@
           ><el-date-picker v-model="declForm.export_date" type="date" value-format="YYYY-MM-DD"
         /></el-form-item>
         <el-form-item label="总金额" required
-          ><el-input-number v-model="declForm.total_amount" :min="0" :precision="2"
+          ><el-input
+            v-model="declTotalAmountField.text"
+            @blur="declTotalAmountField.normalize()"
         /></el-form-item>
         <el-form-item label="汇率"
-          ><el-input-number v-model="declForm.exchange_rate" :min="0" :precision="4"
+          ><el-input
+            v-model="declExchangeField.text"
+            @blur="declExchangeField.normalize()"
         /></el-form-item>
       </el-form>
       <template #footer>
@@ -193,10 +198,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
+import { useNumberField, validateNumberValue } from '@/composables/useNumberField';
 import {
   createDischargeRecord,
   getDischargeRecords,
@@ -269,6 +275,27 @@ const declForm = reactive({
   exchange_rate: 1,
 });
 const verifyOrderId = ref<number | undefined>();
+
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const verifyOrderField = useNumberField(
+  verifyOrderId,
+  { label: '销售订单ID', min: 1, precision: 0 },
+  'undefined'
+);
+const declSalesOrderSpec = { label: '销售订单ID', required: true, min: 1, precision: 0 } as const;
+const declTotalAmountSpec = { label: '总金额', min: 0, precision: 2 } as const;
+const declExchangeSpec = { label: '汇率', min: 0, precision: 4 } as const;
+const declSalesOrderField = useNumberField(
+  toRef(declForm, 'sales_order_id'),
+  declSalesOrderSpec,
+  'undefined'
+);
+const declTotalAmountField = useNumberField(
+  toRef(declForm, 'total_amount'),
+  declTotalAmountSpec,
+  'undefined'
+);
+const declExchangeField = useNumberField(toRef(declForm, 'exchange_rate'), declExchangeSpec);
 const calcForm = reactive({
   export_sales_amount: undefined as number | undefined,
   refund_rate: undefined as number | undefined,
@@ -283,6 +310,14 @@ async function onCreateDeclaration() {
   }
   if (!declForm.declaration_no || !declForm.export_date) {
     ElMessage.warning('请填写报关单号与出口日期');
+    return;
+  }
+  const declInvalid =
+    validateNumberValue(declForm.sales_order_id, declSalesOrderSpec) ??
+    validateNumberValue(declForm.total_amount, declTotalAmountSpec) ??
+    validateNumberValue(declForm.exchange_rate, declExchangeSpec);
+  if (declInvalid) {
+    ElMessage.warning(declInvalid);
     return;
   }
   await createCustomsDeclaration({
@@ -322,6 +357,11 @@ async function onCalcRefund() {
 // 术语
 const quotationId = ref<number | undefined>();
 const incotermResult = ref('');
+const quotationIdField = useNumberField(
+  quotationId,
+  { label: '报价单ID', min: 1, precision: 0 },
+  'undefined'
+);
 
 async function onLoadPriceComposition() {
   if (!quotationId.value) {
@@ -378,6 +418,24 @@ const dischargeForm = reactive({
   remarks: '',
 });
 
+const dischargeAmountSpec = {
+  label: '排放量',
+  required: true,
+  min: 0,
+  precision: 2,
+} as const;
+const concentrationSpec = { label: '浓度', min: 0, precision: 2 } as const;
+const dischargeAmountField = useNumberField(
+  toRef(dischargeForm, 'discharge_amount'),
+  dischargeAmountSpec,
+  'undefined'
+);
+const concentrationField = useNumberField(
+  toRef(dischargeForm, 'concentration'),
+  concentrationSpec,
+  'undefined'
+);
+
 async function loadDischarge() {
   loadingDischarge.value = true;
   try {
@@ -406,6 +464,13 @@ async function onCreateDischarge() {
     !dischargeForm.period
   ) {
     ElMessage.warning(t('environmentalTax.message.required'));
+    return;
+  }
+  const dischargeInvalid =
+    validateNumberValue(dischargeForm.discharge_amount, dischargeAmountSpec) ??
+    validateNumberValue(dischargeForm.concentration, concentrationSpec);
+  if (dischargeInvalid) {
+    ElMessage.warning(dischargeInvalid);
     return;
   }
   savingDischarge.value = true;
