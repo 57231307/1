@@ -1,18 +1,18 @@
 // 供应商评估指标到记录到排名链路契约 — 15 自建指标与新建供应商的零漂移回读
 // 契约真相（逐段读后端源，非推测）：
 //   POST purchase/supplier-evaluations/indicators（handler create_indicator，
-//   service services/supplier_evaluation_service.rs:35 CreateEvaluationIndicatorRequest）
+//   service services/supplier_evaluation_service.rs 的 CreateEvaluationIndicatorRequest）
 //   入参 indicator_name、indicator_code（重复码 400）、category、weight、max_score。
 //   POST purchase/supplier-evaluations（handler create_evaluation，同一 Request，
-//   service:169 create_evaluation_record）入参 supplier_id、evaluation_period、
+//   create_evaluation_record）入参 supplier_id、evaluation_period、
 //   indicator_id、score、remark 可选；供应商或指标行不存在均 404 NOT_FOUND；
 //   score 超出 [0, max_score] 报 validation_displayable「得分 x 超出有效范围 [0, n]」
 //   400 VALIDATION_ERROR 外显；落库补 max_score 与 weighted_score（score*weight/max_score），
 //   evaluator_id 取会话用户。rust_decimal 序列化为 JSON 字符串，断言走 Number 数值化。
-//   GET purchase/supplier-evaluations/{id}（get_evaluation，service:585
+//   GET purchase/supplier-evaluations/{id}（get_evaluation 与 get_evaluation_record_view
 //   get_evaluation_record_view）出参 EvaluationRecordView，JOIN 富化列 supplier_name、
 //   indicator_name、evaluator_name 实查回填；id 不存在 404 文案「评估记录不存在」。
-//   GET purchase/supplier-evaluations/rankings（get_rankings，service:473
+//   GET purchase/supplier-evaluations/rankings（get_rankings 与 get_supplier_rankings
 //   get_supplier_rankings）出参 SupplierScoreResponse 数组，键 supplier_id、
 //   supplier_name、average_score、total_records、rating、latest_evaluation_date，
 //   按 average_score 降序截 limit（默认 10，clamp 1..100），留榜行 supplier_name 实查回填。
@@ -74,7 +74,7 @@ test.afterEach(async ({ page }) => {
   CLEANUP.length = 0;
 });
 
-/** 自建供应商（seedSupplier 口径与 finance/04-ap-ar-settlement.spec.ts:42 一致） */
+/** 自建供应商（seedSupplier 口径与 finance/04-ap-ar-settlement.spec.ts 一致） */
 async function seedSupplier(page: import('@playwright/test').Page, name: string): Promise<number> {
   const res = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
     supplier_name: name,

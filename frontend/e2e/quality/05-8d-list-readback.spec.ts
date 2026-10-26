@@ -4,8 +4,8 @@
 //   service services/quality_8d_service.rs）出参 EightDPagedResponse，键 items、total、
 //   page、page_size；page 缺省 1 并 clamp 到 1..1000，page_size 缺省 20 并 clamp 到
 //   1..200，回显值是被 clamp 后的实际取页数，不是提交原值。行集经数据范围 ctx 过滤。
-//   GET quality-8d-reports/{id}（get_8d，service:393 get_by_id）id 不存在时先于
-//   归属门命中 EightDError::NotFound，eight_d_err（handler:132）映射 AppError::not_found，
+//   GET quality-8d-reports/{id}（get_8d 与 get_by_id）id 不存在时先于
+//   归属门命中 EightDError::NotFound，eight_d_err 映射点 AppError::not_found，
 //   出 HTTP 404 与机器码 NOT_FOUND，默认脱敏不读文案。
 // 正向与零漂移：page=2、page_size=10 请求回显逐键等值；首页全窗（page=1、page_size=200）
 //   下行数等于 total（total<=200 时）或恰为窗宽 200（超出时），行数与总数互相锁死，

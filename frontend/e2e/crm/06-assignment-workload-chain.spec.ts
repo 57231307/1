@@ -68,7 +68,7 @@ async function workloadCount(
   return Number(row!.assigned_count);
 }
 
-/** 建一条 new 状态线索（owner 由服务端写会话用户，services/crm/lead.rs:62），交 CLEANUP 兜底删除 */
+/** 建一条 new 状态线索（owner 由服务端写会话用户，见 services/crm/lead.rs create_lead），交 CLEANUP 兜底删除 */
 async function seedActiveLead(page: import('@playwright/test').Page): Promise<number> {
   const leadNo = genCode('E2E-WL');
   const created = await apiCall<{ id?: number }>(page, 'POST', '/crm/leads', {
