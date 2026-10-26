@@ -289,6 +289,7 @@ export interface ContractPreview {
   customer_name: string | null;
   default_contract_name: string;
   default_delivery_date: string | null;
+  default_delivery_location: string | null;
   default_remark: string | null;
   items: ContractPreviewItem[];
   existing_contract: ExistingContract | null;

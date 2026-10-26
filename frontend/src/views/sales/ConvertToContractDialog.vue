@@ -326,7 +326,8 @@ async function loadPreview(orderId: number) {
     form.effective_date = null;
     form.expiry_date = null;
     form.delivery_date = data.default_delivery_date;
-    form.delivery_location = null;
+    // 收货地址自来源订单带出，用户在合同表单可改；无来源收货地址则为空
+    form.delivery_location = data.default_delivery_location;
     form.remark = data.default_remark;
     form.items = data.items.map(item => ({
       order_item_id: item.order_item_id,

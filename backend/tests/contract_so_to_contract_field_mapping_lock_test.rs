@@ -400,6 +400,8 @@ fn preview_carry_problems(convert: &str) -> Vec<String> {
         ("customer_id", "order.customer_id"),
         ("order_no", "order.order_no"),
         ("existing_contract", "existing.map"),
+        // 收货地址自来源订单带出：预填默认值必须取订单 shipping_address
+        ("default_delivery_location", "order.shipping_address"),
     ] {
         match header.get(field) {
             Some(v) if !squeeze(v).contains(needle) => {
@@ -489,6 +491,8 @@ fn header_active_model_problems(convert: &str, contract_svc: &str) -> Vec<String
         ("total_amount", "totals.total_amount"),
         ("source_order_id", "Some(order_id)"),
         ("contract_no", "None"),
+        // 收货地点建头来源：用户编辑值优先，兜底取来源订单 shipping_address
+        ("delivery_location", "order.shipping_address"),
     ] {
         match req.get(field) {
             Some(v) if !squeeze(v).contains(needle) => {

@@ -97,9 +97,11 @@ pub struct ContractPreview {
     pub customer_id: i32,
     pub customer_name: Option<String>,
     /// 表头默认预填：合同名（销售合同-{order_no}）、交期（订单要求交期）、
+    /// 收货地点（来源订单收货地址 shipping_address，用户在合同表单可改）、
     /// 备注（[源自销售订单 {order_no}] + 订单备注）
     pub default_contract_name: String,
     pub default_delivery_date: Option<chrono::NaiveDate>,
+    pub default_delivery_location: Option<String>,
     pub default_remark: Option<String>,
     pub items: Vec<ContractPreviewItem>,
     /// 该订单当前是否存在非终态（draft/active）转换合同：存在则前端给出跳转提示、
@@ -309,6 +311,7 @@ impl SalesContractConvertService {
             customer_name: customer.map(|c| c.customer_name),
             default_contract_name: format!("销售合同-{}", order.order_no),
             default_delivery_date: header_delivery_date,
+            default_delivery_location: order.shipping_address.clone(),
             default_remark,
             items: preview_items,
             existing_contract: existing.map(|c| ExistingContract {
@@ -398,7 +401,11 @@ impl SalesContractConvertService {
             effective_date: req.effective_date,
             expiry_date: req.expiry_date,
             payment_method: req.payment_method.clone(),
-            delivery_location: req.delivery_location.clone(),
+            // 收货地点：用户编辑值优先，未编辑则沿用来源订单收货地址（与 preview 默认同源）
+            delivery_location: req
+                .delivery_location
+                .clone()
+                .or_else(|| order.shipping_address.clone()),
             remark: req.remark.clone(),
             source_order_id: Some(order_id),
             items: None,
