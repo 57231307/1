@@ -186,13 +186,25 @@ test.describe.serial('新域业务流转链', () => {
     await expect(page.locator('.page')).toBeVisible();
 
     await page.getByRole('button', { name: '新建参保记录' }).click();
-    // 对话框内 .el-input-number 自上而下为 员工ID/年度/月份/缴费基数，各含一个可定位的真实
-    // input（增减按钮是其兄弟节点，直接命中 input 即避开 intercepts pointer events）。
+    // 对话框数值项为纯手写 el-input（步进控件已全项目禁用），按表单项标签定位真实 input。
     // 原用例把「缴费基数」错填成 nth(2)（实为月份），致 base_amount 为空 → 前端守卫弹 warning、
-    // 无 success toast。修正为 nth(3)，值 5000 落在后端合规区间 [4250,31884]；年/月保留表单默认。
-    const spins = page.locator('.el-dialog .el-input-number input');
-    await spins.nth(0).fill('1'); // 员工ID
-    await spins.nth(3).fill('5000'); // 缴费基数
+    // 无 success toast。修正为按标签命中，值 5000 落在后端合规区间 [4250,31884]；年/月保留表单默认。
+    const siDialog = page.locator('.el-dialog');
+    const workerInput = siDialog
+      .locator('.el-form-item', { hasText: '员工ID' })
+      .locator('input')
+      .first();
+    const baseInput = siDialog
+      .locator('.el-form-item', { hasText: '缴费基数' })
+      .locator('input')
+      .first();
+    await workerInput.fill('1');
+    await baseInput.fill('5000');
+    // 手写输入真值断言 写后读回（blur 收敛为数值形态后仍保持所写值）
+    await workerInput.blur();
+    await baseInput.blur();
+    await expect(workerInput).toHaveValue('1');
+    await expect(baseInput).toHaveValue('5000');
     await page.getByRole('button', { name: '保存' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 

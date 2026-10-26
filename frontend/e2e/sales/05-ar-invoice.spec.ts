@@ -15,12 +15,12 @@ import { apiCallRaw } from '../flow/helpers';
  *   按钮 '新建发票'（arModule.invoice.create）、状态筛选下拉 + '搜索'/'重置'、
  *   发票列表（列 发票编号/客户/发票金额/税额/已收/未收/状态），行内 '详情' / DRAFT 行 '审核' / '取消'。
  *   新建发票对话框（createTitle '新建应收发票'）字段：客户 select / 发票日期 date / 到期日期 date /
- *   发票金额 spinbutton / 税额 spinbutton / 备注；底部 '取消' / '确认'。
+ *   发票金额 手写输入框 / 税额 手写输入框 / 备注；底部 '取消' / '确认'。
  *   发票编号由后端 generate_invoice_no 自生成（CreateArInvoiceRequestDto 无 invoice_no 字段），
  *   新建对话框对发票编号只做只读回显、不采集，故本用例不填发票编号；到期日为选填（留空后端回退当天）。
  *   提交成功 → ElMessage.success(t('common.success') = '操作成功')。
- * - PaymentTab 真实控件：'新建收款'（arModule.payment.create）→ 对话框字段 客户(input-number)/
- *   收款日期(date)/收款方式(select)/收款金额(spinbutton)/备注，底部 '取消'/'保存'；
+ * - PaymentTab 真实控件：'新建收款'（arModule.payment.create）→ 对话框字段 客户(手写输入框)/
+ *   收款日期(date)/收款方式(select)/收款金额(手写输入框)/备注，底部 '取消'/'保存'；
  *   列表行 '确认收款'（arModule.payment.confirm）→ ElMessageBox.confirm → 成功 '操作成功'。
  *   AR 收款单号为后端生成（payment_no），前端不预设格式，故不虚构 "AR-\d" 断言。
  */
@@ -47,8 +47,14 @@ test.describe('05 AR 应收发票与收款', () => {
     await expect(dialog).toBeVisible();
     // 客户（el-select，label '客户'）：pickSelectIn 点 wrapper→选首项
     await pickSelectIn(dialog, page, '客户');
-    // 发票金额（首个 el-input-number）；发票日期在打开对话框时默认今天、到期日选填留空
-    await dialog.getByRole('spinbutton').first().fill('10000');
+    // 发票金额（label '发票金额' 的手写输入框，步进控件已全项目禁用）；
+    // 发票日期在打开对话框时默认今天、到期日选填留空
+    const invoiceAmountInput = dialog
+      .locator('.el-form-item', { hasText: '发票金额' })
+      .locator('input')
+      .first();
+    await invoiceAmountInput.fill('10000');
+    await expect(invoiceAmountInput, '手写金额应可原样读回').toHaveValue('10000');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
     // createARInvoice 成功 → ElMessage.success(common.success = '操作成功')
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
@@ -74,9 +80,12 @@ test.describe('05 AR 应收发票与收款', () => {
     // 对话框 title '新建收款'
     const dialog = page.getByRole('dialog', { name: '新建收款' });
     await expect(dialog).toBeVisible();
-    // 客户 ID 为 el-input-number，收款方式为 el-select，收款金额为 el-input-number
-    const spins = dialog.getByRole('spinbutton');
-    await spins.first().fill(String(customerId)); // customer_id（真实存在的客户 ID）
+    // 客户 ID 与收款金额均为手写输入框（label '客户' '收款金额'），收款方式为 el-select
+    const customerInput = dialog
+      .locator('.el-form-item', { hasText: '客户' })
+      .locator('input')
+      .first();
+    await customerInput.fill(String(customerId)); // customer_id（真实存在的客户 ID）
     // 收款日期（PaymentTab.vue:70-71 el-date-picker）：其内层 input 带 role=combobox
     // （EP 日期选择器开弹层语义），与「收款方式」el-select 同为 combobox →
     // 旧 dialog.getByRole('combobox').click() strict 命中 2 个。改走真实手输：定位 .el-date-editor 输入框，点开→输入→回车。
@@ -93,7 +102,12 @@ test.describe('05 AR 应收发票与收款', () => {
     // 收款方式：对话框内唯一 el-select（label '收款方式'，避开 date-picker 的 combobox），
     // pickSelectIn 点 wrapper→选含“银行转账”的项。
     await pickSelectIn(dialog, page, '收款方式', { optionText: '银行转账' });
-    await spins.nth(1).fill('3000'); // 部分收款金额
+    const paymentAmountInput = dialog
+      .locator('.el-form-item', { hasText: '收款金额' })
+      .locator('input')
+      .first();
+    await paymentAmountInput.fill('3000'); // 部分收款金额
+    await expect(paymentAmountInput, '手写金额应可原样读回').toHaveValue('3000');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 30000 });
     // 列表刷新后该笔收款出现在收款管理表中（按金额列文本锚定，不虚构单号格式）
