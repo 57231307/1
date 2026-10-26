@@ -311,11 +311,7 @@ const submitCreate = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async valid => {
     if (!valid) return;
-    if (
-      formData.amount === '' ||
-      formData.tax_amount === '' ||
-      formData.total_amount === ''
-    ) {
+    if (formData.amount === '' || formData.tax_amount === '' || formData.total_amount === '') {
       return;
     }
     submitLoading.value = true;
