@@ -160,6 +160,19 @@ jobs:
               print(f"{name} 覆盖 {len(required)} 条 app 命令权限")
           PY
 
+      - name: 严格冒烟·4 校验安卓图标源图与生成次序
+        # 调用方 本 job 出包前的静态闸门。入参 无。
+        # 做什么 先跑脚本 --self-test 自证判据可判红，再对真实仓断言两件事：
+        #        1) launcher 图标打包输入源图 mobile-app/app-icon.png 的 sha256 等于钉住的新 logo；
+        #        2) workflow 内图标生成步排在工程初始化步之后、APK 构建步之前。
+        # 为什么 gen/android 由 CI 现场生成不入库，桌面 icons 也被图标步重生成，唯一稳定可钉的
+        #        打包输入是源图；次序错排会让 mipmap 落不进工程，APK 回落默认图标，正是本次缺陷根因。
+        # 注意 本步注释不得出现被脚本按内容定位的三条命令字面量，否则会被误判为图标步本身。
+        run: |
+          set -euo pipefail
+          python3 mobile-app/scripts/check-android-icon-source.py --self-test
+          python3 mobile-app/scripts/check-android-icon-source.py
+
       - name: 设置 JDK
         uses: actions/setup-java@v4
         with:
@@ -184,13 +197,22 @@ jobs:
       - name: 安装 Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: 生成应用图标
-        working-directory: mobile-app
-        run: cargo tauri icon app-icon.png
-
       - name: 初始化 Android 工程
+        # 调用方 下一步 生成应用图标。入参 无。
+        # 做什么 现场脚手架 src-tauri/gen/android 工程（不入库），供图标步在其上生成 launcher 资源。
         working-directory: mobile-app
         run: cargo tauri android init
+
+      - name: 生成应用图标
+        # 调用方 后续 构建 debug APK 与 构建 release APK 两步，二者产物的 launcher 图标以本步为准。
+        # 入参 源图 mobile-app/app-icon.png（新 logo 1024 白底，launcher 图标唯一打包输入）。
+        # 做什么 由源图生成全套桌面图标进 src-tauri/icons，并生成安卓 launcher 图标资源。
+        # 为什么排在 init 之后 build 之前 本步须在安卓工程已生成、且尚未打 APK 之间执行，
+        #        工程初始化之前的图标产物不会被随后的工程脚手架与打包保留；次序错排即本次
+        #        "装到机上仍是旧标" 的根因面。实际生效以真 run 出的 APK 自证。
+        # 存哪里 只写 CI 现场生成的 src-tauri/gen/android 与 src-tauri/icons，均不入库。
+        working-directory: mobile-app
+        run: cargo tauri icon app-icon.png
 
       - name: 注入安卓权限与蓝牙打印插件
         # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
