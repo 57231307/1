@@ -1227,7 +1227,7 @@ async fn template_revision_never_rewrites_frozen_snapshot() {
     .await;
     let clause_gone = query_bool_text(
         &db,
-        "SELECT NOT EXISTS (SELECT 1 FROM contract_template_clauses WHERE template_id = $1)::text"
+        "SELECT (NOT EXISTS (SELECT 1 FROM contract_template_clauses WHERE template_id = $1))::text"
             .to_string(),
         vec![tpl_v1.into()],
     )
@@ -1369,7 +1369,7 @@ async fn legacy_contract_rows_keep_null_and_market_check_allows_null() {
                      OR dispute_resolution IS NOT NULL OR performance_period IS NOT NULL \
                      OR signed_at IS NOT NULL OR signed_by_user_id IS NOT NULL \
                      OR signature_hash IS NOT NULL OR signature_image_url IS NOT NULL \
-                     OR signature_certificate IS NOT NULL OR stamp_tax_amount IS NOT NULL) \
+                     OR signature_certificate IS NOT NULL OR stamp_tax_amount IS NOT NULL)::text \
                   FROM {table} WHERE id = $1"
             ),
             vec![id.into()],
