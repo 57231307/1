@@ -113,6 +113,8 @@ const formRef = ref<FormInstance>();
  * - 用户显式输入的 0 是合法业务值（额度清零、现结=0 天账期、信用分 0 分），照原样上送；
  * - 范围与精度靠 rules 数字校验器钉住（分数 0 到 100 整数、额度不小于 0 两位小数、账期不小于 0 整数），
  *   不再靠加减按钮；清空输入框回到空串未填态。
+ * - 提交腿把未填空串显式换算成 null 再上送（绝不用裸 Number——Number('') 会得到 0，
+ *   把"用户没填"伪装成"用户填了 0 分"），让后端按 Option::None 走它自己的兜底。
  * 三个键都不由前端替用户补默认值；后端对 None 的兜底（等级 B / 分数 60 / 账期 30）
  * 是后端的产品口径，前端不预先替它填上，也不假装它不存在。
  */
@@ -189,25 +191,24 @@ const resetForm = () => {
 };
 
 /**
- * 纯函数：把表单态换算成 PUT/POST 载荷，未填时返回 null 而不是补默认值。
- * 存在意义是"校验已过但状态仍不完整"这条不该发生的路径——它必须让提交显式失败，
- * 而不是悄悄把 0/'' 写进库（required 认 0 为有效值，补位即等于替用户输入）。
+ * 纯函数：把表单态换算成 PUT/POST 载荷。
+ * - customer_id 在 DTO 上是必填 number（非可空）、credit_level 属必填身份项，
+ *   二者缺一即视为表单不完整，整单不提交、也不替用户补任何默认值；
+ * - 三个数值项（分数/额度/账期）未填（空串）时显式换算成 null，让后端按 Option::None 走兜底，
+ *   绝不写裸 Number(source.creditX)——Number('') 会得到 0，把"没填"伪装成"填了 0"。
+ * 存在意义是"required 规则已过但状态仍不完整"这条不该发生的路径：它必须让提交
+ * 显式失败（身份项）或如实上送 null（数值项），而不是悄悄把 0/'' 当作用户输入写进库。
  * 入参：表单快照；传给谁：仅 handleSubmit 用于判定与上送；不存储、不打印。
  */
 function buildRatingPayload(source: typeof form): SetCreditRatingInput | null {
-  const unfilled =
-    typeof source.customer_id !== 'number' ||
-    source.creditLevel === '' ||
-    source.creditScore === '' ||
-    source.creditLimit === '' ||
-    source.creditDays === '';
-  if (unfilled) return null;
+  const incomplete = typeof source.customer_id !== 'number' || source.creditLevel === '';
+  if (incomplete) return null;
   return {
     customer_id: source.customer_id as number,
     credit_level: source.creditLevel,
-    credit_score: Number(source.creditScore),
-    credit_limit: Number(source.creditLimit),
-    credit_days: Number(source.creditDays),
+    credit_score: source.creditScore === '' ? null : Number(source.creditScore),
+    credit_limit: source.creditLimit === '' ? null : Number(source.creditLimit),
+    credit_days: source.creditDays === '' ? null : Number(source.creditDays),
     remark: source.remark,
   };
 }
