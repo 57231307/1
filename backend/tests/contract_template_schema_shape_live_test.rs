@@ -36,7 +36,9 @@
 
 mod test_common;
 
-use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Statement, Value};
+use sea_orm::{
+    ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Statement, Value,
+};
 use std::collections::BTreeSet;
 use test_common::setup_test_db;
 
@@ -1447,7 +1449,12 @@ async fn new_domain_is_recorded_in_migration_ledger() {
 async fn db_check_vocabularies_equal_migration_constants_exactly() {
     let db = setup_test_db().await;
 
-    let set = |tokens: &[&str]| tokens.iter().map(|t| (*t).to_string()).collect::<BTreeSet<_>>();
+    let set = |tokens: &[&str]| {
+        tokens
+            .iter()
+            .map(|t| (*t).to_string())
+            .collect::<BTreeSet<_>>()
+    };
 
     let cases: Vec<(&str, &str, BTreeSet<String>)> = vec![
         (

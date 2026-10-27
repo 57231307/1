@@ -180,7 +180,10 @@ BEGIN
 END
 $$;
 "#;
-        manager.get_connection().execute_unprepared(verify_sql).await?;
+        manager
+            .get_connection()
+            .execute_unprepared(verify_sql)
+            .await?;
         Ok(())
     }
 

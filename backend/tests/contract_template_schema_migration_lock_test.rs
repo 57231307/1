@@ -33,7 +33,8 @@ const VOCAB_REL: &str = "src/models/status/contract_template.rs";
 
 fn read(rel: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel);
-    fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {rel} 失败: {e}（路径或改名需同步本锁）"))
+    fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("读取 {rel} 失败: {e}（路径或改名需同步本锁）"))
 }
 
 /// 从文本中提取 `const <name>: &str = "..."` 字面量里的全部单引号 token。
@@ -129,12 +130,7 @@ fn migration_constants_equal_authority_vocabularies_exactly() {
     let mig = read(MIGRATION_REL);
     let vocab = read(VOCAB_REL);
 
-    lock_group(
-        &mig,
-        &vocab,
-        "CONTRACT_TYPE_ALLOWED_SQL",
-        "contract_type",
-    );
+    lock_group(&mig, &vocab, "CONTRACT_TYPE_ALLOWED_SQL", "contract_type");
     lock_group(
         &mig,
         &vocab,
@@ -257,10 +253,7 @@ fn vocab_tokens_are_lowercase_ascii_and_non_empty() {
     for group in groups {
         for token in *group {
             assert!(
-                !token.is_empty()
-                    && token
-                        .chars()
-                        .all(|c| c.is_ascii_lowercase() || c == '_'),
+                !token.is_empty() && token.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
                 "取值 {token} 含非小写 ASCII 字符或为空（词表禁止中文与大写与空串）"
             );
         }
@@ -384,17 +377,19 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
 /// down 侧只允许 DROP 与显式 no-op。
 #[test]
 fn contract_template_schema_never_touches_business_data_rows() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("migration/src/domain/contract_template_schema");
-    let entries = fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("migration/src/domain/contract_template_schema");
+    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
     let mut checked = 0usize;
     for entry in entries {
-        let path = entry.unwrap_or_else(|e| panic!("读取目录项失败: {e}")).path();
+        let path = entry
+            .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
+            .path();
         if path.extension().and_then(|s| s.to_str()) != Some("rs") {
             continue;
         }
-        let text = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
+        let text =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
         let code_only = text
             .lines()
             .filter(|l| !l.trim_start().starts_with("//"))

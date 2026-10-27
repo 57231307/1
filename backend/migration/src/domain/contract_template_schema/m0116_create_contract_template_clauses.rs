@@ -20,9 +20,7 @@
 //! - 外键 `template_id` 用默认 RESTRICT,不级联删。已签约合同引用过的模板被删会让快照行断链。
 //! - 条款码、适用条件、复核状态三列的 CHECK 取值集与域内词表常量单点同源。
 
-use super::{
-    APPLIES_WHEN_ALLOWED_SQL, CLAUSE_CODE_ALLOWED_SQL, LEGAL_REVIEW_STATUS_ALLOWED_SQL,
-};
+use super::{APPLIES_WHEN_ALLOWED_SQL, CLAUSE_CODE_ALLOWED_SQL, LEGAL_REVIEW_STATUS_ALLOWED_SQL};
 use sea_orm_migration::prelude::*;
 
 #[derive(DeriveMigrationName)]

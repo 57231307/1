@@ -52,7 +52,8 @@ pub(crate) const CLAUSE_CODE_ALLOWED_SQL: &str = "'subject_and_spec','quantity_a
 pub(crate) const LEGAL_REVIEW_STATUS_ALLOWED_SQL: &str = "'pending','approved','rejected'";
 
 /// 条件出条款标记词表。空值表示无条件通用条款,非空值表示只在命中该业务形态时出条款。
-pub(crate) const APPLIES_WHEN_ALLOWED_SQL: &str = "'export','domestic','tax_inclusive','tax_exclusive','custom_made','framework'";
+pub(crate) const APPLIES_WHEN_ALLOWED_SQL: &str =
+    "'export','domestic','tax_inclusive','tax_exclusive','custom_made','framework'";
 
 /// 合同侧词表,区分条款快照挂在哪一张合同主表上。
 pub(crate) const CONTRACT_KIND_ALLOWED_SQL: &str = "'sales','purchase'";
@@ -73,7 +74,9 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 建表次序由外键方向决定。模板主表与条款库无外键依赖,先建;
         // 模板条款项同时引用两者;合同条款快照引用模板主表;补列最后,只依赖既有两张合同主表。
-        m0114_create_contract_templates::Migration.up(manager).await?;
+        m0114_create_contract_templates::Migration
+            .up(manager)
+            .await?;
         m0115_create_clause_library::Migration.up(manager).await?;
         m0116_create_contract_template_clauses::Migration
             .up(manager)
@@ -90,7 +93,9 @@ impl MigrationTrait for Migration {
         m0118_add_contract_main_clause_columns::Migration
             .down(manager)
             .await?;
-        m0117_create_contract_clauses::Migration.down(manager).await?;
+        m0117_create_contract_clauses::Migration
+            .down(manager)
+            .await?;
         m0116_create_contract_template_clauses::Migration
             .down(manager)
             .await?;
