@@ -433,12 +433,21 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     expect(RATING_TAB_SRC).toMatch(/creditLimit: null as number \| null/);
     expect(RATING_TAB_SRC).toMatch(/creditDays: null as number \| null/);
     expect(RATING_TAB_SRC).toMatch(/form\.creditScore = null/);
-    // 清空输入框回到未填态，而不是被 :min="0" 拍平成 0
-    // 只在模板区计数：script 的说明注释里也出现过这个属性名，整文件匹配会多数一次
+    // 清空输入框回到未填态，而不是被下界 0 拍平成 0。
+    // 控件换成手写 el-input 后没有 :value-on-clear 可用，清空态改由录入边界的空文本显式回 null
+    // 承担，所以这里改钉两件事：三处数字录入都走那个绑定器，且绑定器对空文本必回 null。
+    // 只在模板区计数：script 里绑定器的定义与调用也含同样的函数名，整文件匹配会多数
     expect(
-      (RATING_TAB_TEMPLATE.match(/:value-on-clear="null"/g) || []).length,
-      '三个数字输入框都必须显式把清空态定为 null'
+      (RATING_TAB_TEMPLATE.match(/= bindNullableNumeric\(/g) || []).length,
+      '三个数字输入框都必须经 bindNullableNumeric 把清空态定为 null'
     ).toBe(3);
+    const nullBinder =
+      RATING_TAB_SRC.match(/function bindNullableNumeric\([\s\S]*?\n\}/)?.[0] ?? '';
+    expect(nullBinder, '绑定器 bindNullableNumeric 不存在，判据失去抓手').not.toBe('');
+    expect(nullBinder, '空文本必须显式判成 null 而不是下界').toMatch(
+      /if \(text === ''\) return null;/
+    );
+    expect(nullBinder, '绑定器不得把空文本回落成 0').not.toMatch(/return 0;/);
     // 提交侧：拿不到数值时显式失败并留日志，不补默认值
     expect(RATING_TAB_SRC).toContain('function buildRatingPayload');
     expect(RATING_TAB_SRC).toContain('incompleteForm');
