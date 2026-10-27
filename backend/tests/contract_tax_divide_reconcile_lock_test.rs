@@ -17,8 +17,10 @@
 //!    suppliers 属迁移种子参照表不清空，供应商用时间戳后缀自建专属行，互不碰撞。
 //! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 14 个文件）与
 //!    前端 4 个含税派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
-//!    「乘 tax 前缀标识符」与硬编码档位字面量；不只看首个匹配、行首注释才跳过
-//!    （行尾注释里的代码照扫）、不按中文字面量放行界面文案，改回乘法必红并点名。
+//!    「乘 tax 前缀标识符（含点号接收者形态 `*item.tax_percent` 与 `*row.taxRate`）」
+//!    「乘号括号窗口内税率与 +1 或 +Decimal::ONE 反序加数并存」与硬编码档位字面量；
+//!    不只看首个匹配、行首注释才跳过（行尾注释里的代码照扫）、不按中文字面量放行界面文案，
+//!    后端与前端都另做全文拼串补扫跨行遮蔽形态，改回乘法必红并点名。
 //!    正向委托锁逐文件钉内核引用与单源入口，删引用或内联第二套公式同样判红。
 //!
 //! 覆盖策略，纯函数注入 加 真 PostgreSQL（test_common::setup_test_db），跑真实 service 全链路，无 mock。
@@ -479,6 +481,64 @@ fn has_mul_one_plus(c: &str) -> bool {
     })
 }
 
+/// 判定「乘号括号窗口内税率与加数反序并存」，覆盖正序判定漏掉的两个形态：
+/// `*(taxRate+1)` 与 `*(tax_percent / 100 + Decimal::ONE)`（加数在税率之后）。
+/// 与 [`has_mul_one_plus`] 同样逐 `*(` 出现点检查其后 48 字符，不是只看首个匹配。
+/// 命中条件是「窗口含税率词根（大小写不敏感）且含相邻非数字的 +1 加数，或含
+/// +Decimal::ONE」；`*(i.unit_price_with_tax||0)` 这类窗口含 with_tax 词根但没有
+/// +1 加数的合法聚合不会命中（with_tax 结尾是含税事实不是税率变量，且窗口内没有加法）。
+fn has_mul_tax_reverse_addend(c: &str) -> bool {
+    c.match_indices("*(").any(|(idx, _)| {
+        let rest: String = c[idx + 2..].chars().take(48).collect();
+        let lower = rest.to_lowercase();
+        if !lower.contains("tax") {
+            return false;
+        }
+        let plus_one = rest
+            .match_indices("+1")
+            .any(|(i, _)| i + 2 >= rest.len() || !rest.as_bytes()[i + 2].is_ascii_digit());
+        plus_one || lower.contains("+decimal::one")
+    })
+}
+
+/// 判定「乘号后直接跟税率标识符（含点号接收者形态）」，覆盖 `*tax`、`*item.tax_percent`、
+/// `*row.taxRate`。旧形态只钉乘号后紧跟 `tax` 前缀一种，中间隔接收者点号的漏判
+/// （变异自证侦察确认 `*row.taxRate` 能绕过）。逐 `*` 出现点解析其后的
+/// `[字母数字_]+(\.[字母数字_]+)*` 标识符路径，任一分段以 tax 开头（大小写不敏感）即命中；
+/// `*unit_price_with_tax` 这类以 with_tax 结尾的含税事实聚合腿不在禁列（与既有口径一致）。
+fn mul_by_tax_path_identifier(c: &str) -> bool {
+    let b = c.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'*' {
+            let mut j = i + 1;
+            loop {
+                let seg_start = j;
+                while j < b.len() && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+                    j += 1;
+                }
+                if j == seg_start {
+                    break;
+                }
+                if c[seg_start..j].to_ascii_lowercase().starts_with("tax") {
+                    return true;
+                }
+                if j < b.len()
+                    && b[j] == b'.'
+                    && j + 1 < b.len()
+                    && (b[j + 1].is_ascii_alphanumeric() || b[j + 1] == b'_')
+                {
+                    j += 1;
+                    continue;
+                }
+                break;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
 /// 对一行（已去空白）施加后端全部禁止形态，命中即 panic 点名文件、行号与原文。
 /// 逐行逐点施加，不是找到第一个就停：任何一行漏检都算锁失效。
 fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
@@ -494,6 +554,18 @@ fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
     assert!(
         !c.contains("*tax"),
         "{path} 第 {line_no} 行出现「乘税率标识符」造税额的正向公式: {}",
+        line.trim()
+    );
+    // 接收者点号形态：`*item.tax_percent` 与 `*row.tax_rate`（旧形态隔点号漏判）
+    assert!(
+        !mul_by_tax_path_identifier(c),
+        "{path} 第 {line_no} 行出现「乘税率标识符（含点号接收者形态）」造税额的正向公式: {}",
+        line.trim()
+    );
+    // 反序加数形态：`*(tax_percent / 100 + Decimal::ONE)` 这类税率在前、1 在后的加法
+    assert!(
+        !has_mul_tax_reverse_addend(c),
+        "{path} 第 {line_no} 行出现「乘括号窗口内税率与 +1 或 +Decimal::ONE 反序加数」造含税的正向公式: {}",
         line.trim()
     );
     for lit in FORBIDDEN_TIER_LITERALS {
@@ -530,6 +602,12 @@ fn tax_path_has_no_forward_multiply_formula() {
             !joined.contains("*tax"),
             "{path} 出现跨行拼接后仍成立的「乘税率标识符」正向公式形态（全文拼串命中，文件级点名）"
         );
+        // 反序加数窗口形态同样补跨行拼串判定；接收者点号形态不进拼串层
+        // （`*` 起头的块注释续行在拼串里会产生注释星号假命中，逐行层已覆盖该形态）
+        assert!(
+            !has_mul_tax_reverse_addend(&joined),
+            "{path} 出现跨行拼接后仍成立的「乘括号窗口内税率与 +1 或 +Decimal::ONE 反序加数」正向公式形态（全文拼串命中，文件级点名）"
+        );
     }
 }
 
@@ -539,14 +617,29 @@ fn tax_path_has_no_forward_multiply_formula() {
 #[test]
 fn frontend_tax_legs_have_no_forward_multiply_formula() {
     for (path, raw) in FRONTEND_TAX_SOURCES {
-        for (idx, line) in raw.replace('\r', "").lines().enumerate() {
+        let src = raw.replace('\r', "");
+        for (idx, line) in src.lines().enumerate() {
             if is_comment_line(line) {
                 continue;
             }
             let c = compact(line);
             assert!(
-                !c.contains("*(1+"),
+                !has_mul_one_plus(&c),
                 "{path} 第 {} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
+                idx + 1,
+                line.trim()
+            );
+            // 反序加数形态：`*(item.tax_percent + 1)`（税率在前、1 在后）
+            assert!(
+                !has_mul_tax_reverse_addend(&c),
+                "{path} 第 {} 行出现「乘括号窗口内税率与 +1 反序加数」造含税的正向公式: {}",
+                idx + 1,
+                line.trim()
+            );
+            // 接收者点号形态：`*row.taxRate` 与 `*item.tax_percent`
+            assert!(
+                !mul_by_tax_path_identifier(&c),
+                "{path} 第 {} 行出现「乘税率标识符（含点号接收者形态）」造税额的正向公式: {}",
                 idx + 1,
                 line.trim()
             );
@@ -568,6 +661,19 @@ fn frontend_tax_legs_have_no_forward_multiply_formula() {
                 );
             }
         }
+        // 跨行遮蔽补扫（与后端同一根因）：prettier 可能把二元乘号换行到续行行首，
+        // 行首 `*` 被逐行注释判定滤掉造成假绿；拼串层只判括号窗口两形态
+        // （`*(` 正序与反序加数），接收者点号形态不进拼串层——
+        // JSDoc 与块注释的 `*` 续行在拼串里会产生注释星号假命中，逐行层已覆盖。
+        let joined: String = src.lines().map(compact).collect::<Vec<String>>().join("");
+        assert!(
+            !has_mul_one_plus(&joined),
+            "{path} 出现跨行拼接后仍成立的「乘 (1 + 税率)」正向公式形态（全文拼串命中，文件级点名）"
+        );
+        assert!(
+            !has_mul_tax_reverse_addend(&joined),
+            "{path} 出现跨行拼接后仍成立的「乘括号窗口内税率与 +1 反序加数」正向公式形态（全文拼串命中，文件级点名）"
+        );
     }
 }
 
