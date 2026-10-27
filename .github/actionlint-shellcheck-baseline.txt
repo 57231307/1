@@ -1,0 +1,65 @@
+# actionlint shellcheck 非 error 级棘轮基线
+# ——本档"不禁但只准减"。error 级与 actionlint 原生发现不进此档，恒零直接判红。
+# 键格式：<workflow 文件>|<shellcheck 在该 run 脚本体内的相对行:列>|<SC 码>
+# 用脚本体内相对行列（而非 workflow 外层行号）作键：步骤在文件里上下移动只平移
+# 外层行号、不改脚本体坐标，基线不因排版移动而误过期（教训同 comment 棘轮的指纹去行号）。
+# 重数语义：同文件内多个步骤命中同一键时逐条并存，comm 在非 -u 排序下做多集合差。
+# 刷新方式：清掉某条历史债后该键会在当前发现里消失，门禁判"过期锁"红并点名，
+# 据此删除对应行；新增未登记的键同样判红，须显式加行并承担复审。生成器见 CI 步骤注释。
+.github/workflows/ci-cd.yml|108:5|SC2317
+.github/workflows/ci-cd.yml|110:110|SC2086
+.github/workflows/ci-cd.yml|110:5|SC2317
+.github/workflows/ci-cd.yml|111:5|SC2317
+.github/workflows/ci-cd.yml|112:5|SC2317
+.github/workflows/ci-cd.yml|113:11|SC2317
+.github/workflows/ci-cd.yml|113:5|SC2317
+.github/workflows/ci-cd.yml|114:7|SC2317
+.github/workflows/ci-cd.yml|115:7|SC2317
+.github/workflows/ci-cd.yml|116:18|SC2317
+.github/workflows/ci-cd.yml|116:50|SC2317
+.github/workflows/ci-cd.yml|116:7|SC2317
+.github/workflows/ci-cd.yml|117:10|SC2317
+.github/workflows/ci-cd.yml|117:7|SC2317
+.github/workflows/ci-cd.yml|118:9|SC2317
+.github/workflows/ci-cd.yml|120:9|SC2317
+.github/workflows/ci-cd.yml|121:9|SC2317
+.github/workflows/ci-cd.yml|123:10|SC2317
+.github/workflows/ci-cd.yml|123:7|SC2317
+.github/workflows/ci-cd.yml|124:9|SC2317
+.github/workflows/ci-cd.yml|125:9|SC2317
+.github/workflows/ci-cd.yml|127:9|SC2317
+.github/workflows/ci-cd.yml|128:9|SC2317
+.github/workflows/ci-cd.yml|129:9|SC2317
+.github/workflows/ci-cd.yml|12:1|SC2034
+.github/workflows/ci-cd.yml|130:9|SC2317
+.github/workflows/ci-cd.yml|131:9|SC2317
+.github/workflows/ci-cd.yml|134:5|SC2317
+.github/workflows/ci-cd.yml|135:5|SC2317
+.github/workflows/ci-cd.yml|136:5|SC2317
+.github/workflows/ci-cd.yml|13:1|SC2034
+.github/workflows/ci-cd.yml|13:28|SC2086
+.github/workflows/ci-cd.yml|146:10|SC2012
+.github/workflows/ci-cd.yml|169:6|SC2086
+.github/workflows/ci-cd.yml|18:20|SC2012
+.github/workflows/ci-cd.yml|18:5|SC2012
+.github/workflows/ci-cd.yml|18:5|SC2034
+.github/workflows/ci-cd.yml|228:8|SC2028
+.github/workflows/ci-cd.yml|22:3|SC2129
+.github/workflows/ci-cd.yml|26:21|SC2012
+.github/workflows/ci-cd.yml|27:23|SC2002
+.github/workflows/ci-cd.yml|358:11|SC2001
+.github/workflows/ci-cd.yml|369:1|SC2129
+.github/workflows/ci-cd.yml|3:17|SC2012
+.github/workflows/ci-cd.yml|3:28|SC2086
+.github/workflows/ci-cd.yml|3:30|SC2086
+.github/workflows/ci-cd.yml|40:6|SC2086
+.github/workflows/ci-cd.yml|44:6|SC2086
+.github/workflows/ci-cd.yml|4:30|SC2086
+.github/workflows/ci-cd.yml|50:6|SC2086
+.github/workflows/ci-cd.yml|54:41|SC2006
+.github/workflows/ci-cd.yml|5:1|SC2034
+.github/workflows/ci-cd.yml|64:5|SC2002
+.github/workflows/dead-code-audit.yml|2:31|SC2086
+.github/workflows/e2e-batch.yml|1:1|SC2129
+.github/workflows/e2e-batch.yml|1:1|SC2129
+.github/workflows/e2e-batch.yml|42:6|SC2086

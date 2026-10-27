@@ -669,6 +669,7 @@ const handlePrint = () => {
   printData({
     title: t('warehouse.index.printTitle'),
     resourceType: 'warehouse',
+    documentKey: 'warehouse',
     columns: [
       { key: 'warehouse_code', title: t('warehouse.index.colCode'), width: '100px' },
       { key: 'warehouse_name', title: t('warehouse.index.colName') },

@@ -73,8 +73,8 @@ export async function waitFirstRow(table: Locator): Promise<void> {
   await table.locator(BODY_ROW).first().waitFor({ state: 'visible', timeout: 30_000 });
 }
 
-/** 按行内文本（自建数据的唯一业务值）定位数据行 */
-export async function rowByText(table: Locator, text: string): Promise<Locator> {
+/** 按行内文本（自建数据的唯一业务值）定位数据行；传正则时可同时命中渲染真值的多种语言形态 */
+export async function rowByText(table: Locator, text: string | RegExp): Promise<Locator> {
   const row = table.locator(BODY_ROW).filter({ hasText: text }).first();
   await row.waitFor({ state: 'visible', timeout: 30_000 });
   return row;

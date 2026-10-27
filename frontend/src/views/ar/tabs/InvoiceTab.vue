@@ -241,6 +241,7 @@ import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
 import { useNumberField } from '@/composables/useNumberField';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getARInvoiceList,
@@ -493,7 +494,7 @@ const cancelInvoice = async (row: ARInvoice) => {
   }
 };
 
-const handlePrintInvoices = () => {
+const handlePrintInvoices = async () => {
   const printData = invoices.value.map((item, index) => ({
     [t('arModule.invoice.colSeq')]: index + 1,
     [t('arModule.invoice.invoiceNo')]: item.invoice_no,
@@ -503,6 +504,15 @@ const handlePrintInvoices = () => {
     [t('common.status')]: getInvoiceStatusLabel(item.status),
     [t('arModule.invoice.invoiceDate')]: item.invoice_date,
   }));
+  if (
+    await printTableOnAndroid({
+      title: t('arModule.invoice.printHeader'),
+      rows: printData,
+      columns: Object.keys(printData[0] || {}),
+      documentKey: 'ar_invoice',
+    })
+  )
+    return;
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
