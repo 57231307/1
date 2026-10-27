@@ -380,32 +380,27 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v5
 
-      - name: 工作流与 composite action 静态校验（actionlint）
-        # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action
-        # 静态零发现才绿。
-        # 为什么要有这一步 分支名 github.head_ref 被直接内插进 shell 属脚本注入面，
-        #   以及 action 元数据缺 description 这两类缺陷原先没有任何门禁会报，
-        #   在主干躺了很久（本轮已清零，本步负责防再发）。
-        # 版本与完整性 固定 1.7.12，取官方校验清单做 sha256 完整性核对后再解包；
-        #   下载或校验不过当场判红，不许退化成"取不到就跳过检查"。
-        # 与本机同源 本机用的也是 actionlint 1.7.12，两边判据一致才不会本地绿 CI 红。
-        run: |
-          VER=1.7.12
-          BASE="https://github.com/rhysd/actionlint/releases/download/v${VER}"
-          TGZ="actionlint_${VER}_linux_amd64.tar.gz"
-          curl -sSfL --retry 3 -o "$TGZ" "$BASE/$TGZ" \
-            || { echo "::error::actionlint 下载失败（固定版本 $VER），拒绝跳过检查"; exit 1; }
-          curl -sSfL --retry 3 -o checksums.txt "$BASE/actionlint_${VER}_checksums.txt" \
-            || { echo "::error::actionlint 校验清单下载失败，拒绝跳过检查"; exit 1; }
-          sha256sum --ignore-missing -c checksums.txt \
-            || { echo "::error::actionlint 产物 sha256 完整性校验未通过"; exit 1; }
-          tar -xzf "$TGZ"
-          chmod +x ./actionlint
-          ./actionlint
-          echo "actionlint 零发现，工作流与 composite action 静态面通过"
-
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
+
+      - name: 工作流与 composite action 静态校验（actionlint 棘轮基线）
+        # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action。发现按
+        #   严重度分流：actionlint 原生发现（注入面/元数据缺项/表达式语法等）与 shellcheck error 级
+        #   恒零，任一即判红，绝不基线化、绝不 disable 掩盖；shellcheck warning/style/info 级套
+        #   .github/actionlint-shellcheck-baseline.txt 棘轮，只准减不准增，基线里的过期键也判红提醒清理。
+        #   下载与判定逻辑与判据同源，全在 scripts/ci/actionlint-check.sh（固定 1.7.12 加 sha256 核对，
+        #   取不到或校验不过当场判红，不退化成"取不到就跳过"）。
+        # 为什么排在 Setup Frontend 之后 本步与后续各前端门共用这个 job。原先本步在 Setup Frontend
+        #   之前，一旦本步判红，无 if 的 Setup Frontend 被跳过，其后带 if: ${{ !cancelled() }} 的 node 门
+        #   就在没有 node_modules 的裸环境里跑，冒出 "Cannot find package 'typescript'" 这类级联假红，
+        #   把真正的红淹在一片假红里。把本步挪到 Setup Frontend 之后，node_modules 先就位，级联消失，
+        #   下游门给出的是各自的真实结论而不是环境缺失的假象。
+        # 为什么不会漏真红 本步默认 continue-on-error=false 且带 if: ${{ !cancelled() }}：Setup Frontend
+        #   绿时本步必跑；Setup Frontend 万一因无关原因红，本步照样跑并照常按判据给 actionlint 自己的结论，
+        #   job 无论如何都是红，actionlint 真红不可能被吞。本步只读 .github 下 yaml 与自己下载的二进制，
+        #   不依赖 node_modules，故下移到 Setup Frontend 之后位置安全。
+        if: ${{ !cancelled() }}
+        run: bash scripts/ci/actionlint-check.sh
 
       - name: 运行 prettier 检查（严格阻塞）
         working-directory: frontend
