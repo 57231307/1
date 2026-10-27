@@ -111,9 +111,8 @@ pub fn net_from_inclusive(inclusive_raw: Decimal, tax_percent: Decimal) -> Decim
 pub fn split_from_inclusive(inclusive_raw: Decimal, tax_percent: Decimal) -> TaxSplit {
     let inclusive = inclusive_raw.round_dp(2);
     let net = net_from_inclusive(inclusive, tax_percent);
-    // 税额取差额而非独立算式：inclusive 与 net 都是 2 位小数，差值精确落在分上，
-    // 因此 net + tax 逐分等于 inclusive，不会出现两处各自舍入的 1 分差。
-    let tax = inclusive - net;
+    // MUTATION_ROUND_B 变异自证临时替换 撤销即回差额取法
+    let tax = (net * tax_percent / PERCENT).round_dp(2);
     TaxSplit {
         inclusive,
         net,

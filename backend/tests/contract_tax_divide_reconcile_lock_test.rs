@@ -432,19 +432,26 @@ fn contains_tier_literal(c: &str, lit: &str) -> bool {
 /// 扫描对象共用的档位字面量禁列。
 const FORBIDDEN_TIER_LITERALS: &[&str] = &["1.13", "0.13", "1.09", "1.06", "1.055"];
 
+/// 判定「乘号后紧跟一个括号，括号内是 1 + 税率 形态」，覆盖全部限定前缀变体：
+/// `*(Decimal::ONE+`、`*(rust_decimal::Decimal::ONE+`、`*(1+` 以及任何
+/// `*(<路径前缀>::Decimal::ONE+` 形态。变异自证轮实测限定前缀曾绕过窄形态禁列，
+/// 本判定按「每个 `*(` 出现点」逐个检查其后 48 字符，不是只看首个匹配。
+/// 除法反算写的是 `/ (Decimal::ONE + ...)` 与 `/ (1 + ...)`，乘号是 `*(`，除法是 `/(`，
+/// 两个形态互不误伤。
+fn has_mul_one_plus(c: &str) -> bool {
+    c.match_indices("*(").any(|(idx, _)| {
+        let rest: String = c[idx + 2..].chars().take(48).collect();
+        rest.starts_with("1+") || rest.contains("Decimal::ONE+")
+    })
+}
+
 /// 对一行（已去空白）施加后端全部禁止形态，命中即 panic 点名文件、行号与原文。
 /// 逐行逐点施加，不是找到第一个就停：任何一行漏检都算锁失效。
 fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
-    // 造含税，乘 (1 + 税率)。除法反算写的是 `/ (Decimal::ONE + ...)`，不在禁列
+    // 造含税，乘 (1 + 税率)，含任意限定前缀变体
     assert!(
-        !c.contains("*(Decimal::ONE+"),
+        !has_mul_one_plus(c),
         "{path} 第 {line_no} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
-        line.trim()
-    );
-    // 同一目标的字面量 1 形态，`*(1 + ...)`，除法反算是 `/ (1 + ...)`，不在禁列
-    assert!(
-        !c.contains("*(1+"),
-        "{path} 第 {line_no} 行出现「乘 (1 + 税率) 字面量形态」造含税的正向公式: {}",
         line.trim()
     );
     // 造税额，乘任何以 tax 开头的标识符（税率变量改名成 tax、tax_amt、tax_pct 也钉得住；
@@ -467,12 +474,32 @@ fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
 #[test]
 fn tax_path_has_no_forward_multiply_formula() {
     for (path, raw) in TAX_PATH_SOURCES {
-        for (idx, line) in raw.replace('\r', "").lines().enumerate() {
+        let src = raw.replace('\r', "");
+        for (idx, line) in src.lines().enumerate() {
             if is_comment_line(line) {
                 continue;
             }
             assert_backend_line_clean(path, idx + 1, line, &compact(line));
         }
+        // 跨行遮蔽补扫：rustfmt 会把乘号放在行首，形成 `* (rust_decimal::Decimal::ONE` 加
+        // 下一行 `+ tax_pct ...` 的算子续行；这类行行首是 `*`，与块注释续行形态相同，
+        // 若逐行判注释再拼接会把变异形态整行滤掉造成假绿（变异自证轮实测三连假绿根因）。
+        // 因此本补扫对全文行不做注释过滤，直接拼串查「乘号括号后跟 1+税率或 Decimal::ONE+」
+        // 与「乘 tax 前缀标识符」两个硬形态；档位字面量因字符串与 doc 注释可含合法小数，
+        // 仍按逐行加注释跳过判定，不在拼串层判。
+        let joined: String = src
+            .lines()
+            .map(compact)
+            .collect::<Vec<String>>()
+            .join("");
+        assert!(
+            !has_mul_one_plus(&joined),
+            "{path} 出现跨行拼接后仍成立的「乘 (1 + 税率)」正向公式形态（全文拼串命中，文件级点名）"
+        );
+        assert!(
+            !joined.contains("*tax"),
+            "{path} 出现跨行拼接后仍成立的「乘税率标识符」正向公式形态（全文拼串命中，文件级点名）"
+        );
     }
 }
 
