@@ -104,7 +104,11 @@ fn test_jejs_ljhllcj() {
 #[test]
 fn test_sejs_bfskw() {
     let split = tax::split_from_inclusive(decs!("1130"), decs!("13"));
-    assert_eq!(split.net, decs!("1000"), "含税 1130 按百分数税率 13 除法反算净额必须是 1000");
+    assert_eq!(
+        split.net,
+        decs!("1000"),
+        "含税 1130 按百分数税率 13 除法反算净额必须是 1000"
+    );
     assert_eq!(
         split.tax,
         decs!("130"),
@@ -122,7 +126,11 @@ fn test_sejs_bfskw() {
 fn test_sejs_zdyslcj() {
     let amounts = authoritative_amounts(decs!("10"), decs!("100"), decs!("113"), Some(decs!("13")))
         .expect("提交合法百分数税率与含税单价事实必须算得出行金额");
-    assert_eq!(amounts.amount, decs!("1000"), "净额必须是含税事实 1130 的除法反算值");
+    assert_eq!(
+        amounts.amount,
+        decs!("1000"),
+        "净额必须是含税事实 1130 的除法反算值"
+    );
     assert_eq!(amounts.tax_percent, decs!("13"), "税率按提交的百分数原样落");
     assert_eq!(
         amounts.tax_amount,
@@ -154,7 +162,11 @@ fn test_sejs_lslcj() {
         Decimal::ZERO,
         "无进项税行的税额必须是 0"
     );
-    assert_eq!(amounts.amount, decs!("1000"), "0 税率行除法退化为等值，净额即含税额");
+    assert_eq!(
+        amounts.amount,
+        decs!("1000"),
+        "0 税率行除法退化为等值，净额即含税额"
+    );
     assert!(
         amounts.amount > Decimal::ZERO,
         "基数非 0 才证明 0 税额是声明值，实际: {}",
@@ -167,8 +179,13 @@ fn test_sejs_lslcj() {
 fn test_sejs_jdgyh() {
     // 含税单价 1.13 乘数量 333.33 得标价含税额 376.6629 收敛 376.66，
     // 除法反算净额 376.66 ÷ 1.13 = 333.3274 收敛 333.33，差额税额 43.33
-    let amounts = authoritative_amounts(decs!("333.33"), decs!("1"), decs!("1.13"), Some(decs!("13")))
-        .expect("小数数量必须能算出税额");
+    let amounts = authoritative_amounts(
+        decs!("333.33"),
+        decs!("1"),
+        decs!("1.13"),
+        Some(decs!("13")),
+    )
+    .expect("小数数量必须能算出税额");
     assert_eq!(amounts.amount, decs!("333.33"));
     assert_eq!(amounts.tax_amount, decs!("43.33"));
 }

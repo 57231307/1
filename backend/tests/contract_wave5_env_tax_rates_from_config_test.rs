@@ -390,7 +390,11 @@ fn vat_tax_kernel_reverses_from_inclusive_in_percent_unit() {
     assert_eq!(split.inclusive, dec("1130.00"));
     assert_eq!(split.net, dec("1000.00"));
     assert_eq!(split.tax, dec("130.00"));
-    assert_eq!(split.net + split.tax, split.inclusive, "钩稽恒等式必须逐分成立");
+    assert_eq!(
+        split.net + split.tax,
+        split.inclusive,
+        "钩稽恒等式必须逐分成立"
+    );
 
     // 含税 1000.00 按 13% 反算：净额 884.9557… 收敛 884.96，税额取差额 115.04。
     // 旧写法「1000 × 13% = 130、总额 1130」是乘法造税额，会把应开票额抬高一档，已废。
@@ -424,7 +428,10 @@ fn vat_tax_kernel_reverses_from_inclusive_in_percent_unit() {
     assert!(tax::unit_price_matches(dec("15.00"), dec("15.00")));
     assert!(!tax::unit_price_matches(dec("16.00"), dec("15.00")));
     // 分摊腿：已记税额按占比分摊，税率不进算式；分母为 0 返回 None 由调用方点名处理
-    assert_eq!(tax::prorate_tax(dec("130"), dec("5"), dec("10")), Some(dec("65.00")));
+    assert_eq!(
+        tax::prorate_tax(dec("130"), dec("5"), dec("10")),
+        Some(dec("65.00"))
+    );
     assert_eq!(tax::prorate_tax(dec("130"), dec("5"), Decimal::ZERO), None);
     // 由单据已记税额与费基**观察**适用税率（百分数），130 除 1000 得 13
     assert_eq!(
@@ -440,8 +447,9 @@ fn vat_tax_kernel_reverses_from_inclusive_in_percent_unit() {
             .expect("0 税率行不含税价即含税价，应放行"),
         dec("100")
     );
-    let missing = tax::require_inclusive_unit_price(None, dec("100"), dec("13"), "unit_price_with_tax")
-        .expect_err("税率非 0 缺含税单价必须拒绝");
+    let missing =
+        tax::require_inclusive_unit_price(None, dec("100"), dec("13"), "unit_price_with_tax")
+            .expect_err("税率非 0 缺含税单价必须拒绝");
     assert!(missing.to_response().message.contains("缺少含税单价"));
 }
 
@@ -646,7 +654,11 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
         .expect("回查明细失败")
         .expect("合法建单应已落明细行");
     assert_eq!(item.tax_percent, dec("13"), "百分数口径必须原样落库");
-    assert_eq!(item.subtotal, dec("1000"), "净额必须是含税额 1130 除以 1.13 的反算值");
+    assert_eq!(
+        item.subtotal,
+        dec("1000"),
+        "净额必须是含税额 1130 除以 1.13 的反算值"
+    );
     assert_eq!(item.tax_amount, dec("130"), "税额必须是 1130 − 1000 的差额");
     assert_eq!(
         item.subtotal + item.tax_amount,

@@ -44,7 +44,12 @@ fn dec(s: &str) -> Decimal {
 
 /// 一行含税事实与档率，断钩稽恒等式与方向（净额是除法反算值、税额是差额、非独立舍入）。
 /// 入参，inclusive 含税金额、tax_percent 百分数税率、expect_net 期望净额、expect_tax 期望税额。
-fn assert_split(tax_percent: Decimal, inclusive: Decimal, expect_net: Decimal, expect_tax: Decimal) {
+fn assert_split(
+    tax_percent: Decimal,
+    inclusive: Decimal,
+    expect_net: Decimal,
+    expect_tax: Decimal,
+) {
     let split = tax::split_from_inclusive(inclusive, tax_percent);
     assert_eq!(
         split.net, expect_net,
@@ -89,9 +94,17 @@ fn kernel_reconciles_across_all_tax_tiers() {
 
     // 方向钉死的反例，含税 100 按 13% 反算净额 88.50、税额取差额 11.50，钩稽逐分成立。
     let edge = tax::split_from_inclusive(dec("100"), dec("13"));
-    assert_eq!(edge.net, dec("88.50"), "含税 100 按 13% 除法反算净额必须是 88.50");
+    assert_eq!(
+        edge.net,
+        dec("88.50"),
+        "含税 100 按 13% 除法反算净额必须是 88.50"
+    );
     assert_eq!(edge.tax, dec("11.50"), "税额必须是差额 11.50");
-    assert_eq!(edge.net + edge.tax, edge.inclusive, "钩稽恒等式必须逐分成立");
+    assert_eq!(
+        edge.net + edge.tax,
+        edge.inclusive,
+        "钩稽恒等式必须逐分成立"
+    );
 
     // 两处各自独立舍入必炸 1 分差的钉死样本，含税 100.01 按 13%：
     // 除法反算净额 100.01 ÷ 1.13 = 88.504424… 收敛 88.50，税额取差额 11.51，
@@ -99,7 +112,11 @@ fn kernel_reconciles_across_all_tax_tiers() {
     // 88.50 × 13 ÷ 100 = 11.505 收敛 11.50，与差额 11.51 差 1 分，
     // 且 88.50 + 11.50 = 100.00 与含税事实 100.01 不钩稽，正是要拦的形态。
     let diff_case = tax::split_from_inclusive(dec("100.01"), dec("13"));
-    assert_eq!(diff_case.net, dec("88.50"), "含税 100.01 按 13% 除法反算净额必须是 88.50");
+    assert_eq!(
+        diff_case.net,
+        dec("88.50"),
+        "含税 100.01 按 13% 除法反算净额必须是 88.50"
+    );
     assert_eq!(
         diff_case.tax,
         dec("11.51"),
@@ -123,7 +140,10 @@ fn kernel_reconciles_across_all_tax_tiers() {
     );
 
     // 单价聚合只含「单价 乘 数量」，税率不进算式，不构成造含税
-    assert_eq!(tax::inclusive_amount(dec("11.30"), dec("10")), dec("113.00"));
+    assert_eq!(
+        tax::inclusive_amount(dec("11.30"), dec("10")),
+        dec("113.00")
+    );
 }
 
 #[test]
@@ -139,7 +159,11 @@ fn kernel_line_split_reconciles_across_all_tax_tiers() {
     ];
     for (inc_unit, qty, rate, expect_net, expect_tax) in cases {
         let line = tax::line_split(dec(inc_unit), dec(qty), None, dec(rate));
-        assert_eq!(line.list_net, dec(expect_net), "税率 {rate}% 行净额必须是除法反算值");
+        assert_eq!(
+            line.list_net,
+            dec(expect_net),
+            "税率 {rate}% 行净额必须是除法反算值"
+        );
         assert_eq!(line.tax, dec(expect_tax), "税率 {rate}% 行税额必须是差额");
         assert_eq!(
             line.deal_net + line.tax,
@@ -300,7 +324,11 @@ async fn live_create_order_reconciles_per_tax_tier() {
             .expect("回查明细失败")
             .expect("建单应已落明细行");
 
-        assert_eq!(item.tax_percent, dec(rate), "税率 {rate}% 百分数口径必须原样落库");
+        assert_eq!(
+            item.tax_percent,
+            dec(rate),
+            "税率 {rate}% 百分数口径必须原样落库"
+        );
         assert_eq!(
             item.subtotal,
             dec(expect_subtotal),
@@ -352,8 +380,14 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
         "src/services/po/order_ops/crud.rs",
         include_str!("../src/services/po/order_ops/crud.rs"),
     ),
-    ("src/services/po/price.rs", include_str!("../src/services/po/price.rs")),
-    ("src/services/po/receipt.rs", include_str!("../src/services/po/receipt.rs")),
+    (
+        "src/services/po/price.rs",
+        include_str!("../src/services/po/price.rs"),
+    ),
+    (
+        "src/services/po/receipt.rs",
+        include_str!("../src/services/po/receipt.rs"),
+    ),
     (
         "src/services/so/order_crud.rs",
         include_str!("../src/services/so/order_crud.rs"),
@@ -487,11 +521,7 @@ fn tax_path_has_no_forward_multiply_formula() {
         // 因此本补扫对全文行不做注释过滤，直接拼串查「乘号括号后跟 1+税率或 Decimal::ONE+」
         // 与「乘 tax 前缀标识符」两个硬形态；档位字面量因字符串与 doc 注释可含合法小数，
         // 仍按逐行加注释跳过判定，不在拼串层判。
-        let joined: String = src
-            .lines()
-            .map(compact)
-            .collect::<Vec<String>>()
-            .join("");
+        let joined: String = src.lines().map(compact).collect::<Vec<String>>().join("");
         assert!(
             !has_mul_one_plus(&joined),
             "{path} 出现跨行拼接后仍成立的「乘 (1 + 税率)」正向公式形态（全文拼串命中，文件级点名）"

@@ -498,11 +498,13 @@ impl SalesReturnService {
         // 税率权威来源解析（不做静默默认 0）：请求显式提供优先，否则取关联销售订单
         // 同商品明细的税率；两处都取不到则报错，暴露缺失字段由调用方/数据层修正。
         let order_line = match return_order.sales_order_id {
-            Some(order_id) => sales_order_item::Entity::find()
-                .filter(sales_order_item::Column::OrderId.eq(order_id))
-                .filter(sales_order_item::Column::ProductId.eq(req.product_id))
-                .one(&txn)
-                .await?,
+            Some(order_id) => {
+                sales_order_item::Entity::find()
+                    .filter(sales_order_item::Column::OrderId.eq(order_id))
+                    .filter(sales_order_item::Column::ProductId.eq(req.product_id))
+                    .one(&txn)
+                    .await?
+            }
             None => None,
         };
         let order_item_tax = order_line.as_ref().map(|oi| oi.tax_percent);

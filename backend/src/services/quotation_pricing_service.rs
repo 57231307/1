@@ -185,7 +185,8 @@ impl QuotationPricingService {
         // 5. 最终金额：先按含税单价与数量聚合出含税事实，再做价税分离，
         //    final_amount 出的是反算净额（不含税金额），税额与含税额同时由 split 带出，
         //    三者天然满足「净额 + 税额 = 含税额」，供前端预览与落库核对同源。
-        let inclusive_amount = crate::utils::tax::inclusive_amount(unit_price_with_tax, ctx.quantity);
+        let inclusive_amount =
+            crate::utils::tax::inclusive_amount(unit_price_with_tax, ctx.quantity);
         let split = crate::utils::tax::split_from_inclusive(inclusive_amount, ctx.tax_rate);
         let final_amount = split.net;
 

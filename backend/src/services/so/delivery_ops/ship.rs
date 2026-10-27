@@ -309,10 +309,10 @@ impl SalesService {
                         match (gross, tax) {
                             (Some(gross), Some(tax)) => (gross, tax),
                             _ => {
-                return Err(AppError::business(format!(
+                                return Err(AppError::business(format!(
                                     "销售订单行 {} 的订购数量为 0，无法按实发数量 {} 分摊订单已记金额与税额，出库中止",
                                     oi.id, reduction.quantity
-                                )))
+                                )));
                             }
                         }
                     }

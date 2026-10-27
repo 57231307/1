@@ -1089,7 +1089,14 @@ async fn live_sales_return_item_update_tri_state_on_postgres() {
 
     // 1) 键缺席=保持：只改 reason（有值=覆盖），quantity/unit_price 原值不动
     service
-        .update_return_item(item_id, None, None, None, Some(Some("新原因".to_string())), 9101)
+        .update_return_item(
+            item_id,
+            None,
+            None,
+            None,
+            Some(Some("新原因".to_string())),
+            9101,
+        )
         .await
         .unwrap();
     let row = reload().await;
