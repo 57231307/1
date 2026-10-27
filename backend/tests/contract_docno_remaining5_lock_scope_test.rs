@@ -96,14 +96,9 @@ macro_rules! lock_scope_pair_tests {
             let baseline = advisory_lock_count(&probe).await;
 
             let txn = db.begin().await.expect("开启取号事务失败");
-            let no = DocumentNumberGenerator::generate_no_with_txn(
-                &txn,
-                $prefix,
-                $entity,
-                $column,
-            )
-            .await
-            .expect("带事务臂取号失败");
+            let no = DocumentNumberGenerator::generate_no_with_txn(&txn, $prefix, $entity, $column)
+                .await
+                .expect("带事务臂取号失败");
 
             let dp = date_prefix($prefix);
             assert!(
@@ -295,7 +290,12 @@ async fn cost_collection_concurrent_create_yields_distinct_no() {
         .all(&*db)
         .await
         .expect("回读成本归集行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建单应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建单应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 #[tokio::test]
@@ -336,7 +336,12 @@ async fn recipe_concurrent_create_yields_distinct_no() {
         .all(&*db)
         .await
         .expect("回读大货处方行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建单应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建单应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 /// 加料处方并发建单前先种一张已审核大货处方（服务校验关联处方必须 approved）
@@ -385,7 +390,12 @@ async fn addition_concurrent_create_yields_distinct_no() {
         .all(&*db)
         .await
         .expect("回读加料处方行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建单应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建单应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 /// 工价并发建单前先种一条工序路线（服务校验 process_route_id 必须存在）
@@ -441,7 +451,12 @@ async fn wage_rate_concurrent_create_yields_distinct_no() {
         .all(&*db)
         .await
         .expect("回读工价行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建单应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建单应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 #[tokio::test]
@@ -467,7 +482,12 @@ async fn wage_record_concurrent_create_yields_distinct_no() {
         .all(&*db)
         .await
         .expect("回读工资记录行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建单应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建单应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 /// 真实唯一冲突行为钉，旁路连接先占当日首号且不提交，服务建单撞约束后
@@ -541,10 +561,7 @@ async fn wage_record_conflict_returns_docno_exists_not_flattened_retry() {
         }
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
-    btxn
-        .commit()
-        .await
-        .expect("旁路占号事务提交失败");
+    btxn.commit().await.expect("旁路占号事务提交失败");
 
     let result = create_task.await.expect("建单任务join失败");
 

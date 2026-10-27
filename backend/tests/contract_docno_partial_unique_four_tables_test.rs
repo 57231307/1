@@ -33,8 +33,8 @@ use bingxi_backend::models::{
 use chrono::{TimeZone, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, IntoActiveModel,
-    QueryFilter, QueryResult, Set, SqlErr, Statement,
+    ActiveModelTrait, ConnectionTrait, DbBackend, EntityTrait, IntoActiveModel, QueryResult, Set,
+    SqlErr, Statement,
 };
 use test_common::setup_test_db;
 

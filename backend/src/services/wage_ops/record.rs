@@ -424,7 +424,10 @@ impl WageRecordService {
             .all(&*self.db)
             .await?;
         match models.as_slice() {
-            [] => Err(AppError::not_found(format!("工资单号 {} 不存在", record_no))),
+            [] => Err(AppError::not_found(format!(
+                "工资单号 {} 不存在",
+                record_no
+            ))),
             [one] => Ok(one.clone()),
             many => {
                 tracing::error!(

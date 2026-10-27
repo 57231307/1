@@ -36,7 +36,10 @@ impl WageRateService {
     /// 生成工价单号（统一生成器带事务臂：`PWR{YYYYMMDD}{3位流水}`，前缀级 advisory 锁
     /// 占用在传入事务上、持到该事务提交；create 在自开建单事务内调用并同事务插入。
     /// 取号失败原样上抛真实 AppError，不再拍平为可直接外显的业务文案。）
-    async fn generate_rate_no(&self, txn: &sea_orm::DatabaseTransaction) -> Result<String, AppError> {
+    async fn generate_rate_no(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<String, AppError> {
         crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
             txn,
             "PWR",
