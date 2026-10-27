@@ -124,7 +124,7 @@ fn parse_sku_authority_columns() -> Vec<(String, bool)> {
         }
         let inner = trimmed
             .trim_start_matches('(')
-            .trim_end_matches(|c| c == ',' || c == ')')
+            .trim_end_matches([')', ','])
             .trim();
         let mut parts = inner.split(',').map(|p| p.trim()).filter(|p| !p.is_empty());
         let name_ref = parts
@@ -327,7 +327,7 @@ fn leads_template_columns_cover_positional_indices() {
     let template = ImportExportService::get_import_template("crm_leads")
         .expect("CRM 线索模板不可用，取模板失败");
     assert!(
-        template.columns.len() >= max_index + 1,
+        max_index < template.columns.len(),
         "线索模板列数 {} 不足，导入器消费到第 {} 列，缺列会让读列落空",
         template.columns.len(),
         max_index
