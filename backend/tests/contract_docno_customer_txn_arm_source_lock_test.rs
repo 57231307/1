@@ -69,11 +69,7 @@ fn customer_create_deny_defect_shapes_in_crud() {
         ("generate_customer_code(", "旧事务外自开取号方法调用回潮"),
         ("请稍后重试", "取号失败拍平为请稍后重试类文案"),
     ] {
-        assert!(
-            !text.contains(needle),
-            "crud.rs 出现缺陷形态{}",
-            desc
-        );
+        assert!(!text.contains(needle), "crud.rs 出现缺陷形态{}", desc);
     }
 }
 
@@ -91,11 +87,7 @@ fn customer_ops_update_deny_self_opening_generator() {
             "自开事务生成器直调回潮",
         ),
     ] {
-        assert!(
-            !text.contains(needle),
-            "update.rs 出现缺陷形态{}",
-            desc
-        );
+        assert!(!text.contains(needle), "update.rs 出现缺陷形态{}", desc);
     }
     // 正向附带，build_customer_active_model 必须是收 (&args, code) 的复用形态
     assert!(

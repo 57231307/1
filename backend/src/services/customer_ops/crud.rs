@@ -66,14 +66,16 @@ impl CustomerService {
             // 现走 insert_with_no_retry：pg_advisory_xact_lock 在本写入事务内取号并持有到提交，
             // INSERT 撞 23505（旁路/人工重复号）时在保存点内重新取号有界重试，非唯一约束类
             // SQL 错误原样上抛；流水宽度沿用 DEFAULT_SEQ_WIDTH=3，不在业务侧另加零位宽。
-            None => DocumentNumberGenerator::insert_with_no_retry(
-                &txn,
-                "CUS",
-                CustomerEntity,
-                customer::Column::CustomerCode,
-                |code| Self::build_customer_active_model(&args, code),
-            )
-            .await?,
+            None => {
+                DocumentNumberGenerator::insert_with_no_retry(
+                    &txn,
+                    "CUS",
+                    CustomerEntity,
+                    customer::Column::CustomerCode,
+                    |code| Self::build_customer_active_model(&args, code),
+                )
+                .await?
+            }
         };
 
         txn.commit().await?;

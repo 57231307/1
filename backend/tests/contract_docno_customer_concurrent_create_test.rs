@@ -25,8 +25,8 @@ use bingxi_backend::services::customer_service::{CreateCustomerArgs, CustomerSer
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
-    Statement, TransactionTrait,
+    ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait,
+    QueryFilter, Statement, TransactionTrait,
 };
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -124,7 +124,12 @@ async fn customer_sequential_create_yields_distinct_code() {
         .all(&*db)
         .await
         .expect("回读客户行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建客户应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建客户应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 /// 并发两次自动建客户，两笔都必须成功且编码互异，禁止 DATABASE_ERROR
@@ -141,7 +146,8 @@ async fn customer_concurrent_create_no_database_error() {
     );
 
     let a = ra.expect("并发建客户第一次不得返回 DATABASE_ERROR，应成功落库");
-    let b = rb.expect("并发建客户第二次不得返回 DATABASE_ERROR，应成功落库（撞号走保存点重试顺延）");
+    let b =
+        rb.expect("并发建客户第二次不得返回 DATABASE_ERROR，应成功落库（撞号走保存点重试顺延）");
 
     assert_ne!(
         a.customer_code, b.customer_code,
@@ -153,7 +159,12 @@ async fn customer_concurrent_create_no_database_error() {
         .all(&*db)
         .await
         .expect("回读客户行数失败");
-    assert_eq!(rows.len(), 2, "两次成功建客户应各落一行，实得 {} 行", rows.len());
+    assert_eq!(
+        rows.len(),
+        2,
+        "两次成功建客户应各落一行，实得 {} 行",
+        rows.len()
+    );
 }
 
 /// 撞键重试路径，旁路先占当日首号并保持未提交，服务侧 INSERT 阻塞后收到 23505，
@@ -168,7 +179,9 @@ async fn customer_conflict_retry_recovers_without_database_error() {
     let seed_values: Vec<sea_orm::Value> = vec![
         taken_no.clone().into(),
         "旁路占号客户".into(),
-        bingxi_backend::constants::customer_type::OTHER.to_string().into(),
+        bingxi_backend::constants::customer_type::OTHER
+            .to_string()
+            .into(),
     ];
     btxn.execute(Statement::from_sql_and_values(
         DbBackend::Postgres,
@@ -179,7 +192,8 @@ async fn customer_conflict_retry_recovers_without_database_error() {
     .expect("旁路占号插入失败");
 
     let service = make_service(db.clone());
-    let create_task = tokio::spawn(async move { service.create_customer(make_args("撞号重试客户")).await });
+    let create_task =
+        tokio::spawn(async move { service.create_customer(make_args("撞号重试客户")).await });
 
     // 轮询服务侧 INSERT 是否已进入等待（被旁路未提交行的唯一索引冲突阻塞），
     // 命中即提交旁路事务，令服务侧同刻收到 23505 走保存点重试顺延
@@ -248,9 +262,14 @@ async fn customer_conflict_retry_recovers_without_database_error() {
         }
     }
 
-    let live = customer::Entity::find().all(&*db).await.expect("回读客户失败");
+    let live = customer::Entity::find()
+        .all(&*db)
+        .await
+        .expect("回读客户失败");
     assert!(
-        !live.iter().any(|r| r.customer_code == taken_no && r.customer_name == "撞号重试客户"),
+        !live
+            .iter()
+            .any(|r| r.customer_code == taken_no && r.customer_name == "撞号重试客户"),
         "服务侧不得与旁路撞出同一编码的双行"
     );
     for row in live.iter().filter(|r| r.customer_code == taken_no) {
