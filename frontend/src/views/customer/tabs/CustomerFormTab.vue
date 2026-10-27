@@ -279,7 +279,7 @@ const formRef = ref<FormInstance>();
 
 /**
  * Decimal 出参在本仓是 JSON 字符串（rust_decimal 未启 serde-float，backend/Cargo.toml:60），
- * 而本表单把 credit_limit / annual_purchase 绑到 el-input-number（数值控件）。
+ * 而本表单把 credit_limit / annual_purchase 绑到 数值录入控件（数值控件）。
  * 归一只允许发生在这个控件边界（数据层类型不伪造）。
  * null / 缺键（字段级权限会整键剔除，utils/data_permission.rs:72-81）/ 非法串一律得到
  * undefined = 控件留空并记错误日志；绝不返回 0——表单里的 0 会被当成真实额度回写后端。
