@@ -521,7 +521,8 @@ async fn active_gate_allows_only_one_active_per_type_and_side() {
         ),
         "23505",
         "uq_contract_templates_active_type_side",
-    ).await;
+    )
+    .await;
 
     // 反向 换立场、换类别、同键的 draft 都不该撞门。
     seed_template(
@@ -616,7 +617,8 @@ async fn template_code_and_version_form_the_business_key() {
         ),
         "23505",
         "uq_contract_templates_code_version",
-    ).await;
+    )
+    .await;
     seed_template(
         &db,
         &format!("{IT}-VER"),
@@ -651,7 +653,8 @@ async fn template_code_and_version_form_the_business_key() {
         ),
         "23514",
         "chk_contract_templates_version",
-    ).await;
+    )
+    .await;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +675,8 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23514",
         "chk_clause_library_code",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -707,7 +711,8 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23514",
         "chk_clause_library_applies_type",
-    ).await;
+    )
+    .await;
     seed_library(&db, "export_control_screening", "制裁筛查正文", "draft").await;
 }
 
@@ -738,7 +743,8 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -750,7 +756,8 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -761,7 +768,8 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    ).await;
+    )
+    .await;
 
     seed_template_clause(
         &db,
@@ -798,7 +806,8 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23503",
         "fk_ctc_library",
-    ).await;
+    )
+    .await;
 }
 
 /// 顺序闭合、复核成对、条款码闭合集、条件词表，四条 CHECK 各自归因。
@@ -829,7 +838,8 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_sort",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -841,7 +851,8 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_review_pair",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -853,7 +864,8 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_clause_code",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         pg_bound(
@@ -865,7 +877,8 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_applies_when",
-    ).await;
+    )
+    .await;
 
     // 正向 复核通过且带复核人与复核时间的行必须写得进。
     exec_ok(
@@ -931,7 +944,8 @@ async fn template_clause_position_is_unique_but_condition_variants_coexist() {
         ),
         "23505",
         "uq_ctc_template_clause_position",
-    ).await;
+    )
+    .await;
 
     // 无适用条件（NULL）的第二行也必须撞同一索引，证明折叠空值的表达式口径生效。
     seed_template_clause(
@@ -956,7 +970,8 @@ async fn template_clause_position_is_unique_but_condition_variants_coexist() {
         ),
         "23505",
         "uq_ctc_template_clause_position",
-    ).await;
+    )
+    .await;
 }
 
 // ---------------------------------------------------------------------------
@@ -994,25 +1009,29 @@ async fn snapshot_rejects_bad_kind_blank_text_unrendered_placeholder_and_duplica
         bad(BANNED_CONTRACT_KIND, "subject_and_spec", "正文"),
         "23514",
         "chk_cc_contract_kind",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         bad("sales", BANNED_CLAUSE_CODE, "正文"),
         "23514",
         "chk_cc_clause_code",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         bad("sales", "subject_and_spec", ""),
         "23514",
         "chk_cc_body_rendered",
-    ).await;
+    )
+    .await;
     expect_rejected(
         &db,
         bad("sales", "subject_and_spec", "门幅 {{valid_width}} 克重 180"),
         "23514",
         "chk_cc_body_fully_rendered",
-    ).await;
+    )
+    .await;
 
     seed_snapshot(
         &db,
@@ -1260,7 +1279,8 @@ async fn template_revision_never_rewrites_frozen_snapshot() {
         ),
         "23503",
         "fk_cc_template",
-    ).await;
+    )
+    .await;
 }
 
 // ---------------------------------------------------------------------------
@@ -1390,7 +1410,8 @@ async fn legacy_contract_rows_keep_null_and_market_check_allows_null() {
             ),
             "23514",
             &format!("chk_{table}_contract_market"),
-        ).await;
+        )
+        .await;
     }
 
     // 词表内值与空值都必须放行，证明 CHECK 不是恒假。
