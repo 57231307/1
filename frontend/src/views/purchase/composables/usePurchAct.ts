@@ -9,6 +9,7 @@ import { msg } from '@/utils/message';
 import { isDialogDismissal } from '@/utils/monitor';
 import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import {
   getPurchaseOrderById,
   approvePurchaseOrder,
@@ -87,7 +88,9 @@ export function usePurchAct(
   /**
    * 打印采购订单列表
    */
-  const handlePrint = () => {
+  const printTitle = '采购订单列表';
+
+  const handlePrint = async () => {
     const printData = orders().map((item: PurchaseOrder, index: number) => ({
       序号: index + 1,
       订单号: item.order_no,
@@ -96,11 +99,20 @@ export function usePurchAct(
       状态: getStatusText(item.status),
       创建时间: item.created_at,
     }));
+    if (
+      await printTableOnAndroid({
+        title: printTitle,
+        rows: printData,
+        columns: Object.keys(printData[0] || {}),
+        documentKey: 'purchase_order',
+      })
+    )
+      return;
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}),
       type: 'json',
-      header: '采购订单列表',
+      header: printTitle,
       style: 'padding: 20px; font-size: 14px;',
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
       gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
