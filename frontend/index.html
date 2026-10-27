@@ -2,9 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 补 viewport-fit=cover 后 env 安全区内嵌量才会真实下发，安卓 15 起系统强制沉浸式布局，
+         WebView 铺到状态栏底下，页面须按 theme.css 的 --bx-safe 变量族自行避让 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- V15 P1-20-1 PWA 支持：manifest + theme-color -->
     <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="theme-color" content="#409eff" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

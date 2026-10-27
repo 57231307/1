@@ -198,10 +198,45 @@ impl SalesService {
         let paginator = query
             .into_model::<SalesOrderDetail>()
             .paginate(&*self.db, page_req.page_size);
-        // 使用统一分页辅助函数，并行执行分页查询与总数统计
+        // 使用统一分页辅助函数，先取当前页数据再统计总数
         let (orders, total): (Vec<SalesOrderDetail>, u64) =
             paginate_with_total(paginator, page_req.page).await?;
         Ok((orders, total))
+    }
+
+    /// 导出专用的全量取数：不分页、不加行数上限，返回行集与服务端全量总数。
+    ///
+    /// 与列表共用 build_orders_query，筛选条件与行级权限口径同源；形态选单发一条不分页
+    /// 查询，不做 offset 分批循环，导出行本就全量驻内存建字符串矩阵，循环只是多打 SQL
+    /// 且深翻页是平方级代价。
+    /// 总数走 SeaORM 的 count，它把本查询包成对整行的计数子查询并清掉排序，与列表分页
+    /// 的 num_items 同一形态，因此导出总数与列表 total 可比。
+    /// 行集与总数分两次查询，之间发生并发写入时两者会不等，本函数如实返回两个值不吞差值，
+    /// 完整性由 export_rows_complete 判定并交由调用方留痕。
+    /// 不装配明细：导出行只消费单头字段，批量装配订单明细是白付的两条 SQL。
+    pub async fn list_all_orders_for_export(
+        &self,
+        filter: SalesOrderFilter,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(Vec<SalesOrderDetail>, u64), AppError> {
+        let query = Self::build_orders_query(filter, data_scope);
+
+        let rows = query
+            .clone()
+            .into_model::<SalesOrderDetail>()
+            .all(&*self.db)
+            .await?;
+        let server_total = query.count(&*self.db).await?;
+
+        Ok((rows, server_total))
+    }
+
+    /// 导出行集完整性判据：交付到文件的行数与服务端全量总数相等才算完整。
+    ///
+    /// 单点定义，调用方写审计描述、留痕快照、水印与服务端日志四处共用同一判据；
+    /// 不等时如实标不完整，既不在导出侧补行，也不静默吞差值。
+    pub fn export_rows_complete(returned_rows: usize, server_total: u64) -> bool {
+        returned_rows as u64 == server_total
     }
 
     async fn assemble_order_details(

@@ -138,6 +138,10 @@ impl FromStr for IssueStatus {
 /// 守卫：本集合每个 token 必须引自色卡权威词表且 ∈ `card_status::ALL`。
 const ISSUABLE_CARD_STATUSES: &[&str] = &[card_status::DRAFT];
 
+/// 导出分批取数的单批行数，取本服务对外分页的既有上限，
+/// 使导出期间的每条查询与列表页同构
+const EXPORT_BATCH_SIZE: u64 = 100;
+
 /// 发放记录查询参数
 #[derive(Debug, Clone, Default, serde::Deserialize)]
 pub struct ListIssuesQuery {
@@ -629,28 +633,7 @@ impl ColorCardIssueService {
         query: ListIssuesQuery,
     ) -> Result<(Vec<color_card_issue::Model>, u64), IssueError> {
         let find = IssueEntity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
-
-        let mut cond = Condition::all();
-
-        if let Some(card_id) = query.color_card_id {
-            cond = cond.add(color_card_issue::Column::ColorCardId.eq(card_id));
-        }
-        if let Some(cust_id) = query.customer_id {
-            cond = cond.add(color_card_issue::Column::CustomerId.eq(cust_id));
-        }
-        if let Some(status) = query.status {
-            cond = cond.add(color_card_issue::Column::Status.eq(status));
-        }
-        if let Some(from) = query.from_date {
-            cond = cond.add(color_card_issue::Column::IssuedAt.gte(from));
-        }
-        if let Some(to) = query.to_date {
-            cond = cond.add(color_card_issue::Column::IssuedAt.lte(to));
-        }
-        // V15 P1 10.3-1：按销售订单 ID 过滤
-        if let Some(sales_order_id) = query.sales_order_id {
-            cond = cond.add(color_card_issue::Column::SalesOrderId.eq(sales_order_id));
-        }
+        let cond = Self::build_issue_conditions(&query);
 
         let page = query.page.unwrap_or(1);
         let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
@@ -667,6 +650,86 @@ impl ColorCardIssueService {
         Ok((items, total))
     }
 
+    /// 构造发放记录的筛选条件
+    ///
+    /// 功能：把色卡、客户、状态、发放时间起止与销售订单六项筛选组装为一个条件
+    /// 调用方：本服务的列表查询与可见性下推
+    /// 入参：筛选参数的引用
+    /// 传给谁：结果交回调用方下推到查询
+    /// 存什么：不落库
+    /// 存哪里：不适用
+    fn build_issue_conditions(query: &ListIssuesQuery) -> Condition {
+        let mut cond = Condition::all();
+
+        if let Some(card_id) = query.color_card_id {
+            cond = cond.add(color_card_issue::Column::ColorCardId.eq(card_id));
+        }
+        if let Some(cust_id) = query.customer_id {
+            cond = cond.add(color_card_issue::Column::CustomerId.eq(cust_id));
+        }
+        if let Some(status) = &query.status {
+            cond = cond.add(color_card_issue::Column::Status.eq(status.as_str()));
+        }
+        if let Some(from) = query.from_date {
+            cond = cond.add(color_card_issue::Column::IssuedAt.gte(from));
+        }
+        if let Some(to) = query.to_date {
+            cond = cond.add(color_card_issue::Column::IssuedAt.lte(to));
+        }
+        if let Some(sales_order_id) = query.sales_order_id {
+            cond = cond.add(color_card_issue::Column::SalesOrderId.eq(sales_order_id));
+        }
+        cond
+    }
+
+    /// 构造发放记录查询：归属可见性与筛选条件的唯一组装点
+    ///
+    /// 功能：按数据权限范围把归属条件与筛选条件组装为尚未执行的查询
+    /// 调用方：本服务的带范围列表查询与导出取数
+    /// 入参：筛选参数的引用、操作人编号、数据权限范围取值
+    /// 传给谁：归属客户清单查 customers 表，筛选组装转交 build_issue_conditions
+    /// 存什么：不写库，只读 color_card_issues 与 customers 表
+    /// 存哪里：不适用
+    ///
+    /// 归属范围下当前取全部；self 与 dept 都按操作人名下客户收敛，符合最小权限。
+    /// 返回空值表示该范围下操作人无任何归属客户，调用方须如实返回零行。
+    async fn build_scoped_issue_find(
+        &self,
+        query: &ListIssuesQuery,
+        operator_id: i32,
+        data_scope: &str,
+    ) -> Result<Option<sea_orm::Select<IssueEntity>>, IssueError> {
+        let mut find = IssueEntity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
+
+        if data_scope != "all" {
+            let owned_customers: Vec<i32> = CustomerEntity::find()
+                .filter(crate::models::customer::Column::OwnerId.eq(operator_id))
+                .all(&*self.db)
+                .await?
+                .into_iter()
+                .map(|c| c.id)
+                .collect();
+
+            if let Some(req_cust) = query.customer_id {
+                if !owned_customers.contains(&(req_cust as i32)) {
+                    return Ok(None);
+                }
+            } else if owned_customers.is_empty() {
+                return Ok(None);
+            }
+
+            let owned_i64: Vec<i64> = owned_customers.iter().map(|v| *v as i64).collect();
+            if owned_i64.is_empty() {
+                // 无归属客户时以恒假条件强制零行
+                find = find.filter(color_card_issue::Column::Id.eq(-1));
+            } else {
+                find = find.filter(color_card_issue::Column::CustomerId.is_in(owned_i64));
+            }
+        }
+
+        Ok(Some(find.filter(Self::build_issue_conditions(query))))
+    }
+
     /// V15 P1 10.4-2：列表查询（按 operator_id 客户归属过滤：all=全部/dept=本部门/self=仅自己；customers.owner_id=operator_id）
     pub async fn list_records_with_data_scope(
         &self,
@@ -679,63 +742,18 @@ impl ColorCardIssueService {
             return self.list_records(query).await;
         }
 
-        // self/dept 范围：先查 operator 拥有的客户 ID 列表
-        // 简化实现：self = owner_id = operator_id；dept = 同部门成员拥有的客户（部门查询较复杂，
-        // 此处统一为 owner_id = operator_id 的客户范围，符合最小权限原则）
-        let owned_customers: Vec<i32> = crate::models::customer::Entity::find()
-            .filter(crate::models::customer::Column::OwnerId.eq(operator_id))
-            .all(&*self.db)
+        let find = match self
+            .build_scoped_issue_find(&query, operator_id, data_scope)
             .await?
-            .into_iter()
-            .map(|c| c.id)
-            .collect();
+        {
+            Some(find) => find,
+            None => return Ok((Vec::new(), 0)),
+        };
 
-        let q = query.clone();
-        // 若原查询已指定 customer_id，且不在 owned 列表中，返回空
-        if let Some(req_cust) = q.customer_id {
-            if !owned_customers.contains(&(req_cust as i32)) {
-                return Ok((Vec::new(), 0));
-            }
-        } else if owned_customers.is_empty() {
-            // 无任何归属客户，返回空
-            return Ok((Vec::new(), 0));
-        }
-
-        // 直接执行带 customer_id IN (...) 的查询
-        let owned_i64: Vec<i64> = owned_customers.iter().map(|v| *v as i64).collect();
-        let mut find = IssueEntity::find().filter(color_card_issue::Column::IsDeleted.eq(false));
-        if owned_i64.is_empty() {
-            // 无归属客户，强制返回空
-            find = find.filter(color_card_issue::Column::Id.eq(-1));
-        } else {
-            find = find.filter(color_card_issue::Column::CustomerId.is_in(owned_i64));
-        }
-
-        let mut cond = Condition::all();
-        if let Some(card_id) = q.color_card_id {
-            cond = cond.add(color_card_issue::Column::ColorCardId.eq(card_id));
-        }
-        if let Some(cust_id) = q.customer_id {
-            cond = cond.add(color_card_issue::Column::CustomerId.eq(cust_id));
-        }
-        if let Some(status) = q.status {
-            cond = cond.add(color_card_issue::Column::Status.eq(status));
-        }
-        if let Some(from) = q.from_date {
-            cond = cond.add(color_card_issue::Column::IssuedAt.gte(from));
-        }
-        if let Some(to) = q.to_date {
-            cond = cond.add(color_card_issue::Column::IssuedAt.lte(to));
-        }
-        if let Some(sales_order_id) = q.sales_order_id {
-            cond = cond.add(color_card_issue::Column::SalesOrderId.eq(sales_order_id));
-        }
-
-        let page = q.page.unwrap_or(1);
-        let page_size = q.page_size.unwrap_or(20).clamp(1, 100);
+        let page = query.page.unwrap_or(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 100);
 
         let paginator = find
-            .filter(cond)
             .order_by_desc(color_card_issue::Column::IssuedAt)
             .paginate(&*self.db, page_size);
 
@@ -744,6 +762,66 @@ impl ColorCardIssueService {
             .fetch_page(page.clamp(1, 1000).saturating_sub(1))
             .await?;
         Ok((items, total))
+    }
+
+    /// 导出取数：按当前筛选与归属范围分批取满全部行
+    ///
+    /// 功能：为导出提供全量行，同时让每条查询与列表页同构，不绕过任何筛选与归属条件
+    /// 调用方：色卡发放记录导出端点
+    /// 入参：筛选参数的引用、操作人编号、数据权限范围取值
+    /// 传给谁：查询构造转交 build_scoped_issue_find，再按单批上限用分页器循环取满；
+    /// 行数与总数一起返回给端点，由端点写审计与日志
+    /// 存什么：不写库，只读 color_card_issues 与 customers 表
+    /// 存哪里：不适用
+    pub async fn list_issue_records_for_export(
+        &self,
+        query: &ListIssuesQuery,
+        operator_id: i32,
+        data_scope: &str,
+    ) -> Result<(Vec<color_card_issue::Model>, u64), IssueError> {
+        let find = match self
+            .build_scoped_issue_find(query, operator_id, data_scope)
+            .await?
+        {
+            Some(find) => find,
+            None => {
+                tracing::info!("色卡发放导出取数: 该归属范围下无可见行，返回零行");
+                return Ok((Vec::new(), 0));
+            }
+        };
+
+        // 分批读取要求全序：主排序键发放时间存在并列值时批次边界会漂移，
+        // 故追加主键作末级排序，只作用于导出取数，不改列表页排序
+        let paginator = find
+            .order_by_desc(color_card_issue::Column::IssuedAt)
+            .order_by(color_card_issue::Column::Id, sea_orm::Order::Asc)
+            .paginate(&*self.db, EXPORT_BATCH_SIZE);
+        let total = paginator.num_items().await?;
+
+        // 不按总数预分配：总数只是取数瞬间的估计值，按它一次吃满会把分批控峰值的意义抵消
+        let mut rows: Vec<color_card_issue::Model> = Vec::new();
+        // 批次上界由服务端总数推导并留出自增余量，并发写入造成漂移时在此停止而非无限循环
+        let max_batches = total / EXPORT_BATCH_SIZE + 2;
+        let mut batches = 0u64;
+        for page_index in 0..max_batches {
+            let batch = paginator.fetch_page(page_index).await?;
+            let fetched = batch.len() as u64;
+            rows.extend(batch);
+            batches += 1;
+            if fetched < EXPORT_BATCH_SIZE {
+                break;
+            }
+        }
+
+        tracing::info!(
+            "色卡发放导出取数完成: 单批上限 {}, 批次 {}, 实际行数 {}, 服务端总数 {}",
+            EXPORT_BATCH_SIZE,
+            batches,
+            rows.len(),
+            total
+        );
+
+        Ok((rows, total))
     }
 
     /// V15 P1 10.4-2：成本字段按权限脱敏（无 export 权限时 compensation_amount 置 None；handler 传入 can_view_cost）

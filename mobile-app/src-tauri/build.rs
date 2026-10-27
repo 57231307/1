@@ -6,6 +6,7 @@ fn main() {
             "app_info",
             "remember_gateway",
             "reopen_gateway",
+            "probe_server_reachability",
             "bluetooth_request_permission",
             "app_request_camera_permission",
             "bluetooth_open_settings",
@@ -13,6 +14,8 @@ fn main() {
             "bluetooth_connect",
             "bluetooth_print_text",
             "bluetooth_disconnect",
+            "system_print_html",
+            "system_print_page",
         ]),
     ))
     .expect("failed to run tauri-build");

@@ -1254,7 +1254,12 @@ fn to_record(m: print_template::Model) -> PrintTemplateRecord {
     }
 }
 
-/// 按 id 取模板行，缺失时返回 404（供 set-default / copy / preview / print 复用）
+/// 按 id 取模板行，缺失时返回 404（供 set-default / copy / preview / print 复用）。
+///
+/// 管理面读取：停用（inactive）行同样必须读得到，运营要靠列表/详情/预览核对哪些
+/// 模板处于停用待启用状态。启用位不作过滤；「实际出件」的启用位门在打印解析侧
+/// （print_task_handler::load_active_default_template 与 load_printable_template），
+/// 管理面与打印面口径不同是有意的。
 async fn load_template(
     db: &sea_orm::DatabaseConnection,
     id: i32,
@@ -1427,6 +1432,12 @@ pub async fn create_print_template(
     // doc_type 由请求显式提供并已通过 SUPPORTED_DOC_TYPES 校验：它才是"单据→模板"的查找键，
     // 早先以 template_code 冒充会让新建模板永远命中不到渲染链路（存得进、打不出）。
     let doc_type = req.doc_type.clone();
+    // 新建行的生效状态：请求未给 status 时落库为列默认 'active'（与词表启用 token 同值），
+    // 只有生效为启用的新默认行才有资格把同 doc_type 的旧启用默认行降位。
+    let claimed_status = req
+        .status
+        .clone()
+        .unwrap_or_else(|| print_template_status::ACTIVE.to_string());
     let default_target_name = normalize_target_override(req.default_target_name);
 
     let active = print_template::ActiveModel {
@@ -1434,9 +1445,9 @@ pub async fn create_print_template(
         template_code: Set(template_code),
         template_name: Set(req.template_name),
         description: req.description.map(Set).unwrap_or_default(),
-        module: Set(module.clone()),
+        module: Set(module),
         template_type: req.template_type.map(Set).unwrap_or_default(),
-        doc_type: Set(doc_type),
+        doc_type: Set(doc_type.clone()),
         paper_size: req.paper_size.map(Set).unwrap_or_default(),
         orientation: req.orientation.map(Set).unwrap_or_default(),
         copies_default: copies_default.map(Set).unwrap_or_default(),
@@ -1452,15 +1463,23 @@ pub async fn create_print_template(
         ..Default::default()
     };
 
-    if is_default {
-        // 同模块至多一个默认模板：先清其余、再落新行，置于同一事务内。
+    if is_default && claimed_status == print_template_status::ACTIVE {
+        // 同单据类型（doc_type）至多一个「启用且默认」行：先降位
+        // 其余「同键且未停用」的默认行、再落新行，置于同一事务内。互斥按 doc_type（渲染
+        // 链路查找键）而非 module，否则同 doc_type 下别的 module 的旧默认行（如内置种子行）
+        // 恒遮蔽新默认行，停用/启用形同虚设；种子行被用户新默认行降位是预期语义（租户
+        // 自定义默认即取代内置默认，种子行仍可在模板管理页经显式 id 打印，前提是其启用位
+        // 为 active）；停用行不降位（其默认位留存给运营，重新启用只恢复出件资格、不发起
+        // 竞位）；本行生效为停用时不发起竞位——停用行不能把在任启用默认行打下来。
         let txn = state.db.begin().await?;
         print_template::Entity::update_many()
             .col_expr(
                 print_template::Column::IsDefault,
                 sea_orm::sea_query::Expr::value(false),
             )
-            .filter(print_template::Column::Module.eq(module.as_str()))
+            .filter(print_template::Column::DocType.eq(doc_type.as_str()))
+            .filter(print_template::Column::IsDefault.eq(true))
+            .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
             .exec(&txn)
             .await?;
         let model = active.insert(&txn).await?;
@@ -1492,10 +1511,15 @@ pub async fn update_print_template(
     let copies_default = validate_copies_default(req.copies_default)?;
 
     let existing = load_template(&*state.db, id).await?;
-    let module_for_default = req
-        .module
+    // into_active_model 会移动存量行，之后再读不到，先算生效值。
+    let doc_type_for_default = req
+        .doc_type
         .clone()
-        .unwrap_or_else(|| existing.module.clone());
+        .unwrap_or_else(|| existing.doc_type.clone());
+    let effective_status = req
+        .status
+        .clone()
+        .unwrap_or_else(|| existing.status.clone());
 
     let mut active: print_template::ActiveModel = existing.into_active_model();
     if let Some(v) = req.template_name {
@@ -1542,15 +1566,24 @@ pub async fn update_print_template(
         active.status = Set(v);
     }
 
-    if req.is_default == Some(true) {
-        // 同模块至多一个默认模板：清其余、置本行，置于同一事务内。
+    if req.is_default == Some(true) && effective_status == print_template_status::ACTIVE {
+        // 默认位竞位（update 口）：
+        // 1. 互斥按 doc_type（渲染链路的查找键）而非 module，否则同 doc_type 下别的
+        //    module 的旧默认行（如内置种子行）恒遮蔽新默认行，用户的停用/启用影响不到
+        //    实际出件。
+        // 2. 只降「未停用」的默认行：停用行不出件，其默认位留存，管理面照常可见可编辑。
+        // 3. 单纯切换状态位（未显式请求置默认位）一律不清任何行，重新启用也不竞位；
+        //    存量库「重新启用的停用默认行与在任默认行并存」由解析侧按 id 升序取首行保
+        //    确定性，运营要换默认行必须走显式设默认（本口或 set-default 口）。
         let txn = state.db.begin().await?;
         print_template::Entity::update_many()
             .col_expr(
                 print_template::Column::IsDefault,
                 sea_orm::sea_query::Expr::value(false),
             )
-            .filter(print_template::Column::Module.eq(module_for_default.as_str()))
+            .filter(print_template::Column::DocType.eq(doc_type_for_default.as_str()))
+            .filter(print_template::Column::IsDefault.eq(true))
+            .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
             .filter(print_template::Column::Id.ne(id))
             .exec(&txn)
             .await?;
@@ -1607,6 +1640,9 @@ pub async fn delete_print_template(
     )))
 }
 
+/// 预览打印模板：渲染 HTML 回显给模板管理页，属于管理面可视化，不出 docx、不派发
+/// 任务。停用（inactive）模板同样允许预览，运营要靠它核对模板内容与待启用效果；
+/// 出件口的启用位门不作用于本入口（与打印面口径不同是有意的，见 [`load_template`]）。
 pub async fn preview_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1666,6 +1702,9 @@ fn extract_target_override(body: &OptionalJson<serde_json::Value>) -> Option<Str
 /// 缺失即 fail-visible 400「打印需指定单据实例」，绝不伪造样例打印或空跑。据模板 id 载入模板取其
 /// doc_type 与缺省参数，复用 [`print_task_handler::submit_print_task`] 走与 `POST /print-tasks`
 /// 完全相同的受理链路（校验→落 pending→后台生成 docx→派发），成功返回 `{ id, job_code }` 供前端轮询。
+///
+/// 本入口按显式模板 id 出件，停用模板会被受理侧的启用位门（load_printable_template）
+/// 404 拒绝：管理面读取先行只为拿到模板行做参数装配，不代表停用模板可打印。
 pub async fn print_print_template(
     Path(id): Path<i32>,
     State(state): State<AppState>,
@@ -1713,24 +1752,39 @@ pub async fn set_default_print_template(
     info!("用户 {} 设置打印模板默认 ID: {}", auth.username, id);
 
     let existing = load_template(&*state.db, id).await?;
-    let module = existing.module.clone();
+    let doc_type = existing.doc_type.clone();
+    // 竞位资格以本行当前启用位为准：停用行不得把在任的「启用且默认」行打下来，
+    // 只留存自身默认位（重新启用只恢复出件资格，不发起竞位；要换默认行须再次显式设默认）。
+    let claimant_active = existing.status == print_template_status::ACTIVE;
 
-    // 同模块至多一个默认模板：先清其余、再置本行，置于同一事务内。
-    let txn = state.db.begin().await?;
-    print_template::Entity::update_many()
-        .col_expr(
-            print_template::Column::IsDefault,
-            sea_orm::sea_query::Expr::value(false),
-        )
-        .filter(print_template::Column::Module.eq(module.as_str()))
-        .filter(print_template::Column::Id.ne(id))
-        .exec(&txn)
-        .await?;
-    let mut active: print_template::ActiveModel = existing.into_active_model();
-    active.is_default = Set(true);
-    active.updated_at = now_active_value();
-    active.update(&txn).await?;
-    txn.commit().await?;
+    if claimant_active {
+        // 互斥按 doc_type（渲染链路查找键）而非 module；只降同 doc_type 下未停用的
+        // 在任默认行；种子行被用户自建默认行降位是预期语义（自定义默认取代内置默认，
+        // 种子行仍可在模板管理页经显式 id 出件，前提是其启用位为 active）。
+        let txn = state.db.begin().await?;
+        print_template::Entity::update_many()
+            .col_expr(
+                print_template::Column::IsDefault,
+                sea_orm::sea_query::Expr::value(false),
+            )
+            .filter(print_template::Column::DocType.eq(doc_type.as_str()))
+            .filter(print_template::Column::IsDefault.eq(true))
+            .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
+            .filter(print_template::Column::Id.ne(id))
+            .exec(&txn)
+            .await?;
+        let mut active: print_template::ActiveModel = existing.into_active_model();
+        active.is_default = Set(true);
+        active.updated_at = now_active_value();
+        active.update(&txn).await?;
+        txn.commit().await?;
+    } else {
+        // 停用行设默认：只置自身默认位，不清任何在任行。
+        let mut active: print_template::ActiveModel = existing.into_active_model();
+        active.is_default = Set(true);
+        active.updated_at = now_active_value();
+        active.update(&*state.db).await?;
+    }
 
     Ok(axum::Json(ApiResponse::success_with_message(
         (),

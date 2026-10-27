@@ -197,4 +197,22 @@
     padding-top: 4px;
     padding-bottom: 4px;
   }
+
+  /*
+   * 内容区大标题窄屏降档到 18 像素，与顶栏 15 像素品牌字、14 像素面包屑拉开层级。
+   * 这里必须用带 important 的强制声明，原因是页面级 scoped 把字号直接写死在元素上
+   * （20 到 28 像素不等），其选择器带 data-v 属性后与全局窄屏层同权重甚至更高，
+   * 且组件样式表在构建产物中晚于本层注入，常规级联压不住，
+   * 与本文件头部为内联值用强制声明是同一类失配场景。
+   */
+  .main-content .page-title,
+  .main-content .dashboard-title {
+    font-size: 18px !important;
+  }
+
+  /* 仪表盘头部是标题加日期区间的横排 flex，窄屏允许换行，避免区间选择器把标题挤扁 */
+  .main-content .dashboard-header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
 }

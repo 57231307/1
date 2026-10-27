@@ -11,12 +11,15 @@
     "allow-app-info",
     "allow-remember-gateway",
     "allow-reopen-gateway",
+    "allow-probe-server-reachability",
     "allow-bluetooth-request-permission",
     "allow-app-request-camera-permission",
     "allow-bluetooth-open-settings",
     "allow-bluetooth-list-printers",
     "allow-bluetooth-connect",
     "allow-bluetooth-print-text",
-    "allow-bluetooth-disconnect"
+    "allow-bluetooth-disconnect",
+    "allow-system-print-html",
+    "allow-system-print-page"
   ]
 }

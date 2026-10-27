@@ -49,6 +49,12 @@ export const PERMISSIONS = {
   ROLE_UPDATE: 'roles:update',
   ROLE_DELETE: 'roles:delete',
 
+  // 字段权限（后端资源：field-permissions，routes/iam.rs field_permissions() 派生键）
+  FIELD_PERMISSION_READ: 'field-permissions:read',
+  FIELD_PERMISSION_CREATE: 'field-permissions:create',
+  FIELD_PERMISSION_UPDATE: 'field-permissions:update',
+  FIELD_PERMISSION_DELETE: 'field-permissions:delete',
+
   // 部门管理（后端资源：departments）
   DEPARTMENT_READ: 'departments:read',
   DEPARTMENT_CREATE: 'departments:create',
