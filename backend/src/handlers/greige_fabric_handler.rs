@@ -182,9 +182,8 @@ fn stock_decimal(value: f64, field: &str) -> Result<Decimal, AppError> {
             "{field}不能为负数"
         )));
     }
-    Decimal::from_f64_retain(value).ok_or_else(|| {
-        AppError::validation_displayable(format!("{field}超出可保存的数值范围"))
-    })
+    Decimal::from_f64_retain(value)
+        .ok_or_else(|| AppError::validation_displayable(format!("{field}超出可保存的数值范围")))
 }
 
 /// 可空数值列的落库：`None` 保持/不写，`Some(v)` 经 `stock_decimal` 校验后覆盖。
@@ -286,13 +285,12 @@ fn ensure_dual_unit_consistent(
         return Ok(());
     }
     let consistent =
-        DualUnitConverter::validate_dual_unit(length, weight, gram_weight, width_cm, None).map_err(
-            |_| {
+        DualUnitConverter::validate_dual_unit(length, weight, gram_weight, width_cm, None)
+            .map_err(|_| {
                 AppError::validation_displayable(format!(
                     "{label}的米数与公斤数无法核对，请检查克重与门幅后重新填写"
                 ))
-            },
-        )?;
+            })?;
     if !consistent {
         return Err(AppError::validation_displayable(format!(
             "{label}的米数与公斤数不一致，请按克重与门幅核对后重新填写"
