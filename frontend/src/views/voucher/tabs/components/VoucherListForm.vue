@@ -76,17 +76,13 @@
               class="col-debit"
               :model-value="Number(entry.debit_amount)"
               :precision="2"
-              @update:model-value="
-                (v: number | null | undefined) => (entry.debit_amount = v ?? 0)
-              "
+              @update:model-value="(v: number | null | undefined) => (entry.debit_amount = v ?? 0)"
             />
             <NumericInput
               class="col-credit"
               :model-value="Number(entry.credit_amount)"
               :precision="2"
-              @update:model-value="
-                (v: number | null | undefined) => (entry.credit_amount = v ?? 0)
-              "
+              @update:model-value="(v: number | null | undefined) => (entry.credit_amount = v ?? 0)"
             />
             <ElInput
               v-model="entry.description"
