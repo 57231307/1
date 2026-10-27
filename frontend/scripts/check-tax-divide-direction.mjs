@@ -279,11 +279,44 @@ function runSelfTest(root) {
   return 0;
 }
 
+/**
+ * 从 Rust 锁源码解析两枚权威钉列（PINNED_BACKEND_TAX_LEGS 与 PINNED_FRONTEND_TAX_LEGS），
+ * 用来与 include_str! 解析出的扫描清单做集合与条数双向核对。
+ * 判据不新增基线：钉列本身就是权威锁里的钉列，这里只是把「清单被摘掉一条而钉列还在」
+ * 这类两侧同缺同序的假绿形态在本地复算一遍，Rust 锁里对应的逐条核对仍由 CI 兑付。
+ */
+function readPinnedLegs(root) {
+  const src = fs.readFileSync(path.join(root, LOCK_FILE), 'utf8').replace(/\r/g, '');
+  const grab = name => {
+    const start = src.indexOf(`const ${name}: &[&str] = &[`);
+    if (start < 0) throw new Error(`Rust 锁缺 const ${name} 钉列数组，镜像判定器无法复算两侧同序核对`);
+    const end = src.indexOf('\n];', start);
+    if (end < 0) throw new Error(`Rust 锁的 const ${name} 钉列数组没有闭合，无法解析`);
+    return [...src.slice(start, end).matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  };
+  return [...grab('PINNED_BACKEND_TAX_LEGS'), ...grab('PINNED_FRONTEND_TAX_LEGS')];
+}
+
+/** 扫描清单与权威钉列的集合与条数核对，出参是不一致清单（空数组即两侧同集合同条数）。 */
+function crossCheckManifest(root, manifest) {
+  const pinned = readPinnedLegs(root);
+  const scanned = manifest.map(m => m.lockPath);
+  const problems = [];
+  const pinnedSet = new Set(pinned);
+  const scannedSet = new Set(scanned);
+  for (const p of pinnedSet) if (!scannedSet.has(p)) problems.push(`权威钉列有 ${p} 但扫描清单里没有`);
+  for (const s of scannedSet) if (!pinnedSet.has(s)) problems.push(`扫描清单有 ${s} 但权威钉列里没有`);
+  if (pinned.length !== scanned.length) {
+    problems.push(`钉列 ${pinned.length} 条与扫描清单 ${scanned.length} 条不等`);
+  }
+  return problems;
+}
+
 function main() {
   const root = path.resolve(repoRoot);
   if (selfTest) return runSelfTest(root);
   const manifest = readManifest(root);
-  const problems = [];
+  const problems = crossCheckManifest(root, manifest);
   for (const { lockPath, absPath } of manifest) {
     if (!fs.existsSync(absPath)) {
       problems.push(`${lockPath} 在 Rust 锁清单里但磁盘上不存在: ${absPath}`);
