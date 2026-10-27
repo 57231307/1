@@ -292,8 +292,10 @@ jobs:
           # 为什么 HEAD 已含 [skip ci] 时不回推：说明该 run 处于"作者主动跳过 CI"语境，
           #   继续往分支追加 commit 与作者意图冲突；此时不推送且直接判失败——HEAD 确实未
           #   格式化，门禁依然成立（fail closed，不退化成静默通过）。
-          # 目标分支取 github.head_ref：PR 事件下 github.ref 是 refs/pull/N/merge、
-          #   github.ref_name 形如 "N/merge"，原写法 HEAD:${ref_name} 推不到 PR 分支上
+          # 目标分支取 Actions 默认环境变量 GITHUB_HEAD_REF（PR 事件下由 runner 注入，
+          #   不经上下文内插，避免把分支名当脚本内容执行）：PR 事件下 github.ref 是
+          #   refs/pull/N/merge、github.ref_name 形如 "N/merge"，原写法 HEAD:${ref_name}
+          #   推不到 PR 分支上
           #   （失败又被 || echo 吞掉 ⇒ 自动修正在 PR 上从未真正生效）。
           PUSH_FAILED=0
           if [ "$FIXED" -eq "1" ]; then
@@ -315,9 +317,9 @@ jobs:
               head -60 backend/reports/cargo-fmt-diff.txt || true
               exit 1
             fi
-            TARGET='${{ github.head_ref }}'
-            if [ -z "$TARGET" ] && [ '${{ github.ref_type }}' = 'branch' ]; then
-              TARGET='${{ github.ref_name }}'
+            TARGET="$GITHUB_HEAD_REF"
+            if [ -z "$TARGET" ] && [ "$GITHUB_REF_TYPE" = 'branch' ]; then
+              TARGET="$GITHUB_REF_NAME"
             fi
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -370,7 +372,7 @@ jobs:
   # 合并 job：原先 3 个 job 各跑一次 checkout + setup-frontend（npm ci），
   # 而三者互不依赖、总耗时 < 2 分钟；合并后 5 个 runner 启动与 2 次 npm ci 被省掉。
   ci-static-checks:
-    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线 / 键名与 e2e 类型棘轮）
+    name: 🧹 前端静态检查与契约门禁（格式 / 契约 / i18n / 路由 / 信封 / 请求 / 端点基线 / 键名与 e2e 类型棘轮 / actionlint）
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
@@ -380,6 +382,25 @@ jobs:
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
+
+      - name: 工作流与 composite action 静态校验（actionlint 棘轮基线）
+        # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action。发现按
+        #   严重度分流：actionlint 原生发现（注入面/元数据缺项/表达式语法等）与 shellcheck error 级
+        #   恒零，任一即判红，绝不基线化、绝不 disable 掩盖；shellcheck warning/style/info 级套
+        #   .github/actionlint-shellcheck-baseline.txt 棘轮，只准减不准增，基线里的过期键也判红提醒清理。
+        #   下载与判定逻辑与判据同源，全在 scripts/ci/actionlint-check.sh（固定 1.7.12 加 sha256 核对，
+        #   取不到或校验不过当场判红，不退化成"取不到就跳过"）。
+        # 为什么排在 Setup Frontend 之后 本步与后续各前端门共用这个 job。原先本步在 Setup Frontend
+        #   之前，一旦本步判红，无 if 的 Setup Frontend 被跳过，其后带 if: ${{ !cancelled() }} 的 node 门
+        #   就在没有 node_modules 的裸环境里跑，冒出 "Cannot find package 'typescript'" 这类级联假红，
+        #   把真正的红淹在一片假红里。把本步挪到 Setup Frontend 之后，node_modules 先就位，级联消失，
+        #   下游门给出的是各自的真实结论而不是环境缺失的假象。
+        # 为什么不会漏真红 本步默认 continue-on-error=false 且带 if: ${{ !cancelled() }}：Setup Frontend
+        #   绿时本步必跑；Setup Frontend 万一因无关原因红，本步照样跑并照常按判据给 actionlint 自己的结论，
+        #   job 无论如何都是红，actionlint 真红不可能被吞。本步只读 .github 下 yaml 与自己下载的二进制，
+        #   不依赖 node_modules，故下移到 Setup Frontend 之后位置安全。
+        if: ${{ !cancelled() }}
+        run: bash scripts/ci/actionlint-check.sh
 
       - name: 运行 prettier 检查（严格阻塞）
         working-directory: frontend
@@ -1115,7 +1136,7 @@ jobs:
                   git commit -m "chore(ci): 自动重建 clippy baseline（main CI 后真实状态同步：$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条）[skip ci]" || echo "提交失败，跳过"
                   git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
                   # [skip ci]：baseline 是 CI 自产文件，回推不应再触发一个自我取消的新 run
-                  git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "推送失败，可能有冲突"
+                  git push origin "HEAD:${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || echo "推送失败，可能有冲突"
                 fi
               else
                 echo "ℹ️ 不满足自动重建条件（非 main 分支/非 strict 模式/clippy 异常退出），跳过"
@@ -1128,7 +1149,7 @@ jobs:
               git commit -m "chore(ci): 自动建立 clippy 基线 [skip ci]" || echo "提交失败，跳过"
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               # PR 事件下 github.ref_name 是 "N/merge"，直接推会开 junk 分支且推不到 PR 分支
-              git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "推送失败，可能有冲突"
+              git push origin "HEAD:${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || echo "推送失败，可能有冲突"
             fi
           fi
 
@@ -2145,7 +2166,7 @@ jobs:
             if git commit -m "chore(deps): 生成 backend/Cargo.lock 锁定依赖版本 [skip ci]"; then
               git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
               # 生成的 lockfile 已被本次构建实际使用并验证，无需再触发一个新 run（PR 上还会自我取消）
-              git push origin "HEAD:${{ github.head_ref || github.ref_name }}" || echo "⚠️  Cargo.lock push 失败，请人工干预"
+              git push origin "HEAD:${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}" || echo "⚠️  Cargo.lock push 失败，请人工干预"
             else
               echo "⚠️  没有 diff 提交"
             fi
@@ -2447,8 +2468,10 @@ jobs:
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
     with:
       build_release: true
-      # run_e2e 为字符串输入（false 字符串即跳过模拟器，直接触发判空不等于 false 恒跑）
-      run_e2e: 'false'
+      # run_e2e 为字符串输入（false 字符串即跳过模拟器，直接触发判空不等于 false 恒跑）。
+      # 写成表达式形式是因为静态检查把裸的 'false' 字面量推成布尔型，与 string 型输入不符；
+      # 运行期取值仍是字符串 false，判据不变。
+      run_e2e: ${{ 'false' }}
     secrets: inherit
     uses: ./.github/workflows/android.yml
 

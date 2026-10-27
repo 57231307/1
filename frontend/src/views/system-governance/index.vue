@@ -1,246 +1,363 @@
+<!--
+  系统治理中心页（路由 /system-governance）
+  调用方：MainLayout 侧栏 系统管理 分组下的 系统治理中心 菜单项
+  职责：权限委托、角色关系、AI 模型版本治理、角色变更审批、设备连接五个治理面
+  展示文案全部走 i18n（中英双侧同源）；表格列按下后端各 Model 真实键集显式定义并逐列挂词条，
+  不再用列名转下划线或 Object.keys 截断自动派生（那会把 snake_case 原始列名与漂移列直接露到界面）；
+  写操作载荷键集逐字对齐各 handler 请求 DTO，缺失即后端 422，故每个创建/流转都显式补齐必填键并捕获失败。
+-->
 <template>
   <div class="page">
     <el-tabs v-model="activeTab" type="border-card">
       <!-- 权限委托 -->
-      <el-tab-pane label="权限委托" name="delegation">
+      <el-tab-pane :label="t('systemGovernance.tab.delegation')" name="delegation">
         <div class="toolbar mb">
-          <el-button type="primary" @click="delegationDialogVisible = true">新建委托</el-button>
-          <el-button plain @click="loadDelegations">全部委托</el-button>
-          <el-button plain @click="onLoadActiveDelegations">生效中委托</el-button>
-          <el-button plain @click="onExpireOverdue">清理过期委托</el-button>
+          <el-button type="primary" @click="openDelegationDialog">{{
+            t('systemGovernance.button.newDelegation')
+          }}</el-button>
+          <el-button plain @click="loadDelegations">{{
+            t('systemGovernance.button.allDelegations')
+          }}</el-button>
+          <el-button plain @click="onLoadActiveDelegations">{{
+            t('systemGovernance.button.activeDelegations')
+          }}</el-button>
+          <el-button plain @click="onExpireOverdue">{{
+            t('systemGovernance.button.expireOverdue')
+          }}</el-button>
         </div>
         <el-table v-loading="loading" :data="delegations" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in delegationCols" :key="col">
-            <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
-              min-width="140"
-              show-overflow-tooltip
-            />
-          </template>
-          <el-table-column label="操作" width="180" fixed="right">
+          <el-table-column
+            v-for="col in delegationCols"
+            :key="col.prop"
+            :prop="col.prop"
+            :label="t(col.labelKey)"
+            :width="col.width"
+            :min-width="col.width ? undefined : 140"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ renderCell(col, row) }}</template>
+          </el-table-column>
+          <el-table-column :label="t('systemGovernance.column.action')" width="180" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="onDelegationDetail(row)">详情</el-button>
-              <el-button size="small" type="danger" plain @click="onRevoke(row)">撤销</el-button>
+              <el-button size="small" @click="onDelegationDetail(row)">{{
+                t('systemGovernance.button.detail')
+              }}</el-button>
+              <el-button size="small" type="danger" plain @click="onRevoke(row)">{{
+                t('systemGovernance.button.revoke')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <!-- 角色关系 -->
-      <el-tab-pane label="角色关系" name="role-relation">
+      <el-tab-pane :label="t('systemGovernance.tab.roleRelation')" name="role-relation">
         <div class="toolbar mb">
-          <el-button type="primary" @click="relationDialogVisible = true">新建角色关系</el-button>
+          <el-button type="primary" @click="relationDialogVisible = true">{{
+            t('systemGovernance.button.newRelation')
+          }}</el-button>
         </div>
         <el-table v-loading="loadingRelations" :data="relations" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in relationCols" :key="col">
-            <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
-              min-width="140"
-              show-overflow-tooltip
-            />
-          </template>
-          <el-table-column label="操作" width="120" fixed="right">
+          <el-table-column
+            v-for="col in relationCols"
+            :key="col.prop"
+            :prop="col.prop"
+            :label="t(col.labelKey)"
+            :width="col.width"
+            :min-width="col.width ? undefined : 140"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ renderCell(col, row) }}</template>
+          </el-table-column>
+          <el-table-column :label="t('systemGovernance.column.action')" width="120" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" type="danger" plain @click="onDeleteRelation(row)"
-                >删除</el-button
-              >
+              <el-button size="small" type="danger" plain @click="onDeleteRelation(row)">{{
+                t('systemGovernance.button.delete')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <!-- AI 模型治理 -->
-      <el-tab-pane label="AI 模型治理" name="ai">
+      <el-tab-pane :label="t('systemGovernance.tab.aiModel')" name="ai">
         <div class="toolbar mb">
-          <el-button type="primary" @click="versionDialogVisible = true">注册模型版本</el-button>
-          <el-button plain @click="onReconcile">月度对账</el-button>
-          <el-button plain @click="onAccuracyReports">准确率报表</el-button>
-          <el-button plain @click="onModelEvaluation">模型评估</el-button>
-          <el-button plain @click="onDecisionLogs">决策日志</el-button>
+          <el-button type="primary" @click="versionDialogVisible = true">{{
+            t('systemGovernance.button.newModelVersion')
+          }}</el-button>
+          <el-button plain @click="onReconcile">{{
+            t('systemGovernance.button.reconcile')
+          }}</el-button>
+          <el-button plain @click="onAccuracyReports">{{
+            t('systemGovernance.button.accuracyReports')
+          }}</el-button>
+          <el-button plain @click="onModelEvaluation()">{{
+            t('systemGovernance.button.modelEvaluation')
+          }}</el-button>
+          <el-button plain @click="onDecisionLogs">{{
+            t('systemGovernance.button.decisionLogs')
+          }}</el-button>
         </div>
         <el-table v-loading="loadingModels" :data="modelVersions" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in modelCols" :key="col">
-            <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
-              min-width="140"
-              show-overflow-tooltip
-            />
-          </template>
-          <el-table-column label="操作" width="340" fixed="right">
+          <el-table-column
+            v-for="col in modelCols"
+            :key="col.prop"
+            :prop="col.prop"
+            :label="t(col.labelKey)"
+            :width="col.width"
+            :min-width="col.width ? undefined : 140"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ renderCell(col, row) }}</template>
+          </el-table-column>
+          <el-table-column :label="t('systemGovernance.column.action')" width="340" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" type="success" @click="onApprove(row)">审批</el-button>
-              <el-button size="small" type="primary" plain @click="onDrift(row)"
-                >漂移检测</el-button
-              >
-              <el-button size="small" @click="onEvaluations(row)">评估记录</el-button>
-              <el-button size="small" type="warning" plain @click="onModelStatus(row, 'active')"
-                >激活</el-button
-              >
-              <el-button size="small" type="info" plain @click="onModelStatus(row, 'deprecated')"
-                >弃用</el-button
-              >
+              <el-button size="small" type="success" @click="onApprove(row)">{{
+                t('systemGovernance.button.approve')
+              }}</el-button>
+              <el-button size="small" type="primary" plain @click="onDrift(row)">{{
+                t('systemGovernance.button.drift')
+              }}</el-button>
+              <el-button size="small" @click="onEvaluations(row)">{{
+                t('systemGovernance.button.evaluations')
+              }}</el-button>
+              <el-button size="small" type="warning" plain @click="onModelStatus(row, 'active')">{{
+                t('systemGovernance.button.activate')
+              }}</el-button>
+              <el-button size="small" type="info" plain @click="onModelStatus(row, 'retired')">{{
+                t('systemGovernance.button.retire')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
         <pre v-if="aiResult" class="result-box">{{ aiResult }}</pre>
       </el-tab-pane>
 
-      <el-tab-pane label="角色变更审批" name="role-change">
+      <!-- 角色变更审批 -->
+      <el-tab-pane :label="t('systemGovernance.tab.roleChange')" name="role-change">
         <div class="toolbar mb">
-          <el-button type="primary" :loading="roleChangeLoading" @click="loadRoleChanges">
-            刷新
-          </el-button>
-          <el-button type="primary" plain @click="roleChangeDialogVisible = true"
-            >新建审批</el-button
-          >
+          <el-button type="primary" :loading="roleChangeLoading" @click="loadRoleChanges">{{
+            t('systemGovernance.button.refresh')
+          }}</el-button>
+          <el-button type="primary" plain @click="roleChangeDialogVisible = true">{{
+            t('systemGovernance.button.newApproval')
+          }}</el-button>
         </div>
         <el-table v-loading="roleChangeLoading" :data="roleChanges" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in roleChangeCols" :key="col">
-            <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
-              min-width="130"
-              show-overflow-tooltip
-            />
-          </template>
-          <el-table-column label="操作" width="360" fixed="right">
+          <el-table-column
+            v-for="col in roleChangeCols"
+            :key="col.prop"
+            :prop="col.prop"
+            :label="t(col.labelKey)"
+            :width="col.width"
+            :min-width="col.width ? undefined : 130"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ renderCell(col, row) }}</template>
+          </el-table-column>
+          <el-table-column :label="t('systemGovernance.column.action')" width="360" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="onRoleChangeDetail(row)">详情</el-button>
+              <el-button size="small" @click="onRoleChangeDetail(row)">{{
+                t('systemGovernance.button.detail')
+              }}</el-button>
               <el-button
                 v-if="row.status === 'pending_l1'"
                 size="small"
                 type="success"
                 @click="onRoleChangeAction(row, 'approve-l1')"
-                >一级审批</el-button
+                >{{ t('systemGovernance.button.approveL1') }}</el-button
               >
               <el-button
                 v-if="row.status === 'pending_l2'"
                 size="small"
                 type="success"
                 @click="onRoleChangeAction(row, 'approve-l2')"
-                >二级审批</el-button
+                >{{ t('systemGovernance.button.approveL2') }}</el-button
               >
               <el-button
                 v-if="row.status === 'pending_l1' || row.status === 'pending_l2'"
                 size="small"
                 type="danger"
                 @click="onRoleChangeAction(row, 'reject')"
-                >驳回</el-button
+                >{{ t('systemGovernance.button.reject') }}</el-button
               >
-              <el-button size="small" @click="onRoleChangeAction(row, 'cancel')">撤销</el-button>
+              <el-button size="small" @click="onRoleChangeAction(row, 'cancel')">{{
+                t('systemGovernance.button.cancelApproval')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
 
       <!-- 设备连接 -->
-      <el-tab-pane label="设备连接" name="device">
+      <el-tab-pane :label="t('systemGovernance.tab.device')" name="device">
         <div class="toolbar mb">
-          <el-tag>在线设备：{{ onlineCount }}</el-tag>
-          <el-button type="primary" @click="deviceDialogVisible = true">注册设备</el-button>
-          <el-button plain @click="onCleanupTimeoutDevices">清理超时设备</el-button>
+          <el-tag>{{ t('systemGovernance.label.onlineDevices') }}{{ onlineCount }}</el-tag>
+          <el-button type="primary" @click="deviceDialogVisible = true">{{
+            t('systemGovernance.button.registerDevice')
+          }}</el-button>
+          <el-button plain @click="onCleanupTimeoutDevices">{{
+            t('systemGovernance.button.cleanupTimeout')
+          }}</el-button>
         </div>
         <el-table v-loading="loadingDevices" :data="devices" border>
-          <el-table-column prop="id" label="ID" width="70" />
-          <template v-for="col in deviceCols" :key="col">
-            <el-table-column
-              :prop="col"
-              :label="col.replace(/_/g, ' ')"
-              min-width="140"
-              show-overflow-tooltip
-            />
-          </template>
-          <el-table-column label="操作" width="220" fixed="right">
+          <el-table-column
+            v-for="col in deviceCols"
+            :key="col.prop"
+            :prop="col.prop"
+            :label="t(col.labelKey)"
+            :width="col.width"
+            :min-width="col.width ? undefined : 140"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ renderCell(col, row) }}</template>
+          </el-table-column>
+          <el-table-column :label="t('systemGovernance.column.action')" width="220" fixed="right">
             <template #default="{ row }">
-              <el-button size="small" @click="onDeviceDetail(row)">详情</el-button>
-              <el-button size="small" type="success" plain @click="onDeviceHeartbeat(row)">
-                心跳
-              </el-button>
-              <el-button size="small" type="warning" plain @click="onDisconnectDevice(row)">
-                断开
-              </el-button>
+              <el-button size="small" @click="onDeviceDetail(row)">{{
+                t('systemGovernance.button.detail')
+              }}</el-button>
+              <el-button size="small" type="success" plain @click="onDeviceHeartbeat(row)">{{
+                t('systemGovernance.button.heartbeat')
+              }}</el-button>
+              <el-button size="small" type="warning" plain @click="onDisconnectDevice(row)">{{
+                t('systemGovernance.button.disconnect')
+              }}</el-button>
             </template>
           </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="relationDialogVisible" title="新建角色关系" width="460">
+    <el-dialog
+      v-model="relationDialogVisible"
+      :title="t('systemGovernance.dialog.newRelation')"
+      width="460px"
+    >
       <el-form :model="relationForm" label-width="110px">
-        <el-form-item label="主角色" required
-          ><el-input v-model="relationForm.role_a"
-        /></el-form-item>
-        <el-form-item label="关联角色" required
-          ><el-input v-model="relationForm.role_b"
-        /></el-form-item>
-        <el-form-item label="关系类型" required>
+        <!-- 键集逐字对齐后端 CreateRoleRelationRequest：parent_role_code/child_role_code/
+             relation_type 必填、description 可选（原 role_a/role_b 后端无此键，serde 缺必填即 422） -->
+        <el-form-item :label="t('systemGovernance.form.parentRoleCode')" required>
+          <el-input v-model="relationForm.parent_role_code" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.childRoleCode')" required>
+          <el-input v-model="relationForm.child_role_code" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.relationType')" required>
           <el-select v-model="relationForm.relation_type" class="w-full">
-            <el-option label="互斥" value="mutual_exclusive" />
-            <el-option label="继承" value="inheritance" />
+            <el-option
+              :label="t('systemGovernance.relationType.mutualExclusive')"
+              value="mutual_exclusive"
+            />
+            <el-option
+              :label="t('systemGovernance.relationType.inheritance')"
+              value="inheritance"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.description')">
+          <el-input v-model="relationForm.description" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="relationDialogVisible = false">{{
+          t('systemGovernance.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="onCreateRelation">{{
+          t('systemGovernance.button.save')
+        }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="versionDialogVisible"
+      :title="t('systemGovernance.dialog.newModelVersion')"
+      width="480px"
+    >
+      <el-form :model="versionForm" label-width="110px">
+        <!-- 键集对齐后端 CreateModelVersionRequest：model_name/version/algorithm 必填、
+             change_reason 可选（原 description 后端无此键，算法漏填即 422） -->
+        <el-form-item :label="t('systemGovernance.form.modelName')" required>
+          <el-input v-model="versionForm.model_name" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.version')" required>
+          <el-input v-model="versionForm.version" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.algorithm')" required>
+          <el-input v-model="versionForm.algorithm" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.changeReason')">
+          <el-input v-model="versionForm.change_reason" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="versionDialogVisible = false">{{
+          t('systemGovernance.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="onCreateVersion">{{
+          t('systemGovernance.button.save')
+        }}</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="deviceDialogVisible"
+      :title="t('systemGovernance.dialog.registerDevice')"
+      width="460px"
+    >
+      <el-form :model="deviceForm" label-width="110px">
+        <!-- 键集对齐后端 RegisterDeviceRequest：device_id 必填（原 device_code 后端无此键）、
+             device_type 必填（默认 other）、device_name 可选 -->
+        <el-form-item :label="t('systemGovernance.form.deviceId')" required>
+          <el-input v-model="deviceForm.device_id" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.deviceName')">
+          <el-input v-model="deviceForm.device_name" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.deviceType')" required>
+          <el-select v-model="deviceForm.device_type" class="w-full">
+            <el-option :label="t('systemGovernance.deviceType.pda')" value="pda" />
+            <el-option
+              :label="t('systemGovernance.deviceType.industrialTerminal')"
+              value="industrial_terminal"
+            />
+            <el-option :label="t('systemGovernance.deviceType.scanner')" value="scanner" />
+            <el-option :label="t('systemGovernance.deviceType.other')" value="other" />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="relationDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onCreateRelation">保存</el-button>
+        <el-button @click="deviceDialogVisible = false">{{
+          t('systemGovernance.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="onRegisterDevice">{{
+          t('systemGovernance.button.save')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="versionDialogVisible" title="注册模型版本" width="480">
-      <el-form :model="versionForm" label-width="110px">
-        <el-form-item label="模型名" required
-          ><el-input v-model="versionForm.model_name"
-        /></el-form-item>
-        <el-form-item label="版本号" required
-          ><el-input v-model="versionForm.version"
-        /></el-form-item>
-        <el-form-item label="说明"
-          ><el-input v-model="versionForm.description" type="textarea" :rows="2"
-        /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="versionDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onCreateVersion">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="deviceDialogVisible" title="注册设备" width="460">
-      <el-form :model="deviceForm" label-width="110px">
-        <el-form-item label="设备编码" required
-          ><el-input v-model="deviceForm.device_code"
-        /></el-form-item>
-        <el-form-item label="设备名称"><el-input v-model="deviceForm.device_name" /></el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="deviceDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onRegisterDevice">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="delegationDialogVisible" title="新建权限委托" width="480">
+    <el-dialog
+      v-model="delegationDialogVisible"
+      :title="t('systemGovernance.dialog.newDelegation')"
+      width="480px"
+    >
       <el-form :model="delegationForm" label-width="110px">
         <!-- 后端 CreateDelegationRequest：delegator 取当前登录用户（谁委托自己的权限），
              一条委托仅一个 permission_code（String 列），时间必填 RFC3339 -->
-        <el-form-item label="委托人">
-          <span>当前登录用户（ID：{{ userStore.userInfo?.id || '-' }}）</span>
+        <el-form-item :label="t('systemGovernance.form.delegator')">
+          <span>{{ delegationDelegatorText }}</span>
         </el-form-item>
-        <el-form-item label="受托人ID" required
-          ><el-input-number v-model="delegationForm.delegatee_id" :min="1"
-        /></el-form-item>
-        <el-form-item label="权限码" required
-          ><el-input
+        <el-form-item :label="t('systemGovernance.form.delegateeId')" required>
+          <!-- 数值录入禁步进控件：用 el-input 承接文本，提交前按正整数校验，范围靠校验器不靠加减号 -->
+          <el-input v-model="delegationForm.delegatee_id" inputmode="numeric" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.permissionCode')" required>
+          <el-input
             v-model="delegationForm.permission_code"
-            placeholder="单个权限码，如 user:read"
+            :placeholder="t('systemGovernance.form.permissionCodePlaceholder')"
           />
         </el-form-item>
-        <el-form-item label="开始时间" required>
+        <el-form-item :label="t('systemGovernance.form.validFrom')" required>
           <el-date-picker
             v-model="delegationForm.valid_from"
             type="datetime"
@@ -248,7 +365,7 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="结束时间" required>
+        <el-form-item :label="t('systemGovernance.form.validUntil')" required>
           <el-date-picker
             v-model="delegationForm.valid_until"
             type="datetime"
@@ -256,50 +373,77 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item label="委托原因"><el-input v-model="delegationForm.reason" /></el-form-item>
+        <el-form-item :label="t('systemGovernance.form.reason')">
+          <el-input v-model="delegationForm.reason" />
+        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="delegationDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onSaveDelegation">保存</el-button>
+        <el-button @click="delegationDialogVisible = false">{{
+          t('systemGovernance.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="onSaveDelegation">{{
+          t('systemGovernance.button.save')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="roleChangeDialogVisible" title="新建角色变更审批" width="500">
+    <el-dialog
+      v-model="roleChangeDialogVisible"
+      :title="t('systemGovernance.dialog.newRoleChange')"
+      width="500px"
+    >
       <el-form :model="roleChangeForm" label-width="120px">
         <!-- change_type 取值域=后端服务层白名单（越界 422）；target_role_code 为非 Option 必填；
              后端 DTO/审批表均无 reason 字段，变更原因输入被丢弃（缺失已登记串行清单），故移除 -->
-        <el-form-item label="变更类型" required>
-          <el-select v-model="roleChangeForm.change_type" style="width: 100%">
-            <el-option label="分配角色" value="assign_role" />
-            <el-option label="授予权限" value="assign_permission" />
-            <el-option label="移除权限" value="remove_permission" />
+        <el-form-item :label="t('systemGovernance.form.changeType')" required>
+          <el-select v-model="roleChangeForm.change_type" class="w-full">
+            <el-option :label="t('systemGovernance.changeType.assignRole')" value="assign_role" />
+            <el-option
+              :label="t('systemGovernance.changeType.assignPermission')"
+              value="assign_permission"
+            />
+            <el-option
+              :label="t('systemGovernance.changeType.removePermission')"
+              value="remove_permission"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="目标角色ID" required
-          ><el-input-number v-model="roleChangeForm.target_role_id" :min="1"
-        /></el-form-item>
-        <el-form-item label="目标角色编码" required
-          ><el-input v-model="roleChangeForm.target_role_code" placeholder="如 warehouse_keeper"
-        /></el-form-item>
-        <el-form-item label="目标用户ID"
-          ><el-input-number v-model="roleChangeForm.target_user_id" :min="1"
-        /></el-form-item>
+        <el-form-item :label="t('systemGovernance.form.targetRoleId')" required>
+          <el-input v-model="roleChangeForm.target_role_id" inputmode="numeric" />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.targetRoleCode')" required>
+          <el-input
+            v-model="roleChangeForm.target_role_code"
+            :placeholder="t('systemGovernance.form.targetRoleCodePlaceholder')"
+          />
+        </el-form-item>
+        <el-form-item :label="t('systemGovernance.form.targetUserId')">
+          <el-input v-model="roleChangeForm.target_user_id" inputmode="numeric" />
+        </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="roleChangeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="onSaveRoleChange">提交</el-button>
+        <el-button @click="roleChangeDialogVisible = false">{{
+          t('systemGovernance.button.cancel')
+        }}</el-button>
+        <el-button type="primary" @click="onSaveRoleChange">{{
+          t('systemGovernance.button.submit')
+        }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="detailDialogVisible" title="详情" width="560">
+    <el-dialog
+      v-model="detailDialogVisible"
+      :title="t('systemGovernance.dialog.detail')"
+      width="560px"
+    >
       <pre class="detail-json">{{ detailJson }}</pre>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
-import { logAuxLoadFailure } from '@/utils/logger';
+import { onMounted, reactive, ref, computed } from 'vue';
+import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
@@ -355,26 +499,209 @@ const unwrapPagedItems = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }
 const unwrapList = <T,>(p: unknown): T[] =>
   Array.isArray(p) ? p : ((p as { items?: T[] })?.items ?? []);
 
-const cols = (rows: Array<Record<string, unknown>>, skip: string[], n: number) =>
-  rows.length
-    ? Object.keys(rows[0])
-        .filter(k => !skip.includes(k) && typeof rows[0][k] !== 'object')
-        .slice(0, n)
-    : [];
+/**
+ * 表格列描述符。prop=后端 Model 真实键；labelKey=列头 i18n 键；
+ * tokenLabels=枚举列的「后端 token → 完整 i18n 展示键」映射（词表外原样显示），
+ * 非枚举列留空原样显示；width=定宽（时间/枚举列给宽，避免挤压换行）。
+ * 列的集合与次序由本表显式钉死，不再 Object.keys(首行).slice(0,n)，杜绝序列化顺序漂移把
+ * 未翻译的 snake_case 原名或随机截断的列露到界面。
+ * 枚举映射键写成完整字面量（不用命名空间动态拼接），让每个可见文案都落到真实词条、
+ * 可被 i18n 检查静态判定，缺失即在构建期暴露而非运行时露原始键串。
+ */
+interface ColumnDef {
+  prop: string;
+  labelKey: string;
+  tokenLabels?: Record<string, string>;
+  width?: number;
+}
+
+/**
+ * 单元格取值渲染：枚举列按后端 token 查显式映射表得展示文案（词表外原样显示并 warn 一次），
+ * 时间列原样、空值显示占位破折号。
+ * 入参：列描述符与行对象；出参：用于渲染的字符串。
+ */
+const renderCell = (col: ColumnDef, row: Record<string, unknown>): string => {
+  const raw = row[col.prop];
+  if (raw === null || raw === undefined || raw === '') return '-';
+  if (col.tokenLabels) {
+    const token = String(raw);
+    const labelKey = col.tokenLabels[token];
+    if (!labelKey) {
+      warnEnumTokenOnce(
+        `${col.prop}:${token}`,
+        `${t('systemGovernance.msg.unknownToken')}${token}`
+      );
+      return token;
+    }
+    return t(labelKey);
+  }
+  return String(raw);
+};
+
+// 同一 token 只点名一次，避免整表逐行刷屏把真实漂移淹掉
+const warnedTokens = new Set<string>();
+const warnEnumTokenOnce = (mark: string, message: string): void => {
+  if (warnedTokens.has(mark)) return;
+  warnedTokens.add(mark);
+  logger.warn(message);
+};
+
+// 委托列：id + 委托人/受托人/权限码/生效区间/状态/创建时间（对齐 models/permission_delegation.rs）
+const delegationCols: ColumnDef[] = [
+  { prop: 'id', labelKey: 'systemGovernance.column.id', width: 80 },
+  { prop: 'delegator_id', labelKey: 'systemGovernance.column.delegatorId', width: 100 },
+  { prop: 'delegatee_id', labelKey: 'systemGovernance.column.delegateeId', width: 100 },
+  { prop: 'permission_code', labelKey: 'systemGovernance.column.permissionCode' },
+  { prop: 'valid_from', labelKey: 'systemGovernance.column.validFrom', width: 180 },
+  { prop: 'valid_until', labelKey: 'systemGovernance.column.validUntil', width: 180 },
+  {
+    prop: 'status',
+    labelKey: 'systemGovernance.column.status',
+    tokenLabels: {
+      pending: 'systemGovernance.delegationStatus.pending',
+      active: 'systemGovernance.delegationStatus.active',
+      expired: 'systemGovernance.delegationStatus.expired',
+      revoked: 'systemGovernance.delegationStatus.revoked',
+    },
+    width: 120,
+  },
+  { prop: 'created_at', labelKey: 'systemGovernance.column.createdAt', width: 180 },
+];
+
+// 角色关系列：对齐 models/role_relation.rs（parent_role_code/child_role_code/relation_type/description/created_at）
+const relationCols: ColumnDef[] = [
+  { prop: 'id', labelKey: 'systemGovernance.column.id', width: 80 },
+  { prop: 'parent_role_code', labelKey: 'systemGovernance.column.parentRoleCode' },
+  { prop: 'child_role_code', labelKey: 'systemGovernance.column.childRoleCode' },
+  {
+    prop: 'relation_type',
+    labelKey: 'systemGovernance.column.relationType',
+    tokenLabels: {
+      mutual_exclusive: 'systemGovernance.relationTypeToken.mutual_exclusive',
+      inheritance: 'systemGovernance.relationTypeToken.inheritance',
+    },
+    width: 140,
+  },
+  { prop: 'description', labelKey: 'systemGovernance.column.description' },
+  { prop: 'created_at', labelKey: 'systemGovernance.column.createdAt', width: 180 },
+];
+
+// 模型版本列：对齐 models/ai_model_version.rs（json 大字段不进主表，详情弹窗看全量）
+const modelCols: ColumnDef[] = [
+  { prop: 'id', labelKey: 'systemGovernance.column.id', width: 80 },
+  { prop: 'model_name', labelKey: 'systemGovernance.column.modelName' },
+  { prop: 'version', labelKey: 'systemGovernance.column.version', width: 120 },
+  { prop: 'algorithm', labelKey: 'systemGovernance.column.algorithm', width: 140 },
+  {
+    prop: 'status',
+    labelKey: 'systemGovernance.column.status',
+    tokenLabels: {
+      draft: 'systemGovernance.modelStatus.draft',
+      active: 'systemGovernance.modelStatus.active',
+      retired: 'systemGovernance.modelStatus.retired',
+      archived: 'systemGovernance.modelStatus.archived',
+    },
+    width: 120,
+  },
+  {
+    prop: 'approval_status',
+    labelKey: 'systemGovernance.column.approvalStatus',
+    tokenLabels: {
+      pending: 'systemGovernance.approvalStatus.pending',
+      approved: 'systemGovernance.approvalStatus.approved',
+      rejected: 'systemGovernance.approvalStatus.rejected',
+    },
+    width: 130,
+  },
+  { prop: 'created_at', labelKey: 'systemGovernance.column.createdAt', width: 180 },
+];
+
+// 设备列：对齐 device_connection handler 的 DeviceConnectionInfo
+const deviceCols: ColumnDef[] = [
+  { prop: 'id', labelKey: 'systemGovernance.column.id', width: 80 },
+  { prop: 'device_id', labelKey: 'systemGovernance.column.deviceId' },
+  { prop: 'device_name', labelKey: 'systemGovernance.column.deviceName' },
+  {
+    prop: 'device_type',
+    labelKey: 'systemGovernance.column.deviceType',
+    tokenLabels: {
+      pda: 'systemGovernance.deviceTypeToken.pda',
+      industrial_terminal: 'systemGovernance.deviceTypeToken.industrial_terminal',
+      scanner: 'systemGovernance.deviceTypeToken.scanner',
+      other: 'systemGovernance.deviceTypeToken.other',
+    },
+    width: 130,
+  },
+  { prop: 'username', labelKey: 'systemGovernance.column.username', width: 120 },
+  {
+    prop: 'status',
+    labelKey: 'systemGovernance.column.status',
+    tokenLabels: {
+      online: 'systemGovernance.deviceStatus.online',
+      offline: 'systemGovernance.deviceStatus.offline',
+      timeout: 'systemGovernance.deviceStatus.timeout',
+    },
+    width: 120,
+  },
+  { prop: 'last_heartbeat_at', labelKey: 'systemGovernance.column.lastHeartbeatAt', width: 180 },
+];
+
+// 角色变更审批列：对齐 role_change_approvals handler 的真实键（role_id/reason 不存在，恒空白已修）
+const roleChangeCols: ColumnDef[] = [
+  { prop: 'id', labelKey: 'systemGovernance.column.id', width: 80 },
+  { prop: 'approval_no', labelKey: 'systemGovernance.column.approvalNo', width: 160 },
+  {
+    prop: 'change_type',
+    labelKey: 'systemGovernance.column.changeType',
+    tokenLabels: {
+      assign_role: 'systemGovernance.changeTypeToken.assign_role',
+      assign_permission: 'systemGovernance.changeTypeToken.assign_permission',
+      remove_permission: 'systemGovernance.changeTypeToken.remove_permission',
+    },
+    width: 140,
+  },
+  { prop: 'target_role_code', labelKey: 'systemGovernance.column.targetRoleCode' },
+  { prop: 'target_user_id', labelKey: 'systemGovernance.column.targetUserId', width: 110 },
+  { prop: 'applicant_username', labelKey: 'systemGovernance.column.applicant', width: 120 },
+  {
+    prop: 'status',
+    labelKey: 'systemGovernance.column.status',
+    tokenLabels: {
+      pending_l1: 'systemGovernance.roleChangeStatus.pending_l1',
+      pending_l2: 'systemGovernance.roleChangeStatus.pending_l2',
+      approved: 'systemGovernance.roleChangeStatus.approved',
+      rejected: 'systemGovernance.roleChangeStatus.rejected',
+      cancelled: 'systemGovernance.roleChangeStatus.cancelled',
+    },
+    width: 130,
+  },
+  { prop: 'created_at', labelKey: 'systemGovernance.column.createdAt', width: 180 },
+];
+
+/**
+ * 解析文本型数字录入（受托人/角色/用户 ID）为后端要求的 i32。
+ * 入参：用户在 el-input 里输入的字符串；出参：合法则返回正整数，非法（空/非数字/≤0/超范围）返回 null。
+ * 数值录入用 el-input 承接文本、范围靠此校验器判定，不用带加减号的步进控件。
+ */
+const parsePositiveId = (raw: string): number | null => {
+  const trimmed = String(raw ?? '').trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const num = Number(trimmed);
+  if (!Number.isSafeInteger(num) || num <= 0 || num > 2147483647) return null;
+  return num;
+};
 
 // 委托
 const delegations = ref<Array<Record<string, unknown>>>([]);
-const delegationCols = ref<string[]>([]);
 const loading = ref(false);
 
 async function loadDelegations() {
   loading.value = true;
   try {
     delegations.value = unwrapDataArray(await getDelegationList());
-    delegationCols.value = cols(delegations.value, ['id'], 6);
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -382,29 +709,33 @@ async function loadDelegations() {
 
 async function onExpireOverdue() {
   try {
-    const res = await expireOverdueDelegations();
-    ElMessage.success(`已清理过期委托：${JSON.stringify(res).slice(0, 60)}`);
+    await expireOverdueDelegations();
+    ElMessage.success(t('systemGovernance.msg.expireOverdueDone'));
     await loadDelegations();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
 async function onRevoke(row: Record<string, unknown>) {
   try {
-    await ElMessageBox.confirm('确认撤销该委托？', '确认', { type: 'warning' });
+    await ElMessageBox.confirm(
+      t('systemGovernance.msg.confirmRevokeDelegation'),
+      t('systemGovernance.msg.confirmTitle'),
+      { type: 'warning' }
+    );
   } catch (error: unknown) {
     if (isDialogDismissal(error)) return;
     rethrowNonDismissal('systemGovernance.onRevoke', error);
   }
   try {
     await revokeDelegation(row.id as number);
-    ElMessage.success('已撤销');
+    ElMessage.success(t('systemGovernance.msg.revokeDone'));
     await loadDelegations();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
@@ -423,7 +754,7 @@ async function onDelegationDetail(row: Record<string, unknown>) {
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
@@ -431,10 +762,14 @@ async function onDelegationDetail(row: Record<string, unknown>) {
 async function onLoadActiveDelegations() {
   let delegateeId = 0;
   try {
-    const { value } = await ElMessageBox.prompt('请输入受托人用户ID', '生效中委托', {
-      inputPattern: /^\d+$/,
-      inputErrorMessage: '请输入数字ID',
-    });
+    const { value } = await ElMessageBox.prompt(
+      t('systemGovernance.msg.promptDelegateeId'),
+      t('systemGovernance.button.activeDelegations'),
+      {
+        inputPattern: /^\d+$/,
+        inputErrorMessage: t('systemGovernance.msg.invalidPositiveId'),
+      }
+    );
     delegateeId = Number(value);
   } catch (error: unknown) {
     if (isDialogDismissal(error)) return;
@@ -444,10 +779,10 @@ async function onLoadActiveDelegations() {
   try {
     const res = (await getActiveDelegatedPermissions(delegateeId)) as ApiResponse<unknown>;
     delegations.value = unwrapDataArray(res);
-    ElMessage.success(`受托人 ${delegateeId} 的生效中委托已加载`);
+    ElMessage.success(t('systemGovernance.msg.activeDelegationsLoaded', { id: delegateeId }));
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   } finally {
     loading.value = false;
   }
@@ -457,16 +792,34 @@ async function onLoadActiveDelegations() {
 const delegationDialogVisible = ref(false);
 // 后端 CreateDelegationRequest 键集：delegator_id/delegatee_id/permission_code/
 // valid_from/valid_until/reason；委托人=当前登录用户（真实取值，非手填）
+// 受托人 ID 用文本录入（禁步进控件），提交前按正整数校验
 const delegationForm = reactive({
-  delegatee_id: 1,
+  delegatee_id: '',
   permission_code: '',
   valid_from: '',
   valid_until: '',
   reason: '',
 });
 
+const delegationDelegatorText = computed(() =>
+  t('systemGovernance.form.delegatorCurrentValue', {
+    id: userStore.userInfo?.id ?? '-',
+  })
+);
+
+const openDelegationDialog = () => {
+  // 每次打开复位表单，避免上一委托残留值被当成本次要提交的数据
+  delegationForm.delegatee_id = '';
+  delegationForm.permission_code = '';
+  delegationForm.valid_from = '';
+  delegationForm.valid_until = '';
+  delegationForm.reason = '';
+  delegationDialogVisible.value = true;
+};
+
 async function onSaveDelegation() {
-  if (!delegationForm.delegatee_id || !delegationForm.permission_code.trim()) {
+  const delegateeId = parsePositiveId(delegationForm.delegatee_id);
+  if (delegateeId === null || !delegationForm.permission_code.trim()) {
     ElMessage.warning(t('systemGovernance.delegation.fillDelegateePermission'));
     return;
   }
@@ -495,7 +848,7 @@ async function onSaveDelegation() {
     // （条件赋值而非 `|| undefined` 兜底，见 Option 空值省略键范式）
     const payload: CreatePermissionDelegationPayload = {
       delegator_id: delegatorId,
-      delegatee_id: delegationForm.delegatee_id,
+      delegatee_id: delegateeId,
       permission_code: delegationForm.permission_code.trim(),
       valid_from: validFrom.toISOString(),
       valid_until: validUntil.toISOString(),
@@ -507,133 +860,221 @@ async function onSaveDelegation() {
     await loadDelegations();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
 // 角色关系
 const relations = ref<Array<Record<string, unknown>>>([]);
-const relationCols = ref<string[]>([]);
 const loadingRelations = ref(false);
 const relationDialogVisible = ref(false);
-const relationForm = reactive({ role_a: '', role_b: '', relation_type: 'mutual_exclusive' });
+// 键集逐字对齐后端 CreateRoleRelationRequest：parent_role_code/child_role_code/relation_type 必填
+const relationForm = reactive({
+  parent_role_code: '',
+  child_role_code: '',
+  relation_type: 'mutual_exclusive',
+  description: '',
+});
 
 async function loadRelations() {
   loadingRelations.value = true;
   try {
     relations.value = unwrapDataArray(await getRoleRelations());
-    relationCols.value = cols(relations.value, ['id'], 6);
   } catch (e: unknown) {
-    logAuxLoadFailure('角色关系加载失败', e);
+    logAuxLoadFailure(t('systemGovernance.msg.relationLoadFailed'), e);
   } finally {
     loadingRelations.value = false;
   }
 }
 
 async function onCreateRelation() {
-  if (!relationForm.role_a || !relationForm.role_b) {
-    ElMessage.warning('请填写两个角色');
+  if (!relationForm.parent_role_code.trim() || !relationForm.child_role_code.trim()) {
+    ElMessage.warning(t('systemGovernance.msg.fillBothRoles'));
     return;
   }
-  await createRoleRelation({ ...relationForm });
-  ElMessage.success('关系已创建');
-  relationDialogVisible.value = false;
-  await loadRelations();
+  try {
+    await createRoleRelation({
+      parent_role_code: relationForm.parent_role_code.trim(),
+      child_role_code: relationForm.child_role_code.trim(),
+      relation_type: relationForm.relation_type,
+      // 可选 description 空则省略键，不发送空串污染后端
+      ...(relationForm.description.trim() ? { description: relationForm.description.trim() } : {}),
+    });
+    ElMessage.success(t('systemGovernance.msg.relationCreated'));
+    relationDialogVisible.value = false;
+    await loadRelations();
+  } catch (e: unknown) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onDeleteRelation(row: Record<string, unknown>) {
-  await ElMessageBox.confirm('确认删除该角色关系？', '确认');
-  await deleteRoleRelation(row.id as number);
-  ElMessage.success('已删除');
-  await loadRelations();
+  try {
+    await ElMessageBox.confirm(
+      t('systemGovernance.msg.confirmDeleteRelation'),
+      t('systemGovernance.msg.confirmTitle'),
+      { type: 'warning' }
+    );
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onDeleteRelation', error);
+  }
+  try {
+    await deleteRoleRelation(row.id as number);
+    ElMessage.success(t('systemGovernance.msg.relationDeleted'));
+    await loadRelations();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 // AI 模型
 const modelVersions = ref<Array<Record<string, unknown>>>([]);
-const modelCols = ref<string[]>([]);
 const loadingModels = ref(false);
 const aiResult = ref('');
 const versionDialogVisible = ref(false);
-const versionForm = reactive({ model_name: '', version: '', description: '' });
+// 键集对齐后端 CreateModelVersionRequest：model_name/version/algorithm 必填、change_reason 可选
+const versionForm = reactive({ model_name: '', version: '', algorithm: '', change_reason: '' });
 
 async function loadModels() {
   loadingModels.value = true;
   try {
     modelVersions.value = unwrapDataArray(await getModelVersionList());
-    modelCols.value = cols(modelVersions.value, ['id'], 7);
   } catch (e: unknown) {
-    logAuxLoadFailure('模型版本加载失败', e);
+    logAuxLoadFailure(t('systemGovernance.msg.modelLoadFailed'), e);
   } finally {
     loadingModels.value = false;
   }
 }
 
 async function onCreateVersion() {
-  if (!versionForm.model_name || !versionForm.version) {
-    ElMessage.warning('请填写模型名与版本号');
+  if (
+    !versionForm.model_name.trim() ||
+    !versionForm.version.trim() ||
+    !versionForm.algorithm.trim()
+  ) {
+    ElMessage.warning(t('systemGovernance.msg.fillModelNameVersionAlgorithm'));
     return;
   }
-  await createModelVersion({ ...versionForm });
-  ElMessage.success('版本已注册');
-  versionDialogVisible.value = false;
-  await loadModels();
+  try {
+    await createModelVersion({
+      model_name: versionForm.model_name.trim(),
+      version: versionForm.version.trim(),
+      algorithm: versionForm.algorithm.trim(),
+      ...(versionForm.change_reason.trim()
+        ? { change_reason: versionForm.change_reason.trim() }
+        : {}),
+    });
+    ElMessage.success(t('systemGovernance.msg.modelVersionCreated'));
+    versionDialogVisible.value = false;
+    await loadModels();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onApprove(row: Record<string, unknown>) {
-  await ElMessageBox.confirm('确认审批通过该版本？', '确认');
-  await approveModelVersion(row.id as number);
-  ElMessage.success('已审批');
-  await loadModels();
+  try {
+    await ElMessageBox.confirm(
+      t('systemGovernance.msg.confirmApproveModel'),
+      t('systemGovernance.msg.confirmTitle'),
+      { type: 'warning' }
+    );
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('systemGovernance.onApprove', error);
+  }
+  try {
+    // 后端 ApproveModelVersionRequest 必填 approval_status，取值域 pending/approved/rejected；
+    // 原载荷发 {} 缺该键必 422，审批恒失败
+    await approveModelVersion(row.id as number, { approval_status: 'approved' });
+    ElMessage.success(t('systemGovernance.msg.modelApproved'));
+    await loadModels();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onDrift(row: Record<string, unknown>) {
-  aiResult.value = JSON.stringify(await detectModelDrift(row.id as number), null, 2);
+  try {
+    aiResult.value = JSON.stringify(await detectModelDrift(row.id as number), null, 2);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onEvaluations(row: Record<string, unknown>) {
-  aiResult.value = JSON.stringify(await getModelEvaluations(row.id as number), null, 2);
+  try {
+    aiResult.value = JSON.stringify(await getModelEvaluations(row.id as number), null, 2);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onReconcile() {
-  aiResult.value = JSON.stringify(await reconcileMonthly(), null, 2);
+  try {
+    aiResult.value = JSON.stringify(await reconcileMonthly(), null, 2);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 async function onAccuracyReports() {
-  aiResult.value = JSON.stringify(await getAccuracyReports(), null, 2);
+  try {
+    aiResult.value = JSON.stringify(await getAccuracyReports(), null, 2);
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 // 设备
 const devices = ref<Array<Record<string, unknown>>>([]);
-const deviceCols = ref<string[]>([]);
 const loadingDevices = ref(false);
 const onlineCount = ref(0);
 const deviceDialogVisible = ref(false);
-const deviceForm = reactive({ device_code: '', device_name: '' });
+// 键集对齐后端 RegisterDeviceRequest：device_id 必填、device_type 必填（默认 other）、device_name 可选
+const deviceForm = reactive({ device_id: '', device_name: '', device_type: 'other' });
 
 async function loadDevices() {
   loadingDevices.value = true;
   try {
     const [list, count] = await Promise.all([getDeviceList(), getOnlineDeviceCount()]);
     devices.value = unwrapPagedItems(list);
-    deviceCols.value = cols(devices.value, ['id'], 7);
     const c = count as { count?: number; data?: { count?: number } };
     onlineCount.value = c?.count ?? c?.data?.count ?? 0;
   } catch (e: unknown) {
-    logAuxLoadFailure('设备列表加载失败', e);
+    logAuxLoadFailure(t('systemGovernance.msg.deviceLoadFailed'), e);
   } finally {
     loadingDevices.value = false;
   }
 }
 
 async function onRegisterDevice() {
-  if (!deviceForm.device_code) {
-    ElMessage.warning('请填写设备编码');
+  if (!deviceForm.device_id.trim()) {
+    ElMessage.warning(t('systemGovernance.msg.fillDeviceId'));
     return;
   }
-  await registerDevice({ ...deviceForm });
-  ElMessage.success('设备已注册');
-  deviceDialogVisible.value = false;
-  await loadDevices();
+  try {
+    await registerDevice({
+      device_id: deviceForm.device_id.trim(),
+      device_type: deviceForm.device_type,
+      ...(deviceForm.device_name.trim() ? { device_name: deviceForm.device_name.trim() } : {}),
+    });
+    ElMessage.success(t('systemGovernance.msg.deviceRegistered'));
+    deviceDialogVisible.value = false;
+    await loadDevices();
+  } catch (e) {
+    const err = e as { message?: string };
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
+  }
 }
 
 // 设备详情
@@ -643,7 +1084,7 @@ async function onDeviceDetail(row: Record<string, unknown>) {
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
@@ -651,79 +1092,95 @@ async function onDeviceDetail(row: Record<string, unknown>) {
 async function onDeviceHeartbeat(row: Record<string, unknown>) {
   try {
     await sendDeviceHeartbeat(String(row.id));
-    ElMessage.success(`设备 #${row.id} 心跳已发送`);
+    ElMessage.success(t('systemGovernance.msg.deviceHeartbeatSent', { id: row.id }));
     await loadDevices();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
 // 断开设备
 async function onDisconnectDevice(row: Record<string, unknown>) {
   try {
-    await ElMessageBox.confirm(`确认断开设备 #${row.id}？`, '确认', { type: 'warning' });
+    await ElMessageBox.confirm(
+      t('systemGovernance.msg.confirmDisconnect', { id: row.id }),
+      t('systemGovernance.msg.confirmTitle'),
+      { type: 'warning' }
+    );
   } catch (error: unknown) {
     if (isDialogDismissal(error)) return;
     rethrowNonDismissal('systemGovernance.onDisconnectDevice', error);
   }
   try {
     await disconnectDevice(String(row.id));
-    ElMessage.success('设备已断开');
+    ElMessage.success(t('systemGovernance.msg.deviceDisconnected'));
     await loadDevices();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
 // 清理超时设备
 async function onCleanupTimeoutDevices() {
   try {
-    await ElMessageBox.confirm('确认清理所有超时设备连接？', '确认', { type: 'warning' });
+    await ElMessageBox.confirm(
+      t('systemGovernance.msg.confirmCleanupTimeout'),
+      t('systemGovernance.msg.confirmTitle'),
+      { type: 'warning' }
+    );
   } catch (error: unknown) {
     if (isDialogDismissal(error)) return;
     rethrowNonDismissal('systemGovernance.onCleanupTimeoutDevices', error);
   }
   try {
     await cleanupTimeoutDevices();
-    ElMessage.success('超时设备已清理');
+    ElMessage.success(t('systemGovernance.msg.timeoutCleaned'));
     await loadDevices();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 }
 
-// 模型版本状态变更（激活/弃用）
-const onModelStatus = async (row: Record<string, unknown>, status: string) => {
+// 模型版本状态流转（激活 active / 弃用 retired）
+// 后端 ChangeModelStatusRequest 键为 new_status（非 status），取值域 draft/active/retired/archived；
+// 原前端发 {status} 键名不符必 422，且把"弃用"发成非法值 deprecated（词表无此值）
+const onModelStatus = async (row: Record<string, unknown>, newStatus: 'active' | 'retired') => {
   try {
-    await changeModelStatus(Number(row.id), { status });
-    ElMessage.success(`模型版本已${status === 'active' ? '激活' : '弃用'}`);
+    await changeModelStatus(Number(row.id), { new_status: newStatus });
+    ElMessage.success(
+      newStatus === 'active'
+        ? t('systemGovernance.msg.modelActivated')
+        : t('systemGovernance.msg.modelRetired')
+    );
     loadModels();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
 // 模型评估登记（对选中版本创建评估记录）
+// 后端 CreateModelEvaluationRequest：model_version_id 必填、sample_count 必填 i32，
+// 原前端发 evaluation_type/result 后端无此键、又漏 sample_count，评估恒 422
 const onModelEvaluation = async (row?: Record<string, unknown>) => {
-  const versionId = row ? Number(row.id) : modelVersions.value[0]?.id;
+  const versionId = row ? Number(row.id) : (modelVersions.value[0]?.id as number | undefined);
   if (!versionId) {
-    ElMessage.warning('暂无模型版本');
+    ElMessage.warning(t('systemGovernance.msg.noModelVersion'));
     return;
   }
   try {
     await createModelEvaluation({
       model_version_id: versionId,
-      evaluation_type: 'periodic',
-      result: { note: 'manual evaluation' },
+      sample_count: 0,
+      evaluation_report: 'manual evaluation',
     });
-    ElMessage.success('评估记录已创建');
+    ElMessage.success(t('systemGovernance.msg.evaluationCreated'));
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
@@ -735,28 +1192,22 @@ const onDecisionLogs = async () => {
     const lines = logs
       .slice(0, 20)
       .map(l => `#${l.id} ${l.decision_type || ''} ${l.created_at || ''}`);
-    ElMessageBox.alert(lines.join('\n') || '暂无决策日志', 'AI 决策日志（最近 20 条）', {
-      type: 'info',
-    });
+    ElMessageBox.alert(
+      lines.join('\n') || t('systemGovernance.msg.noDecisionLogs'),
+      t('systemGovernance.msg.decisionLogsTitle'),
+      {
+        type: 'info',
+      }
+    );
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
 // 角色变更审批：列表 + L1/L2 审批/驳回/撤销
 const roleChanges = ref<Record<string, unknown>[]>([]);
 const roleChangeLoading = ref(false);
-// 列键取后端 role_change_approvals::Model 真实键（role_id/reason 不存在，恒空白已修）
-const roleChangeCols = [
-  'id',
-  'approval_no',
-  'change_type',
-  'target_role_id',
-  'target_role_code',
-  'status',
-  'created_at',
-];
 
 const loadRoleChanges = async () => {
   roleChangeLoading.value = true;
@@ -765,7 +1216,7 @@ const loadRoleChanges = async () => {
     roleChanges.value = unwrapList<Record<string, unknown>>(res.data);
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.loadFailed'));
   } finally {
     roleChangeLoading.value = false;
   }
@@ -776,6 +1227,7 @@ const roleChangeDialogVisible = ref(false);
 // 键集与后端 CreateRoleChangeApprovalRequest 逐字一致：
 // change_type/target_role_id/target_role_code 必填；无 reason（后端缺口，见串行清单）
 // change_type 源保持 string 供 el-select v-model 回写，提交前用守卫收窄（禁止裸断言）
+// target_role_id / target_user_id 用文本录入（禁步进控件），提交前按正整数校验
 const ROLE_CHANGE_TYPES: readonly RoleChangeType[] = [
   'assign_role',
   'assign_permission',
@@ -786,15 +1238,30 @@ const isRoleChangeType = (v: string): v is RoleChangeType =>
 
 const roleChangeForm = reactive({
   change_type: 'assign_role',
-  target_role_id: 1,
+  target_role_id: '',
   target_role_code: '',
-  target_user_id: undefined as number | undefined,
+  target_user_id: '',
 });
 
 const onSaveRoleChange = async () => {
   if (!roleChangeForm.target_role_code.trim()) {
     ElMessage.warning(t('systemGovernance.roleChange.fillTargetRoleCode'));
     return;
+  }
+  const targetRoleId = parsePositiveId(roleChangeForm.target_role_id);
+  if (targetRoleId === null) {
+    ElMessage.warning(t('systemGovernance.msg.fillTargetRoleId'));
+    return;
+  }
+  // 目标用户为可选：填了才校验并按键发送，留空则省略键（不发送 0 或空串污染后端）
+  let targetUserId: number | undefined;
+  if (roleChangeForm.target_user_id.trim()) {
+    const parsed = parsePositiveId(roleChangeForm.target_user_id);
+    if (parsed === null) {
+      ElMessage.warning(t('systemGovernance.msg.invalidTargetUserId'));
+      return;
+    }
+    targetUserId = parsed;
   }
   const changeType = roleChangeForm.change_type;
   if (!isRoleChangeType(changeType)) {
@@ -804,16 +1271,16 @@ const onSaveRoleChange = async () => {
   try {
     await createRoleChangeApproval({
       change_type: changeType,
-      target_role_id: roleChangeForm.target_role_id,
+      target_role_id: targetRoleId,
       target_role_code: roleChangeForm.target_role_code.trim(),
-      target_user_id: roleChangeForm.target_user_id,
+      ...(targetUserId !== undefined ? { target_user_id: targetUserId } : {}),
     });
     ElMessage.success(t('systemGovernance.roleChange.created'));
     roleChangeDialogVisible.value = false;
     await loadRoleChanges();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
@@ -824,7 +1291,7 @@ const onRoleChangeDetail = async (row: Record<string, unknown>) => {
     await showDetail(res.data ?? res);
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
@@ -835,11 +1302,15 @@ const onRoleChangeAction = async (
   let reason = '';
   if (action === 'reject') {
     try {
-      const { value } = await ElMessageBox.prompt('请输入驳回原因', `驳回 #${row.id}`, {
-        type: 'warning',
-        inputPattern: /\S+/,
-        inputErrorMessage: '驳回原因不能为空',
-      });
+      const { value } = await ElMessageBox.prompt(
+        t('systemGovernance.msg.promptRejectReason'),
+        t('systemGovernance.msg.rejectTitle'),
+        {
+          type: 'warning',
+          inputPattern: /\S+/,
+          inputErrorMessage: t('systemGovernance.msg.rejectReasonRequired'),
+        }
+      );
       reason = value;
     } catch (error: unknown) {
       if (isDialogDismissal(error)) return;
@@ -854,11 +1325,11 @@ const onRoleChangeAction = async (
       //（原键 opinion 后端不存在，驳回原因被 serde 静默丢弃）
       await rejectRoleChangeApproval(Number(row.id), { comments: reason });
     else await cancelRoleChangeApproval(Number(row.id));
-    ElMessage.success(t('common.success'));
+    ElMessage.success(t('systemGovernance.msg.actionDone'));
     loadRoleChanges();
   } catch (e) {
     const err = e as { message?: string };
-    ElMessage.error(err.message || t('common.failed'));
+    ElMessage.error(err.message || t('systemGovernance.msg.operationFailed'));
   }
 };
 
