@@ -31,7 +31,7 @@ async function seedGreige(
   // 只建坯布档案，不带数量列。weight_kg 与 length_m 是当前库存两列，quantity_kg 与
   // quantity_meters 是累计入库两列，两组字段在 greige_fabric 表里独立存储，出库门控读的是
   // 累计入库两列。建单时把当前库存凑出来但累计入库仍为空，等价于凭空造库存，与业务事实
-  // 「可出库量必须由真实入库支撑」不符，因此建档腿不再接受数量注入，数量一律通过后端
+  // 可出库量必须由真实入库支撑不符，因此建档腿不再接受数量注入，数量一律通过后端
   // stock-in 端点走真实入库登记。
   const suffix = genCode('E2E-GF').slice(-6);
   const name = `E2E坯布${suffix}`;
