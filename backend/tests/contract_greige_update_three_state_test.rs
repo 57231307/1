@@ -260,11 +260,10 @@ fn dto_absent_key_is_keep_and_explicit_null_is_clear() {
         absent.color_code
     );
 
-    let cleared =
-        serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>(
-            r#"{"color_code": null, "width_cm": null, "supplier_id": null}"#,
-        )
-        .expect("显式 null 应能反序列化为更新请求");
+    let cleared = serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>(
+        r#"{"color_code": null, "width_cm": null, "supplier_id": null}"#,
+    )
+    .expect("显式 null 应能反序列化为更新请求");
     assert!(
         matches!(cleared.color_code, Some(None)),
         "显式 null 的 color_code 必须是 Some(None)（清空），实际 {:?}",
@@ -297,11 +296,10 @@ fn dto_absent_key_is_keep_and_explicit_null_is_clear() {
     );
 
     // status 有意不开三态：清空入口不存在，类型上就不是 Option<Option<String>>
-    let status_req =
-        serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>(
-            r#"{"status": null}"#,
-        )
-        .expect("status 显式 null 应折叠成缺席而不是报错");
+    let status_req = serde_json::from_str::<greige_fabric_handler::UpdateGreigeFabricRequest>(
+        r#"{"status": null}"#,
+    )
+    .expect("status 显式 null 应折叠成缺席而不是报错");
     assert_eq!(
         status_req.status, None,
         "status 保持裸 Option：显式 null 与键缺席同义（不覆盖、不清空）"
@@ -414,9 +412,14 @@ async fn update_absent_keys_keep_original_values() {
         Some("BATCH-OLD"),
         "键缺席的 batch_no 必须保持原值"
     );
-    assert_eq!(row.weight_kg, Some(dec("100.00")), "键缺席的 weight_kg 必须保持原值");
     assert_eq!(
-        row.safety_stock, Some(dec("10.00")),
+        row.weight_kg,
+        Some(dec("100.00")),
+        "键缺席的 weight_kg 必须保持原值"
+    );
+    assert_eq!(
+        row.safety_stock,
+        Some(dec("10.00")),
         "键缺席的 safety_stock 必须保持原值"
     );
     assert_eq!(
@@ -628,7 +631,10 @@ async fn create_rejects_dirty_reference_ids_without_500() {
             StatusCode::INTERNAL_SERVER_ERROR,
             "{field} 不在库内外键保护范围内，脏值不得冒 500：{v}"
         );
-        assert_eq!(v["code"], "BUSINESS_ERROR", "{field} 拒绝应为业务错误码：{v}");
+        assert_eq!(
+            v["code"], "BUSINESS_ERROR",
+            "{field} 拒绝应为业务错误码：{v}"
+        );
     }
 }
 
@@ -697,21 +703,9 @@ async fn stock_in_accumulates_with_decimal_precision() {
     let row = find_row(&db, 1).await;
     assert_eq!(row.weight_kg, Some(dec("100.01")), "回读落库重量应精确累加");
     assert_eq!(row.length_m, Some(dec("200.01")), "回读落库长度应精确累加");
-    assert_eq!(
-        row.location.as_deref(),
-        Some("A-02"),
-        "入库应写入库位"
-    );
-    assert_eq!(
-        row.quality_grade.as_deref(),
-        Some("B"),
-        "入库应写入等级"
-    );
-    assert_eq!(
-        row.remarks.as_deref(),
-        Some("入库补量"),
-        "入库应写入备注"
-    );
+    assert_eq!(row.location.as_deref(), Some("A-02"), "入库应写入库位");
+    assert_eq!(row.quality_grade.as_deref(), Some("B"), "入库应写入等级");
+    assert_eq!(row.remarks.as_deref(), Some("入库补量"), "入库应写入备注");
 }
 
 #[tokio::test]
@@ -722,8 +716,14 @@ async fn stock_in_rejects_non_positive_and_dirty_warehouse() {
 
     let app = build_app(db.clone(), make_auth(100));
     for (label, body) in [
-        ("负数入库", json!({"warehouse_id": 1, "weight_kg": -5.0, "length_m": 10.0})),
-        ("零值入库", json!({"warehouse_id": 1, "weight_kg": 0.0, "length_m": 10.0})),
+        (
+            "负数入库",
+            json!({"warehouse_id": 1, "weight_kg": -5.0, "length_m": 10.0}),
+        ),
+        (
+            "零值入库",
+            json!({"warehouse_id": 1, "weight_kg": 0.0, "length_m": 10.0}),
+        ),
     ] {
         let (status, v) = call(&app, Method::POST, "/greige-fabrics/1/stock-in", Some(body)).await;
         assert_eq!(
@@ -756,11 +756,7 @@ async fn stock_in_rejects_non_positive_and_dirty_warehouse() {
         Some(dec("100.00")),
         "被拒的入库调用不得改库存"
     );
-    assert_eq!(
-        row.warehouse_id,
-        Some(1),
-        "被拒的入库调用不得改仓库归属"
-    );
+    assert_eq!(row.warehouse_id, Some(1), "被拒的入库调用不得改仓库归属");
 }
 
 // ============================================================
@@ -823,8 +819,14 @@ async fn stock_out_partial_keeps_in_stock_and_full_drains_to_stocked_out() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "部分出库应为 200，实际 {v}");
-    assert_eq!(v["data"]["weight_kg"], "60.00", "扣减后重量应如实，实际 {v}");
-    assert_eq!(v["data"]["quantity_kg"], "60.00", "累计量应同步扣减，实际 {v}");
+    assert_eq!(
+        v["data"]["weight_kg"], "60.00",
+        "扣减后重量应如实，实际 {v}"
+    );
+    assert_eq!(
+        v["data"]["quantity_kg"], "60.00",
+        "累计量应同步扣减，实际 {v}"
+    );
     assert_eq!(v["data"]["status"], "在库", "仍有剩余应维持在库：{v}");
 
     let (status_full, v_full) = call(
@@ -834,10 +836,13 @@ async fn stock_out_partial_keeps_in_stock_and_full_drains_to_stocked_out() {
         Some(json!({"weight_kg": 100.0, "length_m": 200.0})),
     )
     .await;
-    assert_eq!(status_full, StatusCode::OK, "整卷出库应为 200，实际 {v_full}");
     assert_eq!(
-        v_full["data"]["status"],
-        "已出库",
+        status_full,
+        StatusCode::OK,
+        "整卷出库应为 200，实际 {v_full}"
+    );
+    assert_eq!(
+        v_full["data"]["status"], "已出库",
         "重量与长度同时归零应置已出库：{v_full}"
     );
 
@@ -848,15 +853,15 @@ async fn stock_out_partial_keeps_in_stock_and_full_drains_to_stocked_out() {
         StatusCode::OK,
         "已出库坯布应允许软删，实际 {del_body}"
     );
-    let (blocked_status, blocked_body) = call(&app, Method::DELETE, "/greige-fabrics/1", None).await;
+    let (blocked_status, blocked_body) =
+        call(&app, Method::DELETE, "/greige-fabrics/1", None).await;
     assert_eq!(
         blocked_status,
         StatusCode::BAD_REQUEST,
         "在库坯布删除必须被拒，实际 {blocked_status} {blocked_body}"
     );
     assert_eq!(
-        blocked_body["code"],
-        "BUSINESS_ERROR",
+        blocked_body["code"], "BUSINESS_ERROR",
         "删除门控应为业务错误：{blocked_body}"
     );
 }
@@ -918,11 +923,7 @@ async fn stock_out_rejects_overdraft_on_both_current_and_cumulative() {
         Some(dec("30.00")),
         "被拒出库不得把累计量减成负数"
     );
-    assert_eq!(
-        row.weight_kg,
-        Some(dec("100.00")),
-        "被拒出库不得动现有量"
-    );
+    assert_eq!(row.weight_kg, Some(dec("100.00")), "被拒出库不得动现有量");
 }
 
 // ============================================================
@@ -986,7 +987,11 @@ async fn stock_in_accepts_consistent_dual_unit() {
     );
     // 100.00 + 3.6 精确累加，回读落库真值
     let row = find_row(&db, 1).await;
-    assert_eq!(row.weight_kg, Some(dec("103.60")), "入库重量应累加：{row:?}");
+    assert_eq!(
+        row.weight_kg,
+        Some(dec("103.60")),
+        "入库重量应累加：{row:?}"
+    );
     assert_eq!(row.length_m, Some(dec("210.00")), "入库长度应累加：{row:?}");
 }
 
@@ -1022,11 +1027,7 @@ async fn stock_in_rejects_inconsistent_dual_unit() {
     let row = find_row(&db, 1).await;
     assert_eq!(row.weight_kg, Some(dec("100.00")), "被拒入库不得改库存");
     assert_eq!(row.length_m, Some(dec("200.00")), "被拒入库不得改库存长度");
-    assert_eq!(
-        row.quantity_kg,
-        Some(dec("100.00")),
-        "被拒入库不得改累计量"
-    );
+    assert_eq!(row.quantity_kg, Some(dec("100.00")), "被拒入库不得改累计量");
 }
 
 /// 边界：档案未配克重（gram_weight 为 NULL）时米与公斤是两个无从互推的独立量，
@@ -1100,4 +1101,3 @@ async fn create_rejects_inconsistent_cumulative_dual_unit() {
         "自洽的建单累计量应放行，实际 {ok_status} {ok_v}"
     );
 }
-
