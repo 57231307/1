@@ -267,11 +267,37 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item :label="t('product.productFormDialogTab.labelStructure')" prop="structure">
-            <el-input
+          <el-form-item prop="structure">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelStructure') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipStructure')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <!-- 组织词表分梭织与针织两系，针织分纬编与经编（词表源 constants/product-spec-vocab.ts）；
+                 落库仍是自由文本列，词表外组织自填，50 字符上限由后端长度校验拦 -->
+            <el-select
               v-model="formData.structure"
+              filterable
+              allow-create
+              default-first-option
+              clearable
               :placeholder="t('product.productFormDialogTab.placeholderStructure')"
-            />
+              style="width: 100%"
+            >
+              <el-option-group
+                v-for="group in PRODUCT_STRUCTURE_GROUPS"
+                :key="group.label"
+                :label="t(group.label)"
+              >
+                <el-option v-for="term in group.options" :key="term" :label="term" :value="term" />
+              </el-option-group>
+            </el-select>
           </el-form-item>
         </el-col>
       </el-row>
@@ -445,10 +471,7 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item
-            :label="t('product.productFormDialogTab.labelUsage')"
-            prop="usage"
-          >
+          <el-form-item :label="t('product.productFormDialogTab.labelUsage')" prop="usage">
             <el-input
               v-model="formData.usage"
               :placeholder="t('product.productFormDialogTab.placeholderUsage')"
@@ -522,6 +545,8 @@ import {
 import {
   PRODUCT_SAFETY_CATEGORY_VALUES,
   PRODUCT_SAFETY_CATEGORY_LABEL_KEY,
+  PRODUCT_SAFETY_CATEGORY,
+  PRODUCT_STRUCTURE_GROUPS,
 } from '@/constants/product-spec-vocab';
 import { computeMetersPerKg } from '@/utils/fabric-yardage';
 import { logger } from '@/utils/logger';
@@ -745,6 +770,26 @@ const formRules = computed<FormRules>(() => {
     lead_time: [numericFormatRule('product.productFormDialogTab.validateLeadTimeFormat', 0)],
     price: [numericFormatRule('product.productFormDialogTab.validatePriceFormat', 2)],
     cost_price: [numericFormatRule('product.productFormDialogTab.validatePriceFormat', 2)],
+    // GB 18401-2010 的 A 类为婴幼儿纺织产品，GB 31701-2015 是其强制并标考核标准；
+    // 录入面拦「选了 A 类但执行标准没列婴幼儿标准」这一跨字段缺口，判据只查用户自己提交的两个字段。
+    // 标准号形态允许空格与年份后缀差异（GB 31701-2015、GB31701-2015 等），年份不参与判据。
+    execution_standard: [
+      {
+        validator: (_rule: unknown, value: unknown, callback: (error?: Error) => void) => {
+          if (formData.safety_category !== PRODUCT_SAFETY_CATEGORY.classA) {
+            callback();
+            return;
+          }
+          const standard = String(value ?? '');
+          if (/GB\s*31701/.test(standard)) {
+            callback();
+            return;
+          }
+          callback(new Error(t('product.productFormDialogTab.validateInfantStandardRequired')));
+        },
+        trigger: 'blur',
+      },
+    ],
   };
   if (props.mode === 'create') {
     rules.product_type = [
@@ -769,11 +814,7 @@ const formRules = computed<FormRules>(() => {
           message: t('product.productFormDialogTab.validateGramWeightRequiredFabric'),
           trigger: 'blur',
         },
-        numericFormatRule(
-          'product.productFormDialogTab.validateGramWeightFormat',
-          2,
-          true
-        ),
+        numericFormatRule('product.productFormDialogTab.validateGramWeightFormat', 2, true),
       ];
       rules.fabric_composition = [
         {

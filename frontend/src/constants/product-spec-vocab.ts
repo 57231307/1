@@ -42,3 +42,34 @@ export const PRODUCT_SAFETY_CATEGORY_LABEL_KEY: Record<ProductSafetyCategoryValu
  * 空值语义为未考核或未录入，表单允许留空。
  */
 export const COLOR_FASTNESS_GRADE_VALUES = ['1', '1-2', '2', '2-3', '3', '3-4', '4', '4-5', '5'];
+
+/**
+ * 组织结构行业词表（products.structure 为自由文本列，本词表只作录入下拉建议，不收 DB CHECK）。
+ * 分类口径按纺织行业组织两大系：梭织（机织物）与针织，针织再分纬编与经编；
+ * 纬编与经编织物名称带「纬编」「经编」前缀落库，检索与统计可按前缀区分两类针织形态，
+ * 这就是「针织分纬编与经编」在录入面的表达。词表外结构（如提花、特殊组织）允许自填，
+ * 与后端 50 字符长度校验同源；不做枚举拒绝的原因：组织结构名词量大且随工艺扩展，
+ * 收成封闭 CHECK 会在应用层与库表间漂移（裁定依据见车道回报）。
+ */
+export const PRODUCT_STRUCTURE_GROUPS: { label: string; options: string[] }[] = [
+  {
+    label: 'product.constants.structureGroupWoven',
+    options: ['平纹', '斜纹', '缎纹', '府绸', '卡其', '华达呢', '牛津纺', '泡泡纱', '提花'],
+  },
+  {
+    label: 'product.constants.structureGroupWeftKnit',
+    options: ['纬编汗布', '纬编珠地', '纬编罗纹', '纬编双面布', '纬编毛圈布', '纬编卫衣布'],
+  },
+  {
+    label: 'product.constants.structureGroupWarpKnit',
+    options: ['经编特里科', '经编拉舍尔', '经编网眼', '经编起绒布'],
+  },
+];
+
+/** 全量组织词表扁平值，供静态锁与检索前缀判据消费 */
+export const PRODUCT_STRUCTURE_TERMS: string[] = PRODUCT_STRUCTURE_GROUPS.flatMap(
+  group => group.options
+);
+
+/** 纬编与经编前缀判据（检索与列表过滤用，落库值以这两词开头即针织子类可辨） */
+export const KNIT_SUBTYPE_PREFIXES = { weft: '纬编', warp: '经编' } as const;
