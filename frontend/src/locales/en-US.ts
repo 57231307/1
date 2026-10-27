@@ -1412,6 +1412,12 @@ export default {
     noDataToPrint: 'No data to print',
     pleaseSelectWarehouse: 'Please select a receiving warehouse',
     pleaseFillItem: 'Please fill in at least one received quantity',
+    pleaseFillReturnInclusivePrice:
+      'Enter the unit price with tax (enter 0 for sample, gift or untaxed lines)',
+    invalidReturnInclusivePrice: 'Unit price with tax must be a number of 0 or greater',
+    pleaseFillReturnTaxRate:
+      'Enter the tax rate (enter 0 for tax-free or untaxed red-letter lines)',
+    invalidReturnTaxRate: 'Tax rate must be a percentage of 0 or greater (13 means 13%)',
     pleaseSelectFile: 'Please select a file',
     onlyOneFile: 'Only one file can be uploaded',
     invalidJsonFormat: 'Invalid column configuration JSON format',

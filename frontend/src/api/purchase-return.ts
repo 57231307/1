@@ -108,13 +108,23 @@ export interface UpdatePurchaseReturnPayload {
   notes?: string | null;
 }
 
-/** 创建退货明细请求，逐字段对齐后端 CreateReturnItemRequest。 */
+/**
+ * 创建退货明细请求，逐字段对齐后端 CreateReturnItemRequest。
+ * 价税方向与后端 utils/tax.rs 单源一致：含税单价是录入事实（主输入），
+ * unit_price 是它按税率除法反算的派生值，后端做单价钩稽门；
+ * tax_rate 与 unit_price_with_tax 属必填族，缺键由服务层点名拒绝（VALIDATION_ERROR），
+ * 系统不按税率倒造含税价、不回落任何档位（13 表示 13%，0 须显式提交）。
+ * rust_decimal 走线是字符串，含税单价按原文下发。
+ */
 export interface CreatePurchaseReturnItemPayload {
   line_no: number;
   material_id: number;
   quantity_ordered?: number;
   quantity_returned: number;
   unit_price: number;
+  /** 含税单价（录入事实，必填，decimal 字符串） */
+  unit_price_with_tax?: string;
+  /** 税率百分数（必填，13 表示 13%，0 表示无进项税） */
   tax_rate?: number;
   discount_percent?: number;
   notes?: string;
@@ -130,6 +140,8 @@ export interface CreatePurchaseReturnItemPayload {
  * - line_no/material_id/quantity_returned/unit_price/tax_rate/discount_percent 及追溯列
  *   color_no/dye_lot_no/batch_no（NOT NULL DEFAULT ''）均为 NOT NULL：禁止送 null
  *   （后端 400「XX不能清空：该字段为必填项」）；"追溯维度改回白坯/空值"提交空串而非 null；
+ * - unit_price_with_tax 键缺席时后端按已落库成交含税额除法还原，本行有折扣或数量为 0 时
+ *   还原不出（后端点名拒绝），必须由界面录入，前端不按税率倒造；
  * - notes 为 DB 可空列：清空须显式送 null。
  */
 export interface UpdatePurchaseReturnItemPayload {
@@ -137,6 +149,9 @@ export interface UpdatePurchaseReturnItemPayload {
   material_id?: number;
   quantity_returned?: number;
   unit_price?: number;
+  /** 含税单价（decimal 字符串，覆盖语义） */
+  unit_price_with_tax?: string;
+  /** 税率百分数（覆盖语义） */
   tax_rate?: number;
   discount_percent?: number;
   notes?: string | null;

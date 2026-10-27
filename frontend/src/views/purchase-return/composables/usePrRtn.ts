@@ -35,6 +35,7 @@ import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { i18n } from '@/i18n';
 import { PURCHASE_RETURN_STATUS } from '@/utils/purchase-return-status';
 import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
+import { netFromInclusive, parseDecimalInput, roundToCent } from '@/utils/money';
 
 /**
  * 退货明细表单行（编辑态本地结构）：提交时经 buildCreateItemPayload / buildUpdateItemPayload
@@ -46,7 +47,18 @@ export interface ReturnFormItem {
   productId?: number;
   productName?: string;
   quantity: number;
+  /**
+   * 不含税单价（派生只读值）：由含税单价按本行税率除法反算，落 purchase_return_item.unit_price 列。
+   * 提交时仍带该键，后端按它做单价钩稽门（与反算值分位一致才放行），前端不乘 (1 + 税率) 造含税。
+   */
   unitPrice?: number;
+  /**
+   * 含税单价（录入事实，主输入列）：输入框原文，空串=未填，'0'=人工显式声明的 0 价行。
+   * 税率非 0 时后端要求本值，缺值由服务层按必填族点名拒绝，系统不按税率倒造含税价。
+   */
+  unitPriceWithTax?: string;
+  /** 税率（百分数口径，13 表示 13%）：undefined=未填，0 只能由退货员显式填写（免税或无票红冲） */
+  taxPercent?: number;
   reason?: string;
   /**
    * 面料追溯维度（审批按 产品+色号+缸号+批次 精确扣库存）。undefined=未设定：
@@ -320,13 +332,57 @@ export function usePrRtn() {
     });
   };
 
-  /** 从后端 PurchaseReturnItemDto 归一化为表单本地结构 */
+  /**
+ * 编辑回显的含税单价原文（价税分离的录入事实，主输入列）。
+ * 入参，raw 是后端退货明细行（subtotal 与 tax_amount 与 total_amount 三列已落库）。
+ * 出参是含税单价输入框原文，空串表示还原不出、须人工重录。
+ * 取法只有除法还原这一条腿，与后端 utils/tax.rs 的 recover_inclusive_unit_price 同源：
+ * 本行有净额口径折扣或数量为 0 时标价含税额还原不出来，一律留空要求录入，
+ * 绝不用「不含税单价 乘 1 加税率」倒造含税价。
+ * 传给谁，normalizeItem 的行映射，写入 ReturnFormItem.unitPriceWithTax。
+ */
+const recoverInclusiveUnitPriceText = (raw: PurchaseReturnItem): string => {
+  if (raw.discount_amount !== 0 || raw.quantity_returned <= 0) return '';
+  return String(roundToCent(raw.total_amount / raw.quantity_returned));
+};
+
+/**
+ * 逐行派生列重算（方向口径与后端 utils/tax.rs 与前端 money.ts 单源一致）。
+ * 入参，row 是本表一行；读含税单价原文与税率，写派生的不含税单价。
+ * 含税成交额 = 含税单价 乘 数量（事实聚合，税率不进乘法），不含税单价 = 含税单价 ÷ (1 + 税率% ÷ 100)
+ * 先舍到分；税额与含税额小计由 money.ts 取差额，本函数不存在任何乘税率造税额或造含税的写法。
+ * 出参 undefined（缺含税单价或税率非法）时派生单价回到 0 无值状态，由提交前的必填校验点名拦下，
+ * 不猜档位、不补 0 冒充算得。
+ * 传给谁，组件的含税单价与税率输入框 change 与产品带出腿。
+ */
+export const applyDerivedPrices = (row: ReturnFormItem): void => {
+  const inclusiveUnit = parseDecimalInput(row.unitPriceWithTax);
+  const rate = row.taxPercent;
+  if (
+    inclusiveUnit === undefined ||
+    !Number.isFinite(inclusiveUnit) ||
+    inclusiveUnit < 0 ||
+    rate === undefined ||
+    !Number.isFinite(rate) ||
+    rate < 0
+  ) {
+    row.unitPrice = 0;
+    return;
+  }
+  row.unitPrice = netFromInclusive(inclusiveUnit, rate);
+};
+
+/** 从后端 PurchaseReturnItemDto 归一化为表单本地结构 */
   const normalizeItem = (raw: PurchaseReturnItem): ReturnFormItem => ({
     id: raw.id,
     productId: raw.material_id,
     productName: raw.material_name ?? undefined,
     quantity: raw.quantity_returned,
     unitPrice: raw.unit_price,
+    // 含税单价回显只准由已落库成交含税额除数量还原（与后端 recover_inclusive_unit_price 同口径）；
+    // 本行有折扣或数量为 0 时还原不出标价含税单价，留空由退货员重新录入，绝不按税率倒造一个。
+    unitPriceWithTax: recoverInclusiveUnitPriceText(raw),
+    taxPercent: raw.tax_rate,
     reason: raw.notes ?? undefined,
     // 维度回读：后端有值才回填；缺省保持 undefined（编辑提交时不下发，避免误覆盖原维度）。
     // 依赖后端 PurchaseReturnItemDto 补 SELECT 这三列（见 api 注释），否则编辑态维度为空态需退货员重选。
@@ -382,6 +438,10 @@ export function usePrRtn() {
           // 单价与「添加明细」生成的空行同初值 0：purchase_inspection_item 不落单价，无来源可带，
           // 由退货员按实填写（不是用主数据/采购价凑一个假单价）
           unitPrice: 0,
+          // 含税单价与税率同为录入事实，质检明细两列都无来源可带，留空由退货员按实填写，
+          // 不预填任何税率档位
+          unitPriceWithTax: '',
+          taxPercent: undefined,
           reason: item.remark ?? undefined,
           // 质检明细 purchase_inspection_item 不落 色号/缸号/批次（后端无该三列，无来源可带），
           // 故维度不预填、不写死、不从空兜底：留 undefined 由退货员按实际退的库存行选定。
@@ -456,7 +516,9 @@ export function usePrRtn() {
     const order = purchaseOrders.value.find(o => o.id === orderId);
     if (order) {
       formData.supplierId = (order as unknown as { supplier_id?: number }).supplier_id;
-      formData.items = [{ productId: undefined, productName: '', quantity: 1, unitPrice: 0 }];
+      formData.items = [
+        { productId: undefined, productName: '', quantity: 1, unitPrice: 0, unitPriceWithTax: '' },
+      ];
     }
   };
 
@@ -467,6 +529,9 @@ export function usePrRtn() {
       productName: '',
       quantity: 1,
       unitPrice: 0,
+      // 含税单价与税率留空由退货员填写（0 只能由人工显式敲出），税率不预填任何档位
+      unitPriceWithTax: '',
+      taxPercent: undefined,
       reason: '',
     });
   };
@@ -479,16 +544,21 @@ export function usePrRtn() {
     formData.items.splice(index, 1);
   };
 
-  /** 产品变化（联动单价/名称） */
+  /** 产品变化（联动名称与参考价；参考价带进**含税单价**主输入列，可现谈覆盖） */
   const handleProductChange = (row: ReturnFormItem, productId: number) => {
     const product = products.value.find(p => p.id === productId);
     if (product) {
       row.productName = product.name;
-      row.unitPrice = product.price;
+      // 带出只是建议值：产品参考价按含税口径进主输入列，不含税单价随后由税率除法反算，
+      // 无参考价就留空，不补 0、不乘税率
+      row.unitPriceWithTax = product.price == null ? '' : String(product.price);
+      applyDerivedPrices(row);
     }
   };
 
-  /** 构造新建明细请求体（对齐 CreatePurchaseReturnItemPayload） */
+  /** 构造新建明细请求体（对齐 CreatePurchaseReturnItemPayload）
+   *  含税单价与税率同为必填录入项：后端缺任一键按必填族点名拒绝（VALIDATION_ERROR），
+   *  前端在 handleFormSubmit 里先拦下，unit_price 是含税单价按税率除法反算的派生值。 */
   const buildCreateItemPayload = (
     it: ReturnFormItem,
     idx: number
@@ -497,6 +567,9 @@ export function usePrRtn() {
     material_id: it.productId as number,
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
+    // rust_decimal 走线是字符串：含税单价按原文下发，不做二次浮点运算
+    unit_price_with_tax: it.unitPriceWithTax,
+    tax_rate: it.taxPercent,
     notes: it.reason || undefined,
     // 面料追溯维度：有值随 POST 下发；未填（undefined）时 JSON 省略该键，后端 unwrap_or_default 落空串（白坯）。
     color_no: it.colorNo,
@@ -511,6 +584,11 @@ export function usePrRtn() {
   const buildUpdateItemPayload = (it: ReturnFormItem): UpdatePurchaseReturnItemPayload => ({
     quantity_returned: it.quantity ?? 0,
     unit_price: it.unitPrice ?? 0,
+    // 含税单价与税率恒送当前值（覆盖语义）：二者已由 handleFormSubmit 校验为已填且合法，
+    // 折扣行的标价含税单价还原不出来（后端 recover_inclusive_unit_price 会点名拒绝），
+    // 故必须由退货员按实录入，前端不带任何按税率倒造的兜底
+    unit_price_with_tax: it.unitPriceWithTax,
+    tax_rate: it.taxPercent,
     notes: it.reason || null,
     // 追溯维度为 NOT NULL DEFAULT '' 列：恒送当前值（空串=白坯合法值），不得送 null
     color_no: it.colorNo,
@@ -529,6 +607,35 @@ export function usePrRtn() {
       const validItems = formData.items.filter(e => (e.productId as number) > 0);
       if (validItems.length === 0) {
         msg.warning('pleaseAddReturnDetail');
+        return false;
+      }
+      // 含税单价与税率是退货行的必填录入项（后端按必填族点名拒绝，缺键不回落任何档位）：
+      // 界面必须先点名拦下，不能让退货员以为已保存而少一行明细。
+      const missingInclusive = validItems.find(
+        e => parseDecimalInput(e.unitPriceWithTax) === undefined
+      );
+      if (missingInclusive) {
+        msg.warning('pleaseFillReturnInclusivePrice');
+        return false;
+      }
+      const invalidInclusive = validItems.find(e => {
+        const parsed = parseDecimalInput(e.unitPriceWithTax);
+        return parsed !== undefined && (!Number.isFinite(parsed) || parsed < 0);
+      });
+      if (invalidInclusive) {
+        msg.warning('invalidReturnInclusivePrice');
+        return false;
+      }
+      const missingRate = validItems.find(e => e.taxPercent === undefined);
+      if (missingRate) {
+        msg.warning('pleaseFillReturnTaxRate');
+        return false;
+      }
+      const invalidRate = validItems.find(
+        e => e.taxPercent !== undefined && (!Number.isFinite(e.taxPercent) || e.taxPercent < 0)
+      );
+      if (invalidRate) {
+        msg.warning('invalidReturnTaxRate');
         return false;
       }
       if (isEdit && formData.id) {

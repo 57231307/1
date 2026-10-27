@@ -191,17 +191,69 @@
           </template>
         </el-table-column>
         <el-table-column
+          prop="unitPriceWithTax"
+          :label="t('purchaseReturn.form.column.unitPriceWithTax')"
+          width="130"
+        >
+          <template #default="{ row }">
+            <!--
+              含税单价是本表价格的主输入（录入事实），用 el-input 承载、靠校验器管范围：
+              带加减号的步进控件是全项目禁项，新增数值录入项从落笔起就用 el-input。
+              不含税单价与下面展示的净额都由它按税率除法反算（money.ts 与后端 utils/tax.rs 同源），
+              前端绝不写「不含税单价 乘 1 加税率」造含税。
+            -->
+            <el-input
+              v-model="row.unitPriceWithTax"
+              size="small"
+              :placeholder="t('purchaseReturn.form.placeholder.unitPriceWithTax')"
+              @change="() => applyDerivedPrices(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="taxPercent"
+          :label="t('purchaseReturn.form.column.taxPercent')"
+          width="110"
+        >
+          <template #default="{ row }">
+            <!-- 税率是必填录入项，13 表示 13%，免税或无票红冲须由退货员显式填 0，不预填任何档位 -->
+            <el-input
+              v-model.number="row.taxPercent"
+              size="small"
+              :placeholder="t('purchaseReturn.form.placeholder.taxPercent')"
+              @change="() => applyDerivedPrices(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column
           prop="unitPrice"
           :label="t('purchaseReturn.form.column.unitPrice')"
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number v-model="row.unitPrice" :min="0" :precision="2" size="small" />
+            <!-- 不含税单价是派生只读值：按含税单价与本行税率除法反算，改它必然被后端单价钩稽门拒绝 -->
+            <el-input-number
+              v-model="row.unitPrice"
+              :min="0"
+              :precision="2"
+              size="small"
+              disabled
+            />
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="t('purchaseReturn.form.column.amount')" width="120">
           <template #default="{ row }">
-            <span>¥{{ (row.quantity * row.unitPrice).toFixed(2) }}</span>
+            <span>¥{{ formatDerivedAmount(row.unitPriceWithTax, row.quantity) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="taxAmount"
+          :label="t('purchaseReturn.form.column.taxAmount')"
+          width="120"
+        >
+          <template #default="{ row }">
+            <!-- 税额是差额：含税成交额 减 除法反算的净额小计，不做第二次独立舍入 -->
+            <span>¥{{ formatDerivedTax(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -236,14 +288,57 @@ import { deepClone } from '@/utils';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';
-import type { ReturnFormItem } from '../composables/usePrRtn';
+import { applyDerivedPrices, type ReturnFormItem } from '../composables/usePrRtn';
 import type { Warehouse } from '@/api/warehouse';
 import { RETURN_REASON_OPTIONS } from '@/constants/return-reason';
+import {
+  formatDecimalAmount,
+  inclusiveAmountFromLine,
+  parseDecimalInput,
+  taxFromInclusive,
+} from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
 
 // 退货原因候选与销售退货共用同一份落库取值（见 constants/return-reason）
 const reasonOptions = RETURN_REASON_OPTIONS;
+
+/**
+ * 含税成交额展示（编辑态预览，只读列）。
+ * 入参，inclusiveUnit 是含税单价录入原文、quantity 是本行退货数量。
+ * 出参是千分位两位小数的含税额文本；未填或非法显示占位符 --，不补 0 冒充算得。
+ * 算法只有「含税单价 乘 数量」这一种聚合（税率不进乘法），单源在 utils/money.ts。
+ * 传给谁，明细表金额列。落库权威值仍由后端按真实税率反算回传。
+ */
+const formatDerivedAmount = (inclusiveUnit: string | undefined, quantity: number): string => {
+  const unit = parseDecimalInput(inclusiveUnit);
+  if (unit === undefined || !Number.isFinite(unit) || unit < 0) return '--';
+  return formatDecimalAmount(inclusiveAmountFromLine(unit, quantity));
+};
+
+/**
+ * 税额展示（编辑态预览，只读列）：含税成交额 减 除法反算的净额小计 取差额，
+ * 与后端 utils/tax.rs 同一口径，本函数不存在任何乘税率造税额的写法。
+ * 入参，row 是本行表单对象（读含税单价原文与税率）。出参是税额文本，缺值显示 --。
+ * 传给谁，明细表税额列。
+ */
+const formatDerivedTax = (row: ReturnFormItem): string => {
+  const unit = parseDecimalInput(row.unitPriceWithTax);
+  const rate = row.taxPercent;
+  if (
+    unit === undefined ||
+    !Number.isFinite(unit) ||
+    unit < 0 ||
+    rate === undefined ||
+    !Number.isFinite(rate) ||
+    rate < 0
+  ) {
+    return '--';
+  }
+  return formatDecimalAmount(
+    taxFromInclusive(inclusiveAmountFromLine(unit, row.quantity), rate)
+  );
+};
 
 // 采购订单数据结构
 interface PurchaseOrder {
