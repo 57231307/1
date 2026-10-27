@@ -83,6 +83,10 @@ impl ApInvoiceService {
         let tax_amount = req.tax_amount.ok_or_else(|| {
             AppError::validation_displayable("应付单缺少税额，无进项税请显式提交 0")
         })?;
+        // 票面两值钩稽门（内核单源），税额绝对值不得超过含税额且必须同号，
+        // 否则本票的不含税净额是负数；红字票两值同为负数属合法形态，由同号判定放行。
+        // 应付表没有净额列，此处只取判定结果，不落第三个数。
+        crate::utils::tax::ensure_tax_within_inclusive(amount, tax_amount, "应付单")?;
         // 本入口不接收付款（付款走付款申请与付款单），手工建单时 paid_amount 恒为 0；
         // unpaid_amount 不是入参，由已校验的 amount 减去 paid_amount 派生
         let paid_amount = Decimal::ZERO;

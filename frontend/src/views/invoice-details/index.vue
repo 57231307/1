@@ -88,13 +88,13 @@
         <el-form-item label="发票号" prop="invoice_no">
           <el-input v-model="formData.invoice_no" readonly />
         </el-form-item>
-        <el-form-item label="发票金额" prop="amount">
+        <el-form-item label="价税合计" prop="total_amount">
           <el-input-number
-            v-model="formData.amount"
+            v-model="formData.total_amount"
             :min="0"
             :precision="2"
             style="width: 100%"
-            placeholder="必填"
+            placeholder="必填，票面的价税合计数"
           />
         </el-form-item>
         <el-form-item label="税额" prop="tax_amount">
@@ -103,17 +103,17 @@
             :min="0"
             :precision="2"
             style="width: 100%"
-            placeholder="必填"
+            placeholder="必填，按票面税额填写"
           />
         </el-form-item>
-        <el-form-item label="价税合计" prop="total_amount">
-          <el-input-number
-            v-model="formData.total_amount"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-            placeholder="必填"
-          />
+        <!--
+          发票金额（不含税净额）是派生只读值，取法只有一条：价税合计 减 票面税额。
+          与后端 backend/src/utils/tax.rs 的 net_from_inclusive_and_tax 同源（utils/money.ts 的
+          netFromInclusiveAndTax），本表单不存在任何按税率乘除造金额或造税额的算式；
+          两值未填时显示为空，不补 0（补 0 会把「没录票面」伪装成「净额为零」）。
+        -->
+        <el-form-item label="发票金额">
+          <el-input :model-value="derivedAmountText" readonly placeholder="由价税合计与税额自动得出" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -126,10 +126,11 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
+import { netFromInclusiveAndTax } from '@/utils/money';
 import {
   getFinanceInvoiceList,
   getFinanceInvoice,
@@ -185,21 +186,45 @@ const formRef = ref<FormInstance>();
 
 const formData = reactive<{
   invoice_no: string;
-  amount: number | undefined;
   tax_amount: number | undefined;
   total_amount: number | undefined;
 }>({
   invoice_no: '',
-  amount: undefined,
   tax_amount: undefined,
   total_amount: undefined,
 });
 
+/**
+ * 发票金额（不含税净额）的派生值。入参，本表单的价税合计与票面税额；
+ * 出参，两者之差（utils/money.ts 的 netFromInclusiveAndTax，与后端内核同一取法），
+ * 两值未填时为 undefined，模板显示为空。传给谁，本表单的只读展示与提交载荷。
+ * 本文件不存在按税率乘除造金额或造税额的算式，税额由人工按票面录入、净额由减法派生。
+ */
+const derivedAmount = computed<number | undefined>(() =>
+  netFromInclusiveAndTax(formData.total_amount, formData.tax_amount)
+);
+const derivedAmountText = computed<string>(() =>
+  derivedAmount.value === undefined ? '' : String(derivedAmount.value)
+);
+
 const formRules: FormRules = {
   invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
-  amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }],
-  tax_amount: [{ required: true, message: '请输入税额', trigger: 'blur' }],
   total_amount: [{ required: true, message: '请输入价税合计', trigger: 'blur' }],
+  tax_amount: [
+    { required: true, message: '请按票面录入税额', trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: unknown, callback: (error?: Error) => void) => {
+        const tax = typeof value === 'number' ? value : undefined;
+        const inclusive = formData.total_amount;
+        if (tax !== undefined && inclusive !== undefined && tax > inclusive) {
+          callback(new Error('税额不能超过价税合计，请按票面重新填写'));
+          return;
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
 };
 
 const formatDate = (value: string | null): string => {
@@ -273,7 +298,6 @@ const handleCreate = async () => {
 
 const resetForm = () => {
   formData.invoice_no = '';
-  formData.amount = undefined;
   formData.tax_amount = undefined;
   formData.total_amount = undefined;
   formRef.value?.resetFields();
@@ -295,8 +319,10 @@ const submitCreate = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async valid => {
     if (!valid) return;
+    // 不含税金额是派生值（价税合计 减 票面税额），未填两值时没有可提交的净额，直接不提交
+    const netAmount = derivedAmount.value;
     if (
-      formData.amount === undefined ||
+      netAmount === undefined ||
       formData.tax_amount === undefined ||
       formData.total_amount === undefined
     ) {
@@ -306,7 +332,7 @@ const submitCreate = async () => {
     try {
       await createFinanceInvoice({
         invoice_no: formData.invoice_no,
-        amount: formData.amount,
+        amount: netAmount,
         tax_amount: formData.tax_amount,
         total_amount: formData.total_amount,
       });

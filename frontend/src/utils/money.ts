@@ -109,6 +109,25 @@ export function taxFromInclusive(inclusive: number, taxPercent: number): number 
 }
 
 /**
+ * 票面两值腿的净额预览（唯一合法取法：含税额减税额的差额），与后端
+ * `backend/src/utils/tax.rs` 的 `net_from_inclusive_and_tax` 同一算式。
+ * 发票票面给出的是「金额、税额、价税合计」三个数，其中不含税金额是派生值：
+ * 本函数只做减法，不乘也不除任何税率，因此既不造含税也不造税额。
+ * 入参，inclusive 是价税合计（含税事实），tax 是票面税额。
+ * 出参是不含税净额预览值；两值缺任一（undefined 或空）返回 undefined，由调用方显示为空，
+ * 不补 0（补 0 会把「没录票面」伪装成「净额为零」）。
+ * 传给谁：各发票录入腿的不含税金额只读派生展示，落库权威值仍由后端内核取差额并做钩稽拒绝。
+ * 调用方：views/invoice-details/index.vue 的发票金额只读列。
+ */
+export function netFromInclusiveAndTax(
+  inclusive: number | undefined,
+  tax: number | undefined
+): number | undefined {
+  if (inclusive === undefined || tax === undefined) return undefined;
+  return roundToCent(roundToCent(inclusive) - roundToCent(tax));
+}
+
+/**
  * 数字录入解析（输入框原文 → 数值），供 el-input 承载金额与税率录入时的校验腿使用。
  * 空串与纯空白表示「未填写」，返回 undefined；非数字原文返回 NaN，由调用方在校验器里
  * 点名拒绝——本函数不返回 0、不吞成默认值：把「漏录」与「显式声明 0」混成同一个数，

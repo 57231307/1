@@ -74,14 +74,24 @@ impl FinanceInvoiceService {
         tax_amount: Decimal,
         total_amount: Decimal,
     ) -> Result<InvoiceModel, AppError> {
+        // 价税合计与票面税额是录入事实，不含税金额一律取两者差额（utils tax 单源，
+        // 不做第二次舍入，也不按税率造任何一侧的值）；调用方提交的不含税金额必须与
+        // 差额逐分钩稽，不钩稽即点名拒绝，杜绝三列各自录入产生的 1 分差与票面不钩稽。
+        let net =
+            crate::utils::tax::net_from_inclusive_and_tax(total_amount, tax_amount, "发票")?;
+        crate::utils::tax::ensure_reconciled(
+            amount.round_dp(2),
+            tax_amount.round_dp(2),
+            total_amount.round_dp(2),
+        )?;
         let active_model = ActiveModel {
             id: NotSet,
             invoice_no: Set(invoice_no),
             order_id: Set(None),
             invoice_date: Set(Utc::now()),
-            amount: Set(amount),
-            tax_amount: Set(tax_amount),
-            total_amount: Set(total_amount),
+            amount: Set(net),
+            tax_amount: Set(tax_amount.round_dp(2)),
+            total_amount: Set(total_amount.round_dp(2)),
             status: Set(invoice_status::PENDING.to_string()),
             paid_date: Set(None),
             payment_method: Set(None),

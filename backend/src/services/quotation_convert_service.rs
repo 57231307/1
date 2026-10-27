@@ -50,6 +50,20 @@ pub struct QuotationConvertService {
     db: Arc<DatabaseConnection>,
 }
 
+/// 转出订单行的四值汇总，是销售订单表头金额回写的唯一来源。
+///
+/// 存什么，subtotal 是各行未折扣净额之和、discount_amount 是各行净额口径折扣之和、
+/// tax_amount 是各行税额之和、total_amount 是各行成交含税额之和，四值都是 2 位小数。
+/// 传给谁，QuotationConvertService::convert 的表头回写腿，分别写 sales_orders 的
+/// subtotal、discount_amount、tax_amount、total_amount 列（balance_amount 同 total_amount）。
+/// 本模块内私有，不对外暴露，避免绕过内核单源自行拼表头。
+struct ConvertedLineTotals {
+    subtotal: Decimal,
+    discount_amount: Decimal,
+    tax_amount: Decimal,
+    total_amount: Decimal,
+}
+
 impl QuotationConvertService {
     /// 从数据库连接直接构造
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -100,11 +114,33 @@ impl QuotationConvertService {
         )
         .await?;
 
-        // 6. 复制明细
-        Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn).await?;
+        // 6. 复制明细，行金额一律由 utils tax 内核行级单源产出，并累计出表头四值
+        let totals = Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn)
+            .await?;
 
-        // 7. 更新报价单状态为 converted
-        Self::update_quotation_to_converted(&quotation, order.id, now, &txn).await?;
+        // 7. 表头金额按转出的订单行汇总回写，不照抄报价表头。
+        // 报价表头是报价时刻的汇总值，转单腿的行金额改由内核重算后两者可能不同源
+        // （历史行按正向公式落库的净额与今天的除法反算值本就不等），照抄会让
+        // 表头钩稽与逐行相加两套口径同时存在。
+        // 入参，totals 是本次转出订单行的四值汇总；传给谁，sales_orders 的
+        // subtotal 与 discount_amount 与 tax_amount 与 total_amount 与 balance_amount 五列。
+        crate::utils::tax::ensure_reconciled(
+            totals.subtotal - totals.discount_amount,
+            totals.tax_amount,
+            totals.total_amount,
+        )?;
+        let order_id = order.id;
+        let mut order_active: OrderActive = order.into();
+        order_active.subtotal = Set(totals.subtotal);
+        order_active.discount_amount = Set(totals.discount_amount);
+        order_active.tax_amount = Set(totals.tax_amount);
+        order_active.total_amount = Set(totals.total_amount);
+        order_active.balance_amount = Set(totals.total_amount);
+        order_active.updated_at = Set(now);
+        let order = order_active.update(&txn).await?;
+
+        // 8. 更新报价单状态为 converted
+        Self::update_quotation_to_converted(&quotation, order_id, now, &txn).await?;
 
         txn.commit().await?;
 
@@ -134,7 +170,10 @@ impl QuotationConvertService {
         Ok(())
     }
 
-    /// 构建报价单转销售订单的主表 ActiveModel（单号由生成器在事务内提供）
+    /// 构建报价单转销售订单的主表 ActiveModel，单号由生成器在事务内提供。
+    ///
+    /// 金额四列在这里只是插入所需的初值，明细行落库后由 convert 的表头回写腿按
+    /// 内核重算的各行汇总覆盖（见 ConvertedLineTotals），本函数的报价表头照抄值不作为最终口径。
     fn build_order_from_quotation(
         quotation: &sales_quotation::Model,
         user_id: i32,
@@ -187,13 +226,22 @@ impl QuotationConvertService {
         }
     }
 
+    /// 复制报价明细到订单行，行金额一律走 utils tax 内核行级单源。
+    ///
+    /// 入参，items 是报价明细、quotation 是报价单头（税率取本单的 tax_rate 百分数列）、
+    /// order_id 是刚落库的订单 id、txn 是转单事务。
+    /// 出参 ConvertedLineTotals 是本次转出行的四值汇总，传给表头回写腿落 sales_orders 四列。
+    /// 为什么必须经内核，报价行的 discount_amount 是含税口径折扣，而订单行的折扣列是净额口径
+    /// （内核 line_split 用折前净额减折后净额取差），照抄报价列会让订单行的
+    /// subtotal 减 discount_amount 加 tax_amount 与 total_amount 差出一个折扣额，
+    /// 收货、开票、按占比分摊税额的发货腿读这三列时会继承这个缺口。
     async fn copy_quotation_items_to_order<C>(
         items: &[sales_quotation_item::Model],
         quotation: &sales_quotation::Model,
         order_id: i32,
         now: chrono::DateTime<Utc>,
         txn: &C,
-    ) -> Result<(), AppError>
+    ) -> Result<ConvertedLineTotals, AppError>
     where
         C: sea_orm::ConnectionTrait,
     {
@@ -212,6 +260,11 @@ impl QuotationConvertService {
                 .collect()
         };
 
+        // 表头回写的四个累加器，逐行取内核出参相加，不在表头做第二次舍入
+        let mut subtotal_sum = Decimal::ZERO;
+        let mut discount_sum = Decimal::ZERO;
+        let mut tax_sum = Decimal::ZERO;
+        let mut inclusive_sum = Decimal::ZERO;
         for item in items {
             let product = product_map.get(&(item.product_id as i32)).ok_or_else(|| {
                 AppError::validation(format!(
@@ -223,20 +276,33 @@ impl QuotationConvertService {
             let (quantity_meters, quantity_kg) =
                 Self::convert_item_quantity_to_dual_units(item, product)?;
 
-            let subtotal = item.amount;
-            let tax_amount = item.amount_with_tax - item.amount;
+            // 行级五值一律由内核单源产出，含税单价与数量是上游带入事实，
+            // 净额走除法反算、税额取差额、折扣取净额口径差额，本文件不写第二条算式。
+            let split = crate::utils::tax::line_split(
+                item.unit_price_with_tax,
+                item.quantity,
+                item.discount_rate,
+                quotation.tax_rate,
+            );
+            // 入库前逐分钩稽，历史报价行带着正向公式落库的脏三值在这里点名拒绝，
+            // 而不是把不钩稽的行复制进订单继续往下游传。
+            crate::utils::tax::ensure_reconciled(split.deal_net, split.tax, split.deal_inclusive)?;
+            subtotal_sum += split.list_net;
+            discount_sum += split.discount_net;
+            tax_sum += split.tax;
+            inclusive_sum += split.deal_inclusive;
             let new_item = OrderItemActive {
                 id: Default::default(),
                 order_id: Set(order_id),
                 product_id: Set(item.product_id as i32),
                 quantity: Set(item.quantity),
-                unit_price: Set(item.unit_price),
+                unit_price: Set(split.unit_price),
                 discount_percent: Set(item.discount_rate.unwrap_or(Decimal::ZERO)),
                 tax_percent: Set(quotation.tax_rate),
-                subtotal: Set(subtotal),
-                tax_amount: Set(tax_amount),
-                discount_amount: Set(item.discount_amount.unwrap_or(Decimal::ZERO)),
-                total_amount: Set(item.amount_with_tax),
+                subtotal: Set(split.list_net),
+                tax_amount: Set(split.tax),
+                discount_amount: Set(split.discount_net),
+                total_amount: Set(split.deal_inclusive),
                 shipped_quantity: Set(Decimal::ZERO),
                 notes: Set(item.notes.clone()),
                 created_at: Set(now),
@@ -253,7 +319,7 @@ impl QuotationConvertService {
                 width: Set(product.width),
                 batch_requirement: Set(None),
                 dye_lot_requirement: Set(None),
-                base_price: Set(Some(item.unit_price)),
+                base_price: Set(Some(split.unit_price)),
                 color_extra_cost: Set(Decimal::ZERO),
                 grade_price_diff: Set(Decimal::ZERO),
                 final_price: Set(Some(item.unit_price_with_tax)),
@@ -271,7 +337,12 @@ impl QuotationConvertService {
             };
             new_item.insert(txn).await?;
         }
-        Ok(())
+        Ok(ConvertedLineTotals {
+            subtotal: subtotal_sum.round_dp(2),
+            discount_amount: discount_sum.round_dp(2),
+            tax_amount: tax_sum.round_dp(2),
+            total_amount: inclusive_sum.round_dp(2),
+        })
     }
 
     /// 报价行交易单位 → 换算策略（对应 dual_unit_converter 的换算函数选择）。

@@ -297,6 +297,59 @@ pub fn unit_price_matches(submitted: Decimal, derived: Decimal) -> bool {
     (submitted - derived).abs() <= UNIT_PRICE_TOLERANCE
 }
 
+/// 票面两值钩稽门，含税额与税额同为票面抄录事实时，税额不得超过含税额且必须同号。
+///
+/// 入参，inclusive 是价税合计（含税事实）、tax 是票面税额、doc_label 是单据名（进文案点名）。
+/// 出参 Ok 表示两值可以构成一张票（净额取差额后非负且同号）；违背即
+/// AppError::business_displayable（点名两个值，属数据自身不钩稽，不是缺键，
+/// 与本模块 [`ensure_reconciled`] 同族同码 BUSINESS_ERROR）。
+/// 传给谁，应付手工建单腿（services/ap_invoice_ops/crud.rs 的 create_manual）与
+/// 本模块 [`net_from_inclusive_and_tax`]。
+/// 为什么需要它，ap_invoice 只有 amount（含税应付额）与 tax_amount 两列、没有净额列，
+/// 税额超过含税额等于净额为负，红字票则两值同为负，判定必须按绝对值与同号两条走，
+/// 不能简单写「税额 小于等于 含税额」把红字票一并拦死。
+pub fn ensure_tax_within_inclusive(
+    inclusive: Decimal,
+    tax: Decimal,
+    doc_label: &str,
+) -> Result<(), AppError> {
+    if inclusive.is_sign_negative() != tax.is_sign_negative()
+        && !tax.is_zero()
+        && !inclusive.is_zero()
+    {
+        return Err(AppError::business_displayable(format!(
+            "{doc_label}票面税额 {tax} 与价税合计 {inclusive} 正负号相反，红字票须两值同为负、蓝字票须同为正，请核对票面后重新录入",
+        )));
+    }
+    if tax.abs() > inclusive.abs() {
+        return Err(AppError::business_displayable(format!(
+            "{doc_label}票面税额 {tax} 的绝对值超过价税合计 {inclusive}，不含税净额会算成负数，请核对票面后重新录入",
+        )));
+    }
+    Ok(())
+}
+
+/// 票面两值腿的净额取法，净额是含税减税额的差额（不做第二次舍入，也不乘任何税率）。
+///
+/// 入参，inclusive_raw 是价税合计（含税事实，允许带超过 2 位的原始值，本函数先收敛到分）、
+/// tax_raw 是票面税额、doc_label 是单据名（进文案点名）。
+/// 出参是 2 位小数的不含税净额，且 `净额 + 税额 == 含税` 由构造逐分成立；
+/// 两值不钩稽时由 [`ensure_tax_within_inclusive`] 点名拒绝。
+/// 传给谁，财务发票建单腿（services/finance_invoice_service.rs 的 create_invoice），
+/// 前端同源算法见 frontend/src/utils/money.ts 的 netFromInclusiveAndTax。
+/// 为什么在本模块，发票票面给出的是「金额、税额、价税合计」三个数，其中净额是派生值；
+/// 让调用方各自写减法会出现一侧先舍一侧后舍的 1 分差，收敛成一枚函数后只有一处可改。
+pub fn net_from_inclusive_and_tax(
+    inclusive_raw: Decimal,
+    tax_raw: Decimal,
+    doc_label: &str,
+) -> Result<Decimal, AppError> {
+    let inclusive = inclusive_raw.round_dp(2);
+    let tax = tax_raw.round_dp(2);
+    ensure_tax_within_inclusive(inclusive, tax, doc_label)?;
+    Ok(inclusive - tax)
+}
+
 /// 从单据上已记录的税额与对应不含税基**观察**适用税率（百分数）。
 ///
 /// 入参，tax_amount 为该单据已落库的税额、base 为同单据对应不含税基。
