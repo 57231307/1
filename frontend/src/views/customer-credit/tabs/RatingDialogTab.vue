@@ -47,7 +47,8 @@
           inputmode="decimal"
           style="width: 100%"
           @change="
-            v => (form.creditScore = bindNullableNumeric(v, form.creditScore, { min: 0, max: 100 }))
+            (v: string | number) =>
+              (form.creditScore = bindNullableNumeric(v, form.creditScore, { min: 0, max: 100 }))
           "
         />
       </el-form-item>
@@ -57,7 +58,7 @@
           inputmode="decimal"
           style="width: 100%"
           @change="
-            v =>
+            (v: string | number) =>
               (form.creditLimit = bindNullableNumeric(v, form.creditLimit, {
                 min: 0,
                 precision: 2,
@@ -70,7 +71,10 @@
           :model-value="numericView(form.creditDays)"
           inputmode="numeric"
           style="width: 100%"
-          @change="v => (form.creditDays = bindNullableNumeric(v, form.creditDays, { min: 0 }))"
+          @change="
+            (v: string | number) =>
+              (form.creditDays = bindNullableNumeric(v, form.creditDays, { min: 0 }))
+          "
         />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.remark')" prop="remark">
