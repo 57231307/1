@@ -138,23 +138,11 @@
         <h4 class="paper-subtitle">{{ t('printTargets.paper.documentTitle') }}</h4>
         <el-form label-width="auto">
           <el-form-item :label="t('printTargets.paper.width')">
-            <el-input-number
-              v-model="documentPaper.widthMm"
-              :min="20"
-              :max="1000"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="documentPaper.widthMm" :min="20" :max="1000" class="paper-number" />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.height')">
-            <el-input-number
-              v-model="documentPaper.heightMm"
-              :min="0"
-              :max="1000"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="documentPaper.heightMm" :min="0" :max="1000" class="paper-number" />
             <span class="paper-unit">mm</span>
             <span class="paper-hint">{{ t('printTargets.paper.heightHint') }}</span>
           </el-form-item>
@@ -174,23 +162,11 @@
         <h4 class="paper-subtitle">{{ t('printTargets.paper.labelTitle') }}</h4>
         <el-form label-width="auto">
           <el-form-item :label="t('printTargets.paper.width')">
-            <el-input-number
-              v-model="labelPaper.widthMm"
-              :min="20"
-              :max="300"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="labelPaper.widthMm" :min="20" :max="300" class="paper-number" />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.height')">
-            <el-input-number
-              v-model="labelPaper.heightMm"
-              :min="10"
-              :max="300"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="labelPaper.heightMm" :min="10" :max="300" class="paper-number" />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.orientation')">
@@ -442,6 +418,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { Plus, Refresh, Setting } from '@element-plus/icons-vue';
 import { isDialogDismissal } from '@/utils/monitor';
 import { bindNumeric, numericView } from '@/utils/number-input';
+import NumericInput from '@/components/NumericInput.vue';
 import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
 import { PERMISSIONS } from '@/constants/permissions';
