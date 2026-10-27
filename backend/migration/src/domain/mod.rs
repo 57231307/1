@@ -68,6 +68,11 @@
 //! - customers_nullable_columns_norm: customers 的 status/payment_terms 两列可空无默认 →
 //!   回填成文缺省（'active' / 30）+ SET DEFAULT + SET NOT NULL，与模型非 Option 对齐；
 //!   置于链尾为新的顶层条目，复用库上也必然执行（并入已应用的 system 域会被台账跳过）
+//! - export_approval_lifecycle: 导出审批令牌生命周期改造域（export_approval_request 补
+//!   BPM 关联/令牌哈希化/重试窗口列 + status CHECK 扩 consumed、exhausted + 登记
+//!   export_approval BPM 流程定义行；依赖 system 建的 bpm_process_definition 与
+//!   bpm_process_instance 与 users/roles、v15 建的 export_approval_request 与
+//!   download_token 等既有列，故必须排全链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -104,3 +109,4 @@ pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
+pub mod export_approval_lifecycle;

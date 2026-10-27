@@ -13,7 +13,8 @@
 //!   → customer_credit_name_backfill → customer_credit_remark_column
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
-//!   → customers_nullable_columns_norm
+//!   → customers_nullable_columns_norm → status_vocab_check → wage_energy_vocab_check
+//!   → export_approval_lifecycle
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -116,6 +117,16 @@
 //!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
 //!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
 //!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
+//! 23. export_approval_lifecycle: 导出审批令牌生命周期改造域（m0105）——给
+//!    export_approval_request 幂等加 token_hash/token_fingerprint/token_viewed/retry_count/
+//!    last_attempt_at/max_retries/token_consumed/token_consumed_at/bpm_instance_id 九列 +
+//!    bpm_instance_id 外键指向 bpm_process_instance(ON DELETE SET NULL) + token_hash 部分唯一
+//!    索引；status CHECK 以同约束名扩 consumed、exhausted 两终态；向 bpm_process_definition
+//!    登记 code=export_approval 的 ACTIVE 流程定义（按 risk_level 走一级或二级，审批人锚点取
+//!    admin 角色最小启用用户，系统未初始化时跳过不造值）。迁移内绝不 UPDATE/DELETE 历史明文令牌，
+//!    老行按 token_expires_at 自然过期、校验侧对 token_hash IS NULL 回退明文比对。依赖 system
+//!    建的 bpm_process_definition/bpm_process_instance/users/roles 与 finance 建并 v15 扩展的
+//!    export_approval_request 全部早于本域；置于全链尾为新的顶层条目，复用库上必然执行。
 
 pub use sea_orm_migration::prelude::*;
 
@@ -162,6 +173,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customers_nullable_columns_norm::Migration),
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
+            Box::new(domain::export_approval_lifecycle::Migration),
         ]
     }
 }
