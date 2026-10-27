@@ -6,11 +6,14 @@
 // rule 供 el-form 规则表或 el-form-item rules 使用 校验对象是数值模型本身
 // watch 模型被外部改写（对话框回填 resetFields 编辑回显）时自动清草稿 防陈旧输入残留
 // validateNumberValue 与 numberFieldRule 单独导出 供提交前手工守门与行内单元格复用
+// 返回的桥对象整体包 reactive 代理 模板里 bridge.text 才会被解包为字符串值
+// （嵌套 ref 不经 reactive 代理时模板不会自动解包 v-model 会绑上 ref 对象本身）
 
 import {
   computed,
   effectScope,
   onScopeDispose,
+  reactive,
   ref,
   toRef,
   watch,
@@ -32,8 +35,8 @@ export interface NumberFieldSpec {
 }
 
 export interface NumberFieldBridge {
-  /** 绑 el-input v-model 的文本形态 */
-  text: WritableComputedRef<string>;
+  /** 绑 el-input v-model 的文本形态（reactive 代理已解包 读写即 computed 的取值与回写） */
+  text: string;
   /** 绑 el-input blur 收敛显示 */
   normalize: () => void;
   /** 进 el-form 规则表或 el-form-item rules */
@@ -135,7 +138,7 @@ export function useNumberField(
   const emptyValue: NumModel = emptyAs === 'undefined' ? undefined : null;
   const draft = ref<string | null>(null);
 
-  const text = computed<string>({
+  const text: WritableComputedRef<string> = computed({
     get: () => draft.value ?? displayNumberText(model.value),
     set: raw => {
       const cleaned = sanitizeNumberText(raw, spec);
@@ -165,7 +168,8 @@ export function useNumberField(
     draft.value = null;
   };
 
-  return { text, normalize, rule: numberFieldRule(spec) };
+  // reactive 代理使模板中 bridge.text 自动解包为字符串 赋值经 computed setter 回写模型
+  return reactive({ text, normalize, rule: numberFieldRule(spec) });
 }
 
 /**
