@@ -346,13 +346,17 @@ test.describe('系统与分析模块全量：API 端点 + 真实 UI 交互', () 
     const resourceIdx = await columnIndex(table, '资源类型');
     const scopeIdx = await columnIndex(table, '权限范围');
     const createdIdx = await columnIndex(table, '创建时间');
-    const targetRow = await rowByText(table, 'customer');
-    expect(await rowCellText(targetRow, resourceIdx), '资源类型列未渲染 resource_type').toBe(
-      'customer'
-    );
-    expect(await rowCellText(targetRow, scopeIdx), '权限范围列未按 scope_type=DEPT 渲染').toBe(
-      '本部门'
-    );
+    // 资源类型列渲染词表标签而非原始 token：customer 经 dataPermission.resourceType.customer
+    // 出「客户」（en 值 Customer），行定位与期望值都按渲染真值的双语形态取
+    const targetRow = await rowByText(table, /客户|Customer/);
+    const resourceCell = await rowCellText(targetRow, resourceIdx);
+    expect(['客户', 'Customer'], `资源类型列非词表渲染值: ${resourceCell}`).toContain(resourceCell);
+    // scope_type=DEPT 经 dataPermission.index.scopeDept 渲染为「本部门」（en 值 Department）
+    const scopeCell = await rowCellText(targetRow, scopeIdx);
+    expect(
+      ['本部门', 'Department'],
+      `权限范围列非 scope_type=DEPT 的词表渲染值: ${scopeCell}`
+    ).toContain(scopeCell);
     expect(await rowCellText(targetRow, createdIdx), '创建时间列未渲染 created_at').not.toBe('');
 
     // 写面入口只在按角色视图且 admin 会话下出现（概览视图收起的判据见 88 拆分回归用例）

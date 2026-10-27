@@ -2,6 +2,7 @@
   SKU 对照表维护页
   - 列表展示 + 筛选
   - 新建/编辑对话框（色号 el-select-v2 虚拟滚动）
+  - 批量添加对话框（多行录入，一次勾多个色号生成多行）
   - 批量导入
   - 按产品过滤后懒加载其色号
 -->
@@ -23,6 +24,14 @@
           @click="importProc.openImportDialog()"
         >
           {{ t('skuMapping.import') }}
+        </el-button>
+        <el-button
+          v-permission="PERMISSIONS.SKU_MAPPING_CREATE"
+          type="primary"
+          plain
+          @click="batchProc.openBatchDialog()"
+        >
+          {{ t('skuMapping.batchAdd') }}
         </el-button>
       </div>
     </div>
@@ -145,6 +154,9 @@
     <!-- 新建/编辑对话框 -->
     <SkuMappingFormDialog :products="list.products.value" :suppliers="list.suppliers.value" />
 
+    <!-- 批量添加对话框（多行录入） -->
+    <SkuMappingBatchDialog :products="list.products.value" :suppliers="list.suppliers.value" />
+
     <!-- 导入对话框 -->
     <SkuMappingImportDialog />
   </div>
@@ -158,17 +170,21 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { isDialogDismissal } from '@/utils/monitor';
 import { useSkuMappingList } from './composables/useSkuMappingList';
 import { useSkuMappingDialog } from './composables/useSkuMappingDialog';
+import { useSkuMappingBatch } from './composables/useSkuMappingBatch';
 import { useSkuMappingImport } from './composables/useSkuMappingImport';
 import SkuMappingFormDialog from './components/SkuMappingFormDialog.vue';
+import SkuMappingBatchDialog from './components/SkuMappingBatchDialog.vue';
 import SkuMappingImportDialog from './components/SkuMappingImportDialog.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
 const list = useSkuMappingList();
 const dialog = useSkuMappingDialog(list.loadData);
+const batchProc = useSkuMappingBatch(list.loadData);
 const importProc = useSkuMappingImport(list.loadData);
 
 provide('skuMappingDialogProc', dialog);
+provide('skuMappingBatchProc', batchProc);
 provide('skuMappingImportProc', importProc);
 
 const confirmDelete = async (id: number) => {

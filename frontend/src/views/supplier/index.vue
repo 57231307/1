@@ -291,6 +291,7 @@ const handlePrint = () => {
   printData({
     title: t('supplier.index.print.title'),
     resourceType: 'supplier',
+    documentKey: 'supplier',
     columns: [
       {
         key: 'supplier_code',

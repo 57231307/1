@@ -2075,6 +2075,39 @@ export async function openScopedDropdown(
 }
 
 /**
+ * 展开一颗 el-select 并返回「本次可见下拉面板内选项」的 Locator，不做选择。
+ *
+ * 为什么需要本函数，el-select 默认 persistent，页面上每颗下拉的选项节点都会常驻
+ * body 下的 teleport 容器（未展开的面板只是隐藏，选项仍在 DOM 里）。页内下拉数量
+ * 一变，用全局选项类名做计数就会把未展开面板的选项一并计入，计数随页面结构漂移。
+ * 本函数把「点开展开，等面板出现，取面板内选项」收进唯一事实源区块，返回的 Locator
+ * 已限定在本次可见的面板内，配合 toHaveCount 与 toContainText 这类自带重试的断言
+ * 即可稳定判定展开态选项的数量与文本，面板刚出现选项尚未渲染完的暂态由重试吸收。
+ *
+ * 契约同本区块头部三条，trigger 必须由调用方以容器作用域构造（如页内某 form 容器
+ * 内的 el-select），本函数不引入任何新的全局选择器；任一步定位失败直接超时抛错
+ * （无静默，不吞成空集合）。
+ *
+ * @param page    用于等 teleport 到 body 的面板
+ * @param trigger 指向 el-select 外层（或其容器）的 Locator，须为容器作用域
+ * @param timeout 单步超时（默认 15_000ms，CI 并发慢）
+ * @returns 本次可见面板内的选项 Locator（el-select 与 el-select-v2 两种类名都覆盖）
+ */
+export async function openSelectDropdownItems(
+  page: Page,
+  trigger: Locator,
+  timeout = 15_000
+): Promise<Locator> {
+  const wrapper = trigger.locator('.el-select__wrapper').first();
+  const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
+  await clickTarget.waitFor({ state: 'visible', timeout });
+  await clickTarget.click({ timeout });
+  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  await dropdown.waitFor({ state: 'visible', timeout });
+  return dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
+}
+
+/**
  * el-select-v2（虚拟滚动 / 本地 filterable）：按精确 label 打开并在虚拟列表面板选目标。
  * 高基数场景 optionText 必传（不整表扫描），走转义子串/正则匹配。
  * EP 2.14.4 下 el-select-v2 与 el-select 共用 select 命名空间（触发区与选项类名同款，
