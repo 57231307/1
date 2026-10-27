@@ -53,6 +53,17 @@ export interface SalesOrderItem {
   discount_rate?: number;
   discount_amount?: number;
   subtotal: number;
+  /**
+   * 后端 SalesOrderItemDetail.total_amount（成交含税额，Decimal 出参为字符串或数值）。
+   * 编辑回显时用于在 final_price 缺值的情况下按「含税成交额 ÷ 数量」除法还原含税单价，
+   * 与后端 utils/tax.rs 的 recover_inclusive_unit_price 同一口径（还原不出就留空要求手输）。
+   */
+  total_amount: number | string;
+  /**
+   * 后端 sales_order_items.final_price（报价转入的含税单价事实，可空）。
+   * 编辑回显含税单价的第一优先来源；NOT NULL 与否以库列为准，本列可空故取 null 联合。
+   */
+  final_price: number | string | null;
   /** 后端出参键为 shipped_quantity（非 delivered_quantity） */
   shipped_quantity: number;
   /**
@@ -89,7 +100,19 @@ export interface SalesOrderQueryParams {
 export interface SalesOrderItemPayload {
   product_id: number;
   quantity: number;
+  /**
+   * 不含税单价（**派生值**）：由含税单价按本行税率除法反算，后端
+   * ensure_unit_price_reconciles 逐分复核，与含税事实不同源即点名拒绝。
+   */
   unit_price: number;
+  /**
+   * 含税单价（录入事实，主输入），以十进制字符串走线（后端 Option&lt;Decimal&gt; 的 visit_str）。
+   * 税率非 0 时必须提交：缺本键时后端只在该行可「按已落库含税额 ÷ 数量」还原时才放行，
+   * 还原不出即拒绝，系统绝不按 `单价 × (1 + 税率)` 代造含税价。
+   */
+  unit_price_with_tax?: string;
+  /** 行级税率（百分数口径，13 表示 13%）：后端 Option&lt;Decimal&gt;，未提交按 0（免税/不含税声明） */
+  tax_percent?: number;
   color_no?: string;
   /** 后端 Option<Decimal> + [0,100] 自定义校验；未填传 null（=走默认解析：品类>全局） */
   quantity_tolerance_pct?: number | null;

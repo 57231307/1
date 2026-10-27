@@ -105,8 +105,10 @@
             <span class="col-product">{{ t('purchase.createDlg.colProduct') }}</span>
             <span class="col-color">{{ t('purchase.createDlg.colColor') }}</span>
             <span class="col-qty">{{ t('purchase.createDlg.colQuantity') }}</span>
-            <span class="col-price">{{ t('purchase.createDlg.colUnitPrice') }}</span>
+            <span class="col-price">{{ t('purchase.createDlg.colUnitPriceWithTax') }}</span>
             <span class="col-tax">{{ t('purchase.createDlg.colTaxRate') }}</span>
+            <span class="col-net-price">{{ t('purchase.createDlg.colNetUnitPrice') }}</span>
+            <span class="col-tax-amount">{{ t('purchase.createDlg.colTaxAmount') }}</span>
             <span class="col-supplier-info">{{ t('purchase.createDlg.colSupplierInfo') }}</span>
             <span class="col-amount">{{ t('purchase.createDlg.colAmount') }}</span>
             <span class="col-action">{{ t('purchase.createDlg.colOperation') }}</span>
@@ -137,12 +139,14 @@
               class="col-qty"
               @change="onCalculateSubtotal(item)"
             />
-            <el-input-number
-              v-model="item.unit_price"
-              :min="0"
-              :precision="2"
+            <!--
+              含税单价是本表唯一的价格主输入（录入事实），用 el-input 承载并靠校验器管范围：
+              禁用带加减号的步进控件是项目硬口径。净额与税额由它按税率除法反算派生，不可手输。
+            -->
+            <el-input
+              v-model="item.unit_price_with_tax"
               class="col-price"
-              :placeholder="t('purchase.createDlg.unitPricePlaceholder')"
+              :placeholder="t('purchase.createDlg.unitPriceWithTaxPlaceholder')"
               @change="onCalculateSubtotal(item)"
             />
             <el-input-number
@@ -152,7 +156,12 @@
               :precision="4"
               :placeholder="t('purchase.createDlg.taxRatePlaceholder')"
               class="col-tax"
+              @change="onCalculateSubtotal(item)"
             />
+            <!-- 不含税单价是派生只读值：含税单价按本行税率除法反算，前端不乘 (1 + 税率) -->
+            <span class="col-net-price">{{ formatDerived(item.unit_price) }}</span>
+            <!-- 税额是派生只读值：含税金额减净额取差额，与后端 utils tax 同一口径 -->
+            <span class="col-tax-amount">{{ formatDerived(item.tax_amount) }}</span>
             <div class="col-supplier-info">
               <template v-if="item.resolved">
                 <span class="resolved-text">
@@ -164,7 +173,7 @@
               </template>
               <span v-else class="resolved-placeholder">--</span>
             </div>
-            <el-input-number v-model="item.subtotal" :precision="2" class="col-amount" readonly />
+            <span class="col-amount">{{ formatDerived(item.subtotal) }}</span>
             <el-button
               v-if="localForm.items.length > 1"
               size="small"
@@ -203,6 +212,7 @@ import type { Product, ProductColor } from '@/api/product';
 import type { Warehouse } from '@/api/warehouse';
 import type { Department } from '@/api/department';
 import { getProductColorList } from '@/api/product';
+import { formatDecimalAmount } from '@/utils/money';
 import type { CreateFormData, CreateItem } from '../composables/useCreate';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -235,6 +245,16 @@ const emit = defineEmits<{
 }>();
 
 const localForm = ref<CreateFormData>(deepClone(props.form));
+
+/**
+ * 派生只读列的展示（不含税单价、税额、净额小计）：
+ * 无值（未填含税单价或未录税率）显示占位符而不是 0，避免把"没算"看成"算得 0"；
+ * 有值走 money.ts 的 formatDecimalAmount 统一千分位与两位小数。
+ * 入参 item.unit_price 与 item.tax_amount、item.subtotal 来自 useCreate 的 calculateSubtotal
+ * 除法反算，只读展示给制单人核对，不提交给后端当权威值（后端按真实税率重算并逐分复核）。
+ */
+const formatDerived = (value: number | undefined): string =>
+  value === undefined ? '--' : formatDecimalAmount(value);
 
 const localFormRef = ref<FormInstance>();
 watch(localFormRef, v => emit('update:formRef', v));
@@ -335,6 +355,8 @@ watch(
 .col-qty,
 .col-price,
 .col-tax,
+.col-net-price,
+.col-tax-amount,
 .col-supplier-info,
 .col-amount {
   flex: none;
@@ -347,8 +369,18 @@ watch(
 .col-qty,
 .col-price,
 .col-tax,
+.col-net-price,
+.col-tax-amount,
 .col-amount {
   width: 100px;
+}
+
+/* 派生只读列（不含税单价、税额、净额小计）：右对齐、不可编辑，缺值显示占位符 */
+.col-net-price,
+.col-tax-amount,
+.col-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .col-supplier-info {
@@ -379,6 +411,8 @@ watch(
   .col-color,
   .col-qty,
   .col-price,
+  .col-net-price,
+  .col-tax-amount,
   .col-amount,
   .col-supplier-info {
     flex: 0 0 100%;

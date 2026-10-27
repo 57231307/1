@@ -1105,16 +1105,20 @@ export default {
       detail: 'Purchase Items',
       colProduct: 'Product',
       colQuantity: 'Quantity',
-      colUnitPrice: 'Unit Price',
+      colUnitPriceWithTax: 'Unit Price with Tax',
+      colNetUnitPrice: 'Net Unit Price',
+      colTaxAmount: 'Tax Amount',
       colTaxRate: 'Tax Rate (%)',
-      unitPricePlaceholder: 'Enter unit price',
+      unitPriceWithTaxPlaceholder: 'Enter unit price with tax',
       unitPriceRequired:
-        'Enter a unit price for each item (enter 0 for samples, free gifts or consignment lines)',
+        'Enter a unit price with tax for each item (enter 0 for samples, free gifts or consignment lines)',
+      unitPriceInvalid:
+        'The unit price with tax must be a number not less than 0, please re-enter it',
       taxRatePlaceholder: 'Percent value, e.g. 13 means 13%',
       taxRateRequired:
         'Enter a tax rate for each item (percent value, e.g. 13 means 13%; enter 0 if no input VAT)',
 
-      colAmount: 'Amount',
+      colAmount: 'Net Amount',
       colOperation: 'Action',
 
       productPlaceholder: 'Select product',

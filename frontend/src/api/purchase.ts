@@ -156,9 +156,18 @@ export interface CreatePurchaseOrderItemPayload {
   quantity_ordered?: number;
   quantity_alt_ordered?: number;
   /**
-   * 行级单价，必填入参、系统不设缺省单价：缺值后端点名拒绝建单，显式提交 0 才是合法声明值
-   * （样布 赠品 寄售行），落库列 purchase_order_item.unit_price 为 NOT NULL DECIMAL。
-   * 前端由建单表单必填校验保证提交前已是数值，初值留空不预填 0。
+   * 行级**含税单价**（价税分离的录入事实，主输入），十进制字符串走线（后端 rust_decimal
+   * 的 visit_str 精确接收）。创建侧必传：税率非 0 而后端缺本键会被
+   * `utils/tax.rs` 的 require_inclusive_unit_price 点名拒绝，服务端不按 `单价 × (1 + 税率)`
+   * 造含税价。落库列 purchase_order_item 无含税单价列，本键只作反算起点，
+   * 净额与税额由后端除法反算后写 unit_price、subtotal、tax_amount、total_amount 列。
+   */
+  unit_price_with_tax: string;
+  /**
+   * 行级单价（**不含税净额，派生值**），必填入参、系统不设缺省单价：缺值后端点名拒绝建单，
+   * 显式提交 0 才是合法声明值（样布 赠品 寄售行），落库列 purchase_order_item.unit_price
+   * 为 NOT NULL DECIMAL。提交值必须与按含税单价反算出的净额单价分位一致，
+   * 后端 ensure_unit_price_reconciles 不符即拒绝（防调用方自己乘了 1 + 税率）。
    */
   unit_price: number;
   /**

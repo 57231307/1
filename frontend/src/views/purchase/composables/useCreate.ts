@@ -8,6 +8,12 @@ import { msg } from '@/utils/message';
 import { createPurchaseOrder } from '@/api/purchase';
 import { resolveSkuMapping } from '@/api/sku-mapping';
 import { i18n } from '@/i18n';
+import {
+  inclusiveAmountFromLine,
+  netFromInclusive,
+  parseDecimalInput,
+  taxFromInclusive,
+} from '@/utils/money';
 import type { Product } from '@/api/product';
 
 /** SKU 对照解析结果（只读展示用） */
@@ -25,17 +31,34 @@ export interface CreateItem {
   color_id: number | null;
   quantity: number;
   /**
-   * 行级单价，undefined 或 null 表示未填写，0 是人工显式声明的合法值（样布 赠品 寄售行）；
-   * 提交前由 items 必填规则拦截未填写行，落库列 purchase_order_item.unit_price（NOT NULL）。
+   * 行级**含税单价**（价税分离的录入事实，本表唯一价格主输入）：保存输入框原文，
+   * 空串表示未填写，'0' 是人工显式声明的合法值（样布 赠品 寄售行）；
+   * 提交前由 items 必填规则经 parseDecimalInput 拦截未填写与非法文本，
+   * 非 0 税率行缺本键后端点名拒绝建单（utils/tax.rs 的 require_inclusive_unit_price，
+   * 系统不乘 (1 + 税率) 代造含税价）。
    * 初值留空而不是 0：把未填预置成 0 会让"漏录单价"与"声明 0 价"在进项与成本台账里不可区分。
    */
+  unit_price_with_tax: string;
+  /**
+   * 行级**不含税单价**（派生只读）：由含税单价按本行税率除法反算
+   * （money.ts 的 netFromInclusive，与后端 utils/tax.rs 同源），不可手输。
+   * 提交时随请求一起上送，后端 ensure_unit_price_reconciles 逐分复核，分位不一致即拒绝。
+   */
   unit_price: number | undefined;
+  /**
+   * 行级**税额预览**（派生只读）：含税金额减净额取差额（money.ts 的 taxFromInclusive），
+   * 只做编辑态展示；落库税额由后端按真实税率反算，前端不参与生成。
+   * 未填含税单价或未录税率时为 undefined（无值），不预置 0 冒充算得的税额。
+   */
+  tax_amount: number | undefined;
   /**
    * 行级税率（百分数口径，13 表示 13%），undefined/null=未填写，0=显式"无进项票"为合法提交值，
    * 提交前由 items 必填规则拦截未填写行，落库列 purchase_order_item.tax_percent（NOT NULL）。
    */
   tax_rate: number | undefined;
-  subtotal: number;
+  /** 行级净额小计（派生只读）：含税金额聚合后按税率除法反算，与后端 subtotal 列同口径；
+   *  未填含税单价或未录税率时为 undefined（无值），不预置 0 冒充算得的净额 */
+  subtotal: number | undefined;
   /** 交货容差百分比（undefined=未填，提交时转为 null） */
   quantity_tolerance_pct: number | undefined;
   /** resolveSkuMapping 成功后的只读信息 */
@@ -64,11 +87,14 @@ const defaultItem = (): CreateItem => ({
   product_id: undefined,
   color_id: null,
   quantity: 1,
-  // 单价不预填 0，新建时留空由人工填写（0 只能由人工显式敲出）
+  // 含税单价不预填 0，新建时留空由人工填写（0 只能由人工显式敲出）
+  unit_price_with_tax: '',
+  // 不含税单价、税额与小计是派生列，未填含税单价或未录税率时保持"无值"，不预置 0 冒充算得
   unit_price: undefined,
+  tax_amount: undefined,
   // 税率不预填任何档位，新建时留空由人工填写（无默认 13 之类硬编）
   tax_rate: undefined,
-  subtotal: 0,
+  subtotal: undefined,
   quantity_tolerance_pct: undefined,
   resolved: null,
 });
@@ -110,14 +136,22 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
     ],
     items: [
       {
-        // 行级单价与税率就地必填校验（不靠后端 400 兜回），口径与 submitCreate 的 validItems 一致，
-        // 仅对已选产品且有数量的行要求；0 是合法值，只有 undefined/null 才算未填。
-        // 先点名单价再点名税率：漏录单价是本表最容易被当成"已填 0"的一列，提示要指名。
+        // 行级含税单价与税率就地必填校验（不靠后端 400 兜回），口径与 submitCreate 的 validItems 一致，
+        // 仅对已选产品且有数量的行要求；0 是合法值，只有未填写才算缺。
+        // 先点名单价再点名税率：漏录含税单价是本表最容易被当成"已填 0"的一列，提示要指名。
         validator: (_rule: unknown, value: CreateItem[], cb: (error?: Error) => void) => {
           const filled = value.filter(i => i.product_id && i.quantity > 0);
-          const missingUnitPrice = filled.find(i => i.unit_price == null);
+          const missingUnitPrice = filled.find(i => parseDecimalInput(i.unit_price_with_tax) == null);
           if (missingUnitPrice) {
             cb(new Error(i18n.global.t('purchase.createDlg.unitPriceRequired')));
+            return;
+          }
+          const invalidUnitPrice = filled.find(i => {
+            const parsed = parseDecimalInput(i.unit_price_with_tax);
+            return parsed !== undefined && (!Number.isFinite(parsed) || parsed < 0);
+          });
+          if (invalidUnitPrice) {
+            cb(new Error(i18n.global.t('purchase.createDlg.unitPriceInvalid')));
             return;
           }
           const missingTaxRate = filled.find(i => i.tax_rate == null);
@@ -158,13 +192,14 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   };
 
   /**
-   * 选择产品时带出物料参考价填入单价，清空色号相关
+   * 选择产品时带出物料参考价填入**含税单价**（本表唯一价格主输入），清空色号相关
    * 物料无参考价就留空（交 items 必填校验拦），不补 0：补 0 等于替用户声明这是一张 0 价行
    */
   const handleProductSelect = (index: number) => {
     const product = products().find(p => p.id === createForm.value.items[index].product_id);
     if (product) {
-      createForm.value.items[index].unit_price = product.price ?? undefined;
+      createForm.value.items[index].unit_price_with_tax =
+        product.price == null ? '' : String(product.price);
       calculateSubtotal(createForm.value.items[index]);
     }
     // 换产品时清色号和已解析映射
@@ -196,14 +231,12 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           supplier_color_no: m.supplier_color_no ?? '',
           supplier_price: m.supplier_price,
         };
-        // 默认单价取协议价，允许现谈覆盖；协议价取不到有限数值就保持留空，
+        // 默认含税单价取协议价（Decimal 十进制字符串原样带出，不做 float 往返），
+        // 允许现谈覆盖；协议价取不到可解析的数值就保持留空，
         // 由 items 必填校验拦，不静默补 0（显式 0 只能由人工敲）
-        if (m.supplier_price != null) {
-          const mappedPrice = Number(m.supplier_price);
-          if (Number.isFinite(mappedPrice)) {
-            item.unit_price = mappedPrice;
-            calculateSubtotal(item);
-          }
+        if (m.supplier_price != null && Number.isFinite(Number(m.supplier_price))) {
+          item.unit_price_with_tax = m.supplier_price;
+          calculateSubtotal(item);
         }
       }
     } catch (error: unknown) {
@@ -235,14 +268,35 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   };
 
   /**
-   * 重算小计金额
+   * 重算派生列（含税单价是录入事实，净额与税额一律除法反算取差额）：
+   * - 含税金额 = 含税单价 × 数量（inclusiveAmountFromLine，税率不进算式，不构成造含税）
+   * - 不含税单价与净额小计 = 含税值 ÷ (1 + 税率% ÷ 100) 四舍五入到分（netFromInclusive）
+   * - 税额 = 含税金额 − 净额小计（taxFromInclusive 取差额，与后端 utils tax 同一口径，
+   *   不做第二次独立舍入，恒等式 净额 + 税额 == 含税 逐分成立）
+   * 未填含税单价或未录税率时派生列回到无值：不猜档位、不补 0，缺值由 items 必填校验点名。
    */
   const calculateSubtotal = (item: CreateItem) => {
-    item.subtotal = (item.quantity || 0) * (item.unit_price || 0);
+    const inclusiveUnit = parseDecimalInput(item.unit_price_with_tax);
+    if (inclusiveUnit === undefined || !Number.isFinite(inclusiveUnit) || inclusiveUnit < 0) {
+      item.unit_price = undefined;
+      item.tax_amount = undefined;
+      item.subtotal = undefined;
+      return;
+    }
+    if (item.tax_rate === undefined || item.tax_rate === null) {
+      item.unit_price = undefined;
+      item.tax_amount = undefined;
+      item.subtotal = undefined;
+      return;
+    }
+    const inclusiveLine = inclusiveAmountFromLine(inclusiveUnit, item.quantity);
+    item.unit_price = netFromInclusive(inclusiveUnit, item.tax_rate);
+    item.subtotal = netFromInclusive(inclusiveLine, item.tax_rate);
+    item.tax_amount = taxFromInclusive(inclusiveLine, item.tax_rate);
   };
 
   /**
-   * 计算总金额
+   * 计算总金额（净额口径合计，派生列缺值按 0 计入合计，不改动行上的无值语义）
    */
   const calculateTotal = () => {
     return createForm.value.items.reduce(
@@ -301,8 +355,11 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
           line_no: idx + 1,
           material_id: item.product_id!,
           quantity_ordered: item.quantity,
-          // unit_price 已由上方 items 必填校验保证为数值（0 为人工显式声明的合法值），
-          // ! 仅收敛类型不设默认
+          // 含税单价是录入事实（主输入），按十进制字符串走线原样上送；
+          // items 必填校验已保证它是可解析的非负数值，缺值与非法文本走不到这里
+          unit_price_with_tax: item.unit_price_with_tax,
+          // unit_price 是上面 calculateSubtotal 由含税单价除法反算出的派生只读值，
+          // 后端 ensure_unit_price_reconciles 会逐分复核，与含税事实不同源即拒绝建单
           unit_price: item.unit_price!,
           // tax_rate 已由上方 items 必填校验保证为数值（0 为合法提交值），! 仅收敛类型不设默认
           tax_rate: item.tax_rate!,

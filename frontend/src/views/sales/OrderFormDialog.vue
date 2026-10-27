@@ -141,20 +141,53 @@
             </template>
           </el-table-column>
           <el-table-column prop="unit" :label="t('sales.orderForm.unit')" width="80" />
-          <el-table-column prop="unit_price" :label="t('sales.orderForm.unitPrice')" width="120">
+          <el-table-column
+            prop="unit_price_with_tax"
+            :label="t('sales.orderForm.unitPriceWithTax')"
+            width="130"
+          >
             <template #default="{ row }">
-              <el-input-number
-                v-model="row.unit_price"
-                :min="0"
-                :precision="2"
+              <!--
+                含税单价是本表唯一的价格主输入（录入事实），用 el-input 承载、靠校验器管范围：
+                带加减号的步进控件是全项目禁项。不含税单价与税额由它按税率除法反算，只读不可手输。
+              -->
+              <el-input
+                v-model="row.unit_price_with_tax"
                 size="small"
+                :placeholder="t('sales.orderForm.unitPriceWithTaxPlaceholder')"
                 @change="() => calculateSubtotal(row)"
               />
             </template>
           </el-table-column>
+          <el-table-column
+            prop="tax_percent"
+            :label="t('sales.orderForm.taxPercent')"
+            width="110"
+          >
+            <template #default="{ row }">
+              <el-input
+                v-model.number="row.tax_percent"
+                size="small"
+                :placeholder="t('sales.orderForm.taxPercentPlaceholder')"
+                @change="() => calculateSubtotal(row)"
+              />
+            </template>
+          </el-table-column>
+          <!-- 不含税单价是派生只读列：含税单价按本行税率除法反算，前端绝不乘 (1 + 税率) 造含税 -->
+          <el-table-column prop="unit_price" :label="t('sales.orderForm.unitPrice')" width="120">
+            <template #default="{ row }">
+              <span class="amount">{{ formatDerived(row.unit_price) }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="subtotal" :label="t('sales.orderForm.subtotal')" width="120">
             <template #default="{ row }">
-              <span class="amount">¥{{ (row.subtotal || 0).toLocaleString() }}</span>
+              <span class="amount">{{ formatDerived(row.subtotal) }}</span>
+            </template>
+          </el-table-column>
+          <!-- 税额是派生只读列：含税成交额减不含税小计取差额，与后端 utils tax 同一口径 -->
+          <el-table-column :label="t('sales.orderForm.taxAmount')" width="110">
+            <template #default="{ row }">
+              <span class="amount">{{ formatDerived(row.tax_amount) }}</span>
             </template>
           </el-table-column>
           <el-table-column :label="t('sales.orderForm.tolerance')" width="140">
@@ -192,15 +225,20 @@
           :placeholder="t('sales.orderForm.remarkPlaceholder')"
         />
       </el-form-item>
+      <!--
+        本表单的价税方向与后端 utils/tax.rs 与前端 money.ts 单源一致：含税单价是录入事实（主输入），
+        不含税单价、不含税小计与税额都是逐行派生只读列（除法反算 + 取差额），
+        表单内不存在任何「× 税率」造税额或「× (1 + 税率)」造含税的算式。
+        上面的合计是**不含税净额合计**；成交含税额与税额的权威值仍由后端按真实 tax_rate
+        反算回传，展示见 OrderViewDialog 的详情。
+      -->
       <el-row :gutter="20">
         <el-col :span="8">
           <el-form-item :label="t('sales.orderForm.orderTotal')">
-            <div class="total-amount">¥{{ calculateTotal().toLocaleString() }}</div>
+            <div class="total-amount">¥{{ formatDerived(calculateTotal()) }}</div>
           </el-form-item>
         </el-col>
       </el-row>
-      <!-- 税额与含税总额不在建单表单里由前端乘税率造出：本表单不采集税率档位，
-           价税分离一律由后端按真实 tax_rate 除法反算回传，见 OrderViewDialog 的详情展示 -->
     </el-form>
     <template #footer>
       <el-button @click="emit('update:visible', false)">{{
@@ -224,6 +262,13 @@ import type { Customer } from '@/api/customer';
 import { getProductColorList, type Product } from '@/api/product';
 import type { ProductColor } from '@/api/product';
 import { logger } from '@/utils/logger';
+import {
+  formatDecimalAmount,
+  inclusiveAmountFromLine,
+  netFromInclusive,
+  parseDecimalInput,
+  taxFromInclusive,
+} from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -236,8 +281,19 @@ interface OrderItemForm {
   color_no: string;
   quantity: number;
   unit: string;
+  /**
+   * 含税单价（录入事实，本表唯一价格主输入）：输入框原文，空串=未填，'0'=显式 0 价行。
+   * 税率非 0 时后端要求本值（仅可还原的历史行能免提交），系统不按税率代造含税价。
+   */
+  unit_price_with_tax: string;
+  /** 税率（百分数口径，13 表示 13%）：undefined 或非法文本按未填处理，后端视为 0 = 不含税/免税 */
+  tax_percent: number | undefined;
+  /** 不含税单价（派生只读）：含税单价按税率除法反算 */
   unit_price: number;
+  /** 不含税小计（派生只读）：含税成交额按税率除法反算 */
   subtotal: number;
+  /** 税额（派生只读）：含税成交额 − 不含税小计 取差额 */
+  tax_amount: number | undefined;
   /** 交货容差百分比（undefined=未填，提交时转为 null） */
   quantity_tolerance_pct: number | undefined;
 }
@@ -360,16 +416,55 @@ const handleProductSelect = async (index: number, productId: number) => {
   if (product) {
     row.product_name = product.product_name;
     row.product_code = product.product_code;
-    row.unit_price = product.price || 0;
+    // 产品参考价带进**含税单价**主输入列（可现谈覆盖）；无参考价就留空，
+    // 不补 0、不乘税率：带出只是建议值，含税口径由制单人确认
+    row.unit_price_with_tax = product.price == null ? '' : String(product.price);
     calculateSubtotal(row);
   }
   await ensureColorOptions(row.product_id);
 };
 
+/**
+ * 派生列重算（方向口径与后端 utils/tax.rs 与前端 money.ts 单源完全一致）：
+ * - 含税成交额 = 含税单价 × 数量（含税事实的聚合，税率不进此乘法）
+ * - 不含税单价与不含税小计 = 含税值 ÷ (1 + 税率% ÷ 100) 四舍五入到分（除法反算）
+ * - 税额 = 含税成交额 − 不含税小计 取差额（不做第二次独立舍入，恒等式逐分成立）
+ * 入参 item 是本表一行；出参写回 item.unit_price、item.subtotal、item.tax_amount 三个只读列。
+ * 未填含税单价或税率非法（parseDecimalInput 出 NaN/undefined）时派生列回到无值：
+ * 不猜税率档位、不补 0 冒充算得，缺值由 handleSubmit 的行有效性判定拦下。
+ */
 const calculateSubtotal = (item: OrderItemForm) => {
-  item.subtotal = (item.quantity || 0) * (item.unit_price || 0);
+  const inclusiveUnit = parseDecimalInput(item.unit_price_with_tax);
+  const taxPercent = item.tax_percent;
+  const usableRate =
+    taxPercent === undefined || !Number.isFinite(taxPercent) || taxPercent < 0
+      ? undefined
+      : taxPercent;
+  if (
+    inclusiveUnit === undefined ||
+    !Number.isFinite(inclusiveUnit) ||
+    inclusiveUnit < 0 ||
+    usableRate === undefined
+  ) {
+    item.unit_price = 0;
+    item.subtotal = 0;
+    item.tax_amount = undefined;
+    return;
+  }
+  const lineInclusive = inclusiveAmountFromLine(inclusiveUnit, item.quantity);
+  item.unit_price = netFromInclusive(inclusiveUnit, usableRate);
+  item.subtotal = netFromInclusive(lineInclusive, usableRate);
+  item.tax_amount = taxFromInclusive(lineInclusive, usableRate);
 };
 
+/** 派生只读列展示：无值显示占位符而不是 0，避免把"没算"看成"算得 0" */
+const formatDerived = (value: number | undefined): string =>
+  value === undefined ? '--' : formatDecimalAmount(value);
+
+/**
+ * 合计（不含税净额口径）：只累加已算得的派生小计，缺值行按 0 计入合计，
+ * 与后端表头汇总一致；含税合计与税额合计不在这里乘税率造出来。
+ */
 const calculateTotal = () => {
   return localData.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
 };
@@ -383,8 +478,13 @@ const addItem = () => {
     color_no: '',
     quantity: 1,
     unit: t('sales.orderForm.defaultUnit'),
+    // 含税单价留空由人工填写（0 只能由人工显式敲出），税率不预填任何档位
+    unit_price_with_tax: '',
+    tax_percent: undefined,
+    // 三个派生列在无录入值时为无值状态，不预置 0 冒充算得
     unit_price: 0,
     subtotal: 0,
+    tax_amount: undefined,
     quantity_tolerance_pct: undefined,
   });
 };
@@ -401,9 +501,25 @@ const handleSubmit = async () => {
   if (!formRef.value) return;
   try {
     await formRef.value.validate();
-    const validItems = localData.items.filter(
-      item => item.product_id && item.quantity > 0 && item.unit_price > 0
+    // 有效行判据：已选产品且有数量。含税单价与税率的缺失/非法不再"静默丢行"，
+    // 而是点名拦下——丢行会让制单人以为下单成功而少行，属金额台账的实缺陷形态。
+    const touched = localData.items.filter(item => item.product_id && item.quantity > 0);
+    const incomplete = touched.find(
+      item => parseDecimalInput(item.unit_price_with_tax) === undefined
     );
+    if (incomplete) {
+      ElMessage.warning(t('sales.orderForm.unitPriceRequired'));
+      return;
+    }
+    const invalidPrice = touched.find(item => {
+      const parsed = parseDecimalInput(item.unit_price_with_tax);
+      return parsed !== undefined && (!Number.isFinite(parsed) || parsed < 0);
+    });
+    if (invalidPrice) {
+      ElMessage.warning(t('sales.orderForm.unitPriceInvalid'));
+      return;
+    }
+    const validItems = touched.filter(item => (item.subtotal || 0) > 0);
     if (validItems.length === 0) {
       ElMessage.warning(t('sales.orderForm.addValidItem'));
       return;

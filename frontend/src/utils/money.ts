@@ -83,3 +83,44 @@ export function roundToCent(value: number): number {
 export function netFromInclusive(inclusive: number, taxPercent: number): number {
   return roundToCent(roundToCent(inclusive) / (1 + taxPercent / 100));
 }
+
+/**
+ * 含税事实的聚合（单价 × 数量），与后端 `utils/tax.rs` 的 `inclusive_amount` 同一算式：
+ * 只含「含税单价 × 数量」这一种乘法，税率不进算式，因此不构成造含税。
+ * 入参，inclusiveUnitPrice 是录入或带入的含税单价事实，quantity 是数量。
+ * 出参是收敛到分的含税金额，传给 [`netFromInclusive`] 与 [`taxFromInclusive`] 做价税分离预览。
+ * 调用方：采购订单建单行、销售订单建单行、退货建单行的含税聚合预览。
+ */
+export function inclusiveAmountFromLine(inclusiveUnitPrice: number, quantity: number): number {
+  return roundToCent((inclusiveUnitPrice || 0) * (quantity || 0));
+}
+
+/**
+ * 税额预览（唯一合法取法：含税减净额的差额），与后端 `utils/tax.rs` 的
+ * `split_from_inclusive` 同一口径——不做第二次舍入，恒等式 净额 + 税额 == 含税 由取法保证。
+ * 入参，inclusive 是含税金额（或含税单价）事实，taxPercent 是百分数口径税率。
+ * 出参是税额预览值；0 税率时净额即含税额、税额为 0，函数内无税率分支。
+ * 调用方：各录入腿的税额只读派生展示；绝不写 `净额 × 税率` 造税额。
+ * 落库权威值仍由后端按真实 tax_rate 反算，本函数仅供编辑态预览与钩稽展示。
+ */
+export function taxFromInclusive(inclusive: number, taxPercent: number): number {
+  const inclusiveCent = roundToCent(inclusive);
+  return roundToCent(inclusiveCent - netFromInclusive(inclusiveCent, taxPercent));
+}
+
+/**
+ * 数字录入解析（输入框原文 → 数值），供 el-input 承载金额与税率录入时的校验腿使用。
+ * 空串与纯空白表示「未填写」，返回 undefined；非数字原文返回 NaN，由调用方在校验器里
+ * 点名拒绝——本函数不返回 0、不吞成默认值：把「漏录」与「显式声明 0」混成同一个数，
+ * 正是进项与成本台账里无法分辨两者的既成缺陷形态。
+ * 入参，raw 是输入框原文（string，兼容 undefined/null）。
+ * 出参是数值、undefined（未填）或 NaN（非法文本）。
+ * 传给谁：调用方据此判定必填与合法性，合法时再进 netFromInclusive 等派生算式。
+ * 调用方：采购订单建单行、销售订单建单行、销售退货与采购退货建单行的含税单价与税率录入腿。
+ */
+export function parseDecimalInput(raw: string | undefined | null): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed === '') return undefined;
+  return Number(trimmed);
+}

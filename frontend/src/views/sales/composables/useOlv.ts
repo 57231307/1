@@ -22,6 +22,7 @@ import {
 import { getWarehouseList } from '@/api/warehouse';
 import { msg } from '@/utils/message';
 import { toLocalDateString } from '@/utils';
+import { decimalWireToNumber, roundToCent } from '@/utils/money';
 import type { Customer } from '@/api/customer';
 import type { Product } from '@/api/product';
 import { getStatusType, getStatusText, formatAmount } from './olvFmts';
@@ -63,6 +64,27 @@ export const stockRowKey = (row: Pick<InventoryStock, 'color_no' | 'batch_no' | 
 export const deliveryPiecesKey = (item: Pick<DeliveryItemForm, 'product_id' | 'stock_row_key'>) =>
   `${item.product_id}__${item.stock_row_key}`;
 
+/**
+ * 编辑回显的含税单价原文（价税分离的录入事实，主输入列）。
+ * 取法只有两条合法腿，与后端 utils/tax.rs 完全同源：
+ * 1. 后端 sales_order_items.final_price 有值（报价转入的含税单价事实）→ 原样带出；
+ * 2. 缺 final_price 且本行**无折扣**时，按已落库成交含税额 ÷ 数量做除法还原
+ *    （recover_inclusive_unit_price 的同一口径）；
+ * 3. 本行有折扣或数量为 0 时还原不出标价含税单价，返回空串要求人工录入——
+ *    绝不用「不含税单价 × (1 + 税率)」倒造一个含税价。
+ * 入参，it 是详情回显的订单行。出参是含税单价输入框原文（空串 = 未填）。
+ * 传给谁：prepareEdit 的行映射，写入 OrderItemForm.unit_price_with_tax。
+ */
+const recoverInclusiveUnitPriceText = (it: SalesOrderItem): string => {
+  if (it.final_price !== null && it.final_price !== undefined) {
+    return String(it.final_price);
+  }
+  const quantity = decimalWireToNumber(it.quantity);
+  const discount = decimalWireToNumber(it.discount_amount ?? 0);
+  if (discount !== 0 || quantity <= 0) return '';
+  return String(roundToCent(decimalWireToNumber(it.total_amount) / quantity));
+};
+
 /** 销售订单明细行表单类型 */
 export interface OrderItemForm {
   id: number;
@@ -73,8 +95,21 @@ export interface OrderItemForm {
   color_no: string;
   quantity: number;
   unit: string;
+  /**
+   * 含税单价（录入事实，主输入列）：输入框原文，空串=未填，'0'=人工显式声明的 0 价行。
+   * 税率非 0 时后端要求本值（缺值只在可还原的历史行上放行），系统不乘 (1 + 税率) 代造。
+   */
+  unit_price_with_tax: string;
+  /** 税率（百分数口径，13 表示 13%）：undefined=未填（后端按 0 = 不含税/免税声明处理） */
+  tax_percent: number | undefined;
+  /**
+   * 不含税单价（派生只读）：由含税单价按本行税率除法反算，落 sales_order_item.unit_price 列。
+   */
   unit_price: number;
+  /** 不含税小计（派生只读）：含税成交额反算净额，与后端 subtotal 列同口径 */
   subtotal: number;
+  /** 税额（派生只读）：含税成交额 − 不含税小计 取差额，不做第二次舍入 */
+  tax_amount: number | undefined;
   /** 交货容差百分比（undefined=未填，提交时转为 null） */
   quantity_tolerance_pct: number | undefined;
 }
@@ -157,8 +192,13 @@ export function useOlv() {
         color_no: '',
         quantity: 1,
         unit: '米',
+        // 含税单价与税率留空由人工填写（0 只能人工显式敲出，税率不预填任何档位）
+        unit_price_with_tax: '',
+        tax_percent: undefined,
+        // 派生列（不含税单价、小计、税额）在无录入值时保持无值，不预置数字冒充算得
         unit_price: 0,
         subtotal: 0,
+        tax_amount: undefined,
         quantity_tolerance_pct: undefined,
       },
     ],
@@ -345,8 +385,11 @@ export function useOlv() {
           color_no: '',
           quantity: 1,
           unit: '米',
+          unit_price_with_tax: '',
+          tax_percent: undefined,
           unit_price: 0,
           subtotal: 0,
+          tax_amount: undefined,
           quantity_tolerance_pct: undefined,
         },
       ],
@@ -375,8 +418,15 @@ export function useOlv() {
         color_no: it.color_no || '',
         quantity: it.quantity,
         unit: it.unit || '',
+        // 含税单价回显只有两条合法腿：报价带入的 final_price 事实，或「成交含税额 ÷ 数量」
+        // 的除法还原（有折扣行还原不出标价含税单价，留空要求人工录入，见上面的取法说明）
+        unit_price_with_tax: recoverInclusiveUnitPriceText(it),
+        // 税率是后端 sales_order_items.tax_percent 的百分数原值（未落值时保持 undefined）
+        tax_percent: it.tax_rate != null ? Number(it.tax_rate) : undefined,
+        // 下面三列是后端权威派生值，回显只读，不接受前端二次计算覆盖
         unit_price: it.unit_price,
         subtotal: it.subtotal,
+        tax_amount: it.tax_amount != null ? Number(it.tax_amount) : undefined,
         // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
         quantity_tolerance_pct:
           it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,
@@ -389,8 +439,11 @@ export function useOlv() {
           color_no: '',
           quantity: 1,
           unit: '米',
+          unit_price_with_tax: '',
+          tax_percent: undefined,
           unit_price: 0,
           subtotal: 0,
+          tax_amount: undefined,
           quantity_tolerance_pct: undefined,
         },
       ],
