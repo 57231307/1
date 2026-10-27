@@ -120,7 +120,7 @@ impl SalesService {
         let opportunity_id = request.opportunity_id;
         let txn = (*self.db).begin().await?;
         let required_date = self.validate_create_preconditions(&request, &txn).await?;
-        let order_amount = Self::calculate_order_amount(&request);
+        let order_amount = Self::calculate_order_amount(&request)?;
         self.check_credit_available(customer_id, &txn, order_amount)
             .await?;
         // 取号与主表 INSERT 统一收口到生成器：pg_advisory_xact_lock 事务内取号
@@ -196,28 +196,24 @@ impl SalesService {
         Ok(request.required_date)
     }
 
-    /// 计算订单金额（纯函数，无 IO）
-    fn calculate_order_amount(request: &CreateSalesOrderRequest) -> rust_decimal::Decimal {
-        let mut order_amount = rust_decimal::Decimal::new(0, 0);
+    /// 计算订单成交含税总额（信用检查与信用占用的基数，纯函数无 IO）
+    ///
+    /// 入参 request 是建单请求，逐行真调 calculate_sales_item_amounts（含税单价是录入
+    /// 事实，净额与税额由内核除法反算取差额）。出参是各行成交含税额 item_total 之和，
+    /// 与落库 sales_order.total_amount 列同一单源同数值。传给谁：create_order 的
+    /// check_credit_available 与 occupy_credit_and_warn。本函数内不存在也不得写入
+    /// `净额 × 税率` 造税额、`净额 + 税额` 拼含税额的正向公式——含税事实只能来自录入。
+    /// 行金额非法（缺含税单价、单价不钩稽）在这里就点名拒绝，整笔请求在建单前中止，
+    /// 不取号、不落库、不占信用。
+    fn calculate_order_amount(
+        request: &CreateSalesOrderRequest,
+    ) -> Result<rust_decimal::Decimal, AppError> {
+        let mut order_amount = rust_decimal::Decimal::ZERO;
         for item in &request.items {
-            let qty = item.quantity;
-            let price = item.unit_price;
-            let discount = item
-                .discount_percent
-                .unwrap_or(rust_decimal::Decimal::new(0, 0));
-            let tax = item.tax_percent.unwrap_or(rust_decimal::Decimal::new(0, 0));
-            let mut subtotal = qty * price;
-            if discount > rust_decimal::Decimal::new(0, 0) {
-                let disc_amt = subtotal * discount / rust_decimal::Decimal::new(100, 0);
-                subtotal -= disc_amt;
-            }
-            if tax > rust_decimal::Decimal::new(0, 0) {
-                let tax_amt = subtotal * tax / rust_decimal::Decimal::new(100, 0);
-                subtotal += tax_amt;
-            }
-            order_amount += subtotal;
+            let amounts = Self::calculate_sales_item_amounts(item)?;
+            order_amount += amounts.item_total;
         }
-        order_amount
+        Ok(order_amount)
     }
 
     /// 信用额度校验：调用 CustomerCreditService 检查可用额度

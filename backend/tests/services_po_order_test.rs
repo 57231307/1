@@ -28,16 +28,20 @@ fn calc_amount(quantity: Decimal, unit_price: Decimal) -> Decimal {
 /// 真调生产路径的单行金额权威函数 PurchaseOrderService::calculate_item_amounts
 /// （创建路径与明细更新路径共用那一份实现）。税额不在本文件另算一套，
 /// 复制出来的第二套公式对生产改口径恒绿，属假锁。
-/// 入参 tax_rate 是百分数口径（13 表示 13%，0 表示无进项税），None 表示未提交。
+/// 入参，quantity 数量、net_unit_price 提交的不含税单价（必须与含税事实反算值钩稽）、
+/// inclusive_unit_price 录入的含税单价事实（价税分离的唯一起点）、
+/// tax_rate 百分数口径（13 表示 13%，0 表示无进项税），None 表示未提交。
 fn authoritative_amounts(
     quantity: Decimal,
-    unit_price: Decimal,
+    net_unit_price: Decimal,
+    inclusive_unit_price: Decimal,
     tax_rate: Option<Decimal>,
 ) -> Result<ItemAmounts, AppError> {
     PurchaseOrderService::calculate_item_amounts(&CreateOrderItemRequest {
         line_no: Some(1),
         material_id: Some(1),
-        unit_price: Some(unit_price),
+        unit_price: Some(net_unit_price),
+        unit_price_with_tax: Some(inclusive_unit_price),
         quantity_ordered: Some(quantity),
         quantity_alt_ordered: None,
         tax_rate,
@@ -92,38 +96,54 @@ fn test_jejs_ljhllcj() {
 
 // ---------- 税额计算（真调生产权威口径，不复制公式） ----------
 
-/// 税率单位口径基线，tax_percent 是**百分数**（13 即 13%），1000 乘 13 除 100 得 130。
-/// 本条直调 utils tax 内核，下方各条真调生产权威函数，二者同一条公式。
+/// 税率单位口径基线，tax_percent 是**百分数**（13 即 13%）：含税事实 1130 按 13%
+/// 除法反算得净额 1000、差额税额 130。若调用方误按小数口径把 13 当 0.13% 处理，
+/// 反算得 1130 ÷ 1.0013 = 1128.53、税额 1.47，与本条钉死值差百倍，据此锁死口径。
+/// 税额只允许「含税 − 净额」的差额取法，本文件不存在也不得写入乘税率公式。
+/// 本条直调 utils tax 内核，下方各条真调生产权威函数，二者同一条反算腿。
 #[test]
 fn test_sejs_bfskw() {
+    let split = tax::split_from_inclusive(decs!("1130"), decs!("13"));
+    assert_eq!(split.net, decs!("1000"), "含税 1130 按百分数税率 13 除法反算净额必须是 1000");
     assert_eq!(
-        tax::tax_amount(decs!("1000"), decs!("13")),
+        split.tax,
         decs!("130"),
-        "百分数口径税率 13 的税额必须是 130（不是 1.30）"
+        "百分数口径税率 13 的差额税额必须是 130（不是 1.30 也不是 1.47）"
+    );
+    assert_eq!(
+        split.net + split.tax,
+        split.inclusive,
+        "钩稽恒等式 净额 + 税额 == 含税 必须逐分成立"
     );
 }
 
-/// test_sejs_zdyslcj（真调 calculate_item_amounts，提交百分数税率 13 时行税额 130）
+/// test_sejs_zdyslcj（真调 calculate_item_amounts，提交百分数税率 13 时行差额税额 130）
 #[test]
 fn test_sejs_zdyslcj() {
-    let amounts = authoritative_amounts(decs!("10"), decs!("100"), Some(decs!("13")))
-        .expect("提交合法百分数税率必须算得出行金额");
-    assert_eq!(amounts.amount, decs!("1000"), "不含税金额 = 数量 × 单价");
+    let amounts = authoritative_amounts(decs!("10"), decs!("100"), decs!("113"), Some(decs!("13")))
+        .expect("提交合法百分数税率与含税单价事实必须算得出行金额");
+    assert_eq!(amounts.amount, decs!("1000"), "净额必须是含税事实 1130 的除法反算值");
     assert_eq!(amounts.tax_percent, decs!("13"), "税率按提交的百分数原样落");
     assert_eq!(
         amounts.tax_amount,
         decs!("130"),
-        "1000 × 13 ÷ 100 必须是 130"
+        "税额必须是含税额 1130 减净额 1000 的差额"
     );
 }
 
 /// test_sejs_lslcj（真调 calculate_item_amounts，显式提交无进项税 0 时税额为 0）
 /// 0 是自动补货链路显式声明的口径值（取内核常量），不是缺省代填，基数非 0
-/// 才能证明 0 税额是声明值而非空行巧合。
+/// 才能证明 0 税额是声明值而非空行巧合。0 税率下含税与净额是同一个数，
+/// 除法退化为等值，含税单价即不含税单价，不开例外分支。
 #[test]
 fn test_sejs_lslcj() {
-    let amounts = authoritative_amounts(decs!("10"), decs!("100"), Some(tax::NO_INPUT_TAX_PERCENT))
-        .expect("显式提交无进项税 0 必须算得出行金额");
+    let amounts = authoritative_amounts(
+        decs!("10"),
+        decs!("100"),
+        decs!("100"),
+        Some(tax::NO_INPUT_TAX_PERCENT),
+    )
+    .expect("显式提交无进项税 0 必须算得出行金额");
     assert_eq!(
         amounts.tax_percent,
         Decimal::ZERO,
@@ -134,6 +154,7 @@ fn test_sejs_lslcj() {
         Decimal::ZERO,
         "无进项税行的税额必须是 0"
     );
+    assert_eq!(amounts.amount, decs!("1000"), "0 税率行除法退化为等值，净额即含税额");
     assert!(
         amounts.amount > Decimal::ZERO,
         "基数非 0 才证明 0 税额是声明值，实际: {}",
@@ -141,11 +162,12 @@ fn test_sejs_lslcj() {
     );
 }
 
-/// test_sejs_jdgyh（真调 calculate_item_amounts，税额结果经 round_dp(2) 归一化）
+/// test_sejs_jdgyh（真调 calculate_item_amounts，行金额经 round_dp(2) 归一化）
 #[test]
 fn test_sejs_jdgyh() {
-    // 333.33 乘 1 乘 13 除 100 得 43.3329，round_dp(2) 得 43.33
-    let amounts = authoritative_amounts(decs!("333.33"), decs!("1"), Some(decs!("13")))
+    // 含税单价 1.13 乘数量 333.33 得标价含税额 376.6629 收敛 376.66，
+    // 除法反算净额 376.66 ÷ 1.13 = 333.3274 收敛 333.33，差额税额 43.33
+    let amounts = authoritative_amounts(decs!("333.33"), decs!("1"), decs!("1.13"), Some(decs!("13")))
         .expect("小数数量必须能算出税额");
     assert_eq!(amounts.amount, decs!("333.33"));
     assert_eq!(amounts.tax_amount, decs!("43.33"));
@@ -155,7 +177,7 @@ fn test_sejs_jdgyh() {
 /// 0 是业务声明值（免税、无进项票），代填会让漏录与免税在进项台账里无法区分。
 #[test]
 fn test_sejs_quezslj() {
-    let err = authoritative_amounts(decs!("10"), decs!("100"), None)
+    let err = authoritative_amounts(decs!("10"), decs!("100"), decs!("113"), None)
         .expect_err("缺税率必须返回业务错误，不得代填任何税率");
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
 }
