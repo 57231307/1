@@ -41,7 +41,6 @@ pub(crate) fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
 }
 /// 订单金额累计与单行折算结果统一取自 amounts 模块，本文件不再自持结构。
 /// 存在理由，销售订单与销售合同必须对同一组数量与单价算出同一金额，口径只能有一处。
-
 impl SalesService {
     // create_order / update_order / delete_order
     // 内容来自原 order.rs L277-610 + L611-777 + L778-814
