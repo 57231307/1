@@ -187,8 +187,22 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: 生成应用图标
+        # 调用方 下一步之后的 注入安卓权限与打印插件（把产物复制进 gen 工程 res）与
+        #        严格冒烟·4 校验图标同源与消费链（拿本步源图与 APK 内图标比对）。
+        # 入参 mobile-app/app-icon.png，与前端 web logo 字节同一，由静态锁断言。
+        # 做什么 从源图重生成桌面与安卓全套图标，-o 钉住输出到 src-tauri/icons，
+        #        安卓五档 mipmap 落在 src-tauri/icons/android 供注入步消费。
+        # 为什么 判据，本步必须先于 初始化 Android 工程 与 构建 debug APK。
+        #        cargo tauri android init 只按内置模板生成 res 图标，不读 bundle.icon，
+        #        历史缺陷即此步产物落在默认 icons 目录无人消费，包内永远是模板默认图。
+        #        输出目录与消费目录都由注入步断言，缺任一侧当场判红而不是出旧图包。
+        # 存哪里 只写工作区 mobile-app/src-tauri/icons，不入库。
         working-directory: mobile-app
-        run: cargo tauri icon app-icon.png
+        run: |
+          set -euo pipefail
+          cargo tauri icon app-icon.png -o src-tauri/icons
+          test -f src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher.png || { echo '生成步未产出安卓 mipmap，tauri-cli icon 行为已变，需人工校准'; exit 1; }
+          sha256sum src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher.png app-icon.png
 
       - name: 初始化 Android 工程
         working-directory: mobile-app
@@ -242,6 +256,21 @@ jobs:
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 
+      - name: 严格冒烟·4 校验图标同源与消费链
+        # 调用方 本 job 构建 debug APK 之后。入参 debug APK、mobile-app/app-icon.png、
+        #        frontend/src/assets/logo.png。
+        # 做什么 先跑判定器自检夹具，再断言 安卓图标源图与 web logo 字节同一，
+        #        并从 APK 内解出 xxxhdpi ic_launcher.png 与源图做签名距离比对，超阈值判红。
+        # 为什么 静态锁，不依赖编译。同源段防有人只换 web logo 或只换 app-icon 造成两头漂移，
+        #        消费链段防 生成应用图标 产物再次没被构建吃进包里。
+        # 存哪里 只读判定，不落盘。
+        run: |
+          set -euo pipefail
+          APK="$(find mobile-app/src-tauri/gen/android/app/build/outputs/apk -path '*universal/debug/*.apk' | head -1)"
+          test -n "$APK" || { echo '未找到 universal debug APK'; exit 1; }
+          node mobile-app/scripts/assert-apk-icon.mjs --self-test
+          node mobile-app/scripts/assert-apk-icon.mjs "$APK" mobile-app/app-icon.png frontend/src/assets/logo.png
+
       - name: 上传 debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -264,6 +293,7 @@ jobs:
           AAPT2="$ANDROID_HOME/build-tools/${ANDROID_BUILD_TOOLS}/aapt2"
           python3 scripts/assert-apk-permissions.py --self-test
           python3 scripts/assert-apk-permissions.py "$APK" "$AAPT2"
+          node scripts/assert-apk-icon.mjs "$APK" app-icon.png ../frontend/src/assets/logo.png
 
       - name: 准备签名证书
         # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret 与
