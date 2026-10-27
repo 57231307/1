@@ -45,29 +45,35 @@ fn assert_txn_scoped_create(file: &str, text: &str, gen_call: &str) {
 fn deny_defect_shapes(file: &str, text: &str, bare_gen_call: &str) {
     for (needle, desc) in [
         (bare_gen_call, "裸无参取号调用（自开事务臂回潮）"),
-        ("DocumentNumberGenerator::generate_no(", "自开事务生成器直调"),
+        (
+            "DocumentNumberGenerator::generate_no(",
+            "自开事务生成器直调",
+        ),
         (".insert(&*self.db)", "无事务裸插入"),
         ("请稍后重试", "取号失败拍平为请稍后重试类文案"),
     ] {
-        assert!(
-            !text.contains(needle),
-            "{} 出现缺陷形态{}",
-            file,
-            desc
-        );
+        assert!(!text.contains(needle), "{} 出现缺陷形态{}", file, desc);
     }
 }
 
 #[test]
 fn cost_collection_create_is_txn_scoped_and_macro_invocation_uses_txn_arm() {
     let text = src("src/services/cost_collection_service.rs");
-    assert_txn_scoped_create("cost_collection_service.rs", &text, "self.generate_collection_no(&txn)");
+    assert_txn_scoped_create(
+        "cost_collection_service.rs",
+        &text,
+        "self.generate_collection_no(&txn)",
+    );
     assert!(
         text.contains("cost_collection::Column::CollectionNo,\n        txn\n    );"),
         "cost_collection_service.rs 的 impl_generate_no 调用必须是带 txn 形参的宏臂，\
          实参表末位应是独立成行的 txn"
     );
-    deny_defect_shapes("cost_collection_service.rs", &text, "self.generate_collection_no()");
+    deny_defect_shapes(
+        "cost_collection_service.rs",
+        &text,
+        "self.generate_collection_no()",
+    );
 }
 
 #[test]
@@ -88,16 +94,22 @@ fn addition_create_is_txn_scoped() {
 fn recipe_facade_generators_use_txn_arm_generator() {
     let text = src("src/services/production_recipe_service.rs");
     assert_eq!(
-        text.matches("DocumentNumberGenerator::generate_no_with_txn(").count(),
+        text.matches("DocumentNumberGenerator::generate_no_with_txn(")
+            .count(),
         2,
         "facade 的大货处方与加料处方两个生成器必须都走带事务臂生成器，实得 {} 处",
-        text.matches("DocumentNumberGenerator::generate_no_with_txn(").count()
+        text.matches("DocumentNumberGenerator::generate_no_with_txn(")
+            .count()
     );
     assert!(
         text.contains("txn: &sea_orm::DatabaseTransaction"),
         "facade 生成器签名必须收 &DatabaseTransaction 形参"
     );
-    deny_defect_shapes("production_recipe_service.rs", &text, "self.generate_recipe_no()");
+    deny_defect_shapes(
+        "production_recipe_service.rs",
+        &text,
+        "self.generate_recipe_no()",
+    );
 }
 
 #[test]
