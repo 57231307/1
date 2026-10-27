@@ -192,11 +192,13 @@ fn test_sejs_jdgyh() {
 
 /// test_sejs_quezslj（真调 calculate_item_amounts，人工建单缺 tax_rate 一律拒）
 /// 0 是业务声明值（免税、无进项票），代填会让漏录与免税在进项台账里无法区分。
+/// 错误码取必填族同码 VALIDATION_ERROR（缺键点名，与缺数量缺单价一致），
+/// services/po/order_ops/crud.rs 与 contract_wave5_env_tax_rates_from_config_test.rs 同一口径。
 #[test]
 fn test_sejs_quezslj() {
     let err = authoritative_amounts(decs!("10"), decs!("100"), decs!("113"), None)
         .expect_err("缺税率必须返回业务错误，不得代填任何税率");
-    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(err.error_code(), "VALIDATION_ERROR");
 }
 
 // ---------- 折扣计算 ----------

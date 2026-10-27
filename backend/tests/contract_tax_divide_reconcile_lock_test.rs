@@ -17,7 +17,7 @@
 //!    另有一枚带行折扣的逐档活体用例，钉死折扣必须是净额口径（四列钩稽）。
 //!    suppliers 属迁移种子参照表不清空，供应商用时间戳后缀自建专属行，互不碰撞。
 //! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 19 个文件）与
-//!    前端 12 个含税录入与派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
+//!    前端 13 个含税录入与派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
 //!    「乘 tax 前缀标识符（含点号接收者形态 `*item.tax_percent` 与 `*row.taxRate`）」
 //!    「乘号括号窗口内税率与 +1 或 +Decimal::ONE 反序加数并存」与硬编码档位字面量；
 //!    注释剥离走逐行状态机（`//` 与行首 `/*` 与 `<!--` 起始的块注释整体剔除，
@@ -569,6 +569,10 @@ const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
         include_str!("../../frontend/src/views/sales/composables/useOlv.ts"),
     ),
     (
+        "frontend/src/views/sales/composables/useOlvProc.ts",
+        include_str!("../../frontend/src/views/sales/composables/useOlvProc.ts"),
+    ),
+    (
         "frontend/src/views/purchase/composables/useCreate.ts",
         include_str!("../../frontend/src/views/purchase/composables/useCreate.ts"),
     ),
@@ -627,6 +631,7 @@ const PINNED_FRONTEND_TAX_LEGS: &[&str] = &[
     "frontend/src/views/quotations/detail.vue",
     "frontend/src/views/sales/OrderFormDialog.vue",
     "frontend/src/views/sales/composables/useOlv.ts",
+    "frontend/src/views/sales/composables/useOlvProc.ts",
     "frontend/src/views/purchase/composables/useCreate.ts",
     "frontend/src/views/purchase/components/PurchaseCreateDialog.vue",
     "frontend/src/views/sales-returns/composables/useSr.ts",
@@ -668,7 +673,7 @@ fn block_closer(text: &str) -> Option<(usize, usize)> {
 /// 代码态里的 `*` 起头行一律保留，既不放过续行里的乘法，也不把注释星号混进拼串层误报。
 ///
 /// 已知取舍，行中出现 `//` 即按行尾注释起点截断，字符串字面量里的 `https://` 会让本行
-/// 后半段不进扫描。25 枚扫描对象逐行核过，没有同一行既带 URL 又带价税算式的写法
+/// 后半段不进扫描。全部扫描对象逐行核过，没有同一行既带 URL 又带价税算式的写法
 /// （`://` 与 tax 同行零命中），真出现这种写法时按行拆分代码即可，不放宽本判定。
 fn code_part_of_line(line: &str, in_block: &mut bool) -> String {
     let mut rest = line.to_string();
@@ -1019,6 +1024,7 @@ const PINNED_TAX_ENTRY_SURFACES: &[(&str, &[&str])] = &[
         &[
             "src/services/so/order_crud.rs",
             "frontend/src/views/sales/OrderFormDialog.vue",
+            "frontend/src/views/sales/composables/useOlvProc.ts",
         ],
     ),
     (
@@ -1040,6 +1046,9 @@ const PINNED_TAX_ENTRY_SURFACES: &[(&str, &[&str])] = &[
         &[
             "src/services/purchase_return_service.rs",
             "src/services/sales_return_service.rs",
+            "frontend/src/views/sales-returns/composables/useSr.ts",
+            "frontend/src/views/sales-returns/components/ReturnEditDialog.vue",
+            "frontend/src/views/sales-returns/components/ReturnDetailDialog.vue",
         ],
     ),
     (
