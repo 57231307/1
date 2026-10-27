@@ -14,7 +14,9 @@
 // 兼容口径：历史行 token_hash IS NULL 且 download_token 有明文，校验侧回退明文比对；
 // 迁移不 UPDATE 洗数据，老行按 token_expires_at 自然过期消亡。
 //
-// 设计依据：V15 审计报告 类十三 P0-S14；生命周期改造 m0105
+// 设计依据与关联文件见下方各方法注释与文件头说明；令牌生命周期改造由迁移
+// m_export_approval_lifecycle 登记（export_approval_request 补列、status CHECK 扩集、
+// export_approval 流程定义落 bpm_process_definition）。
 // 关联文件：models/export_approval_request.rs / handlers/export_approval_handler.rs /
 //           services/bpm_service.rs（start_process/approve_task/cancel_instance）/
 //           services/event_bus_ops/listener.rs（BpmProcessFinished 分发）
@@ -32,8 +34,8 @@ use uuid::Uuid;
 use crate::models::bpm_task;
 use crate::models::dto::bpm_dto::{ApproveTaskRequest, StartProcessRequest};
 use crate::models::export_approval_request::{
-    ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
-    ExportParams, Model, RiskLevel, sensitive_resources,
+    sensitive_resources, ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus,
+    Column, Entity, ExportParams, Model, RiskLevel,
 };
 use crate::models::status::bpm_task as bpm_task_status;
 use crate::services::bpm_ops::process_key;
@@ -169,10 +171,7 @@ impl ExportApprovalService {
             process_key: process_key::EXPORT_APPROVAL.to_string(),
             business_type: BPM_BUSINESS_TYPE_EXPORT_APPROVAL.to_string(),
             business_id: model.id,
-            title: format!(
-                "导出审批-{}-{}",
-                req.resource_type, model.id
-            ),
+            title: format!("导出审批-{}-{}", req.resource_type, model.id),
             initiator_id: applicant_user_id,
             initiator_name: applicant_username,
             initiator_department_id: None,
@@ -243,7 +242,10 @@ impl ExportApprovalService {
     }
 
     /// 构建导出审批请求 ActiveModel（pending 状态）
-    #[allow(clippy::too_many_arguments, reason = "申请行字段即建表列全集，拆结构反而丢失与 DDL 的逐列对照")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "申请行字段即建表列全集，拆结构反而丢失与 DDL 的逐列对照"
+    )]
     fn build_export_approval_active(
         applicant_user_id: i32,
         applicant_username: String,
@@ -779,7 +781,10 @@ impl ExportApprovalService {
     /// 且实际请求范围必须与批准范围一致（防超范围导出）。
     ///
     /// 既有资源 handler 未迁移前继续走两参版；迁移接线清单随回报单提交。
-    #[allow(clippy::too_many_arguments, reason = "受理门即校验要素全集：令牌/资源/调用者/请求范围，拆参会丢契约对照")]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "受理门即校验要素全集：令牌/资源/调用者/请求范围，拆参会丢契约对照"
+    )]
     pub async fn enforce_export_download_secured(
         &self,
         token: Option<&str>,
@@ -864,10 +869,7 @@ impl ExportApprovalService {
             hints.push(format!("新增了未批准的维度 {:?}", extra));
         }
         if !missing.is_empty() {
-            hints.push(format!(
-                "丢失了批准时的维度 {:?}（扩大数据范围）",
-                missing
-            ));
+            hints.push(format!("丢失了批准时的维度 {:?}（扩大数据范围）", missing));
         }
         if !mismatched.is_empty() {
             hints.push(format!("改变了批准时的取值 {:?}", mismatched));
@@ -889,9 +891,7 @@ impl ExportApprovalService {
             }
             TokenRetryState::RetriesExhausted => {
                 // 落终态后拒绝（幂等：已是 exhausted 时 update 同样值）
-                if ApprovalStatus::parse_status(&model.status)
-                    != Some(ApprovalStatus::Exhausted)
-                {
+                if ApprovalStatus::parse_status(&model.status) != Some(ApprovalStatus::Exhausted) {
                     let mut active: ExportApprovalActiveModel = model.clone().into();
                     let now = Utc::now();
                     active.status = Set(ApprovalStatus::Exhausted.as_str().to_string());
@@ -904,9 +904,7 @@ impl ExportApprovalService {
                 ));
             }
             TokenRetryState::Consumed => {
-                return Err(AppError::permission_denied(
-                    "导出令牌已被使用，禁止复用",
-                ));
+                return Err(AppError::permission_denied("导出令牌已被使用，禁止复用"));
             }
             TokenRetryState::Expired => {
                 return Err(AppError::permission_denied("下载令牌已过期"));
@@ -957,8 +955,9 @@ impl ExportApprovalService {
                     return TokenRetryState::RetriesExhausted;
                 }
                 let window_secs = RETRY_WINDOW_MINUTES * 60;
-                let elapsed_secs =
-                    now.signed_duration_since(last.with_timezone(&Utc)).num_seconds();
+                let elapsed_secs = now
+                    .signed_duration_since(last.with_timezone(&Utc))
+                    .num_seconds();
                 if elapsed_secs < window_secs {
                     let remaining = (window_secs - elapsed_secs).max(1);
                     return TokenRetryState::WindowNotReached {
@@ -1140,8 +1139,7 @@ impl ExportApprovalService {
         if !is_admin {
             use sea_orm::sea_query::Expr;
             select = select.filter(
-                Condition::all()
-                    .add(Expr::cust_with_values("applicant_user_id <> $1", [user_id])),
+                Condition::all().add(Expr::cust_with_values("applicant_user_id <> $1", [user_id])),
             );
         }
 

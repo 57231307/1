@@ -217,9 +217,7 @@
       />
       <p v-if="tokenOnceText" class="token-once-text">{{ tokenOnceText }}</p>
       <div v-if="tokenOnceText" class="token-once-actions">
-        <ElButton type="primary" plain @click="handleCopyToken">{{
-          $t('exportApprovals.copyTokenAction')
-        }}</ElButton>
+        <ElButton type="primary" plain @click="handleCopyToken">{{ $t('common.copy') }}</ElButton>
       </div>
       <p v-else-if="tokenOnceHint">{{ tokenOnceHint }}</p>
       <template #footer>
@@ -407,7 +405,7 @@ const handleCopyToken = async () => {
   if (!tokenOnceText.value) return;
   try {
     await navigator.clipboard.writeText(tokenOnceText.value);
-    ElMessage.success(t('exportApprovals.tokenCopied'));
+    ElMessage.success(t('common.copied'));
   } catch (error) {
     logger.error(t('exportApprovals.logCopyFailed'), error);
     ElMessage.error(t('exportApprovals.tokenCopyFailed'));

@@ -11,8 +11,8 @@ pub struct ExportParams(pub serde_json::Value);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApprovalContext(pub serde_json::Value);
 
-/// 审批状态枚举（与数据库 status 字段对应）：V15 P0-S14 敏感数据导出二级审批机制，
-/// 生命周期改造（m0105）扩展 consumed 与 exhausted 两个终态，
+/// 审批状态枚举（与数据库 status 字段对应）：敏感数据导出审批机制，
+/// 生命周期改造扩展 consumed 与 exhausted 两个终态，
 /// 与数据库 chk_ear_status CHECK 约束取值集合逐字符一致
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ApprovalStatus {

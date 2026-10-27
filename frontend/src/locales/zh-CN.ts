@@ -10601,8 +10601,6 @@ export default {
     viewTokenAction: '查看令牌',
     rotateTokenAction: '重发令牌',
     goToExport: '去导出',
-    copyTokenAction: '复制令牌',
-    tokenCopied: '令牌已复制到剪贴板',
     tokenCopyFailed: '复制令牌失败，请手动选中令牌文本复制',
     logCopyFailed: '复制导出令牌失败',
     tokenOnceTitle: '一次性查看导出令牌',

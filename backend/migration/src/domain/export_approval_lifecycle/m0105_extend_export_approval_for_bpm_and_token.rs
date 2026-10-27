@@ -110,7 +110,10 @@ async fn apply_status_check_constraint(manager: &SchemaManager) -> Result<(), Db
     let drop_old = r#"
 ALTER TABLE "export_approval_request" DROP CONSTRAINT IF EXISTS "chk_ear_status";
 "#;
-    manager.get_connection().execute_unprepared(drop_old).await?;
+    manager
+        .get_connection()
+        .execute_unprepared(drop_old)
+        .await?;
 
     let guard = format!(
         r#"

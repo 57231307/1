@@ -431,7 +431,7 @@ pub fn ai() -> Router<AppState> {
         .layer(axum::middleware::from_fn(rate_limit_ai_endpoint))
 }
 
-/// V15 P0-S14 敏感数据导出审批路由（/export-approvals，10 端点；
+/// 敏感数据导出审批路由（/export-approvals，10 端点；
 /// 审批办理经 BPM 链条，token-once/rotate-token 为一次性凭据自持面）
 pub fn export_approval() -> Router<AppState> {
     Router::new()
