@@ -306,12 +306,12 @@ export const BPM_APPROVAL_CENTER_ROUTE = '/bpm/approval';
  */
 export const EXPORT_APPROVAL_JUMPBACK_SOURCE = 'export_approval';
 
-/** 审批回跳查询串的形状（只携带来源、BPM 实例 ID 与申请单 ID，绝不携带令牌明文） */
-export interface ExportApprovalJumpbackQuery {
-  source: typeof EXPORT_APPROVAL_JUMPBACK_SOURCE;
-  instanceId: number | null;
-  businessId: number;
-}
+/**
+ * 审批回跳查询串的形状（只携带来源、BPM 实例 ID 与申请单 ID，绝不携带令牌明文）。
+ * 返回类型取 Record 形态以直接适配 vue-router 的 LocationQueryRaw（值为 string|number，
+ * instanceId 缺失时省略键而非塞 null，避免可选性漂移与类型不匹配）。
+ */
+export type ExportApprovalJumpbackQuery = Record<string, string | number>;
 
 /**
  * 构造「去导出」跳转的 query（唯一事实来源）。
@@ -321,11 +321,14 @@ export interface ExportApprovalJumpbackQuery {
 export function buildExportApprovalJumpbackQuery(
   row: Pick<ExportApprovalRequestShape, 'id' | 'bpm_instance_id'>
 ): ExportApprovalJumpbackQuery {
-  return {
+  const query: ExportApprovalJumpbackQuery = {
     source: EXPORT_APPROVAL_JUMPBACK_SOURCE,
-    instanceId: row.bpm_instance_id ?? null,
     businessId: row.id,
   };
+  if (row.bpm_instance_id != null) {
+    query.instanceId = row.bpm_instance_id;
+  }
+  return query;
 }
 
 /** buildExportApprovalJumpbackQuery 入参的最小形状约束（避免依赖 api 层类型造成环引用） */

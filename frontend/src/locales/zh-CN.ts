@@ -10607,7 +10607,8 @@ export default {
     tokenOnceWarning:
       '令牌完整明文仅显示这一次，关闭后无法再次查看；点「复制令牌」一键取用，或回资源列表页用「下载我的导出」、本页「去导出」入口就地完成下载',
     tokenOnceClose: '我已看到，关闭',
-    tokenOnceUnavailable: '该令牌明文已被查看过（指纹 {fingerprint}），无法再次查看；如需导出请点「重发令牌」换取新令牌',
+    tokenOnceUnavailable:
+      '该令牌明文已被查看过（指纹 {fingerprint}），无法再次查看；如需导出请点「重发令牌」换取新令牌',
     confirmRotateToken: '重发将立即作废当前令牌并签发新令牌，确认重发？',
     logTokenViewed: '导出令牌已一次性查看（申请单 {id}）',
     logTokenOnceFailed: '一次性查看导出令牌失败（申请单 {id}）',
