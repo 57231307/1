@@ -13,7 +13,7 @@ on:
   workflow_call:
     inputs:
       build_release:
-        description: '是否构建并签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）'
+        description: '是否构建并签名 release APK（release 档需要四枚安卓签名 secret 配齐，缺任一即判红，不再临时自签）'
         type: boolean
         default: false
       run_e2e:
@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       build_release:
-        description: "同时构建签名 release APK（签名 secret 未配置时按版权方固定 DN 临时自签）"
+        description: "同时构建签名 release APK（release 档需要四枚安卓签名 secret 配齐，缺任一即判红，不再临时自签）"
         type: boolean
         default: false
       run_e2e:
@@ -146,6 +146,8 @@ jobs:
               "bluetooth_connect",
               "bluetooth_print_text",
               "bluetooth_disconnect",
+              "system_print_html",
+              "system_print_page",
           }
           if set(commands) != expected:
               raise SystemExit(f"build.rs 命令清单与预期不一致，缺失 {sorted(expected - set(commands))}，多出 {sorted(set(commands) - expected)}")
@@ -192,10 +194,10 @@ jobs:
         working-directory: mobile-app
         run: cargo tauri android init
 
-      - name: 注入安卓权限与蓝牙打印插件
+      - name: 注入安卓权限与打印插件
         # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
         # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，并把
-        #        BluetoothPrintPlugin.kt（含相机权限申请命令）复制进 com.bingxi.erp 包；
+        #        BluetoothPrintPlugin.kt 与 SystemPrintPlugin.kt 复制进 com.bingxi.erp 包；
         #        模板锚点或包名变化时脚本直接判红，不静默跳过。
         # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
         working-directory: mobile-app
@@ -236,6 +238,7 @@ jobs:
           python3 mobile-app/scripts/assert-apk-permissions.py --self-test
           python3 mobile-app/scripts/assert-apk-permissions.py "$APK" "$AAPT2"
           unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/BluetoothPrintPlugin;' || { echo "APK 未打包蓝牙打印插件类，注入或编译未生效"; exit 1; }
+          unzip -p "$APK" 'classes*.dex' | strings | grep -q 'Lcom/bingxi/erp/SystemPrintPlugin;' || { echo "APK 未打包系统打印插件类，注入或编译未生效"; exit 1; }
           SIZE=$(stat -c%s "$APK"); echo "APK size=$SIZE"; [ "$SIZE" -gt 1000000 ] || { echo "APK 体积异常过小"; exit 1; }
           cp "$APK" /tmp/bingxi-debug.apk
 
@@ -263,11 +266,16 @@ jobs:
           python3 scripts/assert-apk-permissions.py "$APK" "$AAPT2"
 
       - name: 准备签名证书
-        # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret，经 env 注入不进命令行拼接。
-        # secret 四项齐备走固定证书，全缺走 keytool 按版权方固定 DN 生成临时自签，半配判红。
+        # 调用方为本文件的签名 release APK 步与上传签名证书（公钥）步。入参为四枚签名 secret 与
+        # 一枚仓库变量 ANDROID_CERT_FINGERPRINT，全部经 env 注入，既不进命令行拼接也不进日志。
+        # 口径 发布轮只用版权方指定的那把固定证书，四枚 secret 缺任一即判红，不再回退临时自签。
+        # 换一把钥匙就是换一个签名身份，跨版本升级与应用商店上架都会认不出是同一个应用，
+        # 所以这里宁可判红也不出包。
+        # 密钥文件按头两字节分派 BKS 与 JKS 与 PKCS12 三种来源。BKS 属 BouncyCastle 私有格式，
+        # JDK 自带 provider 读不了，故只在现场按固定版本与固定校验和取一次 jar，把它转成 JKS
+        # 再交给签名步；转换后的库与两枚口令只留在 RUNNER_TEMP，随作业结束销毁，不作为产物外发。
         # 存什么存哪里 生成物落 RUNNER_TEMP 下 bingxi-signing 目录（keystore 与口令文件与证书），
-        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志；
-        # 临时自签的 keystore 与口令只留在 RUNNER_TEMP，随 job 结束销毁，不作为产物外发。
+        # 来源与指纹经 outputs 传日志，口令与 base64 经 GITHUB_ENV 传签名步，全部不进日志。
         id: signing
         if: env.BUILD_RELEASE == 'true'
         env:
@@ -275,46 +283,102 @@ jobs:
           KS_ALIAS: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
           KS_STOREPASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KS_KEYPASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KS_FP_EXPECT: ${{ vars.ANDROID_CERT_FINGERPRINT }}
+          BC_URL: https://repo1.maven.org/maven2/org/bouncycastle/bcprov-jdk18on/1.78.1/bcprov-jdk18on-1.78.1.jar
+          BC_SHA256: add5915e6acfc6ab5836e1fd8a5e21c6488536a8c1f21f386eeb3bf280b702d7
+          BC_BYTES: 8324412
         run: |
           set -euo pipefail
           KS_DIR="$RUNNER_TEMP/bingxi-signing"
           rm -rf "$KS_DIR"
           mkdir -p "$KS_DIR"
-          # 版权方名称与 LICENSE 一致，别名与包名同源，DN 全程固定不随轮次变
-          DN='CN=Chengdu Bingxi Fabric Trading Co.,O=Chengdu Bingxi Fabric Trading Co.,C=CN'
-          if [ -n "$KS_B64" ] && [ -n "$KS_ALIAS" ] && [ -n "$KS_STOREPASS" ] && [ -n "$KS_KEYPASS" ]; then
-            printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/release.jks"
-            printf '%s' "$KS_STOREPASS" > "$KS_DIR/storepass.txt"
-            printf '%s' "$KS_KEYPASS" > "$KS_DIR/keypass.txt"
-            printf '%s' "$KS_ALIAS" > "$KS_DIR/alias.txt"
-            SOURCE=fixed
-            echo "签名证书来源 固定证书（仓库 secret 配置齐全）"
-          elif [ -n "$KS_B64" ] || [ -n "$KS_ALIAS" ] || [ -n "$KS_STOREPASS" ] || [ -n "$KS_KEYPASS" ]; then
-            echo "::error::签名 secret 半配（ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与两枚口令必须四项齐备或全缺），拒绝回退临时自签"
+          if [ -z "$KS_B64" ] || [ -z "$KS_ALIAS" ] || [ -z "$KS_STOREPASS" ] || [ -z "$KS_KEYPASS" ]; then
+            echo "::error::安卓签名四枚 secret 未配齐（ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD），发布轮拒绝改用临时自签出包"
             exit 1
-          else
-            STOREPASS="$(openssl rand -hex 16)"
-            KEYPASS="$(openssl rand -hex 16)"
-            keytool -genkeypair -keystore "$KS_DIR/release.jks" -storetype JKS \
-              -alias "$APP_ID" -keyalg RSA -keysize 2048 -validity 10950 \
-              -dname "$DN" -storepass "$STOREPASS" -keypass "$KEYPASS"
-            printf '%s' "$STOREPASS" > "$KS_DIR/storepass.txt"
-            printf '%s' "$KEYPASS" > "$KS_DIR/keypass.txt"
-            printf '%s' "$APP_ID" > "$KS_DIR/alias.txt"
-            SOURCE=selfsigned
-            echo "签名证书来源 临时生成（keytool 按版权方固定 DN 自签）"
-            echo "本轮为临时自签，跨轮指纹变化即说明尚未固定；临时 keystore 与其口令只留在 runner 临时目录，随作业结束销毁，不作为产物外发"
-            echo "固定出路 在本地用同一版权方 DN 自行生成一份长期 keystore（keytool -genkeypair -alias $APP_ID -keyalg RSA -keysize 2048 -validity 10950），把 keystore 文件转 base64 连同别名与两枚口令写入 ANDROID_KEYSTORE_BASE64 与 ANDROID_KEYSTORE_ALIAS 与 ANDROID_KEYSTORE_PASSWORD 与 ANDROID_KEY_PASSWORD 四个 secret，下一轮起即走固定证书路且指纹恒定"
-            echo "本轮临时自签包只能装在同设备上覆盖安装，不能作为跨版本升级或应用商店上架的签名"
           fi
+          printf '%s' "$KS_B64" | base64 -d > "$KS_DIR/keystore.src"
+          MAGIC=$(od -An -tx1 -N2 "$KS_DIR/keystore.src" | tr -d ' \n')
+          # 转成 JKS 是既有签名步已验证可吃的形态，三种来源在此合流成同一种，签名步不必再分叉。
+          # 标准输入接空设备 keytool 找不到口令参数时会转交互式提问，CI 里没有终端就是无限挂起，
+          # 宁可让它当场失败并报出口令与别名不匹配这条最可能的原因。
+          # BKS 不是 JDK 自带 provider 能识别的库类型，必须把现场取的 BouncyCastle 作为额外 provider
+          # 交给 keytool，否则 keytool 在解析 -srcstoretype BKS 时就报找不到该库类型，根本走不到口令比对。
+          to_jks() {
+            local src="$1" type="$2"
+            local -a provider_args=()
+            if [ "$type" = BKS ]; then
+              provider_args=(-providerclass org.bouncycastle.jce.provider.BouncyCastleProvider -providerpath "$KS_DIR/bcprov.jar")
+            fi
+            keytool -importkeystore ${provider_args[@]+"${provider_args[@]}"} \
+              -srckeystore "$src" -srcstoretype "$type" \
+              -srcstorepass "$KS_STOREPASS" -srckeypass "$KS_KEYPASS" \
+              -destkeystore "$KS_DIR/release.jks" -deststoretype JKS \
+              -deststorepass "$KS_STOREPASS" -destkeypass "$KS_KEYPASS" \
+              -alias "$KS_ALIAS" -noprompt < /dev/null \
+              || { echo "::error::把 $type 密钥库转成 JKS 失败，最可能是库口令 私钥口令或别名三者与这份密钥对不上"; exit 1; }
+          }
+          case "$MAGIC" in
+            feed)
+              cp "$KS_DIR/keystore.src" "$KS_DIR/release.jks"
+              KS_ORIGIN=jks
+              echo "密钥库来源 JKS（secret 内即 JDK 原生格式，直接采用）"
+              ;;
+            3082)
+              to_jks "$KS_DIR/keystore.src" PKCS12
+              KS_ORIGIN=pkcs12
+              echo "密钥库来源 PKCS12（现场转 JKS 后采用）"
+              ;;
+            0000)
+              # BKS 头四字节是版本号 1 或 2，前两字节恒为 00 00
+              VER=$(od -An -tu1 -N4 "$KS_DIR/keystore.src" | tr -s ' ' | sed 's/^ //;s/ /,/g')
+              case "$VER" in
+                0,0,0,1|0,0,0,2) : ;;
+                *) echo "::error::密钥库头四字节 $VER 不是 BKS v1 也不是 v2，格式判不出来，拒绝猜"; exit 1 ;;
+              esac
+              curl -fsSLo "$KS_DIR/bcprov.jar" "$BC_URL"
+              echo "$BC_SHA256  $KS_DIR/bcprov.jar" | (cd / && sha256sum -c -)
+              test "$(wc -c < "$KS_DIR/bcprov.jar")" = "$BC_BYTES" \
+                || { echo "::error::BouncyCastle jar 字节数与钉住的值不符，拒绝用没核对过的包转密钥"; exit 1; }
+              to_jks "$KS_DIR/keystore.src" BKS
+              KS_ORIGIN=bks
+              echo "密钥库来源 BKS v 系（按钉住版本与校验和取 BouncyCastle 后现场转 JKS）"
+              ;;
+            *)
+              echo "::error::密钥库头两字节 $MAGIC 不属 JKS 与 PKCS12 与 BKS 任何一种，拒绝猜格式"
+              exit 1
+              ;;
+          esac
+          # 别名与口令真能取出私钥才算这份证书可用；取不出来在这里判红，
+          # 不留到签名步报一句 apksigner 的笼统失败
+          keytool -list -keystore "$KS_DIR/release.jks" -storepass "$KS_STOREPASS" \
+            -alias "$KS_ALIAS" > /dev/null \
+            || { echo "::error::固定证书里取不到别名对应的条目，口令或别名与密钥库不匹配"; exit 1; }
+          printf '%s' "$KS_STOREPASS" > "$KS_DIR/storepass.txt"
+          printf '%s' "$KS_KEYPASS" > "$KS_DIR/keypass.txt"
+          printf '%s' "$KS_ALIAS" > "$KS_DIR/alias.txt"
+          SOURCE=fixed
           keytool -exportcert -keystore "$KS_DIR/release.jks" \
             -storepass "$(cat "$KS_DIR/storepass.txt")" -alias "$(cat "$KS_DIR/alias.txt")" \
             -file "$KS_DIR/release.cer"
           test -s "$KS_DIR/release.cer" || { echo "::error::导出签名证书失败，无法核对指纹"; exit 1; }
           FP="$(sha256sum "$KS_DIR/release.cer" | cut -d' ' -f1)"
           echo "本轮 Release 用证书指纹 sha256 $FP"
+          # 指纹锁 仓库变量一旦钉住，换钥匙（哪怕 secret 被重新配置成另一把）就当场判红，
+          # 不出一个装不到老用户机器上的包。变量未设时只报指纹，供第一轮把真实指纹读出来钉上。
+          if [ -n "${KS_FP_EXPECT:-}" ] && [ "$KS_FP_EXPECT" != "$FP" ]; then
+            echo "::error::证书指纹与仓库变量 ANDROID_CERT_FINGERPRINT 钉住的不一致，本轮不是版权方那把固定钥匙，拒绝出包"
+            echo "期望 $KS_FP_EXPECT"
+            echo "实际 $FP"
+            exit 1
+          fi
+          if [ -n "${KS_FP_EXPECT:-}" ]; then
+            echo "指纹与钉住值一致 签名身份未变"
+          else
+            echo "仓库变量 ANDROID_CERT_FINGERPRINT 尚未设置 本轮只报指纹不比对 取这行输出的 sha256 设为该变量即启用指纹锁"
+          fi
           {
             echo "signing_source=$SOURCE"
+            echo "signing_keystore_origin=$KS_ORIGIN"
             echo "signing_fingerprint=$FP"
           } >> "$GITHUB_OUTPUT"
           {
@@ -348,8 +412,9 @@ jobs:
           if-no-files-found: error
 
       - name: 上传签名证书（公钥）
-        # 两条证书路都执行：外发的只有 X.509 公钥证书本体，私钥与其口令一律不外发。
-        # 用途是让任何人能独立核对本轮 APK 的签名指纹，并与下一轮比对是否已固定。
+        # 发布轮固定证书路执行。外发的只有 X.509 公钥证书本体，私钥与其口令一律不外发。
+        # 用途是让任何人能独立核对本轮 APK 的签名指纹，并与仓库变量 ANDROID_CERT_FINGERPRINT
+        # 钉住的那枚比对是否同一把钥匙。
         # 入参为准备签名证书步产出的 release.cer；存到产物 bingxi-erp-android-signing-certificate。
         if: env.BUILD_RELEASE == 'true'
         uses: actions/upload-artifact@v4
@@ -385,6 +450,36 @@ jobs:
           name: bingxi-erp-android-debug
           path: apk
 
+      - name: 定位待安装 APK 并导出
+        # 调用方 下一步 Android Emulator 端到端 的装包行与装包守卫行。
+        # 入参 上一步 download-artifact 落盘的 apk 目录。
+        # 做什么 在 apk 目录内解析出唯一 .apk，取其绝对路径经 GITHUB_ENV 交给下一步的装包行消费，
+        #        并把选中的路径与字节数打在日志上。
+        # 为什么 GitHub Actions 每个 run step 是独立 shell，android-emulator-runner 的 script
+        #        更是逐行以独立 sh 执行，step 内与行内的 shell 变量都不跨边界。本轮判红就是
+        #        find 的结果留在上一个 shell，装包行的 APK 变量展开成空串，adb 直接以
+        #        文件名不以 apk 结尾拒收。放本步导出是唯一能跨 step 存住值的正规通道。
+        #        本步放在模拟器启动之前，产物问题当场点名，不占用七分钟的开机时间。
+        # 选哪个包 本 job 只下载 bingxi-erp-android-debug，即 universal debug APK，
+        #        装包后的 run-as 与 WebView 首选项断言要求 debuggable，release 签名包不满足；
+        #        发布轮的 bingxi-erp-android-release-signed 不由本 job 消费，两个包不共享产物名也不互查。
+        #        因此 apk 目录内的 .apk 必须恰好 1 个，多包说明产物被扩大，拒绝猜测装哪个。
+        # 存哪里 只写 GITHUB_ENV 中的 APK 一个键，不落盘、不改仓库、不外发。
+        run: |
+          set -euo pipefail
+          test -d apk || { echo "::error::apk 目录不存在，下载 debug APK 步未落盘"; exit 1; }
+          APKS="$(find apk -type f -name '*.apk' | sort)"
+          COUNT="$(printf '%s\n' "$APKS" | grep -c . || true)"
+          test -n "$APKS" || { echo "::error::无 APK 产物，bingxi-erp-android-debug 产物内没有 .apk 文件"; ls -laR apk; exit 1; }
+          test "$COUNT" = 1 || { echo "::error::apk 目录下 .apk 应恰有 1 个（本 job 只下载 debug 产物），实际 $COUNT 个，拒绝猜要装哪一个"; printf '%s\n' "$APKS"; exit 1; }
+          APK_PATH="$(printf '%s\n' "$APKS" | head -1)"
+          # 导绝对路径，避免装包行的 shell 与本步工作目录不一致时找不到文件。
+          APK_ABS="$PWD/$APK_PATH"
+          test -f "$APK_ABS" || { echo "::error::APK 文件不存在 $APK_ABS"; exit 1; }
+          test -s "$APK_ABS" || { echo "::error::APK 文件为空 $APK_ABS"; exit 1; }
+          echo "APK=$APK_ABS" >> "$GITHUB_ENV"
+          echo "模拟器消费的 APK：$APK_ABS（$(stat -c%s "$APK_ABS") 字节）"
+
       - name: Android Emulator 端到端
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -393,10 +488,16 @@ jobs:
           disable-animations: true
           script: |
             # runner 逐行以独立 sh 执行，跨行变量与续行均不保留。赋值守卫使用须同处一行。
+            # 跨 step 传值只认前序 step 写入 GITHUB_ENV 的变量（APK 由 定位待安装 APK 并导出 步导出，
+            # APP_ID 由工作流 env 注入），环境变量能进每一行的 shell，shell 内赋的变量不能。
             # 设备侧只核对 API 34 上仍生效的权限。maxSdkVersion 低于平台 SDK 的 uses-permission
             # 由 PackageParser 在解析期丢弃（BLUETOOTH 与 BLUETOOTH_ADMIN 为 30，READ_EXTERNAL_STORAGE 为 32，
             # WRITE_EXTERNAL_STORAGE 为 28），这四条声明的完整性由 APK 静态断言 assert-apk-permissions.py 负责。
-            APK="$(find apk -name '*.apk' | head -1)"; test -n "$APK" || { echo '无 APK 产物'; exit 1; }; adb install -r "$APK"
+            test -n "${APK:-}" && test -f "${APK:-}" || { echo "E2E: 无 APK 产物，装包行取不到有效路径（当前 APK='${APK:-}'）"; ls -laR apk 2>/dev/null | head -40; exit 1; }; echo "E2E: 待安装 APK $APK"
+            # sys.boot_completed 置 1 早于 package 服务可用，此时装包只会得到找不到 package 服务的报错。
+            # 装包前先轮询 package 服务，装包本身再做有界重试，把启动竞态与真正的装包失败区分开。
+            i=0; until adb shell service check package 2>/dev/null | grep -q found; do i=$((i+1)); if [ "$i" -ge 40 ]; then echo 'E2E: package 服务 120 秒内未就绪'; adb shell service list | head -20; exit 1; fi; sleep 3; done; echo 'E2E: package 服务已就绪'
+            i=0; OK=""; while [ "$i" -lt 5 ]; do i=$((i+1)); OUT="$(adb install -r "$APK" 2>&1)" && { OK=1; break; }; printf '%s\n' "$OUT"; printf '%s\n' "$OUT" | grep -qE "Can't find service|Broken pipe|device offline|closed" || { echo 'E2E: 装包失败且不属于瞬时故障'; exit 1; }; sleep 5; done; test -n "$OK" || { echo 'E2E: 装包重试 5 次仍失败'; exit 1; }; echo 'E2E: APK 安装完成'
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
@@ -409,12 +510,10 @@ jobs:
             adb shell run-as "${APP_ID}" true || { echo 'E2E: run-as 不可用，debug 包应可调试'; exit 1; }
             i=0; WV=""; while [ "$i" -lt 30 ]; do i=$((i+1)); adb shell run-as "${APP_ID}" ls shared_prefs 2>/dev/null | grep -qi webview && { WV=1; break; }; sleep 3; done; test -n "$WV" || { echo 'E2E: 本应用 WebView 未初始化（shared_prefs 内无 WebView 首选项）'; adb logcat -d | tail -50; exit 1; }; echo 'E2E: 本应用 WebView 已初始化'
             adb logcat -d --pid="$(adb shell pidof -s "${APP_ID}" | tr -d '\r')" | tail -20
-            CRASH_BUF="$(adb logcat -d -b crash)"
-            echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"
             # 无外设的 headless 模拟器上系统进程（如蓝牙栈）会自行 SIGABRT，崩溃缓冲不能整体当本应用崩溃。
             # 判据只认本应用自身的崩溃：native 崩溃行含本应用包名，或 Java 崩溃块的 Process 行含本应用包名。
-            printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true
-            printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
+            # 取缓冲与打印以及两条崩溃判据必须同处一行，跨行取 shell 变量会让判据消费到空串而恒判通过。
+            CRASH_BUF="$(adb logcat -d -b crash)"; echo '===== crash buffer 全文 ====='; printf '%s\n' "$CRASH_BUF"; printf '%s\n' "$CRASH_BUF" | grep -E 'Fatal signal' | grep -q "${APP_ID}" && { echo 'E2E: 本应用发生 native 崩溃见 crash buffer'; exit 1; } || true; printf '%s\n' "$CRASH_BUF" | grep -A6 'FATAL EXCEPTION' | grep -q "Process: ${APP_ID}" && { echo 'E2E: 本应用发生 Java 崩溃见 crash buffer'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_anr.*${APP_ID}" && { echo 'E2E: 应用发生 ANR'; exit 1; } || true
             adb logcat -d -b events | grep -q "am_crash.*${APP_ID}" && { echo 'E2E: 应用发生进程崩溃事件'; exit 1; } || true
             echo 'E2E: 装包，启动，前台，WebView 初始化，无 ANR 与崩溃 全部通过'

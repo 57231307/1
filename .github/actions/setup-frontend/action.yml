@@ -1,5 +1,6 @@
 # Composite action：统一前端 Node.js + npm 缓存 + npm ci（消除 7 个 job 重复配置）
 name: Setup Frontend
+description: 统一安装 Node.js 与 npm 缓存并执行 npm ci，供各 job 复用
 inputs:
   skip-install:
     description: '跳过 npm ci（仅装 Node.js + 缓存，不装依赖）'

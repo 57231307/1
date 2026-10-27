@@ -14,6 +14,8 @@ fn main() {
             "bluetooth_connect",
             "bluetooth_print_text",
             "bluetooth_disconnect",
+            "system_print_html",
+            "system_print_page",
         ]),
     ))
     .expect("failed to run tauri-build");

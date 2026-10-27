@@ -25,7 +25,7 @@ use crate::services::role_permission_service::RolePermissionService;
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
-use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
+use crate::utils::xlsx_export::{WatermarkConfig, XlsxTable, build_xlsx_response_with_watermark};
 
 // ==================== DTO 定义 ====================
 
@@ -444,7 +444,18 @@ pub async fn get_issue(
     Ok(Json(ApiResponse::success(record.into())))
 }
 
-/// GET /api/v1/erp/color-cards/issues/export - 导出色卡发放记录（xlsx）
+/// GET /api/v1/erp/color-cards/issues/export - 导出色卡发放记录为带水印的 xlsx
+///
+/// 功能：按当前筛选与归属范围分批取满全部发放记录并落成文件
+/// 调用方：色卡发放路由的导出端点
+/// 入参：应用状态、会话上下文、发放记录查询参数
+/// 传给谁：权限门交 require_issue_permission，取数交
+/// ColorCardIssueService::list_issue_records_for_export，表格构造交
+/// build_issue_records_xlsx_table
+/// 存什么：不写库；水印行写进导出文件，审计行写审计日志表
+/// 存哪里：不适用
+///
+/// 未取全时把用户下一步该做什么写进水印行，因为水印行是导出文件里用户直接看得到的通道。
 pub async fn export_issue_records(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -456,18 +467,22 @@ pub async fn export_issue_records(
     // V15 P1 10.4-2：导出同样按 data_scope 过滤数据
     let service = ColorCardIssueService::from_state(&state);
     let scope = effective_data_scope(&auth);
-    // 导出时设置 page_size 为 EXPORT_LIMIT
-    let mut export_query = query.clone();
-    export_query.page = Some(1);
-    export_query.page_size = Some(10000);
-    let (records, _total) = service
-        .list_records_with_data_scope(export_query, auth.user_id, scope)
+    // 分批取满当前筛选与归属范围下的全部行，不受对外分页上限约束
+    let (records, total) = service
+        .list_issue_records_for_export(&query, auth.user_id, scope)
         .await
         .map_err(issue_err)?;
     let row_count = records.len();
+    let export_complete = row_count as u64 == total;
+    log_issue_export_completeness(row_count, total, export_complete);
 
     let table = build_issue_records_xlsx_table(&records);
 
+    let completeness = if export_complete {
+        "已取全"
+    } else {
+        "未取全"
+    };
     let event = AuditEvent {
         user_id: Some(auth.user_id),
         username: Some(auth.username.clone()),
@@ -477,8 +492,8 @@ pub async fn export_issue_records(
         resource_id: None,
         resource_name: Some("color_card_issues_export.xlsx".to_string()),
         description: Some(format!(
-            "用户 {} 导出色卡发放记录（共 {} 条）",
-            auth.username, row_count
+            "用户 {} 导出色卡发放记录（共 {} 条），服务端总数 {} 条，{}",
+            auth.username, row_count, total, completeness
         )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/erp/color-cards/issues/export".to_string()),
@@ -486,6 +501,8 @@ pub async fn export_issue_records(
         after_snapshot: Some(serde_json::json!({
             "format": "xlsx",
             "total": row_count,
+            "server_total": total,
+            "complete": export_complete,
             "color_card_id_filter": query.color_card_id,
             "customer_id_filter": query.customer_id,
             "status_filter": query.status,
@@ -494,7 +511,47 @@ pub async fn export_issue_records(
     let svc = Arc::new(AuditLogService::new(state.db.clone()));
     svc.record_async(event, None);
 
-    build_xlsx_response(&table, "color_card_issues_export")
+    // 注入水印（操作员/导出时间/导出条数），未取全时追加下一步动作
+    let completeness_note = if export_complete {
+        String::new()
+    } else {
+        "；本次未取全，请缩小筛选范围后重新导出".to_string()
+    };
+    let watermark = WatermarkConfig {
+        operator: Some(auth.username.clone()),
+        ip_address: None,
+        exported_at: Some(chrono::Utc::now().to_rfc3339()),
+        extra: Some(format!(
+            "色卡发放记录导出（共 {} 条）{}",
+            row_count, completeness_note
+        )),
+    };
+
+    build_xlsx_response_with_watermark(&table, "color_card_issues_export", &watermark)
+}
+
+/// 记录色卡发放导出取数是否取全，结论与实际行数一并落日志
+///
+/// 功能：把实际导出行数与服务端总数并列记录，取全与未取全分别走不同级别
+/// 调用方：本文件的色卡发放记录导出端点
+/// 入参：实际导出行数、服务端总数、是否取全
+/// 传给谁：日志层
+/// 存什么：不落库
+/// 存哪里：不适用
+fn log_issue_export_completeness(row_count: usize, total: u64, export_complete: bool) {
+    if export_complete {
+        tracing::info!(
+            "色卡发放导出已取全: 实际 {} 条, 服务端总数 {} 条",
+            row_count,
+            total
+        );
+    } else {
+        tracing::warn!(
+            "色卡发放导出未取全: 实际 {} 条, 服务端总数 {} 条（取数期间数据发生变动，或达到分批上界）",
+            row_count,
+            total
+        );
+    }
 }
 
 /// 构造色卡发放记录导出表格

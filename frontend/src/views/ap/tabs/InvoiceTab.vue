@@ -271,6 +271,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getAPInvoiceList,
@@ -561,7 +562,7 @@ const cancelInvoice = async (row: APInvoice) => {
 };
 
 // 批次 157a P1-1 修复：实现应付发票打印（参考 ar 模块 printJS 实现）
-const handlePrintInvoices = () => {
+const handlePrintInvoices = async () => {
   if (invoices.value.length === 0) {
     ElMessage.warning(t('apModule.invoice.noPrintData'));
     return;
@@ -575,6 +576,15 @@ const handlePrintInvoices = () => {
     [t('common.status')]: getInvoiceStatusLabel(item.invoice_status),
     [t('apModule.invoice.invoiceDate')]: item.invoice_date,
   }));
+  if (
+    await printTableOnAndroid({
+      title: t('apModule.invoice.printHeader'),
+      rows: printData,
+      columns: Object.keys(printData[0] || {}),
+      documentKey: 'ap_invoice',
+    })
+  )
+    return;
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],
