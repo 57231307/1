@@ -551,6 +551,7 @@ const handlePrint = () => {
   printData({
     title: t('customer.index.print.title'),
     resourceType: 'customer',
+    documentKey: 'customer',
     columns: [
       {
         key: 'customer_code',

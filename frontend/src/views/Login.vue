@@ -7,6 +7,7 @@
 <template>
   <div class="login-container">
     <div class="login-card">
+      <img class="login-brand" :src="brandLogo" alt="" />
       <!-- 批次 23 v5 P0-1：标题接入 i18n -->
       <h2 class="login-title">{{ $t('login.subtitle') }}</h2>
 
@@ -106,6 +107,8 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'elem
 import { useUserStore } from '@/store/user';
 import { checkLockStatus } from '@/api/security';
 import { logger } from '@/utils/logger';
+// 品牌图形资产（透明版，登录卡片底色随主题变，白底图会露出方块）
+import brandLogo from '@/assets/logo.png';
 // 移动端首装免配置，连续凭证失败计数与壳内回弹判定单点收在 utils/login-failure.ts
 import {
   clearLoginFailure,
@@ -367,6 +370,12 @@ onUnmounted(() => {
   .login-card {
     padding: 24px 20px;
   }
+}
+.login-brand {
+  display: block;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 14px;
 }
 .login-title {
   text-align: center;

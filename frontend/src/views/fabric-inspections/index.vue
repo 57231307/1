@@ -410,6 +410,16 @@ import {
   type FabricScoringValue,
 } from '@/constants/fabric-scoring';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
+import { msg } from '@/utils/message';
+import {
+  isAndroidClient,
+  labelPrintRoute,
+  printLabelToBluetooth,
+  resolvePrinterForTarget,
+} from '@/utils/bluetooth-print';
+import { printHtmlOnAndroid } from '@/utils/system-print';
+import { buildPieceLabelFields, buildPieceLabelHtml } from '@/utils/label-print';
+import { loadLabelPaper, type LabelFieldKey } from '@/utils/print-settings';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -832,9 +842,23 @@ async function openPieceLabelDialog(row: FabricInspection) {
   }
 }
 
+/** 标签字段名称映射，键与打印设置里的可选字段一致。 */
+const labelTexts = (): Record<LabelFieldKey, string> => ({
+  piece_no: t('fabricInspections.label.pieceNo'),
+  dye_lot_no: t('fabricInspections.label.dyeLotNo'),
+  color_no: t('fabricInspections.label.colorNo'),
+  length: t('fabricInspections.label.length'),
+  weight: t('fabricInspections.label.weight'),
+  width: t('fabricInspections.label.width'),
+  gram_weight: t('fabricInspections.label.gramWeight'),
+  barcode: t('fabricInspections.label.barcode'),
+  warehouse_in_at: t('fabricInspections.label.warehouseInAt'),
+});
+
 /**
- * 单匹下载标签 docx（不做批量——后端端点即单匹形状，勿臆想功能）。
- * 失败分支对齐后端 fail-closed 文案族（拒绝口径见 backend/src/services/print_service.rs::get_inventory_piece_label_print_data）：
+ * 打印单匹标签：安卓端按标签设置直出，桌面端下载后端 docx（不做批量，后端端点即单匹形状）。
+ * 安卓端配了标签打印机时走蓝牙文本，未配置则按标签纸张与字段生成页面交系统打印。
+ * 桌面端失败分支对齐后端 fail-closed 文案族（拒绝口径见 backend/src/services/print_service.rs::get_inventory_piece_label_print_data）：
  * - BUSINESS_ERROR：出参脱敏为固定文案，真实原因仅服务端日志——前端只陈述公开规则，
  *   不臆造后端原因（样布/非染色匹门控即此族）；
  * - VALIDATION_ERROR（缺维逐列点名）等可外显信封：message 本身即用户可读文案，原样展示；
@@ -844,6 +868,31 @@ async function openPieceLabelDialog(row: FabricInspection) {
 async function onPrintPieceLabel(row: InventoryPieceRow) {
   printingPieceId.value = row.id;
   try {
+    if (isAndroidClient()) {
+      const title = t('fabricInspections.label.dialogTitle');
+      const paper = loadLabelPaper();
+      const fields = buildPieceLabelFields(row, labelTexts(), paper.fields);
+      const target = labelPrintRoute('fabric_piece');
+      if (resolvePrinterForTarget(target)) {
+        const printed = await printLabelToBluetooth(title, fields, {
+          target,
+          paperWidthMm: paper.widthMm,
+        });
+        if (printed) {
+          logger.info('[fabric-inspections] 标签已发送到蓝牙打印机', { pieceNo: row.piece_no });
+        }
+        return;
+      }
+      try {
+        await printHtmlOnAndroid(buildPieceLabelHtml(title, fields, paper), title);
+        msg.success('printSystemOpened');
+        logger.info('[fabric-inspections] 标签已交系统打印', { pieceNo: row.piece_no });
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        ElMessage.error(`${msg.translate('printSystemFailed')}，${detail}`);
+      }
+      return;
+    }
     const blob = await printInventoryPieceLabelDocx(row.id);
     // 下载范式照 ap/tabs/PaymentTab.vue printPayment（createObjectURL + a[download] + revoke）
     const url = URL.createObjectURL(blob);
