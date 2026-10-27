@@ -447,6 +447,130 @@ fn fn_body(src: &str, sig: &str) -> String {
     panic!("{sig} 的函数体大括号未配平，无法判定次序")
 }
 
+/// 四支建表迁移应当声明的约束全集，含建表体内联约束与建表后追加的 CHECK。
+/// 名单与本仓迁移文本逐枚核过，多一枚少一枚都判红，防止约束被静默删除或静默加宽。
+const CHILD_INLINE_CONSTRAINTS: &[(&str, &[&str])] = &[
+    (
+        "m0114_create_contract_templates",
+        &[
+            "chk_contract_templates_active_approved",
+            "chk_contract_templates_contract_type",
+            "chk_contract_templates_party_side",
+            "chk_contract_templates_status",
+            "chk_contract_templates_version",
+            "uq_contract_templates_code_version",
+        ],
+    ),
+    (
+        "m0115_create_clause_library",
+        &[
+            "chk_clause_library_applies_type",
+            "chk_clause_library_body",
+            "chk_clause_library_code",
+            "chk_clause_library_status",
+            "uq_clause_library_code",
+        ],
+    ),
+    (
+        "m0116_create_contract_template_clauses",
+        &[
+            "chk_ctc_applies_when",
+            "chk_ctc_clause_code",
+            "chk_ctc_legal_review_status",
+            "chk_ctc_review_pair",
+            "chk_ctc_sort",
+            "chk_ctc_text_source",
+            "fk_ctc_library",
+            "fk_ctc_template",
+        ],
+    ),
+    (
+        "m0117_create_contract_clauses",
+        &[
+            "chk_cc_body_rendered",
+            "chk_cc_body_fully_rendered",
+            "chk_cc_clause_code",
+            "chk_cc_contract_kind",
+            "chk_cc_sort",
+            "chk_cc_template_version",
+            "fk_cc_template",
+        ],
+    ),
+];
+
+/// 钉每支建表迁移的约束名单。解析口径 认 `CONSTRAINT 名` 与 `CONSTRAINT "名"` 两种写法，
+/// 跳过 `CONSTRAINT IF EXISTS` 这种撤销语句；解析结果为空直接 panic，绝不当成无约束通过。
+#[test]
+fn declared_constraint_names_are_exactly_the_pinned_set() {
+    for (child, pinned) in CHILD_INLINE_CONSTRAINTS {
+        let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
+        let src = strip_line_comments(&read(&rel));
+        let mut found: BTreeSet<String> = BTreeSet::new();
+        for raw in src.lines() {
+            let line = raw.trim();
+            let Some(at) = line.find("CONSTRAINT ") else { continue };
+            let tail = &line[at + "CONSTRAINT ".len()..];
+            let name = object_name(tail);
+            if name.is_empty() || name == "IF" {
+                continue;
+            }
+            found.insert(name);
+        }
+        let expected: BTreeSet<String> = pinned.iter().map(|n| (*n).to_string()).collect();
+        assert!(
+            !found.is_empty(),
+            "{rel} 一枚约束都没解析到，本锁已失去检测力"
+        );
+        assert_eq!(
+            found, expected,
+            "{rel} 的约束名单与钉住的集合不一致。缺席的约束是被静默删除，多出的约束是没登记\
+             进本锁的加宽或新增。\n钉住={expected:?}\n实得={found:?}"
+        );
+        for name in pinned {
+            let count = src.matches(*name).count();
+            assert!(
+                count >= 1,
+                "{rel} 的约束名 {name} 在文本面出现 {count} 次，名单与实得已脱节"
+            );
+            // 允许两种形态 只声明一次，或走先撤后加的幂等重建（撤与加各出现一次，合计两次）。
+            // 出现两次以上却没有撤销形态，等于同名约束重复声明或探测与施加写重了。
+            if count > 1 {
+                assert_eq!(count, 2, "{rel} 的约束名 {name} 出现 {count} 次，超过撤与加配对的两次");
+                assert!(
+                    src.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{name}""#)),
+                    "{rel} 的约束名 {name} 出现 {count} 次但不带先撤后加的幂等形态，\
+                     属重复声明"
+                );
+            }
+        }
+    }
+
+    // m0118 的 CHECK 走 for 循环加 format 注入，名单以占位形态出现在 up、以实形态出现在 down。
+    let rel = "migration/src/domain/contract_template_schema/m0118_add_contract_main_clause_columns.rs";
+    let src = strip_line_comments(&read(rel));
+    let down_at = src
+        .find("async fn down")
+        .unwrap_or_else(|| panic!("{rel} 缺少 down"));
+    let (up_part, down_body) = src.split_at(down_at);
+    assert!(
+        up_part.contains(r#"ALTER TABLE "{table}" ADD CONSTRAINT "chk_{table}_contract_market""#),
+        "{rel} 的 up 不再以占位形态给两侧合同主表施加内外销 CHECK，施加面被改动需同步本锁"
+    );
+    for table in CONTRACT_MAIN_TABLES {
+        let name = format!("chk_{table}_contract_market");
+        assert!(
+            down_body.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{name}""#)),
+            "{rel} 的 down 没有撤销 {table} 上的 {name}，回滚后库里会比 up 之前更紧"
+        );
+        assert_eq!(
+            src.matches(&name).count(),
+            1,
+            "{rel} 的约束名 {name} 出现多次或形态变化，实得 {cnt} 次",
+            cnt = src.matches(&name).count()
+        );
+    }
+}
+
 /// 子迁移文件名与其建的四张表（m0118 是补列，不建表，故不在表名单内）。
 const CHILD_TABLES: &[(&str, &str)] = &[
     ("m0114_create_contract_templates", "contract_templates"),
