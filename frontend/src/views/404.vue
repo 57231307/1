@@ -18,7 +18,11 @@ const { t } = useI18n({ useScope: 'global' });
 
 <style scoped>
 .error-page {
+  /* 整屏容器按安全区避让，vh 行兜底旧内核，dvh 行在后，变量口径见 theme.css */
+  box-sizing: border-box;
   height: 100vh;
+  height: 100dvh;
+  padding: var(--bx-safe-top) var(--bx-safe-right) var(--bx-safe-bottom) var(--bx-safe-left);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -127,8 +127,10 @@ impl ColorPriceBatchService {
         } else {
             ((new_price - existing.base_price) / existing.base_price).round_dp(4)
         };
-        let need_approval =
-            change_percent.abs() > Decimal::new(APPROVAL_THRESHOLD as i64 * 10000, 4);
+        // APPROVAL_THRESHOLD 是百分比小数（0.10 表示 10%），先放大到万分位再取整；
+        // 直接对它做 `as i64` 会把 0.10 截断成 0，使阈值退化为 0、每次调价都被判为需审批。
+        let approval_threshold = Decimal::new((APPROVAL_THRESHOLD * 10000.0).round() as i64, 4);
+        let need_approval = change_percent.abs() > approval_threshold;
 
         let history = HistoryActive {
             id: Default::default(),

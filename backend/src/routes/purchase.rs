@@ -494,6 +494,10 @@ fn sku_mapping_routes() -> Router<AppState> {
             post(crate::handlers::sku_mapping_handler::create_mapping),
         )
         .route(
+            "/sku-mappings/batch",
+            post(crate::handlers::sku_mapping_handler::batch_create_mappings),
+        )
+        .route(
             "/sku-mappings/import",
             post(crate::handlers::sku_mapping_handler::import_mappings),
         )

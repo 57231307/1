@@ -151,18 +151,31 @@ jobs:
 
       - name: 完成
         if: always()
+        # warning_count / before_count / affected_files 是 composite action 的整型输出，
+        # 审计步骤失败或被跳过时取值为空。这里改走 env 传入再用 shell 变量消费：
+        # 既消掉把 ${{ }} 直接内插进 shell 脚本的注入面，也让"空值"能被显式判定，
+        # 不再用 -eq 去比一个可能为空/非数字量的插值（那正是 SC2170 的成因，
+        # 且运行时 [ "" -eq 0 ] 会报 integer expression expected 误走 else 分支）。
+        # 期望数值口径：warning_count 为 dead_code 警告条数，0 表示无死代码；
+        # 空串表示审计未产出结果（不等于 0），单独给出不可判定的提示，不谎报"无死代码"。
+        env:
+          BEFORE_COUNT: ${{ steps.audit.outputs.before_count }}
+          WARNING_COUNT: ${{ steps.audit.outputs.warning_count }}
+          AFFECTED_FILES: ${{ steps.audit.outputs.affected_files }}
         run: |
           echo "=========================================="
           echo "  死代码审计完成"
           echo "=========================================="
           echo ""
-          echo "审计前 file-level allow: ${{ steps.audit.outputs.before_count }}"
-          echo "审计后 dead_code 警告: ${{ steps.audit.outputs.warning_count }}"
-          echo "受影响文件: ${{ steps.audit.outputs.affected_files }}"
+          echo "审计前 file-level allow: ${BEFORE_COUNT:-未知}"
+          echo "审计后 dead_code 警告: ${WARNING_COUNT:-未知}"
+          echo "受影响文件: ${AFFECTED_FILES:-未知}"
           echo ""
-          if [ "${{ steps.audit.outputs.warning_count }}" -eq "0" ]; then
+          if [ -z "$WARNING_COUNT" ]; then
+            echo "⚠️  审计未产出 warning_count（审计步骤可能失败或被跳过），本步无法判定死代码情况"
+          elif [ "$WARNING_COUNT" = "0" ]; then
             echo "✅ 无死代码，可考虑删除所有 file-level allow"
           else
-            echo "⚠️  发现 ${{ steps.audit.outputs.warning_count }} 处死代码，请查看报告"
+            echo "⚠️  发现 ${WARNING_COUNT} 处死代码，请查看报告"
           fi
           echo "=========================================="

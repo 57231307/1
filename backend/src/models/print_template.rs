@@ -70,7 +70,7 @@ pub struct Model {
     /// 模板变量集合
     pub variables: Json,
 
-    /// 同模块内是否为缺省模板
+    /// 是否为该 doc_type 的缺省模板（默认位互斥口径按 doc_type，与打印解析的查找键同域）
     pub is_default: bool,
 
     /// 状态(active/inactive)

@@ -7,11 +7,16 @@
 //! 打印请求前即可命中模板。
 //!
 //! 字段口径（与既有 `create_print_template` 及渲染查找路径一致，不臆造内容）：
-//! - `template_code` 与 `module` 均取 `doc_type`：`doc_type` 是「单据→模板」的查找键，内置集合里
-//!   每个 `doc_type` 唯一，故 `template_code` 唯一、且每行是其自身 `module` 下唯一默认，满足
-//!   “同模块至多一个默认模板”不变量（避免共享模块名使 set-default 事务清空其它 doc_type 的默认）。
-//! - `status` 取状态词表 [`print_template_status::ACTIVE`]（与词表同源，非另写字面量）；`is_default`
-//!   置真，使渲染按 `doc_type` 能立即命中默认模板。
+//! - `template_code` 与 `module` 均取 `doc_type`：`template_code` 有列级 UNIQUE，内置集合里
+//!   每个 `doc_type` 唯一故编码不冲突；`module` 写自身 `doc_type` 保证种子行归属独立的
+//!   内置模块（模板管理页可见），不与任何用户自建模块名相撞。
+//! - 默认位不变量按 `doc_type` 互斥（与渲染链路查找键同口径，由 `print_handler` 的
+//!   建/改/设默认写入侧维持）：种子行落库时是该 `doc_type` 初始的「启用且默认」行；
+//!   用户为同一 `doc_type` 新建默认模板后，写入侧竞位把种子行的默认位降交用户行，
+//!   打印随之以用户行为准（租户自定义默认取代内置默认，是预期语义）。
+//! - 种子行被降位后若再被停用/启用：重新启用只恢复”可经显式 id 出件”的资格，
+//!   不发起竞位、不夺回默认位（要换默认行须走显式设默认）。
+//! - `status` 取状态词表 [`print_template_status::ACTIVE`]、`is_default` 置真两条保持不变。
 //! - 纸张/方向/四边边距/份数/条码等布局列一律不写，回落 `print_templates` 建表列默认
 //!   （A4 / portrait / 15mm / copies 1 / barcode true），布局单一来源仍归渲染链路。
 //! - `content` / `description` 取内置集合既有正文描述，不新造模板内容。
