@@ -166,7 +166,8 @@ fn build_csrf_recovery_response(
     );
     let mut resp = csrf_error_response(code, message);
     if let Ok(val) = axum::http::HeaderValue::from_str(&recovery_token) {
-        resp.headers_mut().insert(HeaderName::from_static(NEW_CSRF_HDR), val);
+        resp.headers_mut()
+            .insert(HeaderName::from_static(NEW_CSRF_HDR), val);
     }
     // 同步 Set-Cookie，让前端可从 document.cookie 读到恢复 token（非 httpOnly、非加密）。
     let cookie_value = format!("csrf_token={}; {}", recovery_token, CSRF_COOKIE_ATTRS);
@@ -234,7 +235,9 @@ fn rotate_csrf_after_consume(
     let new_csrf_token = uuid::Uuid::new_v4().to_string();
     state.cache.set_csrf_token(
         new_csrf_token.clone(),
-        session_id_of(request).unwrap_or(CSRF_SESSION_UNBOUND).to_string(),
+        session_id_of(request)
+            .unwrap_or(CSRF_SESSION_UNBOUND)
+            .to_string(),
         client_ip.to_string(),
         user_id,
         None,
@@ -372,12 +375,10 @@ pub async fn csrf_middleware(
     // 4. 一次性消费 token：用户与会话是拒绝依据，观测 IP 只判漂移
     let expected_user_id = authenticated_user_id(&request);
     let expected_session_id = session_id_of(&request);
-    let outcome = state.cache.consume_csrf_token(
-        &token,
-        &client_ip,
-        expected_user_id,
-        expected_session_id,
-    );
+    let outcome =
+        state
+            .cache
+            .consume_csrf_token(&token, &client_ip, expected_user_id, expected_session_id);
     if let CsrfConsumeResult::OkIpDrift { ref previous_ip } = outcome {
         record_ip_drift_audit(
             &state,

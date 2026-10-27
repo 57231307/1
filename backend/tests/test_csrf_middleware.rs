@@ -381,7 +381,12 @@ async fn test_consume_csrf_token_one_time_use() {
     );
     // 不存在的 token：应失败
     assert_eq!(
-        cache.consume_csrf_token("non-existent-token", "203.0.113.99", Some(2002), Some(SESSION)),
+        cache.consume_csrf_token(
+            "non-existent-token",
+            "203.0.113.99",
+            Some(2002),
+            Some(SESSION)
+        ),
         CsrfConsumeResult::NotFound,
         "不存在的 token 应返回 NotFound"
     );
@@ -416,7 +421,9 @@ async fn test_ip_change_within_session_passes_and_reissues_token() {
 
     // 8.2 新 token 绑定到新 IP：以新 IP 消费成功，以旧 IP 消费会记为再一次漂移（不拒绝）
     assert_eq!(
-        state.cache.consume_csrf_token(&new_token, IP_CELL, Some(USER_ID), Some(SESSION)),
+        state
+            .cache
+            .consume_csrf_token(&new_token, IP_CELL, Some(USER_ID), Some(SESSION)),
         CsrfConsumeResult::Ok,
         "重发的 token 必须绑定到本次观测到的新 IP 且属于同一会话同一用户"
     );
@@ -472,7 +479,9 @@ async fn test_token_of_other_user_is_rejected_without_recovery() {
 
     // 拒绝不得消耗原主的 token
     assert_eq!(
-        state.cache.consume_csrf_token(token, IP_WIFI, Some(OTHER_USER_ID), Some(SESSION)),
+        state
+            .cache
+            .consume_csrf_token(token, IP_WIFI, Some(OTHER_USER_ID), Some(SESSION)),
         CsrfConsumeResult::Ok,
         "被拒的攻击请求不得顺带把原主的 token 消费掉"
     );
@@ -503,7 +512,9 @@ async fn test_token_of_other_session_is_rejected() {
         body.get("code")
     );
     assert_eq!(
-        state.cache.consume_csrf_token(token, IP_WIFI, Some(USER_ID), Some(OTHER_SESSION)),
+        state
+            .cache
+            .consume_csrf_token(token, IP_WIFI, Some(USER_ID), Some(OTHER_SESSION)),
         CsrfConsumeResult::Ok,
         "跨会话被拒时原会话的 token 必须仍在"
     );

@@ -384,10 +384,7 @@ fn test_unresolved_ip_never_counts_as_drift() {
         !csrf_ip_drifted(CLIENT_IP_UNRESOLVED, CLIENT_IP_UNRESOLVED),
         "两侧都是占位值时不是漂移"
     );
-    assert!(
-        !csrf_ip_drifted("", IP_WIFI),
-        "空串是缺失观测而不是换网"
-    );
+    assert!(!csrf_ip_drifted("", IP_WIFI), "空串是缺失观测而不是换网");
 }
 
 /// 漂移判据本身：纯格式差异不算换址（IPv4 与 v4-mapped IPv6 写法、大小写、前后空白）

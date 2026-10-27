@@ -138,6 +138,15 @@ function callArgs(text, anchor) {
   return null;
 }
 
+/// 按多个候选锚点找调用实参（rustfmt 会把 `a.b.method(` 拆成点号链，故锚点要容得下两种形态）
+function callArgsAny(text, anchors) {
+  for (const a of anchors) {
+    const r = callArgs(text, a);
+    if (r !== null) return r;
+  }
+  return null;
+}
+
 /** L1：消费链路不得以 IP 差异拒绝（漂移判据的分支体内不得 return 拒绝形态） */
 function l1IpNotRejection(map) {
   const src = map.cache;
@@ -247,7 +256,10 @@ function l4BindingPillars(map) {
     hits.push('cache.rs 的消费实现没有调用绑定核验');
   }
   // 消费调用的实参必须把当前用户与当前会话都传进去（少一个就是对应维度失去源头）
-  const call = callArgs(codeOnly(map.csrf), 'state.cache.consume_csrf_token(');
+  const call = callArgsAny(codeOnly(map.csrf), [
+    '.consume_csrf_token(',
+    'consume_csrf_token(',
+  ]);
   if (call === null) {
     hits.push('csrf.rs 找不到消费 CSRF Token 的调用点');
   } else {
@@ -364,7 +376,7 @@ function l9LoginBinding(map) {
     hits.push('auth_handler.rs 的 CSRF 签发辅助函数被移除');
     return hits;
   }
-  const call = callArgs(codeOnly(body), 'state.cache.set_csrf_token(');
+  const call = callArgsAny(codeOnly(body), ['.set_csrf_token(', 'set_csrf_token(']);
   if (call === null) {
     hits.push('auth_handler.rs 的签发路径没有写入 CSRF 缓存');
     return hits;
@@ -466,8 +478,16 @@ const MUTATIONS = [
   {
     rule: 'L4 用户与会话绑定支柱齐全',
     file: 'csrf',
-    from: '    let outcome = state.cache.consume_csrf_token(\n        &token,\n        &client_ip,\n        expected_user_id,\n        expected_session_id,\n    );',
-    to: '    let outcome = state.cache.consume_csrf_token(&token, &client_ip, expected_user_id, None);',
+    // 会话维度失去源头（把当前会话换成 None 传进消费判定）
+    from: '.consume_csrf_token(&token, &client_ip, expected_user_id, expected_session_id);',
+    to: '.consume_csrf_token(&token, &client_ip, expected_user_id, None);',
+  },
+  {
+    rule: 'L4 用户与会话绑定支柱齐全',
+    file: 'csrf',
+    // 用户维度失去源头
+    from: '.consume_csrf_token(&token, &client_ip, expected_user_id, expected_session_id);',
+    to: '.consume_csrf_token(&token, &client_ip, None, expected_session_id);',
   },
   {
     rule: 'L5 拒绝通道存在且退役码不复现',
