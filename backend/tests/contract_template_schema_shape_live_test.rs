@@ -44,9 +44,9 @@ use test_common::setup_test_db;
 
 /// 探针行的私有号段前缀，所有自建编码都带它。
 const IT: &str = "IT-CTPL";
-/// 快照探针使用的合同主键私有号段值，两族合同各用一枚。
+/// 快照探针使用的合同主键私有号段值。跨族独立性用例刻意让两族共用同一枚数值，
+/// 证明多态引用按 kind 加 id 定位、同数值不互相锁死，故只需要一枚号段常量。
 const IT_SALES_ID: i32 = 900_001;
-const IT_PURCHASE_ID: i32 = 900_002;
 
 /// 词表外的越界取值，只用于触发数据库拒绝，刻意不属于任何合法集。
 const BANNED_STATUS: &str = "enabled";
@@ -421,49 +421,49 @@ async fn template_vocab_checks_reject_out_of_vocab_values() {
     expect_rejected(
         &db,
         pg_bound(
-            "INSERT INTO contract_templates (template_code, contract_type, party_side, status) \
-             VALUES ($1, 'domestic_sales', 'seller', $2)"
+            "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, 'domestic_sales', 'seller', 1, 'IT 探针标题', $2)"
                 .to_string(),
             vec![format!("{IT}-STATUS").into(), BANNED_STATUS.into()],
         ),
         "23514",
         "chk_contract_templates_status",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
-            "INSERT INTO contract_templates (template_code, contract_type, party_side, status) \
-             VALUES ($1, $2, 'seller', 'draft')"
+            "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, $2, 'seller', 1, 'IT 探针标题', 'draft')"
                 .to_string(),
             vec![format!("{IT}-TYPE").into(), BANNED_CONTRACT_TYPE.into()],
         ),
         "23514",
         "chk_contract_templates_contract_type",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
-            "INSERT INTO contract_templates (template_code, contract_type, party_side, status) \
-             VALUES ($1, 'domestic_sales', $2, 'draft')"
+            "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, 'domestic_sales', $2, 1, 'IT 探针标题', 'draft')"
                 .to_string(),
             vec![format!("{IT}-SIDE").into(), BANNED_PARTY_SIDE.into()],
         ),
         "23514",
         "chk_contract_templates_party_side",
-    );
+    ).await;
 
     // active 无复核人必须被拒（法务复核后才置 active 的结构位）。
     expect_rejected(
         &db,
         pg_bound(
-            "INSERT INTO contract_templates (template_code, contract_type, party_side, status) \
-             VALUES ($1, 'domestic_sales', 'buyer', 'active')"
+            "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, 'domestic_sales', 'buyer', 1, 'IT 探针标题', 'active')"
                 .to_string(),
             vec![format!("{IT}-ACTIVE").into()],
         ),
         "23514",
         "chk_contract_templates_active_approved",
-    );
+    ).await;
 
     // 正向 词表内取值且 draft 无复核人必须写得进。
     let id = seed_template(
@@ -514,14 +514,14 @@ async fn active_gate_allows_only_one_active_per_type_and_side() {
         &db,
         pg_bound(
             "INSERT INTO contract_templates \
-               (template_code, contract_type, party_side, version, status, approved_by) \
-             VALUES ($1, 'fabric_yarn_purchase', 'buyer', 2, 'active', 7777)"
+               (template_code, contract_type, party_side, version, title, status, approved_by) \
+             VALUES ($1, 'fabric_yarn_purchase', 'buyer', 2, 'IT 探针标题', 'active', 7777)"
                 .to_string(),
             vec![format!("{IT}-A2").into()],
         ),
         "23505",
         "uq_contract_templates_active_type_side",
-    );
+    ).await;
 
     // 反向 换立场、换类别、同键的 draft 都不该撞门。
     seed_template(
@@ -609,14 +609,14 @@ async fn template_code_and_version_form_the_business_key() {
         &db,
         pg_bound(
             "INSERT INTO contract_templates \
-               (template_code, contract_type, party_side, version, status) \
-             VALUES ($1, 'export_sales', 'seller', 1, 'draft')"
+               (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, 'export_sales', 'seller', 1, 'IT 探针标题', 'draft')"
                 .to_string(),
             vec![format!("{IT}-VER").into()],
         ),
         "23505",
         "uq_contract_templates_code_version",
-    );
+    ).await;
     seed_template(
         &db,
         &format!("{IT}-VER"),
@@ -644,14 +644,14 @@ async fn template_code_and_version_form_the_business_key() {
         &db,
         pg_bound(
             "INSERT INTO contract_templates \
-               (template_code, contract_type, party_side, version, status) \
-             VALUES ($1, 'export_sales', 'seller', 0, 'draft')"
+               (template_code, contract_type, party_side, version, title, status) \
+             VALUES ($1, 'export_sales', 'seller', 0, 'IT 探针标题', 'draft')"
                 .to_string(),
             vec![format!("{IT}-VER0").into()],
         ),
         "23514",
         "chk_contract_templates_version",
-    );
+    ).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,7 +672,7 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23514",
         "chk_clause_library_code",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -682,7 +682,7 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23514",
         "chk_clause_library_body",
-    );
+    ).await;
 
     seed_library(&db, "subject_and_spec", "标的与规格正文", "active").await;
     expect_rejected(
@@ -694,7 +694,7 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23505",
         "uq_clause_library_code",
-    );
+    ).await;
 
     // 专章条款的适用范围必须落在十类内，空值表示通用条款。
     expect_rejected(
@@ -707,7 +707,7 @@ async fn clause_library_locks_code_vocabulary_and_rejects_blank_body() {
         ),
         "23514",
         "chk_clause_library_applies_type",
-    );
+    ).await;
     seed_library(&db, "export_control_screening", "制裁筛查正文", "draft").await;
 }
 
@@ -738,7 +738,7 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -750,7 +750,7 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -761,7 +761,7 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23514",
         "chk_ctc_text_source",
-    );
+    ).await;
 
     seed_template_clause(
         &db,
@@ -798,7 +798,7 @@ async fn template_clause_body_source_is_exactly_one() {
         ),
         "23503",
         "fk_ctc_library",
-    );
+    ).await;
 }
 
 /// 顺序闭合、复核成对、条款码闭合集、条件词表，四条 CHECK 各自归因。
@@ -829,7 +829,7 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_sort",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -841,7 +841,7 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_review_pair",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -853,7 +853,7 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_clause_code",
-    );
+    ).await;
     expect_rejected(
         &db,
         pg_bound(
@@ -865,7 +865,7 @@ async fn template_clause_sort_and_review_and_vocab_locks() {
         ),
         "23514",
         "chk_ctc_applies_when",
-    );
+    ).await;
 
     // 正向 复核通过且带复核人与复核时间的行必须写得进。
     exec_ok(
@@ -931,7 +931,7 @@ async fn template_clause_position_is_unique_but_condition_variants_coexist() {
         ),
         "23505",
         "uq_ctc_template_clause_position",
-    );
+    ).await;
 
     // 无适用条件（NULL）的第二行也必须撞同一索引，证明折叠空值的表达式口径生效。
     seed_template_clause(
@@ -956,7 +956,7 @@ async fn template_clause_position_is_unique_but_condition_variants_coexist() {
         ),
         "23505",
         "uq_ctc_template_clause_position",
-    );
+    ).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -994,25 +994,25 @@ async fn snapshot_rejects_bad_kind_blank_text_unrendered_placeholder_and_duplica
         bad(BANNED_CONTRACT_KIND, "subject_and_spec", "正文"),
         "23514",
         "chk_cc_contract_kind",
-    );
+    ).await;
     expect_rejected(
         &db,
         bad("sales", BANNED_CLAUSE_CODE, "正文"),
         "23514",
         "chk_cc_clause_code",
-    );
+    ).await;
     expect_rejected(
         &db,
         bad("sales", "subject_and_spec", ""),
         "23514",
         "chk_cc_body_rendered",
-    );
+    ).await;
     expect_rejected(
         &db,
         bad("sales", "subject_and_spec", "门幅 {{valid_width}} 克重 180"),
         "23514",
         "chk_cc_body_fully_rendered",
-    );
+    ).await;
 
     seed_snapshot(
         &db,
@@ -1037,7 +1037,7 @@ async fn snapshot_rejects_bad_kind_blank_text_unrendered_placeholder_and_duplica
         ),
         "23505",
         "uq_contract_clauses_contract_code",
-    );
+    ).await;
 
     // 反向 另一侧同主键同条款码不冲突，两族主键各自独立的多态引用不得互相锁死。
     seed_snapshot(
@@ -1260,7 +1260,7 @@ async fn template_revision_never_rewrites_frozen_snapshot() {
         ),
         "23503",
         "fk_cc_template",
-    );
+    ).await;
 }
 
 // ---------------------------------------------------------------------------
@@ -1390,7 +1390,7 @@ async fn legacy_contract_rows_keep_null_and_market_check_allows_null() {
             ),
             "23514",
             &format!("chk_{table}_contract_market"),
-        );
+        ).await;
     }
 
     // 词表内值与空值都必须放行，证明 CHECK 不是恒假。
