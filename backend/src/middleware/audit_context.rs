@@ -45,29 +45,78 @@ impl AuditContext {
     }
 }
 
-/// 提取客户端 IP（X-Real-IP → X-Forwarded-For → ConnectInfo）
-/// P2-12c 修复（批次 83 v1 复审）：公开为统一 helper，供 auth_middleware 复用
-pub fn extract_client_ip(request: &Request<Body>) -> String {
-    let h = request.headers();
-    if let Some(real_ip) = h
+/// 无法解析客户端 IP 时的占位值（不是可用的客户端标识，禁止当作真实 IP 参与任何判定）
+pub const CLIENT_IP_UNRESOLVED: &str = "unknown";
+
+/// 客户端 IP 的来源档位。用途：CSRF Token 的 IP 漂移留痕需要标注这条 IP 是谁给的，
+/// 因为 `X-Forwarded-For` 首段在客户端可自填（Nginx 用 `$proxy_add_x_forwarded_for` 追加，
+/// 不清空客户端自带值），而 `X-Real-IP` 由边缘 Nginx 以 `$remote_addr` 覆写，客户端伪造不进去。
+/// 见 deploy/nginx.conf 与 frontend/nginx.conf 的 `location /api/` 段。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClientIpSource {
+    /// 边缘反向代理覆写的 `X-Real-IP`（本仓部署形态下的可信来源）
+    RealIpHeader,
+    /// `X-Forwarded-For` 首段（客户端可控，仅在无 `X-Real-IP` 时作为降级来源）
+    ForwardedForHeader,
+    /// TCP 连接对端地址（直连部署下就是客户端 IP；经反向代理部署下是代理自身 IP）
+    ConnectPeer,
+    /// 三级来源全部缺失，值为 [CLIENT_IP_UNRESOLVED] 占位
+    Unresolved,
+}
+
+impl ClientIpSource {
+    /// 落审计与日志用的稳定字符串
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::RealIpHeader => "x-real-ip",
+            Self::ForwardedForHeader => "x-forwarded-for",
+            Self::ConnectPeer => "connect-info",
+            Self::Unresolved => "unresolved",
+        }
+    }
+}
+
+/// 客户端 IP 提取的唯一实现：按 HeaderMap 与可选的连接对端地址走同一条降级链。
+/// 登录/刷新等只持有 HeaderMap 与 ConnectInfo 的 handler 也走这里，
+/// 避免同一套优先级出现第二份实现（两份各自演进会让绑定 IP 与校验 IP 系统性错配）。
+pub fn client_ip_from_parts(
+    headers: &header::HeaderMap,
+    peer_ip: Option<std::net::IpAddr>,
+) -> (String, ClientIpSource) {
+    if let Some(real_ip) = headers
         .get("x-real-ip")
         .and_then(|v| v.to_str().ok())
         .filter(|s| !s.is_empty())
     {
-        return real_ip.to_string();
+        return (real_ip.to_string(), ClientIpSource::RealIpHeader);
     }
-    if let Some(forwarded) = h.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+    if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first) = forwarded.split(',').next() {
             let trimmed = first.trim();
             if !trimmed.is_empty() {
-                return trimmed.to_string();
+                return (trimmed.to_string(), ClientIpSource::ForwardedForHeader);
             }
         }
     }
-    if let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>() {
-        return addr.ip().to_string();
+    if let Some(ip) = peer_ip {
+        return (ip.to_string(), ClientIpSource::ConnectPeer);
     }
-    "unknown".to_string()
+    (CLIENT_IP_UNRESOLVED.to_string(), ClientIpSource::Unresolved)
+}
+
+/// 从完整请求提取客户端 IP 与来源档位（依次 X-Real-IP、X-Forwarded-For 首段、ConnectInfo、占位）
+pub fn extract_client_ip_with_source(request: &Request<Body>) -> (String, ClientIpSource) {
+    let peer_ip = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip());
+    client_ip_from_parts(request.headers(), peer_ip)
+}
+
+/// 提取客户端 IP（依次 X-Real-IP、X-Forwarded-For、ConnectInfo）
+/// P2-12c 修复（批次 83 v1 复审）：公开为统一 helper，供 auth_middleware 复用
+pub fn extract_client_ip(request: &Request<Body>) -> String {
+    extract_client_ip_with_source(request).0
 }
 
 /// 提取 User-Agent
