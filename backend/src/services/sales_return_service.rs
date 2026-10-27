@@ -202,8 +202,10 @@ impl SalesReturnService {
     }
 
     /// 解析税率（不做静默默认 0）。优先级：请求显式提供 > 关联销售订单同商品明细税率。
-    /// 两者皆无（退货单未关联销售订单，或订单内无同商品明细）时报业务错误，
-    /// 由调用方在请求中补 tax_percent 或数据层修正来源。
+    /// 两者皆无（退货单未关联销售订单，或订单内无同商品明细）时按**必填族缺键**点名拒绝，
+    /// 出参文案只点名用户自己可补的字段 `tax_percent`（不含订单 ID 与商品 ID，
+    /// 满足 error.rs 的安全边界），由调用方在请求中补税率后重试。
+    /// 码与采购订单行「缺少税率」同族同码（VALIDATION_ERROR / 400），不开第二套口径。
     fn resolve_tax_percent(
         req_tax: Option<Decimal>,
         order_item_tax: Option<Decimal>,
@@ -216,10 +218,15 @@ impl SalesReturnService {
         if let Some(t) = order_item_tax {
             return Ok(t);
         }
-        Err(AppError::business(format!(
-            "退货明细缺税率 tax_percent：退货单关联销售订单 {:?}，商品 {} 无法从销售订单明细取得权威税率，请在请求中显式提供 tax_percent",
-            sales_order_id, product_id
-        )))
+        // 来源缺失只进日志（含关联订单与商品的定位信息），出参只给可行动的缺键点名
+        tracing::warn!(
+            sales_order_id = ?sales_order_id,
+            product_id = product_id,
+            "退货明细税率无权威来源：请求未提交 tax_percent 且无法从关联销售订单明细取得"
+        );
+        Err(AppError::validation_displayable(
+            "退货明细缺少税率 tax_percent：本行无法从关联的销售订单取得权威税率，请在请求中显式提交 tax_percent（13 表示 13%，免税或无税须显式提交 0），系统不设默认税率档位",
+        ))
     }
 
     /// 从出库明细（实际发货的那一行）构造追溯三元组。
@@ -1623,12 +1630,21 @@ mod tests {
 
     #[test]
     fn test_resolve_tax_percent_errors_without_source() {
-        // 无请求值 + 无订单税率（未关联或订单内无同商品明细）→ 业务错误，绝不默认 0
+        // 无请求值 + 无订单税率（未关联或订单内无同商品明细）→ 必填族缺键点名，绝不默认 0
         let err = SalesReturnService::resolve_tax_percent(None, None, Some(7), 42).unwrap_err();
-        assert!(matches!(err, AppError::BusinessError(_)));
+        assert!(
+            matches!(err, AppError::ValidationErrorDisplayable(_)),
+            "缺税率是必填族缺键点名，必须与采购订单行缺税率同码（VALIDATION_ERROR 可外显），实得 {err:?}"
+        );
         let msg = err.to_string();
-        assert!(msg.contains("tax_percent"));
-        assert!(msg.contains("42"));
+        assert!(
+            msg.contains("tax_percent") && msg.contains("不设默认税率档位"),
+            "缺键文案必须点名可补的字段与补法，实得 {msg}"
+        );
+        assert!(
+            !msg.contains('7') && !msg.contains("42"),
+            "出参文案不得携带订单 ID 与商品 ID（error.rs 安全边界），定位信息只进日志，实得 {msg}"
+        );
     }
 
     // ===== 追溯三列回写：resolve_return_item_trace 三种路径 =====

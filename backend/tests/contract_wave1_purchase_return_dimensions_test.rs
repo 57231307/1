@@ -433,10 +433,11 @@ async fn run_return_approve(
             quantity_ordered: None,
             quantity_returned: dec(qty),
             unit_price: dec("8.50"),
-            // 本夹具不提交税率（缺省按 0 声明），0 税率下含税单价与不含税单价是同一个数，
+            // 本夹具按 0 税率声明（无进项票红冲）：税率是必填族，缺键已由服务层点名拒绝，
+            // 夹具必须显式提交 0 而不是省略；0 税率下含税单价与不含税单价是同一个数，
             // 故含税单价留空由服务层按算术事实取不含税单价，不走还原分支
             unit_price_with_tax: None,
-            tax_rate: None,
+            tax_rate: Some(dec("0")),
             discount_percent: None,
             notes: None,
             color_no: Some("COL-A".to_string()),

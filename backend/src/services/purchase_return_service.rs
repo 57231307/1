@@ -1073,6 +1073,9 @@ pub struct CreateReturnItemRequest {
     /// 税率非 0 而缺本字段时服务层点名拒绝，不用 `不含税 × (1 + 税率)` 倒造含税额。
     /// 0 税率（免税退货/无票红冲）行可不提交，此时不含税单价即含税单价。
     pub unit_price_with_tax: Option<Decimal>,
+    /// 税率（百分数口径，13 表示 13%）。人工加行必填：缺键由服务层按必填族点名拒绝
+    /// （VALIDATION_ERROR），系统不回落任何档位，0 只能由制单人显式提交（免税或无票红冲），
+    /// 否则漏录与免税在进项转出台账里无法区分。与采购订单行同一口径。
     pub tax_rate: Option<Decimal>,
     pub discount_percent: Option<Decimal>,
     pub notes: Option<String>,
@@ -1193,14 +1196,34 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", return_id)))?;
 
         if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(
+            return Err(AppError::business_displayable(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
 
         let quantity = req.quantity_returned;
         let discount_percent = req.discount_percent.unwrap_or(Decimal::ZERO);
-        let tax_percent = req.tax_rate.unwrap_or(Decimal::ZERO);
+        // 税率是进项税转出与红字票面的台账口径值，人工加行必须由制单人提交，缺键点名拒绝：
+        // 按 0 代填会把"漏录税率"与"免税或无票红冲"混成同一行，事后无从分辨。
+        // 0 只接受人工显式提交的 0（合法声明值），不接受缺键回落；本服务不设任何默认档位。
+        // 越界（负数或超过落库列域 DECIMAL(7,4)）同样在算金额之前拒绝，避免 insert 炸列溢出。
+        let tax_percent = match req.tax_rate {
+            Some(percent) => {
+                if percent < Decimal::ZERO || percent > crate::utils::tax::TAX_PERCENT_MAX {
+                    return Err(AppError::validation_displayable(format!(
+                        "采购退货行税率 {} 非法：须为百分数口径且落在 0 到 {} 之间（13 表示 13%，0 表示无进项税），系统不设默认税率档位",
+                        percent,
+                        crate::utils::tax::TAX_PERCENT_MAX
+                    )));
+                }
+                percent
+            }
+            None => {
+                return Err(AppError::validation_displayable(
+                    "采购退货行缺少税率 tax_rate，须按百分数提交（13 表示 13%，0 表示无进项税），系统不设默认税率档位，请录入税率后重试",
+                ));
+            }
+        };
 
         // 价税分离只允许除法反算这一条腿（utils tax 内核单源）：
         // 含税单价是录入事实，缺它时只有 0 税率可按算术事实把不含税单价原样当含税额；
@@ -1347,7 +1370,7 @@ impl PurchaseReturnService {
     /// 校验退货单状态：仅草稿状态可修改明细
     fn validate_update_item(return_record: &purchase_return::Model) -> Result<(), AppError> {
         if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(
+            return Err(AppError::business_displayable(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
@@ -1497,7 +1520,7 @@ impl PurchaseReturnService {
             .ok_or_else(|| AppError::not_found(format!("退货单 {}", item.return_id)))?;
 
         if return_record.return_status.as_deref() != Some(pr_status::DRAFT) {
-            return Err(AppError::business(
+            return Err(AppError::business_displayable(
                 "只有草稿状态的退货单可以修改明细".to_string(),
             ));
         }
