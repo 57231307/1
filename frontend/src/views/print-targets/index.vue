@@ -138,11 +138,21 @@
         <h4 class="paper-subtitle">{{ t('printTargets.paper.documentTitle') }}</h4>
         <el-form label-width="auto">
           <el-form-item :label="t('printTargets.paper.width')">
-            <NumericInput v-model="documentPaper.widthMm" :min="20" :max="1000" class="paper-number" />
+            <NumericInput
+              v-model="documentPaper.widthMm"
+              :min="20"
+              :max="1000"
+              class="paper-number"
+            />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.height')">
-            <NumericInput v-model="documentPaper.heightMm" :min="0" :max="1000" class="paper-number" />
+            <NumericInput
+              v-model="documentPaper.heightMm"
+              :min="0"
+              :max="1000"
+              class="paper-number"
+            />
             <span class="paper-unit">mm</span>
             <span class="paper-hint">{{ t('printTargets.paper.heightHint') }}</span>
           </el-form-item>
