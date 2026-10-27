@@ -15,9 +15,6 @@ use crate::models::product_color;
 // 批次 213 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::product_service::{CreateProductArgs, ProductService, UpdateProductArgs};
-// 同源补齐函数的真源在服务层（批量链路与本链路共用一份语义），这里再导出，
-// 保持既有引用路径 handlers 下 product_handler 下的 pair_piece_roll_meters 仍可用。
-pub use crate::services::product_service::pair_piece_roll_meters;
 use crate::utils::admin_checker;
 use crate::utils::dual_unit_converter::DualUnitConverter;
 use crate::utils::error::AppError;
@@ -92,13 +89,13 @@ pub struct CreateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
-    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）
+    // 每匹米数（匹↔米换算元数据，一卷即一匹的现网口径下也服务按卷换算），
+    // 产品表单不再采集，直连 API 与批量与导入仍可录入。
     pub meters_per_piece: Option<Decimal>,
-    pub meters_per_roll: Option<Decimal>,
 }
 
 /// 更新产品请求（面料行业版）
-/// 每匹米数、每卷米数与五个 DECIMAL 数值列（价格两列、幅宽、克重、最小起订量）为三态部分更新，
+/// 每匹米数与五个 DECIMAL 数值列（价格两列、幅宽、克重、最小起订量）为三态部分更新，
 /// 键缺席保持原值、显式 null 清空为 NULL、有值覆盖。
 /// DECIMAL 列走三态的原因与米数同由：这些列的出参是十进制字符串，编辑清空若只发 null，
 /// 单层 Option 下与键缺席不可区分，清空会被静默丢弃、落不回库里。
@@ -169,12 +166,10 @@ pub struct UpdateProductRequest {
     pub factory_address: Option<String>,
     #[validate(length(max = 10, message = "产品等级长度不能超过10个字符"))]
     pub product_grade: Option<String>,
-    // 匹↔米 / 卷↔米 换算元数据（码匹卷换算单一真源入参，供 dual_unit_converter 读取）。
+    // 每匹米数换算元数据（一卷即一匹的现网口径下也服务按卷换算，供 dual_unit_converter 读取）。
     // 三态部分更新：键缺席保持原值、显式 null 清空为 NULL、有值覆盖（清空通道即本形态存在的理由）。
     #[serde(default, deserialize_with = "double_option")]
     pub meters_per_piece: Option<Option<Decimal>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub meters_per_roll: Option<Option<Decimal>>,
 }
 
 // ========== 色号管理相关结构体 ==========
@@ -474,9 +469,6 @@ pub async fn create_product(
         _ => product_service.generate_product_code().await?,
     };
 
-    let (meters_per_piece, meters_per_roll) =
-        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
-
     let product = product_service
         .create_product(CreateProductArgs {
             name: req
@@ -516,8 +508,7 @@ pub async fn create_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece,
-            meters_per_roll,
+            meters_per_piece: req.meters_per_piece,
         })
         .await?;
 
@@ -540,9 +531,6 @@ pub async fn update_product(
     }
 
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
-
-    let (meters_per_piece, meters_per_roll) =
-        pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
 
     let product = product_service
         .update_product(UpdateProductArgs {
@@ -574,9 +562,8 @@ pub async fn update_product(
             factory_name: req.factory_name,
             factory_address: req.factory_address,
             product_grade: req.product_grade,
-            meters_per_piece,
-            meters_per_roll,
-            // 批次 94 P2-10：注入真实操作人 user_id 用于审计日志
+            meters_per_piece: req.meters_per_piece,
+            // 入参：当前登录用户 id，透传给服务层 update_product 作为审计日志操作人
             user_id: auth.user_id,
         })
         .await?;

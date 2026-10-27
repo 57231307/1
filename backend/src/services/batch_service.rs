@@ -6,8 +6,6 @@ use crate::models::product;
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
-// 每匹米数与每卷米数的同源补齐与产品单条链路共用同一真源，避免批量入口各写一套语义
-use crate::services::product_service::pair_piece_roll_meters;
 // 建品必录校验（产品类型显式 加 面料类幅宽与克重与成分）与取值域校验（词表内、幅宽克重为正、量价非负）
 // 与单条、CSV 导入共用同一判据函数组，批量入口不得绕过，否则按品类分级必填在批量面失守
 use crate::services::product_service::{
@@ -66,10 +64,9 @@ pub struct BatchCreateProductRequest {
     pub finish: Option<String>,
     pub min_order_quantity: Option<rust_decimal::Decimal>,
     pub lead_time: Option<i32>,
-    // 每匹米数与每卷米数换算元数据。创建侧为两态，带值即落值。只带其中一个值时另一列由
-    // 同源补齐成同值，两个都不带时两列落 NULL（与产品单条创建链路同一语义）。
+    // 每匹米数换算元数据。创建侧为两态，带值即落值，不带落 NULL
+    // （一卷即一匹，按卷换算共用此列；与产品单条创建链路同一语义）。
     pub meters_per_piece: Option<rust_decimal::Decimal>,
-    pub meters_per_roll: Option<rust_decimal::Decimal>,
 }
 
 /// JSON 三态反序列化适配器（RFC 7386 JSON Merge Patch 的键缺席不等于显式 null 语义所需）。
@@ -101,13 +98,11 @@ pub struct BatchUpdateProductRequest {
     pub cost_price: Option<String>,
     pub description: Option<String>,
     pub status: Option<String>,
-    // 每匹米数与每卷米数换算元数据，三态部分更新。键缺席保持原值、显式 null 清空为 NULL、
-    // 有值覆盖。只声明其中一个值时另一列由同源补齐成同样的声明（与单条更新链路同一语义，
+    // 每匹米数换算元数据，三态部分更新。键缺席保持原值、显式 null 清空为 NULL、
+    // 有值覆盖（一卷即一匹，按卷换算共用此列；与单条更新链路同一语义，
     // 清空走显式置空，不取旧值兜底）。
     #[serde(default, deserialize_with = "double_option")]
     pub meters_per_piece: Option<Option<rust_decimal::Decimal>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub meters_per_roll: Option<Option<rust_decimal::Decimal>>,
 }
 
 /// 批量更新失败回滚上下文：封装 user_id/total/description/errors 等参数（批次 488 D08-1 拆分：用于 build_rollback_result 在 helper 间传递上下文）
@@ -184,14 +179,7 @@ impl BatchService {
                         message: e.to_string(),
                     });
                     let failed = errors.len();
-                    Self::record_batch_create_audit(
-                        &self.db,
-                        user_id,
-                        &requests,
-                        0,
-                        &errors,
-                        true,
-                    );
+                    Self::record_batch_create_audit(&self.db, user_id, &requests, 0, &errors, true);
                     return Ok(BatchResult {
                         success: false,
                         total: requests.len(),
@@ -265,9 +253,11 @@ impl BatchService {
         if text.trim().is_empty() {
             return Ok(None);
         }
-        rust_decimal::Decimal::from_str(text.trim()).map(Some).map_err(|_| {
-            AppError::validation_displayable(format!("{label} \"{text}\" 不是合法十进制数"))
-        })
+        rust_decimal::Decimal::from_str(text.trim())
+            .map(Some)
+            .map_err(|_| {
+                AppError::validation_displayable(format!("{label} \"{text}\" 不是合法十进制数"))
+            })
     }
 
     /// 从请求构建产品 ActiveModel
@@ -278,10 +268,7 @@ impl BatchService {
         standard_price: Option<rust_decimal::Decimal>,
         cost_price: Option<rust_decimal::Decimal>,
     ) -> product::ActiveModel {
-        // 米数两列先过同源补齐再落 ActiveModel，只带一个值时另一列同值落库，
-        // 两个都不带时两列落 NULL，与产品单条创建链路同一形态
-        let (meters_per_piece, meters_per_roll) =
-            pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
+        // 每匹米数不带即落 NULL（一卷即一匹，按卷换算共用此列），与产品单条创建链路同一形态
 
         product::ActiveModel {
             id: Default::default(),
@@ -315,8 +302,7 @@ impl BatchService {
             finish: Set(req.finish.clone()),
             min_order_quantity: Set(req.min_order_quantity),
             lead_time: Set(req.lead_time),
-            meters_per_piece: Set(meters_per_piece),
-            meters_per_roll: Set(meters_per_roll),
+            meters_per_piece: Set(req.meters_per_piece),
             supplier_product_code: sea_orm::ActiveValue::NotSet,
             supplier_id: sea_orm::ActiveValue::NotSet,
             is_batch_managed: sea_orm::ActiveValue::NotSet,
@@ -502,16 +488,11 @@ impl BatchService {
         if let Some(status) = &req.status {
             product.status = Set(status.clone());
         }
-        // 米数两列先过同源补齐（只声明一边时把同一份声明复制到另一边），再按三态落库。
+        // 每匹米数按三态落库（一卷即一匹，按卷换算共用此列）。
         // 外层 None 即键缺席、保持原值。外层 Some 时内层值原样 Set，内层 None 清空为 NULL，
         // 内层 Some(v) 覆盖为该值。与单条更新链路同一判据，清空不取旧值兜底。
-        let (meters_per_piece, meters_per_roll) =
-            pair_piece_roll_meters(req.meters_per_piece, req.meters_per_roll);
-        if let Some(piece) = meters_per_piece {
+        if let Some(piece) = req.meters_per_piece {
             product.meters_per_piece = Set(piece);
-        }
-        if let Some(roll) = meters_per_roll {
-            product.meters_per_roll = Set(roll);
         }
         product.updated_at = Set(chrono::Utc::now());
         product

@@ -194,7 +194,6 @@ impl ProductService {
             usage,
             safety_category,
             meters_per_piece,
-            meters_per_roll,
         } = args;
         // 新建建品必录校验（面料类三列 + 产品类型显式提交）落在此服务层唯一入口：
         // 单条 HTTP 建品与 CSV 导入建品都汇到本函数，共用判据函数 validate_product_create_fields，任一路径都无法绕过。
@@ -282,10 +281,9 @@ impl ProductService {
             spandex_percent: Set(spandex_percent),
             usage: Set(usage),
             safety_category: Set(safety_category),
-            // 匹/卷换算元数据：透传录入值（码↔匹↔卷换算单一真源入参，供 dual_unit_converter 读取）；
-            // 未录入为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量
+            // 每匹米数换算元数据：透传录入值（按匹与按卷换算共用此列，一卷即一匹，供 dual_unit_converter 读取）；
+            // 未录入为 NULL，不影响既有；库存落库真相仍为米与公斤双列，本列不参与库存计量
             meters_per_piece: Set(meters_per_piece),
-            meters_per_roll: Set(meters_per_roll),
         };
 
         let result = active_model.insert(&*self.db).await?;
@@ -554,15 +552,12 @@ impl ProductService {
         if let Some(v) = args.safety_category.take() {
             product.safety_category = Set(Some(v));
         }
-        // 每匹米数与每卷米数三态部分更新。外层 None 即键缺席、本列保持原值（遵循可选数值
+        // 每匹米数三态部分更新。外层 None 即键缺席、本列保持原值（遵循可选数值
         // 字段条件 Set 惯例）。外层 Some 即本次带了这个键，内层 Option 的取值原样落 Set，
         // 内层 None 即显式 null、把该列清空为 NULL，内层 Some(v) 即覆盖为该值。
         // 清空通道走的是显式置空，不取旧值兜底，也不把缺键当成清空。
         if let Some(piece) = args.meters_per_piece.take() {
             product.meters_per_piece = Set(piece);
-        }
-        if let Some(roll) = args.meters_per_roll.take() {
-            product.meters_per_roll = Set(roll);
         }
     }
 

@@ -154,7 +154,11 @@ impl ProductService {
         // 非空按去空白后的规范档落库，避免带空白的 " 3 " 撞 DB CHECK 的词表字面量。
         if let Some(grade) = color_fastness_grade {
             let trimmed = grade.trim().to_string();
-            color.color_fastness_grade = Set(if trimmed.is_empty() { None } else { Some(trimmed) });
+            color.color_fastness_grade = Set(if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            });
         }
 
         color.updated_at = Set(Utc::now());

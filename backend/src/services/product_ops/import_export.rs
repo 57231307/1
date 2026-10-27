@@ -413,9 +413,8 @@ impl ProductService {
             spandex_percent: None,
             usage: None,
             safety_category: None,
-            // CSV 导入模板不含匹/卷换算元数据列，保持 NULL（不臆造换算值）
+            // CSV 导入模板不含匹卷换算元数据列，保持 NULL（不臆造换算值）
             meters_per_piece: None,
-            meters_per_roll: None,
         }
     }
 

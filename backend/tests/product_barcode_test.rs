@@ -176,7 +176,6 @@ async fn test_barcode_create_read_search_chain() {
             usage: None,
             safety_category: None,
             meters_per_piece: None,
-            meters_per_roll: None,
         })
         .await
         .expect("建产品（带条码）应成功");
@@ -229,7 +228,6 @@ async fn test_barcode_create_read_search_chain() {
             usage: None,
             safety_category: None,
             meters_per_piece: None,
-            meters_per_roll: None,
             user_id: 1,
         })
         .await

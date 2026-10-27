@@ -166,6 +166,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::product_spec_extension_columns::Migration),
             // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）
             Box::new(domain::product_vocab_check::Migration),
+            // 产品每卷米数列探测式下线，晚于代码面摘除读写（先改代码，再收列形态）
+            Box::new(domain::product_roll_column_drop::Migration),
         ]
     }
 }

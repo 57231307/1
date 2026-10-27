@@ -140,17 +140,19 @@ impl DualUnitConverter {
         Ok((piece_count * meters_per_piece).round_dp(2))
     }
 
-    /// 卷数转米数：米 = 卷 × 每卷米数（roll_count 卷数，meters_per_roll 取自产品换算元数据列）
+    /// 卷数转米数：米 = 卷 × 每匹米数（roll_count 卷数，meters_per_piece 取自产品换算元数据列）。
+    /// 现网口径一卷即一匹，products 的每卷米数列已按裁定废弃（m0109 探测式下线），
+    /// 按卷换算与本列共用同一换算真源，禁止再为卷单设一份米数口径。
     pub fn rolls_to_meters(
         roll_count: Decimal,
-        meters_per_roll: Decimal,
+        meters_per_piece: Decimal,
     ) -> Result<Decimal, String> {
         if roll_count < Decimal::ZERO {
             return Err("卷数不能为负数".to_string());
         }
-        if meters_per_roll <= Decimal::ZERO {
-            return Err("每卷米数必须大于 0".to_string());
+        if meters_per_piece <= Decimal::ZERO {
+            return Err("每匹米数必须大于 0".to_string());
         }
-        Ok((roll_count * meters_per_roll).round_dp(2))
+        Ok((roll_count * meters_per_piece).round_dp(2))
     }
 }
