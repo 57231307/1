@@ -10,7 +10,10 @@
 //!   且与销售订单域标准流水格式不一致，已废弃）
 //! - 明细校验：数量/单价非负，价格精度 2 位小数（P2-11 修复逻辑下沉）
 //! - 总金额 = Σ(quantity_meters × final_price)，主表与明细在同一事务内提交
-//! - 审核流：pending → approved（记录 approved_at）
+//! - 状态写入收口，status 只由状态机动作腿写入。更新腿收到 status 键一律缺键点名
+//!   拒绝（与采购收货、应付发票两族同口径），不忽略、不代改。审核腿与拒绝腿共用
+//!   同一状态门（仅 pending 可推进，事务内行锁串行化并发审批）。删除门只放行尚未
+//!   被审批链处置的 pending 行，已审批或已拒绝的单据不允许删除。
 
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -213,11 +216,21 @@ impl SalesService {
     }
 
     /// 面料行业版订单更新（仅主表字段；明细全量替换逻辑未启用，与原 handler 语义一致）
+    ///
+    /// 状态收口。status 属状态机动作腿专权字段，本更新腿不接受、不忽略、不代改。
+    /// 调用方传入 status（无论取值）一律点名拒绝并零写入，与采购收货、应付发票
+    /// 两族"缺键即点名拒绝、不静默兜底"的同族口径一致，变更状态请走审批腿或拒绝腿。
     pub async fn update_fabric_order(
         &self,
         id: i32,
         req: UpdateFabricOrderRequest,
     ) -> Result<sales_order::Model, AppError> {
+        if req.status.is_some() {
+            return Err(AppError::validation_displayable(
+                "订单状态不能通过更新接口修改，请使用审核或拒绝操作变更状态",
+            ));
+        }
+
         let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
             .one(&*self.db)
             .await?
@@ -226,9 +239,6 @@ impl SalesService {
 
         if let Some(date) = req.required_date {
             order.required_date = Set(Some(date));
-        }
-        if let Some(status) = req.status {
-            order.status = Set(status);
         }
         if let Some(addr) = req.shipping_address {
             order.shipping_address = Set(Some(addr));
@@ -247,36 +257,84 @@ impl SalesService {
         Ok(updated)
     }
 
-    /// 面料行业版订单删除（审计日志下沉）
+    /// 面料行业版订单删除（审计日志下沉与状态门）
+    ///
+    /// 状态门与拒绝腿同风格，事务内行锁读出当前行，仅 pending（尚未被审批链处置）
+    /// 可删除。已审批或已拒绝的单据已被处理决定过，删除会破坏审批追溯，一律拒绝并
+    /// 回显当前状态。明细先行删除避免外键阻断主表删除（与标准入口删除订单口径一致）。
     pub async fn delete_fabric_order(&self, id: i32, user_id: i32) -> Result<(), AppError> {
-        // P0 8-3 修复：delete 操作补审计日志（批次 94 P2-10：真实操作人 user_id）
+        let txn = (*self.db).begin().await?;
+
+        let order = sales_order::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found("订单不存在"))?;
+
+        if order.status != fabric_status::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审核状态的订单可以删除，当前状态：{}",
+                order.status
+            )));
+        }
+
+        // 明细行随主表级联清理（显式删除，防止外键 fk 阻断主表删除）
+        sales_order_item::Entity::delete_many()
+            .filter(sales_order_item::Column::OrderId.eq(id))
+            .exec(&txn)
+            .await?;
+
+        // 删除主表并落审计日志（真实操作人 user_id）
         crate::services::audit_log_service::AuditLogService::delete_with_audit::<
             sales_order::Entity,
             _,
-        >(&*self.db, "sales_fabric_order", id, Some(user_id))
+        >(&txn, "sales_fabric_order", id, Some(user_id))
         .await?;
+
+        txn.commit().await?;
         Ok(())
     }
 
-    /// 面料行业版订单审核（pending → approved）
-    /// approved_by 存审批人用户 ID，由 handler 从服务端会话取，请求体不承载身份。
+    /// 面料行业版订单审核（pending 推进至 approved）
+    ///
+    /// 状态门与拒绝腿同风格，事务内行锁读出当前行，仅 pending 可审批。重复审批或
+    /// 已审批单再审批一律拒绝并回显当前状态（不再返回成功假绿）。approved_by 存
+    /// 审批人用户 ID，由 handler 从服务端会话取，请求体不承载身份。
     pub async fn approve_fabric_order(
         &self,
         id: i32,
         approved_by: i32,
     ) -> Result<sales_order::Model, AppError> {
-        let mut order: sales_order::ActiveModel = sales_order::Entity::find_by_id(id)
-            .one(&*self.db)
+        let txn = (*self.db).begin().await?;
+
+        let order = sales_order::Entity::find_by_id(id)
+            .lock_exclusive()
+            .one(&txn)
             .await?
-            .ok_or_else(|| AppError::not_found("订单不存在"))?
-            .into();
+            .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
-        order.status = Set(fabric_status::APPROVED.to_string());
-        order.approved_by = Set(Some(approved_by));
-        order.approved_at = Set(Some(chrono::Utc::now()));
-        order.updated_at = Set(chrono::Utc::now());
+        if order.status != fabric_status::PENDING {
+            return Err(AppError::business(format!(
+                "只有待审核状态的订单可以审核，当前状态：{}",
+                order.status
+            )));
+        }
 
-        let updated = order.update(&*self.db).await?;
+        let mut active: sales_order::ActiveModel = order.into();
+        active.status = Set(fabric_status::APPROVED.to_string());
+        active.approved_by = Set(Some(approved_by));
+        active.approved_at = Set(Some(chrono::Utc::now()));
+        active.updated_at = Set(chrono::Utc::now());
+
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "auto_audit",
+            active,
+            Some(approved_by),
+        )
+        .await?;
+
+        txn.commit().await?;
         Ok(updated)
     }
 

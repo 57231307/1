@@ -5,17 +5,19 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::sku_mapping_service::{
-    ImportMappingRow, SkuMappingQueryParams, SkuMappingService, UpsertSkuMappingInput,
+    BatchCreateMappingResult, ImportMappingRow, SkuMappingQueryParams, SkuMappingService,
+    UpsertSkuMappingInput,
 };
 use crate::utils::data_scope;
 use crate::utils::error::AppError;
-use crate::utils::import_export::{FieldValidator, XlsxImporter};
+use crate::utils::import_export::{FieldValidator, ImportError, XlsxImporter};
 use crate::utils::response::{ApiResponse, PaginatedResponse};
 use axum::{
     Json,
     extract::{Multipart, Path, Query, State},
 };
 use csv::ReaderBuilder;
+use rust_decimal::Decimal;
 use serde::Deserialize;
 use std::collections::{BTreeSet, HashMap};
 use tracing::info;
@@ -75,6 +77,17 @@ pub struct UpdateMappingRequest {
     pub priority: Option<i32>,
     pub is_enabled: Option<bool>,
     pub remarks: Option<String>,
+}
+
+/// 批量新增请求体（界面多行录入）。
+///
+/// 行 DTO 直接复用单条新建的 `CreateMappingRequest`：单条与批量的「一行」逐字段同形，
+/// 只定义一份结构可避免两套字段清单各自漂移。行号即 `items` 数组的 1 基下标，
+/// 请求体不再另传行号字段（避免「界面行序」与「上送行号」两套事实）。
+#[allow(dead_code, reason = "反序列化输入字段")]
+#[derive(Debug, Deserialize)]
+pub struct BatchCreateMappingsRequest {
+    pub items: Vec<CreateMappingRequest>,
 }
 
 // =====================================================
@@ -278,6 +291,79 @@ pub async fn delete_mapping(
         (),
         "对照记录删除成功",
     )))
+}
+
+/// POST /sku-mappings/batch（界面多行录入的批量新增，整批原子）
+///
+/// 调用方：`frontend/src/views/sku-mapping/components/SkuMappingBatchDialog.vue`
+/// 经 `api/sku-mapping.ts::batchCreateSkuMappings` 上送 `{items:[...]}`，每行与单条新建
+/// 同形（行号 = items 的 1 基下标，请求体不带行号字段）。
+///
+/// 与文件导入 `/sku-mappings/import` 的分工：导入收码（product_code/supplier_code…）
+/// 走 UPSERT 且逐行报告部分成功；本端点收前端已选定的主键 id，走 INSERT only 且
+/// **任一行不合格整批零落库**（界面批量录入要的是「要么全建好、要么一条没建并点名第几行」）。
+///
+/// 出参 data 为 `BatchCreateMappingResult{total_count,created_count,failed_count,
+/// errors[{row,column,message,value}]}`：拒绝时 created_count 恒为 0，errors 逐行点名
+/// 不合格行与字段（批内互撞与撞库中既有对照分别措辞）。整批不落库走 200 + 明细，
+/// 不走 4xx：单条 4xx 文案承载不了「第 2 行缺色号、第 7 行撞已有对照」这种多行清单。
+///
+/// 行级归属门：本端点只新增（新行 created_by 即调用者），没有既有行可判归属，
+/// 故与单条 POST /sku-mappings 一样不设 `check_resource_owner_by_member_scope`
+/// （该门只用于 update/delete 改删他人建的行）。
+pub async fn batch_create_mappings(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<BatchCreateMappingsRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    // 行数闸门与文件导入的 MAX_IMPORT_ROWS=5000 分口径：批量新增在单事务内一次 INSERT，
+    // 且每一行都要在界面上被逐行核对，500 行已覆盖「一次配几百个色号」的实际规模；
+    // 更大规模本就该走 /sku-mappings/import（码表对码、UPSERT 幂等、5000 行闸）。
+    const MAX_BATCH_CREATE_ROWS: usize = 500;
+
+    if req.items.is_empty() {
+        return Err(AppError::validation_displayable("批量新增至少需要一行对照"));
+    }
+    if req.items.len() > MAX_BATCH_CREATE_ROWS {
+        return Err(AppError::validation_displayable(format!(
+            "批量新增一次最多 {} 行，实际 {} 行；更大规模请改用批量导入",
+            MAX_BATCH_CREATE_ROWS,
+            req.items.len()
+        )));
+    }
+
+    info!(
+        "用户 {} 正在批量新增 SKU 对照，提交 {} 行",
+        auth.user_id,
+        req.items.len()
+    );
+
+    // 请求体文本列（价格/最小起订量）→ Decimal：与单条新建同一判据（FieldValidator::decimal），
+    // 失败按行归因后进 errors，不整包 400、也不静默丢列。
+    let mut rows: Vec<UpsertSkuMappingInput> = Vec::with_capacity(req.items.len());
+    let mut text_failures: Vec<ImportError> = Vec::new();
+    for (idx, item) in req.items.iter().enumerate() {
+        if let Some(input) = to_batch_upsert_input(item, idx + 1, &mut text_failures) {
+            rows.push(input);
+        }
+    }
+    if !text_failures.is_empty() {
+        let result = BatchCreateMappingResult::rejected(req.items.len(), text_failures);
+        info!(
+            "SKU 对照批量新增被拒绝：提交 {} 行，不合格 {} 行",
+            result.total_count, result.failed_count
+        );
+        return Ok(Json(ApiResponse::success(serde_json::to_value(result)?)));
+    }
+
+    let service = SkuMappingService::new(state.db.clone());
+    let result = service.batch_create(rows, auth.user_id).await?;
+
+    info!(
+        "SKU 对照批量新增完成: 提交 {}，写入 {}，不合格 {}",
+        result.total_count, result.created_count, result.failed_count
+    );
+    Ok(Json(ApiResponse::success(serde_json::to_value(result)?)))
 }
 
 /// POST /sku-mappings/import（multipart/form-data 文件上传）
@@ -593,6 +679,16 @@ fn cell<'r>(record: &'r HashMap<String, String>, column: &str) -> Option<&'r str
         .filter(|value| !value.is_empty())
 }
 
+/// 请求体数值文本单元格：未填（None）或 trim 后为空串 → None（该列不写），否则返回 trim 后的借用。
+///
+/// 判据与文件导入臂 `cell`、批量新增臂 `parse_batch_decimal` 同源（空即不写，不兜底成 0）。
+/// 写成带命名生命周期的自由函数而非闭包：闭包无法推断「返回借用随入参生命周期」的高阶约束。
+fn trimmed_cell<'a>(raw: &'a Option<String>) -> Option<&'a str> {
+    raw.as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
 /// 行级解析失败：冠以文件行号后透传 FieldValidator 的公开规则文案
 /// （只描述用户提交字段，属可外显的参数校验类）。
 fn row_level_error(file_row: usize, reason: String) -> AppError {
@@ -614,20 +710,21 @@ fn to_upsert_input(
     is_enabled: Option<bool>,
     remarks: Option<String>,
 ) -> Result<UpsertSkuMappingInput, AppError> {
-    use rust_decimal::Decimal;
-    use std::str::FromStr;
-
-    let sp = match supplier_price {
-        Some(s) if !s.is_empty() => Some(Decimal::from_str(s).map_err(|_| {
-            AppError::validation_displayable(format!("supplier_price 格式错误: {}", s))
-        })?),
-        _ => None,
+    // 数值文本的唯一判据是 FieldValidator::decimal（与文件导入、批量新增三臂同源），
+    // 本臂把它的失败文案直接转成可外显的 400；空串/未填按「本列不写」处理，不兜底成 0。
+    let sp = match trimmed_cell(supplier_price) {
+        None => None,
+        Some(text) => Some(
+            FieldValidator::decimal(text, "supplier_price")
+                .map_err(AppError::validation_displayable)?,
+        ),
     };
-    let moq = match min_order_quantity {
-        Some(s) if !s.is_empty() => Some(Decimal::from_str(s).map_err(|_| {
-            AppError::validation_displayable(format!("min_order_quantity 格式错误: {}", s))
-        })?),
-        _ => None,
+    let moq = match trimmed_cell(min_order_quantity) {
+        None => None,
+        Some(text) => Some(
+            FieldValidator::decimal(text, "min_order_quantity")
+                .map_err(AppError::validation_displayable)?,
+        ),
     };
 
     Ok(UpsertSkuMappingInput {
@@ -644,4 +741,72 @@ fn to_upsert_input(
         is_enabled,
         remarks,
     })
+}
+
+/// 批量新增臂：把请求体的一行转成 `UpsertSkuMappingInput`。
+///
+/// 数值文本不合格（协议价/最小起订量）时不整批 400、也不静默丢列，而是把失败按
+/// 1 基行号 + 列名归因进 `failures`（由调用方汇进出参 errors），本行返回 None。
+/// 判据与单条臂、文件导入臂同为 `FieldValidator::decimal`。
+fn to_batch_upsert_input(
+    item: &CreateMappingRequest,
+    row_no: usize,
+    failures: &mut Vec<ImportError>,
+) -> Option<UpsertSkuMappingInput> {
+    let before = failures.len();
+    let supplier_price = parse_batch_decimal(
+        item.supplier_price.as_deref(),
+        "supplier_price",
+        row_no,
+        failures,
+    );
+    let min_order_quantity = parse_batch_decimal(
+        item.min_order_quantity.as_deref(),
+        "min_order_quantity",
+        row_no,
+        failures,
+    );
+    if failures.len() != before {
+        return None;
+    }
+
+    Some(UpsertSkuMappingInput {
+        product_id: item.product_id,
+        product_color_id: item.product_color_id,
+        supplier_id: item.supplier_id,
+        supplier_product_id: item.supplier_product_id,
+        supplier_product_color_id: item.supplier_product_color_id,
+        supplier_price,
+        min_order_quantity,
+        lead_time: item.lead_time,
+        is_primary: item.is_primary,
+        priority: item.priority,
+        is_enabled: item.is_enabled,
+        remarks: item.remarks.clone(),
+    })
+}
+
+/// 批量臂的数值单元格解析：空文本 = 该列不写；不可解析 = 记一行一列的失败并返回 None。
+///
+/// 失败文案取 `FieldValidator::decimal` 的公开规则原文（只描述用户提交字段），
+/// `value` 回显用户原文，供界面把不合格定位到具体录入格。
+fn parse_batch_decimal(
+    raw: Option<&str>,
+    column: &str,
+    row_no: usize,
+    failures: &mut Vec<crate::utils::import_export::ImportError>,
+) -> Option<Decimal> {
+    let text = raw.map(str::trim).filter(|value| !value.is_empty())?;
+    match FieldValidator::decimal(text, column) {
+        Ok(value) => Some(value),
+        Err(reason) => {
+            failures.push(crate::utils::import_export::ImportError {
+                row: row_no,
+                column: column.to_string(),
+                message: reason,
+                value: text.to_string(),
+            });
+            None
+        }
+    }
 }

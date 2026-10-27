@@ -40,6 +40,10 @@ pub struct SupplierService {
 /// create_supplier），禁止第二处手写取号+直插。
 pub const SUPPLIER_CODE_NO_PREFIX: &str = "SUP";
 
+/// 导出分批取数的单批行数，取本服务对外分页的既有上限，
+/// 使导出期间的每条查询与列表页同构
+const EXPORT_BATCH_SIZE: u64 = 100;
+
 impl SupplierService {
     /// 创建服务实例
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
@@ -208,12 +212,19 @@ impl SupplierService {
         Ok(())
     }
 
-    /// 查询供应商列表（分页、筛选、排序）
-    pub async fn list_suppliers(
+    /// 构造供应商查询：行级数据权限下推、筛选与排序三段的唯一组装点
+    ///
+    /// 功能：产出尚未执行、条件与排序已下推的供应商查询
+    /// 调用方：分页列表与导出取数两个入口
+    /// 入参：筛选与排序参数、可选的行级数据权限上下文
+    /// 传给谁：筛选与排序分别转交本类型的筛选器与排序器，数据权限条件在本函数内下推
+    /// 存什么：不写库，只读 suppliers 表
+    /// 存哪里：不适用
+    fn build_supplier_query(
         &self,
-        params: SupplierQueryParams,
+        params: &SupplierQueryParams,
         data_scope: Option<&DataScopeContext>,
-    ) -> Result<PaginatedResponse<supplier::Model>, AppError> {
+    ) -> sea_orm::Select<supplier::Entity> {
         let mut query = supplier::Entity::find();
 
         // 行级数据权限过滤：owner=CreatedBy，dept=DepartmentId（m_rls_dept_domain）
@@ -239,10 +250,19 @@ impl SupplierService {
         }
 
         // 应用筛选与排序
-        query = Self::apply_supplier_filters(query, &params);
-        let sort_by = params.sort_by.unwrap_or_else(|| "created_at".to_string());
-        let sort_order = params.sort_order.unwrap_or_else(|| "DESC".to_string());
-        query = Self::apply_supplier_sorting(query, &sort_by, &sort_order);
+        query = Self::apply_supplier_filters(query, params);
+        let sort_by = params.sort_by.as_deref().unwrap_or("created_at");
+        let sort_order = params.sort_order.as_deref().unwrap_or("DESC");
+        Self::apply_supplier_sorting(query, sort_by, sort_order)
+    }
+
+    /// 查询供应商列表（分页、筛选、排序）
+    pub async fn list_suppliers(
+        &self,
+        params: SupplierQueryParams,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<PaginatedResponse<supplier::Model>, AppError> {
+        let query = self.build_supplier_query(&params, data_scope);
 
         // 分页
         let page = params.page.unwrap_or(1);
@@ -254,6 +274,55 @@ impl SupplierService {
         let (data, total) = paginate_with_total(paginator, page.clamp(1, 1000)).await?;
 
         Ok(PaginatedResponse::new(data, total, page, page_size))
+    }
+
+    /// 导出取数：按当前筛选与数据权限分批取满全部行
+    ///
+    /// 功能：为导出提供全量行，同时让每条查询与列表页同构，不绕过任何筛选条件
+    /// 调用方：供应商列表导出端点
+    /// 入参：筛选与排序参数、可选的行级数据权限上下文
+    /// 传给谁：查询构造转交 build_supplier_query，再按单批上限用分页器循环取满；
+    /// 取到的行数与总数一起返回给端点，由端点写审计与下载登记
+    /// 存什么：不写库，只读 suppliers 表
+    /// 存哪里：不适用
+    pub async fn list_suppliers_for_export(
+        &self,
+        params: &SupplierQueryParams,
+        data_scope: Option<&DataScopeContext>,
+    ) -> Result<(Vec<supplier::Model>, u64), AppError> {
+        // 分批读取要求全序：主排序键存在并列值时批次边界会漂移，
+        // 故追加主键作末级排序，只作用于导出取数，不改列表页排序
+        let query = self
+            .build_supplier_query(params, data_scope)
+            .order_by(supplier::Column::Id, Order::Asc);
+
+        let paginator = query.paginate(&*self.db, EXPORT_BATCH_SIZE);
+        let total = paginator.num_items().await?;
+
+        // 不按总数预分配：总数只是取数瞬间的估计值，按它一次吃满会把分批控峰值的意义抵消
+        let mut rows: Vec<supplier::Model> = Vec::new();
+        // 批次上界由服务端总数推导并留出自增余量，并发写入造成漂移时在此停止而非无限循环
+        let max_batches = total / EXPORT_BATCH_SIZE + 2;
+        let mut batches = 0u64;
+        for page_index in 0..max_batches {
+            let batch = paginator.fetch_page(page_index).await?;
+            let fetched = batch.len() as u64;
+            rows.extend(batch);
+            batches += 1;
+            if fetched < EXPORT_BATCH_SIZE {
+                break;
+            }
+        }
+
+        tracing::info!(
+            "供应商导出取数完成: 单批上限 {}, 批次 {}, 实际行数 {}, 服务端总数 {}",
+            EXPORT_BATCH_SIZE,
+            batches,
+            rows.len(),
+            total
+        );
+
+        Ok((rows, total))
     }
 
     /// 应用供应商筛选条件（类型/等级/状态/关键字/启用状态）
