@@ -63,13 +63,25 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item
-            :label="t('product.productFormDialogTab.labelSpecification')"
-            prop="specification"
-          >
+          <el-form-item prop="specification">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelSpecification') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipSpecificationAuto')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
+            <!-- 规格提交串按「幅宽 星号 克重」字面拼接（例 160cm*180g），星号是连接符不是乘法；
+                 两项齐备时本框只读显示拼接值，任一缺失时回落手工录入，提交端与显示端同一形态 -->
             <el-input
-              v-model="formData.specification"
+              :model-value="specificationDisplay"
+              :readonly="specificationAuto !== null"
               :placeholder="t('product.productFormDialogTab.placeholderSpecification')"
+              @update:model-value="(val: string) => (formData.specification = val)"
             />
           </el-form-item>
         </el-col>
@@ -141,43 +153,26 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item prop="meters_per_piece">
+          <el-form-item prop="meters_per_kg_display">
             <template #label>
               <span class="form-label-with-tip">
-                {{ t('product.productFormDialogTab.labelMetersPerPiece') }}
+                {{ t('product.productFormDialogTab.labelMetersPerKg') }}
                 <el-tooltip
-                  :content="t('product.productFormDialogTab.tipMetersPerPiece')"
+                  :content="t('product.productFormDialogTab.tipMetersPerKg')"
                   placement="top"
                 >
                   <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
                 </el-tooltip>
               </span>
             </template>
+            <!-- 每公斤出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
             <el-input
-              v-model="formData.meters_per_piece"
-              :placeholder="t('product.productFormDialogTab.placeholderMetersPerPiece')"
+              :model-value="metersPerKgDisplay"
+              readonly
+              :placeholder="t('product.productFormDialogTab.placeholderMetersPerKgNa')"
             />
           </el-form-item>
         </el-col>
-        <el-col :span="12">
-          <el-form-item prop="meters_per_roll">
-            <template #label>
-              <span class="form-label-with-tip">
-                {{ t('product.productFormDialogTab.labelMetersPerRoll') }}
-                <el-tooltip
-                  :content="t('product.productFormDialogTab.tipMetersPerRoll')"
-                  placement="top"
-                >
-                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </span>
-            </template>
-            <!-- 每卷米数是每匹米数的只读带出值，随每匹米数同值提交 -->
-            <el-input v-model="formData.meters_per_roll" readonly />
-          </el-form-item>
-        </el-col>
-      </el-row>
-      <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item prop="product_type">
             <template #label>
@@ -204,27 +199,6 @@
                 :value="item.value"
               />
             </el-select>
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
-          <el-form-item prop="meters_per_kg">
-            <template #label>
-              <span class="form-label-with-tip">
-                {{ t('product.productFormDialogTab.labelMetersPerKg') }}
-                <el-tooltip
-                  :content="t('product.productFormDialogTab.tipMetersPerKg')"
-                  placement="top"
-                >
-                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </span>
-            </template>
-            <!-- 每公斤出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
-            <el-input
-              :model-value="metersPerKgDisplay"
-              readonly
-              :placeholder="t('product.productFormDialogTab.placeholderMetersPerKgNa')"
-            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -548,7 +522,7 @@ import {
   PRODUCT_SAFETY_CATEGORY,
   PRODUCT_STRUCTURE_GROUPS,
 } from '@/constants/product-spec-vocab';
-import { computeMetersPerKg } from '@/utils/fabric-yardage';
+import { computeMetersPerKg, buildFabricSpecification } from '@/utils/fabric-yardage';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -610,8 +584,6 @@ const formData = reactive({
   // 提交前经 toSubmitNumber 归一：空文本 → null（三态清空通道），有效数字文本 → Number
   price: '0',
   cost_price: '0',
-  meters_per_piece: '',
-  meters_per_roll: '',
   width: '',
   gram_weight: '',
   // 主档文本列：产品类型存中文词表值，其余按后端键名直存
@@ -663,22 +635,17 @@ const metersPerKgDisplay = computed(() => {
   return value == null ? '' : String(value);
 });
 
-// 每卷米数是每匹米数的派生只读项：一卷即一匹，两者米数同源，界面只留每匹米数一个入口。
-// 读：用户在每匹米数输入框里改动的值。写给：每卷米数的只读展示值，随提交载荷一并发给后端。
-// 存：不单独落库，由后端按同值写入 products 的每匹米数与每卷米数两列。
-// 回显时两列各按后端真实值展示，历史产品若两值不等如实可见；只有用户真正改动每匹米数才带出同值，
-// 因此打开编辑再保存不会改写历史每卷米数。echoing 抑制回显赋值误触发带出。
-// 调用方：本组件的每匹米数输入框；同步执行是因为回显与带出处在同一次赋值栈内。
-const echoing = ref(false);
-
-watch(
-  () => formData.meters_per_piece,
-  val => {
-    if (echoing.value) return;
-    formData.meters_per_roll = val;
-  },
-  { flush: 'sync' }
+// 规格提交串的派生源：按「幅宽 星号 克重」字面拼接（例 160cm*180g），算式单点在 utils/fabric-yardage.ts。
+// 读：表单当前幅宽与克重文本（经 toSubmitNumber 归一，空值传 null）。写给：specificationDisplay 展示值
+// 与 buildSubmitPayload 的 specification 键。存：拼接结果落 products.specification 文本列，两列数值本身各存各列。
+// 两项任一缺失或非法时为 null，规格框回落手工录入形态；禁止把两段值当数字相乘，也禁止只拼显示端不拼提交端。
+// 调用方：本组件规格框与提交载荷；无副作用，故用 computed 而不是 watch，回显赋值天然不触发额外同步。
+const specificationAuto = computed(() =>
+  buildFabricSpecification(toSubmitNumber(formData.width), toSubmitNumber(formData.gram_weight))
 );
+
+// 规格框显示值：派生串可用时显示派生串，否则显示手工录入文本
+const specificationDisplay = computed(() => specificationAuto.value ?? formData.specification);
 
 // 数字文本校验规则工厂：空值放行（必填性由 required 规则分权判定），非空必须是不带符号的
 // 十进制文本且小数位不超上限（模式不含负号，负数直接判不合格）；exclusiveMin 为真时再要求
@@ -761,9 +728,6 @@ const formRules = computed<FormRules>(() => {
     spandex_percent: [
       numericFormatRule('product.productFormDialogTab.validateSpandexPercentFormat', 2),
     ],
-    meters_per_piece: [
-      numericFormatRule('product.productFormDialogTab.validateMetersPerPieceFormat', 4),
-    ],
     min_order_quantity: [
       numericFormatRule('product.productFormDialogTab.validateMinOrderQuantityFormat', 2),
     ],
@@ -838,8 +802,6 @@ const resetForm = () => {
   formData.barcode = '';
   formData.price = '0';
   formData.cost_price = '0';
-  formData.meters_per_piece = '';
-  formData.meters_per_roll = '';
   formData.width = '';
   formData.gram_weight = '';
   formData.product_type = '';
@@ -869,30 +831,22 @@ watch(
   val => {
     visible.value = val;
     if (val) {
-      // 回显区间内抑制带出：resetForm 与各列数值归一都写每匹米数，那属于回填而非用户改动
-      echoing.value = true;
-      try {
-        resetForm();
-        if (props.rowData) {
-          Object.assign(formData, props.rowData);
-          // 数字列后端出参为 Decimal 字符串（NULL 为 null），统一归一成输入框文本；
-          // 空值归一为 ''，不写 0，避免历史未录入在产品编辑里被显示成 0 再落回库里
-          formData.price = toInputText(props.rowData.price);
-          formData.cost_price = toInputText(props.rowData.cost_price);
-          formData.meters_per_piece = toInputText(props.rowData.meters_per_piece);
-          formData.meters_per_roll = toInputText(props.rowData.meters_per_roll);
-          formData.width = toInputText(props.rowData.width);
-          formData.gram_weight = toInputText(props.rowData.gram_weight);
-          formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
-          formData.weight_tolerance = toInputText(props.rowData.weight_tolerance);
-          formData.spandex_percent = toInputText(props.rowData.spandex_percent);
-          formData.usage = props.rowData.usage ?? '';
-          formData.safety_category = props.rowData.safety_category ?? '';
-          formData.min_order_quantity = toInputText(props.rowData.min_order_quantity);
-          formData.lead_time = toInputText(props.rowData.lead_time);
-        }
-      } finally {
-        echoing.value = false;
+      resetForm();
+      if (props.rowData) {
+        Object.assign(formData, props.rowData);
+        // 数字列后端出参为 Decimal 字符串（NULL 为 null），统一归一成输入框文本；
+        // 空值归一为 ''，不写 0，避免历史未录入在产品编辑里被显示成 0 再落回库里
+        formData.price = toInputText(props.rowData.price);
+        formData.cost_price = toInputText(props.rowData.cost_price);
+        formData.width = toInputText(props.rowData.width);
+        formData.gram_weight = toInputText(props.rowData.gram_weight);
+        formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
+        formData.weight_tolerance = toInputText(props.rowData.weight_tolerance);
+        formData.spandex_percent = toInputText(props.rowData.spandex_percent);
+        formData.usage = props.rowData.usage ?? '';
+        formData.safety_category = props.rowData.safety_category ?? '';
+        formData.min_order_quantity = toInputText(props.rowData.min_order_quantity);
+        formData.lead_time = toInputText(props.rowData.lead_time);
       }
     }
   }
@@ -905,21 +859,23 @@ watch(visible, val => {
 // 提交载荷只收本表单采集的字段，不把回显进来的整行原样回传（行里的 id、分类名称、
 // 时间戳与后端派生的 meters_per_kg 等由服务端掌管，客户端发了也会被反序列化丢弃，
 // 留着只会掩盖契约漂移）。
-// 米数两键与数值主档键把空值显式序列化为 null，走后端三态更新里的清空通道；键缺席的语义是
+// 数值主档键把空值显式序列化为 null，走后端三态更新里的清空通道；键缺席的语义是
 // 保持原值，不能把用户的清空做成省略键。
+// 米数两键（每匹米数与每卷米数）已从本表单的采集面与载荷摘除：每匹米数是库存实收口径的
+// 换算默认值，不由产品表单采集；每卷米数按裁定整列废弃，按卷换算共用每匹米数单源。
 const buildSubmitPayload = (): Partial<Product> => ({
   product_code: formData.product_code,
   product_name: formData.product_name,
   category_id: formData.category_id,
-  specification: formData.specification,
+  // 规格提交串：幅宽与克重齐备时提交字面拼接值（显示端与提交端同一形态），
+  // 任一缺失时提交手工录入文本，禁止把两段值当数字相乘
+  specification: specificationAuto.value ?? formData.specification,
   unit: formData.unit,
   barcode: formData.barcode,
   price: toSubmitNumber(formData.price),
   cost_price: toSubmitNumber(formData.cost_price),
-  meters_per_piece: toSubmitNumber(formData.meters_per_piece),
-  meters_per_roll: toSubmitNumber(formData.meters_per_roll),
   // 幅宽与克重是报价单换算米数与公斤数的取数源，也是每公斤出米数的算式入参，
-  // 界面清空必须落得回库里，故与米数同法经 toSubmitNumber 显式发 null 走三态清空通道
+  // 界面清空必须落得回库里，故经 toSubmitNumber 显式发 null 走三态清空通道
   width: toSubmitNumber(formData.width),
   gram_weight: toSubmitNumber(formData.gram_weight),
   // 主档文本列按采集值直发；null 即回显的历史空值，语义为不改动

@@ -67,16 +67,12 @@ export interface Product {
    */
   meters_per_kg?: string | null;
   /**
-   * 每匹米数（匹↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:70）。
-   * 后端 rust_decimal 序列化为字符串（如 "100.00"）、NULL→null；本接口亦用于创建/更新入参（表单数值），
-   * 故取并集。消费点：ProductFormDialogTab 编辑回显经 toInputText 归一为 el-input 文本、提交经 toSubmitNumber 归一。
+   * 每匹米数（匹↔米换算元数据，可空）；仅换算视图出参与直连 API 与批量与导入的入参，
+   * 不参与库存计量（models/product.rs）。产品新建与编辑表单已不再采集本值（每匹米数是
+   * 库存实收口径的换算默认值，不是产品主档录入项）。一卷即一匹，按卷换算共用本列。
+   * 后端 rust_decimal 序列化为字符串（如 "100.00"）、NULL→null。
    */
   meters_per_piece?: number | string | null;
-  /**
-   * 每卷米数（卷↔米换算元数据，可空）；仅换算视图入参，不参与库存计量（models/product.rs:74）。
-   * 同上：Decimal→string，NULL→null，并含表单入参数值。
-   */
-  meters_per_roll?: number | string | null;
   /**
    * 幅宽（cm，可空）。报价单转销售订单按「米数 × 克重 × 幅宽」派生公斤数，缺该值转单会点名拒绝；
    * 与 meters_per_piece 同口径：Decimal→string、NULL→null，并含表单入参数值。

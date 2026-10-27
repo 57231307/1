@@ -1,7 +1,7 @@
 /**
- * 面料每公斤出米数派生工具（前端只读展示用的唯一算式点）。
+ * 面料换算派生工具（前端只读展示与规格拼接的唯一算式点）。
  *
- * 与后端 backend/src/utils/dual_unit_converter.rs::DualUnitConverter::meters_per_kg 严格同源：
+ * 一、每公斤出米数，与后端 backend/src/utils/dual_unit_converter.rs::DualUnitConverter::meters_per_kg 严格同源：
  * 米/公斤 = 1000 ÷ (克重 g/m² × 幅宽 m)，幅宽 m = 幅宽 cm ÷ 100，代入化简即
  * 100000 ÷ (克重 × 幅宽cm)；取整口径为向下取整保留一位小数（floor，非四舍五入）。
  * 该文件是前端算式的单点，产品表单只在编辑未落库的幅宽或克重时用它即时带出只读出米数；
@@ -31,4 +31,23 @@ export function computeMetersPerKg(
   const widthM = widthCm / CM_PER_M;
   const meters = GRAM_PER_KG / (gramWeight * widthM);
   return Math.floor(meters * FLOOR_SCALE) / FLOOR_SCALE;
+}
+
+/**
+ * 规格串字面拼接：规格 = 幅宽 + "cm*" + 克重 + "g"（例 160cm*180g）。
+ * 星号是连接符不是乘号，本函数全程做字符串拼接，绝不把两段值做数值乘法。
+ * 入参：widthCm 幅宽(cm)、gramWeight 克重(g/m²)，取自产品表单当前值（经调用方归一为 number 或 null）。
+ * 数值形态先归一为最简文本（160.00 写成 160，180.50 写成 180.5），与后端存的 DECIMAL 语义一致。
+ * 返回：任一为空、非有限数或 ≤0 时返回 null（不完整不拼接，交调用方回落手工录入形态）；
+ * 齐备时返回拼接串文本。写给：ProductFormDialogTab 的规格框显示与提交载荷的 specification 键。
+ * 存：拼接串落 products.specification 文本列；本函数不落库不发请求。
+ */
+export function buildFabricSpecification(
+  widthCm: number | null | undefined,
+  gramWeight: number | null | undefined
+): string | null {
+  if (widthCm == null || gramWeight == null) return null;
+  if (!Number.isFinite(widthCm) || !Number.isFinite(gramWeight)) return null;
+  if (widthCm <= 0 || gramWeight <= 0) return null;
+  return `${widthCm}cm*${gramWeight}g`;
 }

@@ -3857,11 +3857,6 @@ export default {
       labelGramWeight: 'Gram Weight (g/m²)',
       tipGramWeight:
         'Product gram weight in g/m². Required for deriving kilograms during quote-to-order conversion.',
-      labelMetersPerPiece: 'Meters per Piece',
-      tipMetersPerPiece:
-        'Meters per piece, used for the piece↔meter conversion view; not counted in inventory',
-      labelMetersPerRoll: 'Meters per Roll',
-      tipMetersPerRoll: 'Follows meters per piece; change that to adjust.',
       labelBarcode: 'Barcode',
       placeholderBarcode: 'Enter barcode',
       labelPrice: 'Price',

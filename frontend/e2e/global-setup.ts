@@ -1382,7 +1382,7 @@ export async function ensureRoleUsers(): Promise<void> {
  * 不依赖浏览器 page。所有创建均幂等（先查后建），跨分片复用同库不冲突。
  *
  * 覆盖实体与根因对照：
- * - 产品（带 gram_weight/width/meters_per_piece/meters_per_roll）→ Q1 转订单换算 +
+ * - 产品（带 gram_weight 与 width 与 meters_per_piece）→ Q1 转订单换算 +
  *   sales/purchase/production 产品下拉
  * - 供应商 → purchase 供应商 combobox
  * - 客户 → crm/sales 客户下拉
@@ -1612,7 +1612,7 @@ async function ensureGlobalBusinessSeed(
     recordSeedFailure('产品分类检查/创建', (e as Error).message);
   }
 
-  // ---- 2. 产品（带克重/幅宽/每匹米数/每卷米数）----
+  // ---- 2. 产品（带克重与幅宽与每匹米数）----
   let productId: number | undefined;
   let productColorId: number | undefined;
   try {
@@ -1629,7 +1629,6 @@ async function ensureGlobalBusinessSeed(
         gram_weight: 180,
         width: 150,
         meters_per_piece: 50,
-        meters_per_roll: 100,
       });
       if (updateResp.ok()) {
         productId = prods[0].id;
@@ -1648,7 +1647,6 @@ async function ensureGlobalBusinessSeed(
         gram_weight: 180,
         width: 150,
         meters_per_piece: 50,
-        meters_per_roll: 100,
       });
       const created = await safeJson(createResp);
       productId = (created?.data as Record<string, unknown>)?.id as number;

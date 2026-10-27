@@ -786,7 +786,12 @@ const colorRows = ref<ProductColor[]>([]);
 // 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以输入框文本采集（默认 '0'），
 // 提交前经校验器点名拒绝非数字与超位小数，再归一为 Number 发给后端 f64 入参。
 const COLOR_TYPE_STANDARD = 'STANDARD';
-const colorForm = reactive({ color_no: '', color_name: '', extra_cost: '0', color_fastness_grade: '' });
+const colorForm = reactive({
+  color_no: '',
+  color_name: '',
+  extra_cost: '0',
+  color_fastness_grade: '',
+});
 // 加价文本判据：非负十进制、最多两位小数（与后端 extra_cost DECIMAL 列精度一致），负号与非法字符直接判不合格
 const COLOR_EXTRA_COST_PATTERN = /^\d+(\.\d{1,2})?$/;
 const colorEditingId = ref<number | null>(null);

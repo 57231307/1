@@ -384,7 +384,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           gram_weight: 180,
           width: 150,
           meters_per_piece: 50,
-          meters_per_roll: 100,
         });
         if (result.data?.id) {
           ctx.productIds.push(result.data.id);
@@ -647,7 +646,6 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       gram_weight: 180,
       width: 150,
       meters_per_piece: 50,
-      meters_per_roll: 100,
     });
     if (!created.data?.id) {
       throw new Error(`报价专用产品创建未返回 id: ${JSON.stringify(created)}`);
