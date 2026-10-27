@@ -13,7 +13,8 @@ import {
 
 // 权限域各功能页列绑定回归：逐页验证曾被判空的列（用户 部门/角色、数据权限 角色/权限范围、
 // 字段权限 角色/可读/可写、权限管理 资源类型/操作/状态、角色 名称/编码/创建时间）在真实数据
-// 下逐格出值。判据以单元格文本按后端字段出值为准，不接受仅断无 5xx 的软断言；种子缺失处以
+// 下逐格出值。判据以单元格文本按后端字段出值为准（资源类型与权限范围等经词表标签渲染的列，
+// 按该列的渲染真值即词表取值判定），不接受仅断无 5xx 的软断言；种子缺失处以
 // 真实接口造数再验。入口为各功能页自身路由：/users、/data-permission、/field-permissions、
 // /permissions、/roles。
 // 【取数口径】列值一律经列原语整列批量读取（一次查询取回整列全部单元格文本），再在断言侧
@@ -121,14 +122,19 @@ test.describe.serial('权限域列绑定回归：真实数据逐格出值（防�
     const resourceIdx = await columnIndex(table, '资源类型');
     const scopeIdx = await columnIndex(table, '权限范围');
     const statusIdx = await columnIndex(table, '状态');
-    const targetRow = await rowByText(table, 'customer');
+    // 资源类型列渲染的是词表标签而非原始 token：resource_type=customer 经
+    // dataPermission.resourceType.customer 出「客户」（en 值 Customer），行定位按双语形态正则命中
+    const targetRow = await rowByText(table, /客户|Customer/);
 
-    expect(await rowCellText(targetRow, resourceIdx), '资源类型列未渲染 resource_type').toBe(
-      'customer'
-    );
-    expect(await rowCellText(targetRow, scopeIdx), '权限范围列未按 scope_type=DEPT 渲染').toBe(
-      '本部门'
-    );
+    // 单元格期望值同样取词表渲染真值（zh 与 en 双侧取值），保持逐格精确等值判据不放宽为仅非空
+    const resourceCell = await rowCellText(targetRow, resourceIdx);
+    expect(['客户', 'Customer'], `资源类型列非词表渲染值: ${resourceCell}`).toContain(resourceCell);
+    const scopeCell = await rowCellText(targetRow, scopeIdx);
+    // scope_type=DEPT 经 dataPermission.index.scopeDept 渲染为「本部门」（en 值 Department）
+    expect(
+      ['本部门', 'Department'],
+      `权限范围列非 scope_type=DEPT 的词表渲染值: ${scopeCell}`
+    ).toContain(scopeCell);
     const statusCell = await rowCellText(targetRow, statusIdx);
     // is_enabled 经 el-tag 渲染为 启用/禁用，不应出现空白单元格
     expect(['启用', '禁用'], `状态列非预期取值: ${statusCell}`).toContain(statusCell);

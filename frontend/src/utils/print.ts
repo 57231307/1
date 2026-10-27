@@ -3,11 +3,16 @@ import { msg } from '@/utils/message';
 import { recordPrintAudit } from '@/api/audit';
 import { useUserStore } from '@/store/user';
 import {
+  documentPrintRoute,
   isAndroidClient,
   printReceiptToBluetooth,
+  resolvePrinterForTarget,
+  type DocumentPrintType,
   type ReceiptColumn,
   type ReceiptContent,
 } from '@/utils/bluetooth-print';
+import { printHtmlOnAndroid } from '@/utils/system-print';
+import { buildPageSizeCss, loadDocumentPaper } from '@/utils/print-settings';
 
 /**
  * 打印列定义接口
@@ -35,6 +40,8 @@ export interface PrintOptions<T extends Record<string, unknown> = Record<string,
   resourceType?: string;
   /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
   resourceId?: string;
+  /** 单据类型，安卓端据此选择为该单据分配的蓝牙打印机 */
+  documentKey?: DocumentPrintType;
 }
 
 /**
@@ -143,7 +150,31 @@ function buildDocumentReceiptContent<T extends Record<string, unknown>>(options:
   };
 }
 
-async function printListByBluetooth<T extends Record<string, unknown>>(
+/** 单据系统打印的页面规则，窄纸收紧边距，方向可由调用方覆盖。 */
+function buildPrintPageRule(orientation?: 'portrait' | 'landscape'): string {
+  const paper = loadDocumentPaper();
+  const effective = orientation ? { ...paper, orientation } : paper;
+  const margin = effective.widthMm < 100 ? '2mm' : '15mm';
+  return `@page { size: ${buildPageSizeCss(effective)}; margin: ${margin}; }`;
+}
+
+/** 把整页 HTML 交给安卓系统打印，失败时把壳侧原因带给用户。 */
+async function printHtmlToSystem(html: string, title: string): Promise<void> {
+  try {
+    await printHtmlOnAndroid(html, title);
+    msg.success('printSystemOpened');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    ElMessage.error(`${msg.translate('printSystemFailed')}，${detail}`);
+  }
+}
+
+/**
+ * 安卓端列表打印入口。
+ * 该单据分配过蓝牙打印机或存在默认打印机时走蓝牙小票，
+ * 否则把桌面同款表格 HTML 交给系统打印对话框。
+ */
+async function printListOnAndroid<T extends Record<string, unknown>>(
   options: PrintOptions<T>
 ): Promise<void> {
   recordPrintAuditBestEffort({
@@ -152,15 +183,19 @@ async function printListByBluetooth<T extends Record<string, unknown>>(
     title: options.title,
     recordCount: options.data.length,
   });
-  try {
-    await printReceiptToBluetooth(buildListReceiptContent(options));
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    ElMessage.error(`${msg.translate('printBluetoothFailed')}，${detail}`);
+  const target = options.documentKey ? documentPrintRoute(options.documentKey) : undefined;
+  if (resolvePrinterForTarget(target)) {
+    await printReceiptToBluetooth(buildListReceiptContent(options), {
+      target,
+      paperWidthMm: loadDocumentPaper().widthMm,
+    });
+    return;
   }
+  await printHtmlToSystem(generatePrintHTML(options), options.title);
 }
 
-async function printDocumentByBluetooth<T extends Record<string, unknown>>(options: {
+/** 安卓端单据打印入口，与列表打印同样的按单据选打印机规则。 */
+async function printDocumentOnAndroid<T extends Record<string, unknown>>(options: {
   title: string;
   info: Record<string, string>;
   items: T[];
@@ -168,6 +203,7 @@ async function printDocumentByBluetooth<T extends Record<string, unknown>>(optio
   footer?: Record<string, string>;
   resourceType?: string;
   resourceId?: string;
+  documentKey?: DocumentPrintType;
 }): Promise<void> {
   recordPrintAuditBestEffort({
     resourceType: options.resourceType,
@@ -175,12 +211,100 @@ async function printDocumentByBluetooth<T extends Record<string, unknown>>(optio
     title: options.title,
     recordCount: options.items.length,
   });
-  try {
-    await printReceiptToBluetooth(buildDocumentReceiptContent(options));
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    ElMessage.error(`${msg.translate('printBluetoothFailed')}，${detail}`);
+  const target = options.documentKey ? documentPrintRoute(options.documentKey) : undefined;
+  if (resolvePrinterForTarget(target)) {
+    await printReceiptToBluetooth(buildDocumentReceiptContent(options), {
+      target,
+      paperWidthMm: loadDocumentPaper().widthMm,
+    });
+    return;
   }
+  await printHtmlToSystem(generateDocumentHTML(options), options.title);
+}
+
+export interface PrintTableColumn {
+  field: string;
+  displayName: string;
+}
+
+/**
+ * 安卓端打印一组 JSON 行，供桌面端走 printJS 的页面在壳内复用。
+ * 该单据分配过蓝牙打印机时改走蓝牙小票，其余情况交给系统打印；
+ * 返回 true 表示本次已在安卓端处理（含无数据提示），调用方不必再走桌面分支。
+ */
+export async function printTableOnAndroid(options: {
+  title: string;
+  rows: Record<string, unknown>[];
+  columns: Array<string | PrintTableColumn>;
+  documentKey?: DocumentPrintType;
+}): Promise<boolean> {
+  if (!isAndroidClient()) return false;
+  if (options.rows.length === 0) {
+    msg.warning('noDataToPrint');
+    return true;
+  }
+  const columns = options.columns.map(column =>
+    typeof column === 'string' ? { field: column, displayName: column } : column
+  );
+  const target = options.documentKey ? documentPrintRoute(options.documentKey) : undefined;
+  if (resolvePrinterForTarget(target)) {
+    await printReceiptToBluetooth(
+      {
+        title: options.title,
+        meta: [describeBluetoothMeta()],
+        columns: columns.map(column => ({ title: column.displayName })),
+        rows: options.rows.map(row => columns.map(column => String(row[column.field] ?? ''))),
+        footer: [`共 ${options.rows.length} 条记录`],
+      },
+      { target, paperWidthMm: loadDocumentPaper().widthMm }
+    );
+    return true;
+  }
+  const headerCells = columns
+    .map(
+      column =>
+        `<th style="padding: 8px 12px; border: 1px solid #333; background: #f5f5f5; text-align: left">${escapeHtml(column.displayName)}</th>`
+    )
+    .join('');
+  const bodyRows = options.rows
+    .map(
+      row =>
+        `<tr>${columns
+          .map(
+            column =>
+              `<td style="padding: 6px 12px; border: 1px solid #333">${escapeHtml(row[column.field] ?? '')}</td>`
+          )
+          .join('')}</tr>`
+    )
+    .join('');
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${escapeHtml(options.title)}</title>
+      <style>
+        @media print {
+          ${buildPrintPageRule()}
+        }
+        body { font-family: "Microsoft YaHei", "SimSun", sans-serif; font-size: 12px; color: #333; padding: 20px; }
+        h1 { font-size: 20px; text-align: center; margin-bottom: 8px; }
+        .print-meta { text-align: center; color: #666; font-size: 11px; margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; }
+      </style>
+    </head>
+    <body>
+      <h1>${escapeHtml(options.title)}</h1>
+      <div class="print-meta">打印人 ${escapeHtml(resolvePrintUser())} 打印时间 ${formatPrintTimestamp(new Date())} 共 ${options.rows.length} 条记录</div>
+      <table>
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </body>
+    </html>
+  `;
+  await printHtmlToSystem(html, options.title);
+  return true;
 }
 
 /**
@@ -229,7 +353,7 @@ function generatePrintHTML<T extends Record<string, unknown>>(options: PrintOpti
       <title>${escapeHtml(title)}</title>
       <style>
         @media print {
-          @page { size: ${orientation}; margin: 15mm; }
+          ${buildPrintPageRule(orientation)}
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
         body { font-family: "Microsoft YaHei", "SimSun", sans-serif; font-size: 12px; color: #333; }
@@ -268,7 +392,7 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
   }
 
   if (isAndroidClient()) {
-    void printListByBluetooth(options);
+    void printListOnAndroid(options);
     return;
   }
 
@@ -294,32 +418,16 @@ export function printData<T extends Record<string, unknown>>(options: PrintOptio
   msg.printOpened();
 }
 /**
- * 打印单个单据（含表头信息、明细行、页脚）
+ * 生成单据打印 HTML，桌面弹窗与安卓系统打印共用同一份排版。
  */
-export function printSingleDocument<T extends Record<string, unknown>>(options: {
+function generateDocumentHTML<T extends Record<string, unknown>>(options: {
   title: string;
   info: Record<string, string>;
   items: T[];
   itemColumns: PrintColumn<T>[];
   footer?: Record<string, string>;
-  /** V15 P1-5-3：资源类型（用于前端打印审计埋点，与后端权限码 resource_type 对应） */
-  resourceType?: string;
-  /** V15 P1-5-3：资源 ID（单据打印时传入，用于审计追溯） */
-  resourceId?: string;
-}) {
+}): string {
   const { title, info, items, itemColumns, footer } = options;
-
-  if (isAndroidClient()) {
-    void printDocumentByBluetooth(options);
-    return;
-  }
-
-  recordPrintAuditBestEffort({
-    resourceType: options.resourceType,
-    resourceId: options.resourceId,
-    title,
-    recordCount: items.length,
-  });
 
   const infoHTML = Object.entries(info)
     .map(
@@ -373,7 +481,7 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
       <title>${escapeHtml(title)}</title>
       <style>
         @media print {
-          @page { size: A4; margin: 15mm; }
+          ${buildPrintPageRule()}
         }
         body { font-family: "Microsoft YaHei", "SimSun", sans-serif; font-size: 12px; color: #333; padding: 20px; }
         h1 { font-size: 20px; text-align: center; margin-bottom: 16px; }
@@ -403,6 +511,41 @@ export function printSingleDocument<T extends Record<string, unknown>>(options: 
     </body>
     </html>
   `;
+
+  return html;
+}
+
+/**
+ * 打印单个单据（含表头信息、明细行、页脚）
+ */
+export function printSingleDocument<T extends Record<string, unknown>>(options: {
+  title: string;
+  info: Record<string, string>;
+  items: T[];
+  itemColumns: PrintColumn<T>[];
+  footer?: Record<string, string>;
+  /** 资源类型，用于前端打印审计埋点，与后端权限码 resource_type 对应。 */
+  resourceType?: string;
+  /** 资源 ID，单据打印时传入，用于审计追溯。 */
+  resourceId?: string;
+  /** 单据类型，安卓端据此选择为该单据分配的蓝牙打印机 */
+  documentKey?: DocumentPrintType;
+}) {
+  const { title, items } = options;
+
+  if (isAndroidClient()) {
+    void printDocumentOnAndroid(options);
+    return;
+  }
+
+  recordPrintAuditBestEffort({
+    resourceType: options.resourceType,
+    resourceId: options.resourceId,
+    title,
+    recordCount: items.length,
+  });
+
+  const html = generateDocumentHTML(options);
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {

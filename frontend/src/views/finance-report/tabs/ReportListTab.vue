@@ -676,6 +676,7 @@ import {
   type SubsidiaryLedger,
 } from '@/api/finance-report';
 import { logger } from '@/utils/logger';
+import { printCurrentPageOnAndroid } from '@/utils/system-print';
 import { EXPORT_APPROVAL_REQUEST_PERMISSION_KEY } from '@/constants/export-approval';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useExportApproval } from '@/composables/useExportApproval';
@@ -821,7 +822,8 @@ const handleReset = () => {
   clearReports();
 };
 
-const handlePrint = () => {
+const handlePrint = async () => {
+  if (await printCurrentPageOnAndroid(t('financeReport.reportListTab.pageTitle'))) return;
   window.print();
 };
 
