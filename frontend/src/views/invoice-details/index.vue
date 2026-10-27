@@ -94,6 +94,8 @@
             inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="税额" prop="tax_amount">
@@ -102,6 +104,8 @@
             inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="价税合计" prop="total_amount">
@@ -110,6 +114,8 @@
             inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
       </el-form>

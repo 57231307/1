@@ -256,6 +256,8 @@
             style="width: 100%"
             inputmode="decimal"
             :aria-label="t('customerCredit.index.table.column.creditLimit')"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
       </el-form>

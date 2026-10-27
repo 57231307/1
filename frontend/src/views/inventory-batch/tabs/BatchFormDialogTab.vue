@@ -75,21 +75,16 @@
         :label="t('inventoryBatch.batchFormDialog.labelQuantityMeters')"
         prop="quantity_meters"
       >
-        <el-input-number v-model="formData.quantity_meters" :min="0" style="width: 100%" />
+        <NumericInput v-model="formData.quantity_meters" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelQuantityKg')" prop="quantity_kg">
-        <el-input-number
-          v-model="formData.quantity_kg"
-          :min="0"
-          :precision="2"
-          style="width: 100%"
-        />
+        <NumericInput v-model="formData.quantity_kg" style="width: 100%" :min="0" :precision="2" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelGramWeight')" prop="gram_weight">
-        <el-input-number v-model="formData.gram_weight" :min="0" style="width: 100%" />
+        <NumericInput v-model="formData.gram_weight" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelWidth')" prop="width">
-        <el-input-number v-model="formData.width" :min="0" style="width: 100%" />
+        <NumericInput v-model="formData.width" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item
         :label="t('inventoryBatch.batchFormDialog.labelProductionDate')"
@@ -116,6 +111,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

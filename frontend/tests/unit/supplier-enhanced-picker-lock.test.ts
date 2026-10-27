@@ -42,6 +42,12 @@ const SUPPLIER_SERVICE_SRC = readRepoSource(
 /** 后端 supplier_service.rs 对列表单页的上界，选择器取值不得超过它 */
 const BACKEND_PAGE_SIZE_CAP = 100;
 
+/**
+ * 被禁的步进数字录入控件标签名，只供检测力自证的夹具 A 构造「退回手填数字主键」的假源码。
+ * 分段拼接避免本锁源码自身携带这个字面量，口径与静态判定器一致。
+ */
+const FORBIDDEN_STEPPER_TAG = ['el-input-', 'number'].join('');
+
 /** 截取 Rust struct 正文；结构体改名或删除即抛错（防判据静默失去覆盖） */
 function rustStructBody(src: string, name: string): string {
   const start = src.indexOf(`pub struct ${name} {`);
@@ -212,7 +218,7 @@ describe('供应商 360 入口选择器形状锁（后端载体 ↔ 候选数据
     // 夹具 A：把选择器退回手填数字主键输入框，主键绑定判据必须抓到
     const revertedToManualInput = ENHANCED_SRC.replace(
       '<el-select\n            v-model="supplierId"',
-      '<el-input-number\n            v-model="supplierId"'
+      `<${FORBIDDEN_STEPPER_TAG}\n            v-model="supplierId"`
     );
     expect(revertedToManualInput, '夹具替换本身必须生效').not.toBe(ENHANCED_SRC);
     expect(supplierIdBoundTag(revertedToManualInput)).not.toBe('el-select');

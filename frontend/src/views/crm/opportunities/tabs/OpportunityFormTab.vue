@@ -91,12 +91,12 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('crmOpportunityForm.estimatedAmount')" prop="estimated_amount">
-            <el-input-number
-              v-if="estimatedAmountViewable"
+            <NumericInput
               v-model="formData.estimated_amount"
-              :precision="2"
-              :min="0"
+              v-if="estimatedAmountViewable"
               style="width: 100%"
+              :min="0"
+              :precision="2"
             />
             <!-- 2026-10-02 裁定：金额对"仅非本人行"不外显（后端整键移除）；
                  无权时只给中性占位，不显示任何判定原因 -->
@@ -152,6 +152,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

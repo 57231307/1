@@ -171,6 +171,8 @@
             inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="备注" prop="remark">

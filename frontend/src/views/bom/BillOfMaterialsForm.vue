@@ -93,13 +93,7 @@
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.quantity')" width="120">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.quantity"
-              :min="0"
-              :precision="2"
-              controls-position="right"
-              style="width: 100%"
-            />
+            <NumericInput v-model="row.quantity" style="width: 100%" :min="0" :precision="2" />
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.unit')" width="100">
@@ -118,13 +112,12 @@
             <!-- 损耗率 = API 百分比数值口径（10 = 10%），键名与后端 scrap_rate 同名；
                  0–100 + 两位小数（0.01% 粒度）与后端写边界校验同口径，
                  比率换算只发生在后端边界，前端不二次乘除 -->
-            <el-input-number
+            <NumericInput
               v-model="row.scrap_rate"
+              style="width: 100%"
               :min="0"
               :max="100"
               :precision="2"
-              controls-position="right"
-              style="width: 100%"
             />
           </template>
         </el-table-column>
@@ -149,6 +142,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

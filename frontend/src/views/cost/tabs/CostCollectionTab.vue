@@ -252,21 +252,21 @@
               :label="t('cost.collectionList.dialog.directMaterial')"
               prop="direct_material"
             >
-              <el-input-number
+              <NumericInput
                 v-model="form.direct_material"
+                style="width: 100%"
                 :min="0"
                 :precision="2"
-                style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('cost.collectionList.dialog.directLabor')" prop="direct_labor">
-              <el-input-number
+              <NumericInput
                 v-model="form.direct_labor"
+                style="width: 100%"
                 :min="0"
                 :precision="2"
-                style="width: 100%"
               />
             </el-form-item>
           </el-col>
@@ -277,11 +277,11 @@
               :label="t('cost.collectionList.dialog.manufacturingOverhead')"
               prop="manufacturing_overhead"
             >
-              <el-input-number
+              <NumericInput
                 v-model="form.manufacturing_overhead"
+                style="width: 100%"
                 :min="0"
                 :precision="2"
-                style="width: 100%"
               />
             </el-form-item>
           </el-col>
@@ -299,22 +299,17 @@
               :label="t('cost.collectionList.dialog.processingFee')"
               prop="processing_fee"
             >
-              <el-input-number
+              <NumericInput
                 v-model="form.processing_fee"
+                style="width: 100%"
                 :min="0"
                 :precision="2"
-                style="width: 100%"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('cost.collectionList.dialog.dyeingFee')" prop="dyeing_fee">
-              <el-input-number
-                v-model="form.dyeing_fee"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
+              <NumericInput v-model="form.dyeing_fee" style="width: 100%" :min="0" :precision="2" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -336,6 +331,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

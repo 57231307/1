@@ -58,11 +58,11 @@
                 </el-tooltip>
               </span>
             </template>
-            <el-input-number
+            <NumericInput
               v-model="localFormData.price"
-              :precision="6"
-              :min="0"
               style="width: 100%"
+              :min="0"
+              :precision="6"
             />
           </el-form-item>
         </el-col>
@@ -95,11 +95,11 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('purchasePrice.form.label.minOrderQty')" prop="min_order_qty">
-            <el-input-number
+            <NumericInput
               v-model="localFormData.min_order_qty"
-              :precision="2"
-              :min="0"
               style="width: 100%"
+              :min="0"
+              :precision="2"
             />
           </el-form-item>
         </el-col>
@@ -172,6 +172,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import type { Supplier } from '@/api/supplier';

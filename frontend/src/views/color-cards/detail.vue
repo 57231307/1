@@ -250,6 +250,8 @@
             v-model="stockForm.stock_quantity"
             inputmode="numeric"
             :placeholder="$t('colorCards.detail.stockDialog.placeholder')"
+            :min="0"
+            :integer="true"
           />
         </el-form-item>
         <el-form-item>
