@@ -107,12 +107,28 @@
       :aria-label="t('system.role.permissionDialog.aria')"
     >
       <el-card v-loading="permissionLoading">
+        <!-- 超管授予由后端系统维护，界面按后端同一规则只读展示，不留点了必被拒的入口 -->
+        <el-alert
+          v-if="isTargetRoleSuperAdmin"
+          :title="t('system.role.permissionDialog.adminReadonlyHint')"
+          type="info"
+          :closable="false"
+          class="permission-dialog-alert"
+        />
+        <el-input
+          v-model="permissionFilterText"
+          :placeholder="t('system.role.permissionDialog.filterPlaceholder')"
+          clearable
+          class="permission-dialog-filter"
+        />
         <el-tree
+          ref="permissionTreeRef"
           :data="permissionTree"
           :props="{ label: 'label', children: 'children' }"
           show-checkbox
           node-key="key"
           :default-checked-keys="checkedKeys"
+          :filter-node-method="filterPermissionNode"
           @check="handlePermissionCheck"
         />
       </el-card>
@@ -120,9 +136,10 @@
         <el-button @click="permissionDialogVisible = false">{{
           t('system.role.permissionDialog.button.cancel')
         }}</el-button>
-        <!-- 整批替换端点仅管理员可用：非管理员不渲染保存按钮，避免留下必然被拒的入口 -->
+        <!-- 整批替换端点仅管理员可用，且目标为超管角色时后端必拒（权限由系统维护）：
+             两种情形都不渲染保存按钮，避免留下必然被拒的入口 -->
         <el-button
-          v-if="canManageGrants"
+          v-if="canManageGrants && !isTargetRoleSuperAdmin"
           type="primary"
           :loading="permissionSubmitLoading"
           @click="submitPermissions"
@@ -136,13 +153,15 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { PERMISSIONS } from '@/constants/permissions';
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { logger } from '@/utils/logger';
 import { useUserStore } from '@/store/user';
+import { dataPermissionResourceTypeLabelKey } from '@/constants/data-permission-resource';
+import { permissionActionLabelKey } from '@/constants/permission-action';
 import {
   getRoleList,
   createRole,
@@ -280,7 +299,14 @@ const deleteRole = async (row: Role) => {
 const permissionDialogVisible = ref(false);
 const currentRoleId = ref(0);
 const currentRoleName = ref('');
+// 目标角色 code：超管（code=admin）授予由系统维护，界面按该口径只读；
+// 其余内置角色（is_system=true）保存会被后端整批拒绝，仅自定义角色可批量改授予
+const currentRoleCode = ref('');
+const isTargetRoleSuperAdmin = computed(() => currentRoleCode.value === 'admin');
 const permissionTree = ref<PermissionTreeNode[]>([]);
+// el-tree 实例只用到 filter 方法；按结构类型声明，避免绑定 element-plus 的深路径类型漂移
+const permissionTreeRef = ref<{ filter: (value: string) => void }>();
+const permissionFilterText = ref('');
 // 勾选的树节点 key（`${rt}::${action}`），与既有授予一起算出整批替换的目标终集合
 const checkedKeys = ref<string[]>([]);
 // 角色当前的角色级授予（key → allowed）；GET 返回的每一行都在替换作用面内
@@ -315,15 +341,34 @@ const splitPermKey = (key: string): { resourceType: string; action: string } | n
 const openPermissionDialog = (row: Role) => {
   currentRoleId.value = row.id;
   currentRoleName.value = row.name;
+  currentRoleCode.value = row.code;
   // 每次打开都从空态开始：上一个角色的勾选/授予若残留，整批替换会把别的角色的授予
   // 当作本角色的现状提交（读回失败时终集合还会退化成空集，等于清空本角色权限）。
   permissionTree.value = [];
   checkedKeys.value = [];
   existingGrants.value = new Map();
   grantsLoaded.value = false;
+  permissionFilterText.value = '';
   fetchRolePermissions(row.id);
   permissionDialogVisible.value = true;
 };
+
+/**
+ * 树过滤：按节点展示文案（资源/动作的 i18n 标签）子串匹配，忽略大小写；
+ * 分组节点命中时其子节点随之露出，避免搜"用户"只剩光杆分组。
+ */
+const filterPermissionNode = (value: string, data: PermissionTreeNode): boolean => {
+  if (!value) return true;
+  const needle = value.toLowerCase();
+  return (
+    data.label.toLowerCase().includes(needle) ||
+    data.children.some(child => child.label.toLowerCase().includes(needle))
+  );
+};
+
+watch(permissionFilterText, value => {
+  permissionTreeRef.value?.filter(value);
+});
 
 const fetchRolePermissions = async (roleId: number) => {
   permissionLoading.value = true;
@@ -358,23 +403,58 @@ interface PermissionTreeNode {
   children: PermissionTreeNode[];
 }
 
-// 权限目录按 resource_type 分组为两层树（后端 /permissions 无 parent_id 层级）
+// 权限目录按 resource_type 分组为两层树（后端 /permissions 无 parent_id 层级）。
+// 节点文案与权限管理页（views/permissions/index.vue）同源：资源 token 走
+// constants/data-permission-resource 的词条映射、动作 token 走
+// constants/permission-action 的映射，词表外原样显示后端 token 并留 warn——
+// 界面不再露出 `users::read` 这类原始键串。data-key 保持 `${rt}::${action}`/
+// `group::${rt}` 形态不变（e2e 与勾选集合计算都按该键契约定位，展示文案与主键解耦）。
+const warnedTreeTokens = new Set<string>();
+
+/** 资源 token 展示文案：有词条走 i18n，无词条原样显示并同 token 只 warn 一次 */
+const resourceTypeLabel = (value: string): string => {
+  const labelKey = dataPermissionResourceTypeLabelKey(value);
+  if (!labelKey && !warnedTreeTokens.has(`resource:${value}`)) {
+    warnedTreeTokens.add(`resource:${value}`);
+    logger.warn(`${t('system.role.message.unknownResourceType')}${value}`);
+  }
+  return labelKey ? t(labelKey) : value;
+};
+
+/** 动作 token 展示文案：取值域同源于 constants/permission-action */
+const actionLabel = (value: string): string => {
+  const labelKey = permissionActionLabelKey(value);
+  if (!labelKey && !warnedTreeTokens.has(`action:${value}`)) {
+    warnedTreeTokens.add(`action:${value}`);
+    logger.warn(`${t('system.role.message.unknownActionType')}${value}`);
+  }
+  return labelKey ? t(labelKey) : value;
+};
+
 const buildPermissionTree = (perms: Permission[]): PermissionTreeNode[] => {
   const groups = new Map<string, PermissionTreeNode>();
   perms.forEach(p => {
     if (!p.resource_type || !p.action) return;
     let g = groups.get(p.resource_type);
     if (!g) {
-      g = { key: `group::${p.resource_type}`, label: p.resource_type, children: [] };
+      g = {
+        key: `group::${p.resource_type}`,
+        label: resourceTypeLabel(p.resource_type),
+        children: [],
+      };
       groups.set(p.resource_type, g);
     }
     g.children.push({
       key: permKey(p.resource_type, p.action),
-      label: `${p.resource_type}:${p.action}${p.allowed ? '' : ' (denied)'}`,
+      label: actionLabel(p.action),
       children: [],
     });
   });
-  return Array.from(groups.values()).sort((a, b) => a.label.localeCompare(b.label));
+  return Array.from(groups.values()).sort((a, b) =>
+    resourceTypeLabel(a.key.slice('group::'.length)).localeCompare(
+      resourceTypeLabel(b.key.slice('group::'.length))
+    )
+  );
 };
 
 const handlePermissionCheck = (_: unknown, { checkedKeys: keys }: { checkedKeys: unknown[] }) => {

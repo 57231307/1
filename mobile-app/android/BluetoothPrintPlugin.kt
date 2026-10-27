@@ -36,7 +36,8 @@ class BluetoothConnectArgs {
 
 /**
  * 打印命令入参。text 为已排好版的纯文本小票；cut 控制是否在结尾发切纸指令，
- * feedLines 控制切纸前走纸行数；encoding 缺省 GBK，热敏打印机中文需 GBK 或 GB18030。
+ * feedLines 控制切纸前走纸行数；encoding 缺省 GBK，热敏打印机中文需 GBK 或 GB18030；
+ * address 为要使用的打印机 MAC 地址，填写时打印前按需连接该打印机，省略时只用当前会话。
  */
 @InvokeArg
 class BluetoothPrintTextArgs {
@@ -44,6 +45,7 @@ class BluetoothPrintTextArgs {
   var cut: Boolean = true
   var feedLines: Int = 3
   var encoding: String = "GBK"
+  var address: String? = null
 }
 
 /**
@@ -142,50 +144,20 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
 
   @Command
   fun connect(invoke: Invoke) {
-    val address = invoke.parseArgs(BluetoothConnectArgs::class.java).address
+    val address = invoke.parseArgs(BluetoothConnectArgs::class.java).address?.trim()
     if (address.isNullOrBlank()) {
       invoke.reject("未选择打印机")
       return
     }
-    if (!hasConnectPermission()) {
-      invoke.reject("缺少蓝牙权限，请先授权")
-      return
-    }
-    val adapter = bluetoothAdapter()
-    if (adapter == null) {
-      invoke.reject("本机不支持蓝牙")
-      return
-    }
-    if (!adapter.isEnabled) {
-      invoke.reject("蓝牙未开启，请先开启蓝牙")
-      return
-    }
-    val device = try {
-      adapter.getRemoteDevice(address)
-    } catch (e: IllegalArgumentException) {
-      invoke.reject("打印机地址非法：" + address)
-      return
-    }
-    if (device.bondState != BluetoothDevice.BOND_BONDED) {
-      invoke.reject("打印机尚未配对，请先在系统蓝牙设置中完成配对")
-      return
-    }
-
     io.execute {
       try {
-        adapter.cancelDiscovery()
-        closeSocket()
-        val candidate = device.createRfcommSocketToServiceRecord(sppUuid)
-        candidate.connect()
-        socket = candidate
-        connectedAddress = address
+        val name = openConnection(address)
         val result = JSObject()
         result.put("address", address)
-        result.put("name", device.name ?: "")
+        result.put("name", name)
         invoke.resolve(result)
       } catch (e: Exception) {
-        closeSocket()
-        invoke.reject("连接打印机失败：" + (e.message ?: e.javaClass.simpleName))
+        invoke.reject(e.message ?: "连接打印机失败")
       }
     }
   }
@@ -203,13 +175,27 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
       invoke.reject("不支持的字符集：" + args.encoding)
       return
     }
-    val current = socket
-    if (current == null || !current.isConnected) {
-      invoke.reject("打印机未连接")
-      return
-    }
 
     io.execute {
+      val target = args.address?.trim().orEmpty()
+      val opened = socket
+      // 进程重启后 socket 为空，保存在前端的打印机地址要靠这里补连，否则打印只会报未连接
+      val needsConnect = target.isNotEmpty() &&
+        (opened == null || !opened.isConnected || connectedAddress != target)
+      if (needsConnect) {
+        try {
+          openConnection(target)
+        } catch (e: Exception) {
+          invoke.reject(e.message ?: "连接打印机失败")
+          return@execute
+        }
+      }
+      val current = socket
+      if (current == null || !current.isConnected) {
+        invoke.reject("打印机未连接")
+        return@execute
+      }
+
       try {
         val out = current.outputStream
         out.write(byteArrayOf(0x1B, 0x40))
@@ -241,6 +227,49 @@ class BluetoothPrintPlugin(private val activity: Activity) : Plugin(activity) {
   override fun onDestroy(activity: AppCompatActivity) {
     io.execute { closeSocket() }
     io.shutdown()
+  }
+
+  /** 蓝牙链路不可用，message 为面向用户的原因。 */
+  private class BluetoothLinkException(message: String) : Exception(message)
+
+  /**
+   * 在 io 线程按地址建立 SPP 连接并记为当前会话，返回打印机名称。
+   * 失败时清理半开 socket 并抛出可读原因，调用方直接回给前端。
+   */
+  private fun openConnection(address: String): String {
+    if (!hasConnectPermission()) throw BluetoothLinkException("缺少蓝牙权限，请先授权")
+    val adapter = bluetoothAdapter() ?: throw BluetoothLinkException("本机不支持蓝牙")
+    if (!adapter.isEnabled) throw BluetoothLinkException("蓝牙未开启，请先开启蓝牙")
+    val device = try {
+      adapter.getRemoteDevice(address)
+    } catch (e: IllegalArgumentException) {
+      throw BluetoothLinkException("打印机地址非法：" + address)
+    }
+    if (device.bondState != BluetoothDevice.BOND_BONDED) {
+      throw BluetoothLinkException("打印机尚未配对，请先在系统蓝牙设置中完成配对")
+    }
+
+    adapter.cancelDiscovery()
+    closeSocket()
+    val candidate = device.createRfcommSocketToServiceRecord(sppUuid)
+    try {
+      candidate.connect()
+    } catch (e: Exception) {
+      try {
+        candidate.close()
+      } catch (ignored: Exception) {
+        // 连接未建立的 socket 关闭失败不影响本次结果，原因以连接异常为准
+      }
+      throw BluetoothLinkException("连接打印机失败：" + (e.message ?: e.javaClass.simpleName))
+    }
+    socket = candidate
+    connectedAddress = address
+    return try {
+      device.name ?: ""
+    } catch (e: SecurityException) {
+      // 名称只用于回显，个别机型读名称仍可能被拒，不影响已建立的连接
+      ""
+    }
   }
 
   private fun resolvePermission(invoke: Invoke, granted: Boolean) {

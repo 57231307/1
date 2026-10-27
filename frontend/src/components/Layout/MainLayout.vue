@@ -7,6 +7,7 @@
       :class="isMobile ? 'mobile-sidebar' : 'aside'"
     >
       <div class="logo">
+        <img class="logo-mark" :src="brandLogo" alt="" />
         <h2>{{ brandName }}</h2>
       </div>
       <el-menu
@@ -148,6 +149,8 @@ import { useTheme } from '@/composables/useTheme';
 import { useKeyboardNavigation } from '@/composables/useKeyboardNavigation';
 // 公司档案服务端化：头部品牌名读共享档案（空/未加载回退 i18n 字面量）
 import { useCompanyProfile } from '@/composables/useCompanyProfile';
+// 品牌图形资产（已抠掉白底的透明版，深色侧栏上不会带出白方块）
+import brandLogo from '@/assets/logo.png';
 
 const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
@@ -356,6 +359,13 @@ async function handleLogout() {
   font-size: 18px;
   margin: 0;
 }
+.logo-mark {
+  /* 图形按行高取方，flex:none 保证窄屏文字省略时不被压扁 */
+  height: 34px;
+  width: 34px;
+  flex: none;
+  margin-right: 8px;
+}
 .menu {
   border-right: none;
 }
@@ -425,6 +435,11 @@ async function handleLogout() {
   }
   .logo h2 {
     font-size: 15px;
+  }
+  .logo-mark {
+    height: 26px;
+    width: 26px;
+    margin-right: 6px;
   }
 
   /* 移动端主内容区减小内边距，释放更多内容空间，底部与左右仍要加安全区 */

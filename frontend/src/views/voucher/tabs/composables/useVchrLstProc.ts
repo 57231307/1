@@ -7,6 +7,7 @@ import { msg } from '@/utils/message';
 import { i18n } from '@/i18n';
 import { isDialogDismissal } from '@/utils/monitor';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import {
   deleteVoucher,
   submitVoucher,
@@ -33,7 +34,9 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
   };
 
   /** 打印当前列表 */
-  const handlePrint = () => {
+  const printTitle = '会计凭证列表';
+
+  const handlePrint = async () => {
     const list = getList();
     // P0 修复：打印列仅保留后端列表真实返回的 voucher::Model 键
     //（type/description/total_debit/total_credit 为前端自创键，打印恒为 undefined/NaN，已移除）
@@ -44,11 +47,20 @@ export function useVchrLstProc(tableData: ContractListLike, loadData: () => Prom
       类型: item.voucher_type,
       状态: getStatusLabel(item.status),
     }));
+    if (
+      await printTableOnAndroid({
+        title: printTitle,
+        rows: printData,
+        columns: Object.keys(printData[0] || {}),
+        documentKey: 'voucher',
+      })
+    )
+      return;
     printJS({
       printable: printData,
       properties: Object.keys(printData[0] || {}) as string[],
       type: 'json',
-      header: '会计凭证列表',
+      header: printTitle,
       style: 'padding: 20px; font-size: 14px;',
       headerStyle: 'font-size: 18px; font-weight: bold; margin-bottom: 20px;',
       gridHeaderStyle: 'font-weight: bold; background-color: #f5f7fa;',
