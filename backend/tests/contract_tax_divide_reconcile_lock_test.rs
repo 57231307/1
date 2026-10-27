@@ -9,13 +9,17 @@
 //!
 //! 覆盖三块，缺一即锁失效，
 //! ① 纯内核逐档钩稽与方向，税率档必须含 0 与 13 与 9 与 6 与一枚小数税率 5.5，
-//!    另用含税 100 按 13% 反算钉死「差额」而非「独立舍入」（乘法独立舍入会多算出 11.51）。
+//!    另用含税 100.01 按 13% 反算钉死「差额 11.51」而非「独立舍入 11.50」
+//!    （净额乘税率再舍入与含税事实差 1 分，票面不钩稽）。
 //! ② 真调生产建单入口 PurchaseOrderService::create_order，逐档建单落库后回读
 //!    purchase_order_item 的 subtotal 与 tax_amount 与 total_amount 三列，断钩稽恒等式
 //!    与逐档具体数字（不只断接口成功），证明除法反算腿贯通到落库。
 //!    suppliers 属迁移种子参照表不清空，供应商用时间戳后缀自建专属行，互不碰撞。
-//! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿源码，
-//!    不只看首个匹配、不因注释遮蔽、不按中文字面量放行，改回乘法必红。
+//! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 14 个文件）与
+//!    前端 4 个含税派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
+//!    「乘 tax 前缀标识符」与硬编码档位字面量；不只看首个匹配、行首注释才跳过
+//!    （行尾注释里的代码照扫）、不按中文字面量放行界面文案，改回乘法必红并点名。
+//!    正向委托锁逐文件钉内核引用与单源入口，删引用或内联第二套公式同样判红。
 //!
 //! 覆盖策略，纯函数注入 加 真 PostgreSQL（test_common::setup_test_db），跑真实 service 全链路，无 mock。
 
@@ -83,18 +87,39 @@ fn kernel_reconciles_across_all_tax_tiers() {
     assert_split(dec("6"), dec("1060.00"), dec("1000.00"), dec("60.00"));
     assert_split(dec("5.5"), dec("1055.00"), dec("1000.00"), dec("55.00"));
 
-    // 方向钉死的反例，含税 100 按 13% 反算净额 88.50、税额取差额 11.50。
-    // 被禁止的「独立舍入」会先把 88.50 乘 13% 得 11.51，净额加税额 = 100.01 与含税额 100 差 1 分，
-    // 票面与台账不钩稽；本锁要求税额逐分等于含税减净额。
+    // 方向钉死的反例，含税 100 按 13% 反算净额 88.50、税额取差额 11.50，钩稽逐分成立。
     let edge = tax::split_from_inclusive(dec("100"), dec("13"));
     assert_eq!(edge.net, dec("88.50"), "含税 100 按 13% 除法反算净额必须是 88.50");
-    assert_eq!(edge.tax, dec("11.50"), "税额必须是差额 11.50，不得是独立舍入的 11.51");
+    assert_eq!(edge.tax, dec("11.50"), "税额必须是差额 11.50");
     assert_eq!(edge.net + edge.tax, edge.inclusive, "钩稽恒等式必须逐分成立");
-    let forbidden_independent_tax = (edge.net * dec("13") / dec("100")).round_dp(2);
+
+    // 两处各自独立舍入必炸 1 分差的钉死样本，含税 100.01 按 13%：
+    // 除法反算净额 100.01 ÷ 1.13 = 88.504424… 收敛 88.50，税额取差额 11.51，
+    // 净额加税额逐分等于 100.01。被禁止的「净额乘税率」独立舍入是
+    // 88.50 × 13 ÷ 100 = 11.505 收敛 11.50，与差额 11.51 差 1 分，
+    // 且 88.50 + 11.50 = 100.00 与含税事实 100.01 不钩稽，正是要拦的形态。
+    let diff_case = tax::split_from_inclusive(dec("100.01"), dec("13"));
+    assert_eq!(diff_case.net, dec("88.50"), "含税 100.01 按 13% 除法反算净额必须是 88.50");
+    assert_eq!(
+        diff_case.tax,
+        dec("11.51"),
+        "税额必须是差额 11.51（含税 100.01 减净额 88.50），不是独立舍入的 11.50"
+    );
+    assert_eq!(
+        diff_case.net + diff_case.tax,
+        diff_case.inclusive,
+        "钩稽恒等式必须逐分成立，独立舍入产生的 1 分差在这里必红"
+    );
+    let forbidden_independent_tax = (diff_case.net * dec("13") / dec("100")).round_dp(2);
+    assert_eq!(
+        forbidden_independent_tax,
+        dec("11.50"),
+        "被禁止的「净额乘税率」独立舍入在本样本必须得 11.50，用于证明它与差额 11.51 分化"
+    );
     assert_ne!(
-        forbidden_independent_tax, edge.tax,
-        "被禁止的「净额乘税率」独立舍入得 {forbidden_independent_tax}，与差额 {} 不同，正是要拦的形态",
-        edge.tax
+        forbidden_independent_tax, diff_case.tax,
+        "「净额乘税率」独立舍入得 {forbidden_independent_tax}，与差额 {} 差 1 分，正是要拦的形态",
+        diff_case.tax
     );
 
     // 单价聚合只含「单价 乘 数量」，税率不进算式，不构成造含税
@@ -303,7 +328,8 @@ async fn live_create_order_reconciles_per_tax_tier() {
 // ③ 静态正向公式禁回潮锁（税额路径不存在乘 1+税率 的正向公式）
 // =========================================================
 
-/// 扫描对象，价税分离内核与全部价税写入腿源码
+/// 扫描对象，价税分离内核与全部价税写入腿源码（后端）。
+/// 清单按写入腿逐点对齐，新增或删减价税写入腿时必须同步本清单，漏一个文件即锁失效。
 const TAX_PATH_SOURCES: &[(&str, &str)] = &[
     ("src/utils/tax.rs", include_str!("../src/utils/tax.rs")),
     (
@@ -315,13 +341,26 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
         include_str!("../src/services/quotation_ops/calc.rs"),
     ),
     (
+        "src/services/quotation_ops/crud.rs",
+        include_str!("../src/services/quotation_ops/crud.rs"),
+    ),
+    (
+        "src/services/quotation_ops/update.rs",
+        include_str!("../src/services/quotation_ops/update.rs"),
+    ),
+    (
         "src/services/po/order_ops/crud.rs",
         include_str!("../src/services/po/order_ops/crud.rs"),
     ),
     ("src/services/po/price.rs", include_str!("../src/services/po/price.rs")),
+    ("src/services/po/receipt.rs", include_str!("../src/services/po/receipt.rs")),
     (
         "src/services/so/order_crud.rs",
         include_str!("../src/services/so/order_crud.rs"),
+    ),
+    (
+        "src/services/so/delivery_ops/ship.rs",
+        include_str!("../src/services/so/delivery_ops/ship.rs"),
     ),
     (
         "src/services/purchase_return_service.rs",
@@ -331,6 +370,34 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
         "src/services/sales_return_service.rs",
         include_str!("../src/services/sales_return_service.rs"),
     ),
+    (
+        "src/services/ap_invoice_ops/receipt.rs",
+        include_str!("../src/services/ap_invoice_ops/receipt.rs"),
+    ),
+    (
+        "src/services/outsourcing_ops/receipt.rs",
+        include_str!("../src/services/outsourcing_ops/receipt.rs"),
+    ),
+];
+
+/// 扫描对象，前端含税派生腿源码（与后端同一方向口径，同源反算单源在 utils/money.ts）。
+const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
+    (
+        "frontend/src/utils/money.ts",
+        include_str!("../../frontend/src/utils/money.ts"),
+    ),
+    (
+        "frontend/src/views/quotations/components/QuotationItemEditor.vue",
+        include_str!("../../frontend/src/views/quotations/components/QuotationItemEditor.vue"),
+    ),
+    (
+        "frontend/src/views/quotations/create.vue",
+        include_str!("../../frontend/src/views/quotations/create.vue"),
+    ),
+    (
+        "frontend/src/views/sales/OrderFormDialog.vue",
+        include_str!("../../frontend/src/views/sales/OrderFormDialog.vue"),
+    ),
 ];
 
 /// 把一行源码去掉空白，避免用空格形态绕过（`* (Decimal::ONE +` 与 `*(Decimal::ONE+` 同一目标）。
@@ -338,40 +405,106 @@ fn compact(line: &str) -> String {
     line.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
-/// 是否为注释行（含 doc 注释），仅按整行起始判定，不因此放过代码里的违规
+/// 是否为注释行（行首标记判定）：`//`、`//!`、`/*`、` * `（块注释续行）、
+/// `<!--` 与 `-->`（HTML 与 Vue 模板注释的起止行）。只按整行起始判定；
+/// 代码后跟的行尾注释不在跳过范围（同一行的代码部分照样被扫），不因此放过藏在行尾的违规。
 fn is_comment_line(line: &str) -> bool {
     let t = line.trim_start();
-    t.starts_with("//") || t.starts_with("/*") || t.starts_with('*')
+    t.starts_with("//")
+        || t.starts_with("/*")
+        || t.starts_with('*')
+        || t.starts_with("<!--")
+        || t.starts_with("-->")
+}
+
+/// 被禁止的硬编码增值税档位乘数（历史违规形态）。
+/// 判定用「相邻字符不是数字」防 `11.13` 这类无关小数被误伤；
+/// 本锁宁可误报、绝不漏报：漏报就是正向公式回潮无人知。
+fn contains_tier_literal(c: &str, lit: &str) -> bool {
+    c.match_indices(lit).any(|(idx, _)| {
+        let before_ok = idx == 0 || !c.as_bytes()[idx - 1].is_ascii_digit();
+        let after_idx = idx + lit.len();
+        let after_ok = after_idx >= c.len() || !c.as_bytes()[after_idx].is_ascii_digit();
+        before_ok && after_ok
+    })
+}
+
+/// 扫描对象共用的档位字面量禁列。
+const FORBIDDEN_TIER_LITERALS: &[&str] = &["1.13", "0.13", "1.09", "1.06", "1.055"];
+
+/// 对一行（已去空白）施加后端全部禁止形态，命中即 panic 点名文件、行号与原文。
+/// 逐行逐点施加，不是找到第一个就停：任何一行漏检都算锁失效。
+fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
+    // 造含税，乘 (1 + 税率)。除法反算写的是 `/ (Decimal::ONE + ...)`，不在禁列
+    assert!(
+        !c.contains("*(Decimal::ONE+"),
+        "{path} 第 {line_no} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
+        line.trim()
+    );
+    // 同一目标的字面量 1 形态，`*(1 + ...)`，除法反算是 `/ (1 + ...)`，不在禁列
+    assert!(
+        !c.contains("*(1+"),
+        "{path} 第 {line_no} 行出现「乘 (1 + 税率) 字面量形态」造含税的正向公式: {}",
+        line.trim()
+    );
+    // 造税额，乘任何以 tax 开头的标识符（税率变量改名成 tax、tax_amt、tax_pct 也钉得住；
+    // 合法形态里 `*` 之后只会跟 quantity/percent/share 等非税率标识符，
+    // unit_price_with_tax 这类以 tax 结尾的含税事实出现在乘号右侧不构成违规，因为禁的是 `*tax` 前缀形态）
+    assert!(
+        !c.contains("*tax"),
+        "{path} 第 {line_no} 行出现「乘税率标识符」造税额的正向公式: {}",
+        line.trim()
+    );
+    for lit in FORBIDDEN_TIER_LITERALS {
+        assert!(
+            !contains_tier_literal(c, lit),
+            "{path} 第 {line_no} 行出现硬编码增值税档位 {lit}: {}",
+            line.trim()
+        );
+    }
 }
 
 #[test]
 fn tax_path_has_no_forward_multiply_formula() {
-    // 被禁止的硬编码增值税档位乘数（历史违规形态）
-    const FORBIDDEN_TIER_LITERALS: &[&str] = &["1.13", "0.13", "1.09", "1.06", "1.055"];
     for (path, raw) in TAX_PATH_SOURCES {
         for (idx, line) in raw.replace('\r', "").lines().enumerate() {
             if is_comment_line(line) {
                 continue;
             }
+            assert_backend_line_clean(path, idx + 1, line, &compact(line));
+        }
+    }
+}
+
+/// 前端同口径锁，含税单价是录入事实，派生腿只准除法反算。
+/// 历史违规点位（OrderFormDialog 硬编码 0.13 与 1.13、QuotationItemEditor 浮点乘 1+税率）
+/// 一旦改回乘法必须判红并点名。
+#[test]
+fn frontend_tax_legs_have_no_forward_multiply_formula() {
+    for (path, raw) in FRONTEND_TAX_SOURCES {
+        for (idx, line) in raw.replace('\r', "").lines().enumerate() {
+            if is_comment_line(line) {
+                continue;
+            }
             let c = compact(line);
-            // 造含税，乘 (1 + 税率)。除法反算写的是 `/ (Decimal::ONE + ...)`，不在禁列
             assert!(
-                !c.contains("*(Decimal::ONE+"),
+                !c.contains("*(1+"),
                 "{path} 第 {} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
                 idx + 1,
                 line.trim()
             );
-            // 造税额，净额 乘 税率。除法反算是 `tax_percent / PERCENT`，也不禁观察腿的 `* PERCENT`
-            assert!(
-                !c.contains("*tax_percent") && !c.contains("*tax_rate"),
-                "{path} 第 {} 行出现「乘税率」造税额的写法: {}",
-                idx + 1,
-                line.trim()
-            );
-            // 硬编码增值税档位乘数
+            // 前端税率标识符驼峰与下划线两种形态都钉
+            for var in ["*taxRate", "*tax_rate", "*taxPercent", "*tax_percent"] {
+                assert!(
+                    !c.contains(var),
+                    "{path} 第 {} 行出现「乘税率变量」造税额的正向公式: {}",
+                    idx + 1,
+                    line.trim()
+                );
+            }
             for lit in FORBIDDEN_TIER_LITERALS {
                 assert!(
-                    !c.contains(lit),
+                    !contains_tier_literal(&c, lit),
                     "{path} 第 {} 行出现硬编码增值税档位 {lit}: {}",
                     idx + 1,
                     line.trim()
@@ -381,22 +514,94 @@ fn tax_path_has_no_forward_multiply_formula() {
     }
 }
 
-/// 正向锁，价税写入腿必须真的调用内核反算单源，而不是各自写一套合并逻辑（防删调用改回内联）
+/// 正向锁，价税写入腿必须真的调用内核反算单源，而不是各自写一套合并逻辑（防删调用改回内联）。
+/// 逐文件按各自的合法单源入口断言，缺任何一个调用点即判红点名。
 #[test]
 fn tax_write_legs_delegate_to_kernel_single_source() {
-    let po_crud = include_str!("../src/services/po/order_ops/crud.rs").replace('\r', "");
-    let so_crud = include_str!("../src/services/so/order_crud.rs").replace('\r', "");
-    let preturn = include_str!("../src/services/purchase_return_service.rs").replace('\r', "");
-    let sreturn = include_str!("../src/services/sales_return_service.rs").replace('\r', "");
-    for (path, src) in [
-        ("po/order_ops/crud.rs", &po_crud),
-        ("so/order_crud.rs", &so_crud),
-        ("purchase_return_service.rs", &preturn),
-        ("sales_return_service.rs", &sreturn),
+    // 行级或拆分级写入腿：必须经 tax::line_split 并做 ensure_reconciled 钩稽自检
+    for path in [
+        "src/services/po/order_ops/crud.rs",
+        "src/services/purchase_return_service.rs",
+        "src/services/sales_return_service.rs",
     ] {
+        let src = read_backend_source(path);
         assert!(
             src.contains("tax::line_split") && src.contains("tax::ensure_reconciled"),
             "{path} 行级价税必须经内核 line_split 单源并做 ensure_reconciled 钩稽自检，不得各写一套合并逻辑"
         );
     }
+    // 销售订单腿：行金额与信用基数共用同一单源 calculate_sales_item_amounts，
+    // 内核入口 require_inclusive_unit_price 与 line_split 与 ensure_reconciled 三处都必须在
+    let so_crud = read_backend_source("src/services/so/order_crud.rs");
+    assert!(
+        so_crud.contains("tax::line_split")
+            && so_crud.contains("tax::require_inclusive_unit_price")
+            && so_crud.contains("tax::ensure_reconciled"),
+        "src/services/so/order_crud.rs 建单行金额与信用基数腿必须全走内核，缺一即判红"
+    );
+    // 报价域腿：行金额一律经 quotation_line_amounts 单源（其内部走内核除法反算）
+    for path in [
+        "src/services/quotation_ops/calc.rs",
+        "src/services/quotation_ops/crud.rs",
+        "src/services/quotation_ops/update.rs",
+    ] {
+        let src = read_backend_source(path);
+        assert!(
+            src.contains("quotation_line_amounts"),
+            "{path} 报价行金额必须经 quotation_line_amounts 单源，不得内联第二套公式"
+        );
+    }
+    // 内核引用腿：收货重算、发货分摊、自动补货、报价采价、应付进项、委外转出都必须引用 utils tax
+    for path in [
+        "src/services/po/receipt.rs",
+        "src/services/so/delivery_ops/ship.rs",
+        "src/services/po/price.rs",
+        "src/services/quotation_pricing_service.rs",
+        "src/services/ap_invoice_ops/receipt.rs",
+        "src/services/outsourcing_ops/receipt.rs",
+    ] {
+        let src = read_backend_source(path);
+        assert!(
+            src.contains("utils::tax::"),
+            "{path} 价税相关计算必须引用 utils tax 内核单源，删引用等于绕过本锁"
+        );
+    }
+    // 前端派生腿：同源单函数 netFromInclusive 必须保有一处除法反算，
+    // 报价明细编辑器与报价表头合计必须真调该单源，不许内联第二套公式
+    let money = read_frontend_source("frontend/src/utils/money.ts");
+    assert!(
+        money.contains("export function netFromInclusive")
+            && money.contains("/ (1 + taxPercent / 100)"),
+        "frontend/src/utils/money.ts 必须保有一处「含税 ÷ (1 + 税率% ÷ 100)」除法反算单源"
+    );
+    for path in [
+        "frontend/src/views/quotations/components/QuotationItemEditor.vue",
+        "frontend/src/views/quotations/create.vue",
+    ] {
+        let src = read_frontend_source(path);
+        assert!(
+            src.contains("netFromInclusive"),
+            "{path} 不含税净额必须真调 money.ts 的 netFromInclusive 单源，内联第二套公式即判红"
+        );
+    }
+}
+
+/// 按路径读取后端扫描对象原文，清单外路径直接 panic（防正向锁悄悄失焦）。
+fn read_backend_source(path: &str) -> String {
+    TAX_PATH_SOURCES
+        .iter()
+        .find(|(p, _)| *p == path)
+        .unwrap_or_else(|| panic!("后端扫描清单缺 {path}，正向锁覆盖面漏了写入腿"))
+        .1
+        .replace('\r', "")
+}
+
+/// 按路径读取前端扫描对象原文，清单外路径直接 panic。
+fn read_frontend_source(path: &str) -> String {
+    FRONTEND_TAX_SOURCES
+        .iter()
+        .find(|(p, _)| *p == path)
+        .unwrap_or_else(|| panic!("前端扫描清单缺 {path}，正向锁覆盖面漏了派生腿"))
+        .1
+        .replace('\r', "")
 }
