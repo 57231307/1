@@ -10652,9 +10652,13 @@ export default {
     viewTokenAction: 'View token',
     rotateTokenAction: 'Rotate token',
     goToExport: 'Go export',
+    copyTokenAction: 'Copy token',
+    tokenCopied: 'Token copied to clipboard',
+    tokenCopyFailed: 'Failed to copy token, please select and copy the token text manually',
+    logCopyFailed: 'Copy export token failed',
     tokenOnceTitle: 'One-time export token view',
     tokenOnceWarning:
-      'The full token plaintext is shown only once and cannot be viewed again after closing; use "Download My Export" on the resource list page or "Go export" here so the download happens automatically, no manual copy needed',
+      'The full token plaintext is shown only once and cannot be viewed again after closing; click "Copy token" to take it, or use "Download My Export" on the resource list page or "Go export" here to download in place',
     tokenOnceClose: 'I have seen it, close',
     tokenOnceUnavailable:
       'The plaintext of this token has already been viewed (fingerprint {fingerprint}) and cannot be shown again; click "Rotate token" to issue a new one for export',

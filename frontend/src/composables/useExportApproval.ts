@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { i18n } from '@/i18n';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
@@ -11,6 +12,7 @@ import {
   normalizeExportApprovalResourceType,
   pickExportQueryParams,
   resolveExportDownloadTarget,
+  parseExportApprovalJumpback,
 } from '@/constants/export-approval';
 
 /**
@@ -41,6 +43,8 @@ import {
  */
 export function useExportApproval() {
   const exportSubmitting = ref(false);
+  const route = useRoute();
+  const router = useRouter();
 
   async function requestExport(
     resourceType: string,
@@ -148,7 +152,11 @@ export function useExportApproval() {
           row.download_count < row.max_downloads &&
           row.retry_count < row.max_retries
       );
-      const chosen = usable[0];
+      // 审批「去导出」回跳带 businessId 时优先取那一单（须在本人可用集内，
+      // 归属与可用门仍逐行核验，不因回跳而绕过）；无回跳上下文按最近可用项兜前。
+      const jumpback = parseExportApprovalJumpback(route.query as Record<string, unknown>);
+      const chosen =
+        (jumpback ? usable.find(row => row.id === jumpback.businessId) : undefined) ?? usable[0];
       if (!chosen) {
         // 有已批准申请但均不可用 → 区分「额度用尽」与「已消费/其他」提示；
         // 完全无批准申请 → 无已批准可下载。
@@ -185,6 +193,15 @@ export function useExportApproval() {
           filenamePrefix: target.filenamePrefix,
         });
         logger.info(i18n.global.t('exportApprovals.logDownloaded', { id: chosen.id }));
+        // 回跳上下文已兑现，清理地址栏的 source/instanceId/businessId，
+        // 避免刷新或后退重新触发下载、也不把审批单上下文长期滞留在可见 URL
+        if (jumpback) {
+          const restQuery = { ...route.query };
+          delete restQuery.source;
+          delete restQuery.instanceId;
+          delete restQuery.businessId;
+          void router.replace({ query: restQuery });
+        }
       } catch (error) {
         // 失败原因已由 downloadExportWithToken 按后端信封外显（含重试窗口/用尽/消费四态），
         // 此处仅留痕

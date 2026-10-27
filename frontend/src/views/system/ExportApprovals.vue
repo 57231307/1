@@ -216,6 +216,11 @@
         class="token-once-alert"
       />
       <p v-if="tokenOnceText" class="token-once-text">{{ tokenOnceText }}</p>
+      <div v-if="tokenOnceText" class="token-once-actions">
+        <ElButton type="primary" plain @click="handleCopyToken">{{
+          $t('exportApprovals.copyTokenAction')
+        }}</ElButton>
+      </div>
       <p v-else-if="tokenOnceHint">{{ tokenOnceHint }}</p>
       <template #footer>
         <ElButton type="primary" @click="tokenOnceVisible = false">{{
@@ -316,6 +321,7 @@ import {
   exportApprovalStatusLabelKey,
   exportApprovalStatusTagType,
   exportApprovalTargetRoute,
+  buildExportApprovalJumpbackQuery,
   BPM_APPROVAL_CENTER_ROUTE,
 } from '@/constants/export-approval';
 import { useI18n } from 'vue-i18n';
@@ -392,6 +398,22 @@ const tokenOnceVisible = ref(false);
 const tokenOnceText = ref('');
 const tokenOnceHint = ref('');
 
+/**
+ * 一键复制令牌明文到剪贴板（req：令牌复制不了要真修）。
+ * 红线：只把明文交给剪贴板，绝不写进日志、取证文件或地址栏查询串；
+ * 复制失败（非安全上下文或用户拒绝剪贴板权限）如实外显，不假装成功。
+ */
+const handleCopyToken = async () => {
+  if (!tokenOnceText.value) return;
+  try {
+    await navigator.clipboard.writeText(tokenOnceText.value);
+    ElMessage.success(t('exportApprovals.tokenCopied'));
+  } catch (error) {
+    logger.error(t('exportApprovals.logCopyFailed'), error);
+    ElMessage.error(t('exportApprovals.tokenCopyFailed'));
+  }
+};
+
 const openTokenOnce = async (row: ExportApprovalRequest) => {
   try {
     const res = await viewTokenOnce(row.id);
@@ -443,9 +465,16 @@ const handleRotateToken = async (row: ExportApprovalRequest) => {
 };
 
 // ===== 跳转到对应资源的导出入口（审批通过后的正规路径） =====
+// 带来源与实例上下文（source 与 instanceId 与 businessId），与已合入的审批回跳 query
+// 口径一致；落地页据 businessId 精确定位被批准的那一份申请后就地下载。令牌明文绝不进 URL。
 const goToExport = (row: ExportApprovalRequest) => {
   try {
-    router.push(exportApprovalTargetRoute(row.resource_type));
+    const route = exportApprovalTargetRoute(row.resource_type);
+    const query = buildExportApprovalJumpbackQuery({
+      id: row.id,
+      bpm_instance_id: row.bpm_instance_id,
+    });
+    router.push({ path: route, query });
   } catch (error) {
     // 词表外资源类型 normalize 抛错，留痕外显
     logger.error(t('exportApprovals.logRouteFailed', { id: row.id }), error);
@@ -546,7 +575,8 @@ const handleVerifyToken = async () => {
 
 // 申请人下载已迁各资源导出页就地（composables/useExportApproval.downloadApprovedExport），
 // 本页提供审批职能（批准/驳回/撤销 + 待办列表）、一次性查看与重发、跳转导出入口。
-// 令牌明文不提供复制按钮（一次性凭据形态，复制扩散正是本改造要消灭的形态）。
+// 令牌明文只在 token-once 弹窗一次性呈现并提供一键复制（复制即交付申请人自用）；
+// 明文绝不写日志、不落盘、不进跳转 URL 查询串，复制动作只交给剪贴板。
 
 const handleApprove = async (row: ExportApprovalRequest) => {
   try {
@@ -642,5 +672,9 @@ onMounted(loadList);
   padding: 12px;
   word-break: break-all;
   user-select: none;
+}
+.token-once-actions {
+  margin-top: 8px;
+  display: flex;
 }
 </style>

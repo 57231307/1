@@ -300,6 +300,54 @@ export function exportApprovalTargetRoute(resourceType: string): string {
 export const BPM_APPROVAL_CENTER_ROUTE = '/bpm/approval';
 
 /**
+ * 审批回跳的来源标记（与已合入的审批回跳 query 口径逐字符一致：source 与 instanceId
+ * 与 businessId）。承载导出审批「去导出」跳转的落地页据此识别用户从审批通过而来，
+ * 并可按 businessId 精确定位那一份被批准的申请。
+ */
+export const EXPORT_APPROVAL_JUMPBACK_SOURCE = 'export_approval';
+
+/** 审批回跳查询串的形状（只携带来源、BPM 实例 ID 与申请单 ID，绝不携带令牌明文） */
+export interface ExportApprovalJumpbackQuery {
+  source: typeof EXPORT_APPROVAL_JUMPBACK_SOURCE;
+  instanceId: number | null;
+  businessId: number;
+}
+
+/**
+ * 构造「去导出」跳转的 query（唯一事实来源）。
+ * 令牌属一次性凭据，红线要求绝不出现在浏览器地址栏与代理日志，故此处只带来源/实例/单据
+ * 上下文；落地页凭 businessId 定位申请，再走 token-once/rotate 端点就地取回令牌下载。
+ */
+export function buildExportApprovalJumpbackQuery(
+  row: Pick<ExportApprovalRequestShape, 'id' | 'bpm_instance_id'>
+): ExportApprovalJumpbackQuery {
+  return {
+    source: EXPORT_APPROVAL_JUMPBACK_SOURCE,
+    instanceId: row.bpm_instance_id ?? null,
+    businessId: row.id,
+  };
+}
+
+/** buildExportApprovalJumpbackQuery 入参的最小形状约束（避免依赖 api 层类型造成环引用） */
+interface ExportApprovalRequestShape {
+  id: number;
+  bpm_instance_id: number | null;
+}
+
+/**
+ * 从落地页 route.query 解析导出审批回跳上下文。
+ * 非本来源或缺 businessId 返回 null（落地页保持常规下载行为，不因缺上下文而报错）。
+ */
+export function parseExportApprovalJumpback(
+  query: Record<string, unknown>
+): { businessId: number } | null {
+  if (query.source !== EXPORT_APPROVAL_JUMPBACK_SOURCE) return null;
+  const businessId = Number(query.businessId);
+  if (!Number.isInteger(businessId) || businessId <= 0) return null;
+  return { businessId };
+}
+
+/**
  * 按注册表 paramKeys 白名单收敛申请/下载参数：只透传该资源导出端点真实读取的键，
  * 空串/纯空白/undefined/null 不进入集合（与 request.ts serializeParams 和后端空参
  * 剔除是同一契约）。数字 0 与布尔 false 是有效取值，不丢弃。
