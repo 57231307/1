@@ -521,7 +521,7 @@ impl SalesReturnService {
             Some(price) => price,
             None => {
                 let oi = order_line.as_ref().ok_or_else(|| {
-                    AppError::business_displayable(format!(
+                    AppError::validation_displayable(format!(
                         "退货行缺少含税单价 unit_price_with_tax，且产品 {} 在本退货单关联的销售订单上没有可还原的行，请按含税单价录入后重试",
                         req.product_id
                     ))

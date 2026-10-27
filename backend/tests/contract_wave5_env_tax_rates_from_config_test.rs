@@ -24,7 +24,8 @@
 //!    （Decimal::new(13、0.13、1.13），内核只换算不取值，税额一律按**百分数**口径
 //!    逐值断言（1000 乘 13 除 100 得 130、100 含税得 113、130 除 1000 反推得 13、费基非正返回 None）。
 //! ⑥ 税率来源分层口径的行为锁（真调生产建单路径，不用源码字符串冒充断言）。
-//!    人工建单缺 tax_rate 必须得 400 BUSINESS_ERROR 且订单表与明细表双双无痕，
+//!    人工建单缺 tax_rate 必须得 400 VALIDATION_ERROR（缺键点名属必填族，与缺数量缺单价同码）
+//!    且订单表与明细表双双无痕，
 //!    自动补货链路无税率来源，由 price.rs 显式声明无进项税，落库有痕且
 //!    tax_percent/tax_amount 逐值为 0（基数非 0，证明 0 是声明值而非空行巧合）。
 //!    两侧都禁止回落 13 之类的税率档位。
@@ -594,8 +595,8 @@ fn po_create_request(
 }
 
 /// 人工建单缺 tax_rate 的行为锁，真调生产建单入口 PurchaseOrderService::create_order，
-/// 必须是 400 BUSINESS_ERROR（文案外显"该怎么填"、不含记录标识），且订单表与明细表
-/// 双双无痕——税率拒绝发生在算金额之前，事务整体回滚，不允许留下半张单。
+/// 必须是 400 VALIDATION_ERROR（缺键点名属必填族，文案外显"该怎么填"、不含记录标识），
+/// 且订单表与明细表双双无痕——税率拒绝发生在算金额之前，事务整体回滚，不允许留下半张单。
 #[tokio::test]
 async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
     let db = setup_test_db().await;
@@ -609,7 +610,11 @@ async fn manual_order_line_missing_tax_rate_is_rejected_with_zero_write() {
         .await
         .expect_err("人工建单缺 tax_rate 必须被拒，按 0 代填会把漏录洗成免税");
 
-    assert_eq!(err.error_code(), "BUSINESS_ERROR");
+    assert_eq!(
+        err.error_code(),
+        "VALIDATION_ERROR",
+        "缺税率是必填族缺键点名，必须与缺数量缺单价同码（VALIDATION_ERROR），实得 {err:?}"
+    );
     let message = err.to_response().message;
     let resp: Response = err.into_response();
     assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "缺税率必须 4xx");

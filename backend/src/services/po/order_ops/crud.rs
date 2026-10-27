@@ -429,7 +429,7 @@ impl PurchaseOrderService {
         let tax_percent = match item.tax_rate {
             Some(percent) => {
                 if percent < Decimal::ZERO || percent > crate::utils::tax::TAX_PERCENT_MAX {
-                    return Err(AppError::business_displayable(format!(
+                    return Err(AppError::validation_displayable(format!(
                         "采购订单行税率 {} 非法：须为百分数口径且落在 0 到 {} 之间（13 表示 13%，0 表示无进项税），系统不设默认税率档位",
                         percent,
                         crate::utils::tax::TAX_PERCENT_MAX
@@ -438,7 +438,7 @@ impl PurchaseOrderService {
                 percent
             }
             None => {
-                return Err(AppError::business_displayable(
+                return Err(AppError::validation_displayable(
                     "采购订单行缺少税率 tax_rate，须按百分数提交（13 表示 13%，0 表示无进项税），系统不设默认税率档位，请录入税率后重试",
                 ));
             }
@@ -930,11 +930,12 @@ mod tests {
 
     /// 构造只关心数量与税率的采购订单行请求，其余字段一律 None（表示前端未提交该字段）。
     /// 入参 tax_rate 原样写入请求的 tax_rate，供 calculate_item_amounts 的提交分支与
-    /// 缺值分支各自取用。价格两个字段是一对钩稽样本：含税单价 16.95、不含税单价 15.00、
-    /// 数量 20，因此标价含税额恒为 339.00、反算净额 300.00（16.95 与 339 分别除以
-    /// 「1 加 税率百分数 除 100」的因子都恰好落在分位上），税额可按手算核对，
-    /// 且提交的不含税单价与内核反算值逐分一致，
-    /// 不会触发单价钩稽门。
+    /// 缺值分支各自取用。价格两个字段是**13% 档**的一对钩稽样本：含税单价 16.95、
+    /// 不含税单价 15.00、数量 20，因此标价含税额恒为 339.00、反算净额 300.00
+    /// （16.95 与 339 除以「1 加 13 除 100」的因子都恰好落在分位上），税额可按手算核对，
+    /// 且提交的不含税单价与内核反算值逐分一致，不会触发单价钩稽门。
+    /// 换别的税率档时，本夹具的 15.00 与该档反算值不再一致，调用方必须按本档改提交
+    /// 不含税单价（含税单价始终是录入事实，净额由它反算），见下面的逐档样本。
     fn item_with_tax_rate(tax_rate: Option<Decimal>) -> CreateOrderItemRequest {
         CreateOrderItemRequest {
             line_no: Some(1),
@@ -952,15 +953,15 @@ mod tests {
     }
 
     /// 人工建单缺 tax_rate 一律点名拒绝，不按 0 落账，0 是业务声明值（免税、无进项票），
-    /// 代填会让漏录与免税在进项台账里无法区分。拒绝必须走 business_displayable
-    /// （错误码 BUSINESS_ERROR、出参携带真实文案），且文案不得内插行号/物料 ID
-    /// 这类记录标识（本仓出参脱敏族）。
+    /// 代填会让漏录与免税在进项台账里无法区分。拒绝是缺键点名，必须走 validation_displayable
+    /// （错误码 VALIDATION_ERROR、出参携带真实文案，与缺数量缺单价的必填族同码），
+    /// 且文案不得内插行号/物料 ID 这类记录标识（本仓出参脱敏族）。
     #[test]
     fn tax_rate_absent_is_rejected_not_defaulted() {
         let item = item_with_tax_rate(None);
         let error = PurchaseOrderService::calculate_item_amounts(&item)
             .expect_err("人工建单缺 tax_rate 必须拒绝计算，不得按任何值代填税率");
-        assert_eq!(error.error_code(), "BUSINESS_ERROR");
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
         let message = error.public_message();
         assert!(
             message.contains("缺少税率 tax_rate") && message.contains("请录入税率后重试"),
@@ -976,6 +977,8 @@ mod tests {
     /// 净额 300.00，税额取差额 39.00。第二样本取 0.26，内核按字面百分数处理，
     /// 339.00 ÷ 1.0026 = 338.12、税额 0.88；若调用方把它当小数率 26% 传进来，
     /// 反算净额是 269.05、税额 69.95，两者相差近 80 倍，据此钉死调用方只能传百分数口径。
+    /// 第二样本的提交不含税单价按本档反算取 16.91（16.95 ÷ 1.0026 = 16.90604 收敛 16.91），
+    /// 夹具自身的单价才与该档钩稽，单价门不会先于本用例的断言把请求拦下。
     #[test]
     fn tax_rate_is_percent_unit_not_fraction() {
         let item = item_with_tax_rate(Some(Decimal::from(13)));
@@ -983,7 +986,8 @@ mod tests {
         assert_eq!(amounts.tax_percent, Decimal::from(13));
         assert_eq!(amounts.tax_amount, Decimal::from_str("39.00").unwrap());
 
-        let misread_item = item_with_tax_rate(Some(Decimal::from_str("0.26").unwrap()));
+        let mut misread_item = item_with_tax_rate(Some(Decimal::from_str("0.26").unwrap()));
+        misread_item.unit_price = Some(Decimal::from_str("16.91").unwrap());
         let misread = PurchaseOrderService::calculate_item_amounts(&misread_item).unwrap();
         assert_eq!(misread.tax_amount, Decimal::from_str("0.88").unwrap());
     }
@@ -997,7 +1001,7 @@ mod tests {
         item.unit_price_with_tax = None;
         let error = PurchaseOrderService::calculate_item_amounts(&item)
             .expect_err("税率非 0 时缺含税单价必须拒绝，不得倒造含税额");
-        assert_eq!(error.error_code(), "BUSINESS_ERROR");
+        assert_eq!(error.error_code(), "VALIDATION_ERROR");
         let message = error.public_message();
         assert!(
             message.contains("缺少含税单价 unit_price_with_tax"),
@@ -1026,8 +1030,11 @@ mod tests {
     }
 
     /// 显式提交的税率越出落库列域（负数，或超过 tax_percent 列 DECIMAL(7,4) 的 999.9999）
-    /// 时在算金额之前点名拒绝，错误码 BUSINESS_ERROR，不允许留到 insert 阶段炸成列溢出。
-    /// 列域上界本身仍属合法载荷，单独一样本防止边界被判死。
+    /// 时在算金额之前点名拒绝，错误码 VALIDATION_ERROR（提交字段取值越界属校验族，
+    /// 与本仓词表外取值归 VALIDATION_ERROR 同码），不允许留到 insert 阶段炸成列溢出。
+    /// 列域上界本身仍属合法载荷，单独一样本防止边界被判死；该样本的提交不含税单价取
+    /// 本档反算值 1.54（16.95 ÷ (1 + 999.9999/100) = 16.95 ÷ 10.999999 = 1.5409 收敛 1.54），
+    /// 使本用例考察的是「边界不被拒」而不是被单价门误拦。
     #[test]
     fn tax_rate_outside_column_domain_is_rejected() {
         let illegal_values = [
@@ -1037,10 +1044,11 @@ mod tests {
         for illegal in illegal_values {
             let item = item_with_tax_rate(Some(illegal));
             let error = PurchaseOrderService::calculate_item_amounts(&item).unwrap_err();
-            assert_eq!(error.error_code(), "BUSINESS_ERROR");
+            assert_eq!(error.error_code(), "VALIDATION_ERROR");
         }
 
-        let max_item = item_with_tax_rate(Some(crate::utils::tax::TAX_PERCENT_MAX));
+        let mut max_item = item_with_tax_rate(Some(crate::utils::tax::TAX_PERCENT_MAX));
+        max_item.unit_price = Some(Decimal::from_str("1.54").unwrap());
         let amounts = PurchaseOrderService::calculate_item_amounts(&max_item).unwrap();
         assert_eq!(amounts.tax_percent, crate::utils::tax::TAX_PERCENT_MAX);
     }

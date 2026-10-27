@@ -188,7 +188,8 @@ pub fn line_split(
 ///
 /// 入参，submitted_inclusive 是请求里的含税单价（可缺）、fallback_net 是请求里的不含税单价、
 /// tax_percent 是本行生效税率、field_label 是点名用的字段名（出参文案回显给用户怎么填）。
-/// 出参是含税单价；税率非 0 而缺含税单价时返回 Err（business 语义，文案点名须按含税单价录入），
+/// 出参是含税单价；税率非 0 而缺含税单价时返回 Err（缺键点名拒绝属校验族，
+/// 机器码 VALIDATION_ERROR，文案外显「须按含税单价录入」，与本仓缺匹号缺数量同码），
 /// 系统绝不返回 `不含税单价 × (1 + 税率)` 造出来的价格。
 /// 传给谁：services/po/order_ops/crud.rs 与 services/so/order_crud.rs 与两条退货服务的行金额入口。
 pub fn require_inclusive_unit_price(
@@ -200,7 +201,7 @@ pub fn require_inclusive_unit_price(
     match submitted_inclusive {
         Some(price) => Ok(price),
         None if tax_percent == Decimal::ZERO => Ok(fallback_net),
-        None => Err(AppError::business_displayable(format!(
+        None => Err(AppError::validation_displayable(format!(
             "税率 {tax_percent}% 非 0 时缺少含税单价 {field_label}，须按含税单价录入后重试（系统不按税率替你算含税价）",
         ))),
     }
@@ -262,17 +263,18 @@ pub fn ensure_unit_price_reconciles(
 ///
 /// 入参，net 是不含税净额、tax 是税额、inclusive 是含税金额，三值来自单据已落库列
 /// 或调用方带入值（不是本模块刚算出的三值）。出参，等值即 Ok，不等返回
-/// AppError::business（文案点名三值与实际差额，供人工核票）。
-/// 调用方是「金额三值由外部提交进来、系统不重算」的写入腿，点名
-/// services/ap_invoice_ops/crud.rs 与 services/finance_invoice_service.rs 的发票录入，
-/// 以及各单据金额重算后的自检。用途是把 1 分差在入库之前拦成业务错误，
-/// 而不是等票面或台账对不上才发现。
+/// AppError::business_displayable（文案点名三值与实际差额，供人工核票；
+/// 机器码 BUSINESS_ERROR 属 Business 族，与报价改单腿「价税不钩稽」点名拒绝同形态同码）。
+/// 调用方是全部价税写入腿的入库前自检与「金额三值由外部提交进来、系统不重算」的腿，
+/// 点名 services/po/order_ops/crud.rs 与 services/so/order_crud.rs 与两条退货服务
+/// 与 services/quotation_ops/update.rs 的表头汇总自检。用途是把 1 分差在入库之前
+/// 拦成业务错误，而不是等票面或台账对不上才发现。
 pub fn ensure_reconciled(net: Decimal, tax: Decimal, inclusive: Decimal) -> Result<(), AppError> {
     let sum = net + tax;
     if sum == inclusive {
         return Ok(());
     }
-    Err(AppError::business(format!(
+    Err(AppError::business_displayable(format!(
         "价税不钩稽：不含税 {net} 加税额 {tax} 等于 {sum}，与含税额 {inclusive} 相差 {}",
         inclusive - sum
     )))
