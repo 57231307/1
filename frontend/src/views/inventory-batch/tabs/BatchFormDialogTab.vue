@@ -75,33 +75,16 @@
         :label="t('inventoryBatch.batchFormDialog.labelQuantityMeters')"
         prop="quantity_meters"
       >
-        <NumericInput
-v-model="formData.quantity_meters"
-style="width: 100%"
-:min="0"
-/>
+        <NumericInput v-model="formData.quantity_meters" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelQuantityKg')" prop="quantity_kg">
-        <NumericInput
-v-model="formData.quantity_kg"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+        <NumericInput v-model="formData.quantity_kg" style="width: 100%" :min="0" :precision="2" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelGramWeight')" prop="gram_weight">
-        <NumericInput
-v-model="formData.gram_weight"
-style="width: 100%"
-:min="0"
-/>
+        <NumericInput v-model="formData.gram_weight" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('inventoryBatch.batchFormDialog.labelWidth')" prop="width">
-        <NumericInput
-v-model="formData.width"
-style="width: 100%"
-:min="0"
-/>
+        <NumericInput v-model="formData.width" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item
         :label="t('inventoryBatch.batchFormDialog.labelProductionDate')"

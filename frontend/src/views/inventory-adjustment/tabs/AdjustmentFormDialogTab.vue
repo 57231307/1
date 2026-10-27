@@ -136,18 +136,18 @@
           />
         </el-select>
         <NumericInput
-v-model="item.quantity"
-:placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
-style="flex: 1"
-:min="1"
-/>
+          v-model="item.quantity"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+          style="flex: 1"
+          :min="1"
+        />
         <NumericInput
-v-model="item.cost_price"
-:placeholder="t('inventoryAdjustment.formDialogTab.placeholderPrice')"
-style="flex: 1"
-:min="0"
-:precision="2"
-/>
+          v-model="item.cost_price"
+          :placeholder="t('inventoryAdjustment.formDialogTab.placeholderPrice')"
+          style="flex: 1"
+          :min="0"
+          :precision="2"
+        />
         <el-input
           v-model="item.remark"
           :placeholder="t('inventoryAdjustment.formDialogTab.placeholderRemark')"
@@ -190,12 +190,7 @@ style="flex: 1"
           />
           <el-table-column :label="t('inventoryAdjustment.formDialogTab.colQuantity')" width="150">
             <template #default="{ row }">
-              <NumericInput
-v-model="row.quantity"
-v-if="isPending"
-size="small"
-:min="0"
-/>
+              <NumericInput v-model="row.quantity" v-if="isPending" size="small" :min="0" />
               <span v-else>{{ row.quantity }}</span>
             </template>
           </el-table-column>
@@ -224,17 +219,17 @@ size="small"
         </el-table>
         <div v-if="isPending" class="add-item-bar">
           <NumericInput
-v-model="newItem.stock_id"
-:placeholder="t('inventoryAdjustment.formDialogTab.colStockId')"
-style="width: 150px"
-:min="1"
-/>
+            v-model="newItem.stock_id"
+            :placeholder="t('inventoryAdjustment.formDialogTab.colStockId')"
+            style="width: 150px"
+            :min="1"
+          />
           <NumericInput
-v-model="newItem.quantity"
-style="width: 130px"
-:placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
-:min="1"
-/>
+            v-model="newItem.quantity"
+            style="width: 130px"
+            :placeholder="t('inventoryAdjustment.formDialogTab.placeholderQuantity')"
+            :min="1"
+          />
           <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">{{
             t('inventoryAdjustment.formDialogTab.buttonAddItem')
           }}</el-button>

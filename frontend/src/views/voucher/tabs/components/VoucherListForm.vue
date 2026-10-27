@@ -77,7 +77,7 @@
               inputmode="decimal"
               class="col-debit"
               @change="
-                (v) =>
+                v =>
                   (entry.debit_amount = bindNumeric(String(v), Number(entry.debit_amount), {
                     precision: 2,
                   }))
@@ -88,7 +88,7 @@
               inputmode="decimal"
               class="col-credit"
               @change="
-                (v) =>
+                v =>
                   (entry.credit_amount = bindNumeric(String(v), Number(entry.credit_amount), {
                     precision: 2,
                   }))

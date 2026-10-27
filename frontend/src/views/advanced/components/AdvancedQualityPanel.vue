@@ -94,11 +94,11 @@ watch(
         >
           <el-form-item :label="t('advancedModule.quality.productId')">
             <NumericInput
-v-model="localForm.product_id"
-:placeholder="t('advancedModule.quality.productIdPlaceholder')"
-style="width: 100%"
-:min="0"
-/>
+              v-model="localForm.product_id"
+              :placeholder="t('advancedModule.quality.productIdPlaceholder')"
+              style="width: 100%"
+              :min="0"
+            />
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.inspectionType')">
             <el-select
@@ -117,12 +117,7 @@ style="width: 100%"
             </el-select>
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.timeWindow')">
-            <NumericInput
-v-model="localForm.window_days"
-style="width: 100%"
-:min="1"
-:max="365"
-/>
+            <NumericInput v-model="localForm.window_days" style="width: 100%" :min="1" :max="365" />
             <span class="form-hint">{{ t('advancedModule.quality.timeWindowHint') }}</span>
           </el-form-item>
           <el-form-item>

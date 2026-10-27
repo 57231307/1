@@ -48,11 +48,11 @@
           <el-col :span="12">
             <el-form-item :label="t('mrp.calc.demandQuantity')" prop="demand_quantity">
               <NumericInput
-v-model="calcForm.demand_quantity"
-style="width: 100%"
-:min="1"
-:integer="true"
-/>
+                v-model="calcForm.demand_quantity"
+                style="width: 100%"
+                :min="1"
+                :integer="true"
+              />
             </el-form-item>
           </el-col>
         </el-row>

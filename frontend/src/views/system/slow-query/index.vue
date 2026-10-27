@@ -77,11 +77,11 @@
         </el-form-item>
         <el-form-item :label="t('system.slowQuery.label.minDuration')">
           <NumericInput
-v-model="filterForm.min_duration"
-:placeholder="t('system.slowQuery.placeholder.ms')"
-style="width: 140px"
-:min="0"
-/>
+            v-model="filterForm.min_duration"
+            :placeholder="t('system.slowQuery.placeholder.ms')"
+            style="width: 140px"
+            :min="0"
+          />
         </el-form-item>
         <el-form-item :label="t('system.slowQuery.label.keyword')">
           <el-input

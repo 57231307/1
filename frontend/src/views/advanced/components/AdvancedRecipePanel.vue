@@ -128,12 +128,7 @@ function sourceLabel(source: string): string {
             />
           </el-form-item>
           <el-form-item :label="$t('advancedModule.recipe.kValue')">
-            <NumericInput
-v-model="localForm.k"
-style="width: 100%"
-:min="0"
-:max="20"
-/>
+            <NumericInput v-model="localForm.k" style="width: 100%" :min="0" :max="20" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" :loading="recipeLoading" @click="runRecipeOptimization">{{

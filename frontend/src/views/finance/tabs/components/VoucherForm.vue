@@ -77,22 +77,12 @@
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnDebitAmount')" width="130">
           <template #default="{ row }">
-            <NumericInput
-v-model="row.debit"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+            <NumericInput v-model="row.debit" style="width: 100%" :min="0" :precision="2" />
           </template>
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnCreditAmount')" width="130">
           <template #default="{ row }">
-            <NumericInput
-v-model="row.credit"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+            <NumericInput v-model="row.credit" style="width: 100%" :min="0" :precision="2" />
           </template>
         </el-table-column>
         <el-table-column :label="t('finance.voucherForm.columnAction')" width="80">

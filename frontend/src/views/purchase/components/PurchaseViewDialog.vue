@@ -246,13 +246,13 @@ async function saveItem(item: PurchaseOrderItem) {
           <el-table-column prop="quantity_alt" :label="t('purchase.viewDlg.colAltQty')" width="110">
             <template #default="{ row }">
               <NumericInput
-v-model="drafts[row.id].quantity_alt_ordered"
-v-if="editable"
-size="small"
-style="width: 100%"
-:clear-value="null"
-:min="0"
-/>
+                v-model="drafts[row.id].quantity_alt_ordered"
+                v-if="editable"
+                size="small"
+                style="width: 100%"
+                :clear-value="null"
+                :min="0"
+              />
               <!-- Decimal 出参是字符串：Number() 归一后展示，禁止对字符串直接 .toFixed -->
               <span v-else>{{ Number(row.quantity_alt ?? 0) }}</span>
             </template>
@@ -265,14 +265,14 @@ style="width: 100%"
           >
             <template #default="{ row }">
               <NumericInput
-v-model="drafts[row.id].discount_percent"
-v-if="editable"
-size="small"
-style="width: 100%"
-:clear-value="null"
-:min="0"
-:max="100"
-/>
+                v-model="drafts[row.id].discount_percent"
+                v-if="editable"
+                size="small"
+                style="width: 100%"
+                :clear-value="null"
+                :min="0"
+                :max="100"
+              />
               <span v-else>{{
                 row.discount_percent != null ? Number(row.discount_percent) + '%' : '-'
               }}</span>
@@ -286,14 +286,14 @@ style="width: 100%"
           >
             <template #default="{ row }">
               <NumericInput
-v-model="drafts[row.id].quantity_tolerance_pct"
-v-if="editable"
-size="small"
-style="width: 100%"
-:clear-value="null"
-:min="0"
-:max="100"
-/>
+                v-model="drafts[row.id].quantity_tolerance_pct"
+                v-if="editable"
+                size="small"
+                style="width: 100%"
+                :clear-value="null"
+                :min="0"
+                :max="100"
+              />
               <span v-else>{{
                 row.quantity_tolerance_pct != null ? Number(row.quantity_tolerance_pct) + '%' : '-'
               }}</span>

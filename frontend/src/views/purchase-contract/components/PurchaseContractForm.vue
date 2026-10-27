@@ -74,11 +74,11 @@
         <el-col :span="12">
           <el-form-item :label="t('purchaseContract.form.totalAmount')" prop="total_amount">
             <NumericInput
-v-model="localFormData.total_amount"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="localFormData.total_amount"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">

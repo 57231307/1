@@ -308,11 +308,11 @@
           <el-col :span="12">
             <el-form-item :label="t('dyeBatch.index.colQuantity')" prop="planned_quantity">
               <NumericInput
-v-model="formData.planned_quantity"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="formData.planned_quantity"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
         </el-row>

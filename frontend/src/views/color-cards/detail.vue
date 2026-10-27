@@ -240,11 +240,11 @@
       <el-form label-width="96px" @submit.prevent>
         <el-form-item :label="$t('colorCards.detail.stockDialog.field')">
           <NumericInput
-v-model="stockInput"
-:placeholder="$t('colorCards.detail.stockDialog.placeholder')"
-:min="0"
-:integer="true"
-/>
+            v-model="stockInput"
+            :placeholder="$t('colorCards.detail.stockDialog.placeholder')"
+            :min="0"
+            :integer="true"
+          />
         </el-form-item>
         <el-form-item>
           <span class="stock-hint">{{

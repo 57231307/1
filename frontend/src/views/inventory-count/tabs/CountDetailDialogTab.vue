@@ -70,12 +70,7 @@
         />
         <el-table-column :label="t('inventoryCount.detailDialogTab.colQuantityActual')" width="140">
           <template #default="{ row }">
-            <NumericInput
-v-model="row.quantity_actual"
-v-if="isPending"
-size="small"
-:min="0"
-/>
+            <NumericInput v-model="row.quantity_actual" v-if="isPending" size="small" :min="0" />
             <span v-else>{{ row.quantity_actual }}</span>
           </template>
         </el-table-column>

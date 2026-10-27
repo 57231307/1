@@ -165,12 +165,12 @@
         <el-tab-pane label="客户价值" name="clv">
           <div class="toolbar">
             <NumericInput
-v-model="clvCustomerId"
-placeholder="客户 ID"
-style="width: 180px"
-:min="1"
-:integer="true"
-/>
+              v-model="clvCustomerId"
+              placeholder="客户 ID"
+              style="width: 180px"
+              :min="1"
+              :integer="true"
+            />
             <el-select
               v-model="auditOperation"
               placeholder="全部操作"

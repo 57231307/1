@@ -127,13 +127,13 @@
         </el-form-item>
         <el-form-item :label="t('fund.transferTab.fieldAmount')" prop="amount">
           <NumericInput
-v-model="transferForm.amount"
-style="width: 100%"
-:placeholder="t('fund.transferTab.placeholderAmount')"
-:min="0.01"
-:max="availableBalance"
-:precision="2"
-/>
+            v-model="transferForm.amount"
+            style="width: 100%"
+            :placeholder="t('fund.transferTab.placeholderAmount')"
+            :min="0.01"
+            :max="availableBalance"
+            :precision="2"
+          />
           <div v-if="selectedFromAccount" class="balance-hint">
             {{ t('fund.transferTab.availableBalance') }}:
             <span class="balance-available"

@@ -59,11 +59,11 @@
               </span>
             </template>
             <NumericInput
-v-model="localFormData.price"
-style="width: 100%"
-:min="0"
-:precision="6"
-/>
+              v-model="localFormData.price"
+              style="width: 100%"
+              :min="0"
+              :precision="6"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -96,11 +96,11 @@ style="width: 100%"
         <el-col :span="12">
           <el-form-item :label="t('purchasePrice.form.label.minOrderQty')" prop="min_order_qty">
             <NumericInput
-v-model="localFormData.min_order_qty"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="localFormData.min_order_qty"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
           </el-form-item>
         </el-col>
       </el-row>

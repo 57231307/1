@@ -252,12 +252,12 @@
           prop="credit_limit"
         >
           <NumericInput
-v-model="editForm.credit_limit"
-style="width: 100%"
-:aria-label="t('customerCredit.index.table.column.creditLimit')"
-:min="0"
-:precision="2"
-/>
+            v-model="editForm.credit_limit"
+            style="width: 100%"
+            :aria-label="t('customerCredit.index.table.column.creditLimit')"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

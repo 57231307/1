@@ -413,11 +413,7 @@ const appliedOptions = computed(() => [
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.process.knnKValue')">
-          <NumericInput
-v-model="form.k"
-:min="1"
-:max="20"
-/>
+          <NumericInput v-model="form.k" :min="1" :max="20" />
           <span class="hint">{{ $t('aiExtend.process.knnHint') }}</span>
         </el-form-item>
         <el-alert

@@ -65,7 +65,10 @@ const bindOptions = (): NumericBindOptions => ({
 const displayText = computed(() =>
   typing.value
     ? localText.value
-    : numericView(model.value === null ? undefined : (model.value as number | undefined), props.precision)
+    : numericView(
+        model.value === null ? undefined : (model.value as number | undefined),
+        props.precision
+      )
 );
 
 function onType(val: string | number): void {

@@ -47,12 +47,8 @@
     >
       <el-form :model="form" label-width="110px">
         <el-form-item label="员工ID" required
-          ><NumericInput
-v-model="form.worker_id"
-:disabled="!!editingId"
-class="w-full"
-:min="1"
-/></el-form-item>
+          ><NumericInput v-model="form.worker_id" :disabled="!!editingId" class="w-full" :min="1"
+        /></el-form-item>
         <el-form-item label="合同号" required
           ><el-input v-model="form.contract_no" readonly
         /></el-form-item>
@@ -88,19 +84,11 @@ class="w-full"
             class="w-full"
         /></el-form-item>
         <el-form-item label="试用期薪资" required
-          ><NumericInput
-v-model="form.probation_salary"
-class="w-full"
-:min="0"
-:precision="2"
-/></el-form-item>
+          ><NumericInput v-model="form.probation_salary" class="w-full" :min="0" :precision="2"
+        /></el-form-item>
         <el-form-item label="转正薪资" required
-          ><NumericInput
-v-model="form.regular_salary"
-class="w-full"
-:min="0"
-:precision="2"
-/></el-form-item>
+          ><NumericInput v-model="form.regular_salary" class="w-full" :min="0" :precision="2"
+        /></el-form-item>
         <el-form-item label="岗位"><el-input v-model="form.position" /></el-form-item>
         <el-form-item :label="t('laborContract.form.workingHoursSystem')" required>
           <el-select

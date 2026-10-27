@@ -24,12 +24,12 @@
       </el-form-item>
       <el-form-item :label="t('crmRuleDialog.form.days')" prop="days">
         <NumericInput
-v-model="formData.days"
-style="width: 100%"
-:placeholder="t('crmRuleDialog.form.daysPlaceholder')"
-:min="1"
-:max="365"
-/>
+          v-model="formData.days"
+          style="width: 100%"
+          :placeholder="t('crmRuleDialog.form.daysPlaceholder')"
+          :min="1"
+          :max="365"
+        />
       </el-form-item>
       <el-form-item :label="t('crmRuleDialog.form.enabled')" prop="is_enabled">
         <el-switch v-model="formData.is_enabled" />

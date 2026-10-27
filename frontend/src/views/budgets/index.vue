@@ -164,21 +164,21 @@
         </el-form-item>
         <el-form-item label="预算年度" prop="budget_year">
           <NumericInput
-v-model="formData.budget_year"
-style="width: 100%"
-:min="2000"
-:max="2100"
-:integer="true"
-/>
+            v-model="formData.budget_year"
+            style="width: 100%"
+            :min="2000"
+            :max="2100"
+            :integer="true"
+          />
         </el-form-item>
         <el-form-item label="计划金额" prop="planned_amount">
           <NumericInput
-v-model="formData.planned_amount"
-style="width: 100%"
-placeholder="必填"
-:min="0"
-:precision="2"
-/>
+            v-model="formData.planned_amount"
+            style="width: 100%"
+            placeholder="必填"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="formData.remark" type="textarea" :rows="2" />

@@ -130,12 +130,12 @@
         </el-form-item>
         <el-form-item label="调整金额" prop="amount">
           <NumericInput
-v-model="formData.amount"
-style="width: 100%"
-placeholder="必填"
-:min="0.01"
-:precision="2"
-/>
+            v-model="formData.amount"
+            style="width: 100%"
+            placeholder="必填"
+            :min="0.01"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item label="备注" prop="remarks">
           <el-input v-model="formData.remarks" type="textarea" :rows="2" />

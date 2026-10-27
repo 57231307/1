@@ -93,12 +93,7 @@
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.quantity')" width="120">
           <template #default="{ row }">
-            <NumericInput
-v-model="row.quantity"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+            <NumericInput v-model="row.quantity" style="width: 100%" :min="0" :precision="2" />
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.unit')" width="100">
@@ -118,12 +113,12 @@ style="width: 100%"
                  0–100 + 两位小数（0.01% 粒度）与后端写边界校验同口径，
                  比率换算只发生在后端边界，前端不二次乘除 -->
             <NumericInput
-v-model="row.scrap_rate"
-style="width: 100%"
-:min="0"
-:max="100"
-:precision="2"
-/>
+              v-model="row.scrap_rate"
+              style="width: 100%"
+              :min="0"
+              :max="100"
+              :precision="2"
+            />
           </template>
         </el-table-column>
         <el-table-column :label="$t('bomModule.form.operation')" width="80" fixed="right">

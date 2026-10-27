@@ -72,20 +72,12 @@
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('apiGateway.endpointForm.rateLimit')" prop="rate_limit">
-            <NumericInput
-v-model="localForm.rate_limit"
-style="width: 100%"
-:min="0"
-/>
+            <NumericInput v-model="localForm.rate_limit" style="width: 100%" :min="0" />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('apiGateway.endpointForm.timeout')" prop="timeout">
-            <NumericInput
-v-model="localForm.timeout"
-style="width: 100%"
-:min="0"
-/>
+            <NumericInput v-model="localForm.timeout" style="width: 100%" :min="0" />
           </el-form-item>
         </el-col>
       </el-row>

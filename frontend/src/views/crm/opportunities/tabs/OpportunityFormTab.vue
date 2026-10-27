@@ -92,12 +92,12 @@
         <el-col :span="12">
           <el-form-item :label="t('crmOpportunityForm.estimatedAmount')" prop="estimated_amount">
             <NumericInput
-v-model="formData.estimated_amount"
-v-if="estimatedAmountViewable"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="formData.estimated_amount"
+              v-if="estimatedAmountViewable"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
             <!-- 2026-10-02 裁定：金额对"仅非本人行"不外显（后端整键移除）；
                  无权时只给中性占位，不显示任何判定原因 -->
             <span v-else class="amount-hidden-text">{{

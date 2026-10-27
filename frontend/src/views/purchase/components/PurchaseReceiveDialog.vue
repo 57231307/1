@@ -77,11 +77,11 @@
           <el-table-column :label="t('purchase.receiveDlg.colThisReceive')" width="120">
             <template #default="{ row }">
               <NumericInput
-v-model="row.receive_quantity"
-size="small"
-:min="0"
-:max="row.quantity - row.received_quantity"
-/>
+                v-model="row.receive_quantity"
+                size="small"
+                :min="0"
+                :max="row.quantity - row.received_quantity"
+              />
             </template>
           </el-table-column>
           <!--
@@ -93,12 +93,12 @@ size="small"
           <el-table-column :label="t('purchase.receiveDlg.colAltQty')" width="130">
             <template #default="{ row }">
               <NumericInput
-v-model="row.receive_quantity_alt"
-size="small"
-:placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
-:min="0"
-optional
-/>
+                v-model="row.receive_quantity_alt"
+                size="small"
+                :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
+                :min="0"
+                optional
+              />
             </template>
           </el-table-column>
           <el-table-column

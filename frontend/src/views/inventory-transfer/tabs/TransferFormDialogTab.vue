@@ -129,18 +129,18 @@
           />
         </el-select>
         <NumericInput
-v-model="item.quantity"
-:placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
-class="item-number"
-:min="1"
-/>
+          v-model="item.quantity"
+          :placeholder="$t('inventoryTransfer.transferForm.quantityPlaceholder')"
+          class="item-number"
+          :min="1"
+        />
         <NumericInput
-v-model="item.cost_price"
-:placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
-class="item-number"
-:min="0"
-:precision="2"
-/>
+          v-model="item.cost_price"
+          :placeholder="$t('inventoryTransfer.transferForm.pricePlaceholder')"
+          class="item-number"
+          :min="0"
+          :precision="2"
+        />
         <el-input
           v-model="item.remark"
           :placeholder="$t('inventoryTransfer.transferForm.remarkPlaceholder')"
@@ -179,12 +179,7 @@ class="item-number"
           />
           <el-table-column :label="$t('inventoryTransfer.transferForm.colQuantity')" width="150">
             <template #default="{ row }">
-              <NumericInput
-v-model="row.quantity"
-v-if="editable"
-size="small"
-:min="1"
-/>
+              <NumericInput v-model="row.quantity" v-if="editable" size="small" :min="1" />
               <span v-else>{{ row.quantity }}</span>
             </template>
           </el-table-column>
@@ -218,16 +213,12 @@ size="small"
         </el-table>
         <div v-if="editable" class="add-item-bar">
           <NumericInput
-v-model="newItem.product_id"
-:placeholder="$t('inventoryTransfer.transferForm.colProductId')"
-style="width: 150px"
-:min="1"
-/>
-          <NumericInput
-v-model="newItem.quantity"
-style="width: 130px"
-:min="1"
-/>
+            v-model="newItem.product_id"
+            :placeholder="$t('inventoryTransfer.transferForm.colProductId')"
+            style="width: 150px"
+            :min="1"
+          />
+          <NumericInput v-model="newItem.quantity" style="width: 130px" :min="1" />
           <el-button type="primary" plain :loading="itemSaving" @click="handleAddItem">
             {{ $t('inventoryTransfer.transferForm.addItem') }}
           </el-button>

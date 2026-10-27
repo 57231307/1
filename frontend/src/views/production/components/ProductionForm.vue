@@ -60,22 +60,17 @@
           <el-form-item :label="t('production.form.labelPlannedQuantity')" prop="planned_quantity">
             <div class="planned-qty-row">
               <NumericInput
-v-model="localForm.planned_quantity"
-class="planned-qty-input"
-:min="0"
-/>
+                v-model="localForm.planned_quantity"
+                class="planned-qty-input"
+                :min="0"
+              />
               <span v-if="selectedUnit" class="planned-qty-unit">{{ selectedUnit }}</span>
             </div>
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelPriority')" prop="priority">
-            <NumericInput
-v-model="localForm.priority"
-style="width: 100%"
-:min="1"
-:max="10"
-/>
+            <NumericInput v-model="localForm.priority" style="width: 100%" :min="1" :max="10" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -104,11 +99,7 @@ style="width: 100%"
         </el-col>
       </el-row>
       <el-form-item :label="t('production.form.labelWorkCenterId')">
-        <NumericInput
-v-model="localForm.work_center_id"
-style="width: 100%"
-:min="0"
-/>
+        <NumericInput v-model="localForm.work_center_id" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('production.form.labelRemark')">
         <el-input

@@ -24,12 +24,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.amount')" prop="amount">
-        <NumericInput
-v-model="form.amount"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+        <NumericInput v-model="form.amount" style="width: 100%" :min="0" :precision="2" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.reason')" prop="reason">
         <el-input v-model="form.reason" type="textarea" :rows="3" />

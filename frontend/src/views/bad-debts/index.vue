@@ -105,19 +105,14 @@
       <el-form :model="provisionForm" label-width="120px">
         <el-form-item label="计提年度" required>
           <NumericInput
-v-model="provisionForm.period_year"
-class="w-full"
-:min="2000"
-:max="2100"
-/>
+            v-model="provisionForm.period_year"
+            class="w-full"
+            :min="2000"
+            :max="2100"
+          />
         </el-form-item>
         <el-form-item label="计提月份" required>
-          <NumericInput
-v-model="provisionForm.period_month"
-class="w-full"
-:min="1"
-:max="12"
-/>
+          <NumericInput v-model="provisionForm.period_month" class="w-full" :min="1" :max="12" />
         </el-form-item>
       </el-form>
       <template #footer>

@@ -285,11 +285,7 @@ const detailRecommendations = computed(() => {
         :aria-label="$t('aiExtend.qualityPrediction.filterAriaLabel')"
       >
         <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')">
-          <NumericInput
-v-model="queryFilter.product_id"
-style="width: 140px"
-:min="1"
-/>
+          <NumericInput v-model="queryFilter.product_id" style="width: 140px" :min="1" />
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="queryFilter.inspection_type" clearable style="width: 140px">
@@ -494,11 +490,7 @@ style="width: 140px"
         :aria-label="$t('aiExtend.qualityPrediction.formAriaLabel')"
       >
         <el-form-item :label="$t('aiExtend.qualityPrediction.colProductId')" required>
-          <NumericInput
-v-model="form.product_id"
-style="width: 100%"
-:min="1"
-/>
+          <NumericInput v-model="form.product_id" style="width: 100%" :min="1" />
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.colInspectionType')">
           <el-select v-model="form.inspection_type" style="width: 100%">
@@ -510,11 +502,7 @@ style="width: 100%"
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('aiExtend.qualityPrediction.timeWindow')">
-          <NumericInput
-v-model="form.window_days"
-:min="7"
-:max="365"
-/>
+          <NumericInput v-model="form.window_days" :min="7" :max="365" />
           <span class="hint">{{ $t('aiExtend.qualityPrediction.timeWindowHint') }}</span>
         </el-form-item>
         <el-alert
@@ -660,11 +648,7 @@ v-model="form.window_days"
     <!-- 按产品查询（getQualityPredictionListByProduct） -->
     <el-dialog v-model="byProductVisible" title="按产品查询预测历史" width="680">
       <div class="toolbar" style="margin-bottom: 8px">
-        <NumericInput
-v-model="byProductId"
-placeholder="产品 ID"
-:min="1"
-/>
+        <NumericInput v-model="byProductId" placeholder="产品 ID" :min="1" />
         <el-button type="primary" plain :loading="byProductLoading" @click="loadByProduct">
           查询
         </el-button>

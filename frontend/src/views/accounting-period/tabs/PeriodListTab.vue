@@ -24,12 +24,7 @@
         :aria-label="$t('accountingPeriod.filter.ariaLabel')"
       >
         <el-form-item :label="$t('accountingPeriod.filter.year')">
-          <NumericInput
-v-model="queryForm.year"
-style="width: 140px"
-:min="2000"
-:max="2100"
-/>
+          <NumericInput v-model="queryForm.year" style="width: 140px" :min="2000" :max="2100" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">{{
@@ -143,20 +138,10 @@ style="width: 140px"
       >
         <template v-if="!isEdit">
           <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
-            <NumericInput
-v-model="form.year"
-style="width: 100%"
-:min="2000"
-:max="2100"
-/>
+            <NumericInput v-model="form.year" style="width: 100%" :min="2000" :max="2100" />
           </el-form-item>
           <el-form-item :label="$t('accountingPeriod.dialog.month')" prop="period">
-            <NumericInput
-v-model="form.period"
-style="width: 100%"
-:min="1"
-:max="12"
-/>
+            <NumericInput v-model="form.period" style="width: 100%" :min="1" :max="12" />
           </el-form-item>
           <!-- 起止日期由后端按 year/period 推导（CreateAccountingPeriodPayload 无日期字段），
                这里仅只读预览，不可编辑，避免"填了不生效"的假采集 -->

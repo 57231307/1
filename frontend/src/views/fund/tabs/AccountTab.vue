@@ -305,11 +305,11 @@
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldAmount')" prop="amount">
           <NumericInput
-v-model="operationForm.amount"
-style="width: 100%"
-:min="0.01"
-:precision="2"
-/>
+            v-model="operationForm.amount"
+            style="width: 100%"
+            :min="0.01"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldRemark')">
           <el-input

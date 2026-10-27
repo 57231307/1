@@ -253,21 +253,21 @@
               prop="direct_material"
             >
               <NumericInput
-v-model="form.direct_material"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="form.direct_material"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('cost.collectionList.dialog.directLabor')" prop="direct_labor">
               <NumericInput
-v-model="form.direct_labor"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="form.direct_labor"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -278,11 +278,11 @@ style="width: 100%"
               prop="manufacturing_overhead"
             >
               <NumericInput
-v-model="form.manufacturing_overhead"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="form.manufacturing_overhead"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -300,21 +300,16 @@ style="width: 100%"
               prop="processing_fee"
             >
               <NumericInput
-v-model="form.processing_fee"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="form.processing_fee"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('cost.collectionList.dialog.dyeingFee')" prop="dyeing_fee">
-              <NumericInput
-v-model="form.dyeing_fee"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              <NumericInput v-model="form.dyeing_fee" style="width: 100%" :min="0" :precision="2" />
             </el-form-item>
           </el-col>
         </el-row>

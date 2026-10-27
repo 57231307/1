@@ -187,11 +187,7 @@
           width="120"
         >
           <template #default="{ row }">
-            <NumericInput
-v-model="row.quantity"
-size="small"
-:min="1"
-/>
+            <NumericInput v-model="row.quantity" size="small" :min="1" />
           </template>
         </el-table-column>
         <el-table-column
@@ -200,12 +196,7 @@ size="small"
           width="120"
         >
           <template #default="{ row }">
-            <NumericInput
-v-model="row.unitPrice"
-size="small"
-:min="0"
-:precision="2"
-/>
+            <NumericInput v-model="row.unitPrice" size="small" :min="0" :precision="2" />
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="t('purchaseReturn.form.column.amount')" width="120">

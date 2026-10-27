@@ -137,11 +137,11 @@
       append-to-body
     >
       <NumericInput
-v-model="linkPoId"
-style="width: 100%"
-:placeholder="t('logistics.detail.events.linkPoPlaceholder')"
-:min="1"
-/>
+        v-model="linkPoId"
+        style="width: 100%"
+        :placeholder="t('logistics.detail.events.linkPoPlaceholder')"
+        :min="1"
+      />
       <template #footer>
         <el-button @click="linkPoVisible = false">{{
           t('logistics.detail.button.cancel')

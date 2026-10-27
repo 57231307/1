@@ -22,11 +22,7 @@
       :aria-label="t('customerCredit.amount.formAriaLabel')"
     >
       <el-form-item :label="t('customerCredit.amount.label.amount')" prop="amount">
-        <NumericInput
-v-model="form.amount"
-style="width: 100%"
-:min="0"
-/>
+        <NumericInput v-model="form.amount" style="width: 100%" :min="0" />
       </el-form-item>
     </el-form>
     <template #footer>

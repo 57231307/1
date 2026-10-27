@@ -93,11 +93,7 @@
           width="120"
         >
           <template #default="{ row }">
-            <NumericInput
-v-model="row.inspected_quantity"
-size="small"
-:min="0"
-/>
+            <NumericInput v-model="row.inspected_quantity" size="small" :min="0" />
           </template>
         </el-table-column>
         <el-table-column
@@ -106,11 +102,7 @@ size="small"
           width="120"
         >
           <template #default="{ row }">
-            <NumericInput
-v-model="row.passed_quantity"
-size="small"
-:min="0"
-/>
+            <NumericInput v-model="row.passed_quantity" size="small" :min="0" />
           </template>
         </el-table-column>
         <el-table-column
@@ -119,11 +111,7 @@ size="small"
           width="120"
         >
           <template #default="{ row }">
-            <NumericInput
-v-model="row.failed_quantity"
-size="small"
-:min="0"
-/>
+            <NumericInput v-model="row.failed_quantity" size="small" :min="0" />
           </template>
         </el-table-column>
         <el-table-column

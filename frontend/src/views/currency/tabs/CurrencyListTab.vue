@@ -99,12 +99,7 @@
           <el-input v-model="form.symbol" :placeholder="t('currency.dialog.symbolPlaceholder')" />
         </el-form-item>
         <el-form-item :label="t('currency.dialog.precision')">
-          <NumericInput
-v-model="form.precision"
-style="width: 100%"
-:min="0"
-:max="6"
-/>
+          <NumericInput v-model="form.precision" style="width: 100%" :min="0" :max="6" />
         </el-form-item>
         <el-form-item :label="t('currency.dialog.isBase')">
           <el-switch v-model="form.is_base" />
@@ -160,12 +155,7 @@ style="width: 100%"
           </el-select>
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.rate')" prop="rate">
-          <NumericInput
-v-model="rateForm.rate"
-style="width: 100%"
-:min="0"
-:precision="6"
-/>
+          <NumericInput v-model="rateForm.rate" style="width: 100%" :min="0" :precision="6" />
         </el-form-item>
         <el-form-item :label="t('currency.rateDialog.effectiveDate')" prop="effective_date">
           <el-date-picker

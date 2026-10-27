@@ -228,21 +228,13 @@
           :label="t('inventoryBatch.batchListTab.labelTransferQuantityMeters')"
           prop="quantityMeters"
         >
-          <NumericInput
-v-model="transferForm.quantityMeters"
-style="width: 100%"
-:min="0"
-/>
+          <NumericInput v-model="transferForm.quantityMeters" style="width: 100%" :min="0" />
         </el-form-item>
         <el-form-item
           :label="t('inventoryBatch.batchListTab.labelTransferQuantityKg')"
           prop="quantityKg"
         >
-          <NumericInput
-v-model="transferForm.quantityKg"
-style="width: 100%"
-:min="0"
-/>
+          <NumericInput v-model="transferForm.quantityKg" style="width: 100%" :min="0" />
         </el-form-item>
         <el-form-item :label="t('inventoryBatch.batchListTab.labelRemarks')">
           <el-input

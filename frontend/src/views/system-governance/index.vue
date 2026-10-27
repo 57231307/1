@@ -232,10 +232,8 @@
           <span>当前登录用户（ID：{{ userStore.userInfo?.id || '-' }}）</span>
         </el-form-item>
         <el-form-item label="受托人ID" required
-          ><NumericInput
-v-model="delegationForm.delegatee_id"
-:min="1"
-/></el-form-item>
+          ><NumericInput v-model="delegationForm.delegatee_id" :min="1"
+        /></el-form-item>
         <el-form-item label="权限码" required
           ><el-input
             v-model="delegationForm.permission_code"
@@ -278,18 +276,14 @@ v-model="delegationForm.delegatee_id"
           </el-select>
         </el-form-item>
         <el-form-item label="目标角色ID" required
-          ><NumericInput
-v-model="roleChangeForm.target_role_id"
-:min="1"
-/></el-form-item>
+          ><NumericInput v-model="roleChangeForm.target_role_id" :min="1"
+        /></el-form-item>
         <el-form-item label="目标角色编码" required
           ><el-input v-model="roleChangeForm.target_role_code" placeholder="如 warehouse_keeper"
         /></el-form-item>
         <el-form-item label="目标用户ID"
-          ><NumericInput
-v-model="roleChangeForm.target_user_id"
-:min="1"
-/></el-form-item>
+          ><NumericInput v-model="roleChangeForm.target_user_id" :min="1"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="roleChangeDialogVisible = false">取消</el-button>

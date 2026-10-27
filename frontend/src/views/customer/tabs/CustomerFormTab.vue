@@ -97,11 +97,11 @@
         <el-col :span="12">
           <el-form-item :label="t('customer.form.label.annualPurchase')" prop="annual_purchase">
             <NumericInput
-v-model="formData.annual_purchase"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="formData.annual_purchase"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -158,22 +158,18 @@ style="width: 100%"
         <el-col :span="12">
           <el-form-item :label="t('customer.form.label.creditLimit')" prop="credit_limit">
             <NumericInput
-v-model="formData.credit_limit"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="formData.credit_limit"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
           </el-form-item>
         </el-col>
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('customer.form.label.paymentTerms')" prop="payment_terms">
-            <NumericInput
-v-model="formData.payment_terms"
-style="width: 100%"
-:min="0"
-/>
+            <NumericInput v-model="formData.payment_terms" style="width: 100%" :min="0" />
           </el-form-item>
         </el-col>
         <el-col :span="12">

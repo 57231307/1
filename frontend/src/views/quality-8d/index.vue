@@ -42,11 +42,7 @@
     <el-dialog v-model="dialogVisible" title="启动 8D 报告" width="480">
       <el-form :model="form" label-width="110px">
         <el-form-item label="质量问题ID" required>
-          <NumericInput
-v-model="form.quality_issue_id"
-class="w-full"
-:min="1"
-/>
+          <NumericInput v-model="form.quality_issue_id" class="w-full" :min="1" />
         </el-form-item>
         <el-form-item label="D0 计划说明">
           <el-input

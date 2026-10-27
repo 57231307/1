@@ -101,10 +101,7 @@
           />
         </el-form-item>
         <el-form-item :label="t('departments.index.colSortOrder')" prop="sort_order">
-          <NumericInput
-v-model="formData.sort_order"
-:min="0"
-/>
+          <NumericInput v-model="formData.sort_order" :min="0" />
         </el-form-item>
         <el-form-item :label="t('departments.index.colStatus')" prop="is_active">
           <el-select

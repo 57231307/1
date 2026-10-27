@@ -284,11 +284,11 @@
               :placeholder="t('supplier.enhanced.history.periodPlaceholder')"
             />
             <NumericInput
-v-model="evalForm.score"
-:placeholder="t('supplier.enhanced.history.scorePlaceholder')"
-:min="0"
-:max="selectedIndicatorMaxScore"
-/>
+              v-model="evalForm.score"
+              :placeholder="t('supplier.enhanced.history.scorePlaceholder')"
+              :min="0"
+              :max="selectedIndicatorMaxScore"
+            />
             <el-input
               v-model="evalForm.remark"
               :placeholder="t('supplier.enhanced.history.remarkPlaceholder')"

@@ -39,18 +39,14 @@
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.customerId')" prop="customer_id">
               <NumericInput
-v-model="issueForm.customer_id"
-style="width: 100%"
-:placeholder="$t('colorCards.issue.form.customerIdPlaceholder')"
-:min="1"
-/>
+                v-model="issueForm.customer_id"
+                style="width: 100%"
+                :placeholder="$t('colorCards.issue.form.customerIdPlaceholder')"
+                :min="1"
+              />
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.issueQty')">
-              <NumericInput
-v-model="issueForm.issue_qty"
-style="width: 100%"
-:min="1"
-/>
+              <NumericInput v-model="issueForm.issue_qty" style="width: 100%" :min="1" />
             </el-form-item>
             <el-form-item :label="$t('colorCards.issue.form.dyeLotNo')">
               <el-input
@@ -279,11 +275,11 @@ style="width: 100%"
       <el-form label-width="100px" :aria-label="$t('colorCards.issue.lostDialog.formAriaLabel')">
         <el-form-item :label="$t('colorCards.issue.lostDialog.compensationAmount')" required>
           <NumericInput
-v-model="lostForm.compensation_amount"
-style="width: 100%"
-:min="0.01"
-:precision="2"
-/>
+            v-model="lostForm.compensation_amount"
+            style="width: 100%"
+            :min="0.01"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item :label="$t('colorCards.issue.lostDialog.lostReason')">
           <el-input v-model="lostForm.remark" type="textarea" :rows="2" />
@@ -309,11 +305,11 @@ style="width: 100%"
       <el-form label-width="100px" :aria-label="$t('colorCards.issue.damagedDialog.formAriaLabel')">
         <el-form-item :label="$t('colorCards.issue.damagedDialog.compensationAmount')">
           <NumericInput
-v-model="damagedForm.compensation_amount"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+            v-model="damagedForm.compensation_amount"
+            style="width: 100%"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item :label="$t('colorCards.issue.damagedDialog.damagedReason')">
           <el-input v-model="damagedForm.remark" type="textarea" :rows="2" />

@@ -307,11 +307,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="$t('printTemplates.dialog.copiesDefault')" prop="copies_default">
-              <NumericInput
-v-model="form.copies_default"
-:min="1"
-:max="99"
-/>
+              <NumericInput v-model="form.copies_default" :min="1" :max="99" />
             </el-form-item>
           </el-col>
           <el-col :span="8">

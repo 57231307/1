@@ -205,11 +205,11 @@
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="original_value">
               <NumericInput
-v-model="form.original_value"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+                v-model="form.original_value"
+                style="width: 100%"
+                :min="0"
+                :precision="2"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -217,11 +217,7 @@ style="width: 100%"
               :label="$t('fixedAssets.dialog.usefulLifeMonths')"
               prop="useful_life_months"
             >
-              <NumericInput
-v-model="form.useful_life_months"
-style="width: 100%"
-:min="1"
-/>
+              <NumericInput v-model="form.useful_life_months" style="width: 100%" :min="1" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -293,11 +289,11 @@ style="width: 100%"
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.value')" prop="disposal_value">
           <NumericInput
-v-model="disposalForm.disposal_value"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+            v-model="disposalForm.disposal_value"
+            style="width: 100%"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.date')" prop="disposal_date">
           <el-date-picker

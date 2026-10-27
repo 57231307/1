@@ -131,11 +131,11 @@
         <el-form-item label="模板 ID" required>
           <!-- 后端 UpdateSubscriptionRequest 无 template_id：编辑态模板不可改 -->
           <NumericInput
-v-model="subForm.template_id"
-:disabled="!!editingId"
-class="w-full"
-:min="1"
-/>
+            v-model="subForm.template_id"
+            :disabled="!!editingId"
+            class="w-full"
+            :min="1"
+          />
         </el-form-item>
         <el-form-item label="发送周期" required>
           <el-select v-model="subForm.frequency" style="width: 100%">

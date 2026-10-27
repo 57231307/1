@@ -90,30 +90,30 @@
         </el-form-item>
         <el-form-item label="发票金额" prop="amount">
           <NumericInput
-v-model="formData.amount"
-style="width: 100%"
-placeholder="必填"
-:min="0"
-:precision="2"
-/>
+            v-model="formData.amount"
+            style="width: 100%"
+            placeholder="必填"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item label="税额" prop="tax_amount">
           <NumericInput
-v-model="formData.tax_amount"
-style="width: 100%"
-placeholder="必填"
-:min="0"
-:precision="2"
-/>
+            v-model="formData.tax_amount"
+            style="width: 100%"
+            placeholder="必填"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
         <el-form-item label="价税合计" prop="total_amount">
           <NumericInput
-v-model="formData.total_amount"
-style="width: 100%"
-placeholder="必填"
-:min="0"
-:precision="2"
-/>
+            v-model="formData.total_amount"
+            style="width: 100%"
+            placeholder="必填"
+            :min="0"
+            :precision="2"
+          />
         </el-form-item>
       </el-form>
       <template #footer>

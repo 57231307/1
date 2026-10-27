@@ -163,11 +163,11 @@
             prop="registered_capital"
           >
             <NumericInput
-v-model="localFormData.registered_capital"
-style="width: 100%"
-:min="0"
-:precision="2"
-/>
+              v-model="localFormData.registered_capital"
+              style="width: 100%"
+              :min="0"
+              :precision="2"
+            />
           </el-form-item>
         </el-col>
       </el-row>
