@@ -52,10 +52,12 @@ async function fillNonSupplierRequired(dialog: Locator, page: Page): Promise<voi
     [LABEL_FREIGHT_FEE, '50'],
     [LABEL_TAX_AMOUNT, '10'],
   ] as const) {
-    // 建单数值项已换手写 el-input（禁步进控件），label 锚定的 .el-input input 即录入框
+    // 数值项是纯 el-input 加数字校验，label 锚定的 .el-input input 即录入框本身。
+    // fill 后按 Tab 让显示收敛，再读回真实值，确认模型确实收到该值而非只填了 DOM。
     const numInput = formItemByExactLabel(dialog, label).locator('.el-input input').first();
     await numInput.fill(value);
     await numInput.press('Tab');
+    await expect(numInput, `${label} 录入框应保留手写值 ${value}`).toHaveValue(value);
     await page.waitForTimeout(120);
   }
 }

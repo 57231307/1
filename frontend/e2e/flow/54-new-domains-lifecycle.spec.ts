@@ -1,4 +1,4 @@
-import { test, expect } from '../diagnose-fixture';
+import { test, expect, type Locator } from '../diagnose-fixture';
 import {
   loginViaUI,
   apiCall,
@@ -13,9 +13,29 @@ import {
   findTableRow,
   pickSelect,
   pickSelectIn,
-  fillFieldByLabel,
+  formItemByExactLabel,
   pickListArray,
 } from './ui-helpers';
+
+/**
+ * 手写数值录入的真值写后读回（按精确 label 锚定录入框）
+ *
+ * 建单与签署对话框里的数量、成本、ID 都是纯 el-input 加数字校验，输入事件即提交模型，
+ * blur 只把显示收敛到规范形态。fill 完 blur 再用 toHaveValue 读回实际文本，失败消息带上
+ * label 与期望值，避免只断 toast 把值没进模型这类问题漏成绿灯。
+ */
+async function fillNumberFieldAndReadBack(
+  root: Locator,
+  labelText: string,
+  value: string
+): Promise<void> {
+  const input = formItemByExactLabel(root, labelText).locator('input').first();
+  await input.waitFor({ state: 'visible', timeout: 10_000 });
+  await input.click({ clickCount: 3 });
+  await input.fill(value);
+  await input.blur();
+  await expect(input, `${labelText} 录入框应保留手写值 ${value}`).toHaveValue(value);
+}
 
 /**
  * 新增域业务流转链防线（flow/54-new-domains-lifecycle）
@@ -333,14 +353,13 @@ test.describe.serial('新域业务流转链', () => {
     await expect(dialog).toBeVisible();
 
     // 委外单号由 openCreate() 客户端自动生成（generateUniqueDocNo），readonly 不可 fill。
-    // 建单对话框内有两个 el-select：第一个「类型」（染色加工/后整理/其他），第二个
-    // 「供应商/加工商」——本次源码改动把供应商由裸手输 supplier_id 的步进数字录入框改为
-    // filterable 可搜索下拉（option 文案为「supplier_name（supplier_code）」）。
-    // 类型下拉仍是 dialog 内首个 .el-select，按位置选即可；供应商下拉必须按精确 label 锚定
+    // 建单对话框内有两个 el-select，第一个是类型（染色加工 后整理 其他），第二个是选加工厂，
+    // 即 filterable 可搜索下拉，option 文案为 supplier_name（supplier_code）。
+    // 类型下拉是 dialog 内首个 .el-select，按位置选即可；加工厂下拉必须按精确 label 锚定
     // （pickSelectIn 内部走 formItemByExactLabel），否则 .el-select first 会误点到类型下拉。
     await pickSelect(page, dialog.locator('.el-select').first(), '染色加工');
-    // 供应商：按 ctx.supplierId 取真实名称/编码作为搜索词与点选判据；取不到名称即显式抛错，
-    // 不兜底、不退回手填数字主键（旧步进数字录入框契约已失效）。
+    // 供应商按 ctx.supplierId 取真实名称与编码作为搜索词与点选判据，取不到名称即显式抛错，
+    // 不兜底、不退回手填数字主键。
     const supplier = await apiCallRaw<{ supplier_name?: string; supplier_code?: string }>(
       page,
       'GET',
@@ -369,20 +388,16 @@ test.describe.serial('新域业务流转链', () => {
     await dateInput.click();
     await dateInput.fill(today);
     await page.keyboard.press('Enter');
-    // 发出数量：供应商改为 el-select 后步进数字录入框少了一枚，dialog 内该类录入框
-    // 顺序整体前移，原按位置的 `.nth(1)` 会错落到「材料成本」（材料成本/三费另由下方
-    // fillFieldByLabel 覆盖填写），发出数量将恒空触发 onCreate 必填守卫（index.vue:865）
-    // 复现同一「POST 不发 → waitForResponse 超时」假红。改为按精确 label 锚定，与源码变更解耦。
-    await fillFieldByLabel(dialog, page, '发出数量', '100');
-    // 材料成本 + 三费均为后端 outsourcing_order NOT NULL 列（v15:3247-3249）对应的建单必填，
-    // 前端 onCreate 守卫（views/outsourcing/index.vue:499-513）对 材料成本/加工费/运费/税额
-    // 逐项 ==null 判空，缺任一项即 warning 拦截、不发 POST——判责 J-4
-    // CI 的 waitForResponse(/outsourcing-orders POST) 15s 超时根因是请求根本没发出
-    // （测试漏填三费触发正当前端守卫），非响应慢、也非 reactive 断链类前端缺陷。
-    await fillFieldByLabel(dialog, page, '材料成本', '500');
-    await fillFieldByLabel(dialog, page, '加工费', '80');
-    await fillFieldByLabel(dialog, page, '运费', '20');
-    await fillFieldByLabel(dialog, page, '税额', '13');
+    // 建单对话框的数值录入项都是手写 el-input（范围与精度由源码 rules 判定），
+    // 按精确 label 锚定录入框，fill 后 blur 收敛显示，再读回真实值确认模型已收到该值。
+    await fillNumberFieldAndReadBack(dialog, '发出数量', '100');
+    // 材料成本与三费（加工费 运费 税额）对应后端 outsourcing_order 的 NOT NULL 列，
+    // 建单必填且 0 是合法值；前端 onCreate 逐项判空，缺任一项即 warning 拦截不发 POST，
+    // 表现是 waitForResponse 等不到响应而超时，故四项都要填实。
+    await fillNumberFieldAndReadBack(dialog, '材料成本', '500');
+    await fillNumberFieldAndReadBack(dialog, '加工费', '80');
+    await fillNumberFieldAndReadBack(dialog, '运费', '20');
+    await fillNumberFieldAndReadBack(dialog, '税额', '13');
 
     // 等待创建响应获取真实单号（readonly 自动生成的值通过 POST 回传到服务端确认）
     const [respPromise] = await Promise.all([
@@ -495,10 +510,9 @@ test.describe.serial('新域业务流转链', () => {
     // getByRole(name:'签署') 默认子串匹配会同时命中「签署合同」+ 对话框「签署」→ strict 违例。
     const dlg = page.locator('.el-dialog:visible').last();
     // SignContractRequest { contract_id, signed_by_user_id, signature_image_url? }
-    // 建单控件已换手写 el-input（禁步进控件），按精确 label 锚定真值输入并 blur 提交模型
-    await fillFieldByLabel(dlg, page, '合同ID', '1');
-    await fillFieldByLabel(dlg, page, '签署人ID', '1');
-    await page.keyboard.press('Tab');
+    // 两个 ID 都是手写 el-input，按精确 label 锚定填真值，blur 后读回确认录入框确实收到
+    await fillNumberFieldAndReadBack(dlg, '合同ID', '1');
+    await fillNumberFieldAndReadBack(dlg, '签署人ID', '1');
     await dlg.getByRole('button', { name: '签署', exact: true }).click();
     await expect(page.locator('.el-message--success, .el-message--error').first()).toBeVisible({
       timeout: 8000,
