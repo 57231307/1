@@ -570,7 +570,11 @@ fn create_table_blocks_declare_exactly_the_specified_columns() {
             "contract_template_clauses",
             CONTRACT_TEMPLATE_CLAUSES_COLS,
         ),
-        ("m0117_create_contract_clauses", "contract_clauses", CONTRACT_CLAUSES_COLS),
+        (
+            "m0117_create_contract_clauses",
+            "contract_clauses",
+            CONTRACT_CLAUSES_COLS,
+        ),
     ];
     for (child, table, spec) in specs {
         let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
@@ -617,7 +621,8 @@ fn create_table_blocks_declare_exactly_the_specified_columns() {
                 panic!("{table} 的建表体内解析不到列 {cname}", cname = c.name);
             };
             assert_eq!(
-                *is_null, c.not_null,
+                *is_null,
+                c.not_null,
                 "{table}.{cname} 的可空性与规格不符，钉的是 not_null={want}，\
                  迁移文本实得 not_null={got}。可空性漂移会让历史行的空值语义\
                  与服务层解码口径分叉",
