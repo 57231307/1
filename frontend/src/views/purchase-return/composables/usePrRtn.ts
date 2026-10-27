@@ -87,6 +87,46 @@ function qualityDefectReasonType(): string {
 }
 
 /**
+ * 编辑回显的含税单价原文（价税分离的录入事实，主输入列）。
+ * 入参，raw 是后端退货明细行（subtotal 与 tax_amount 与 total_amount 三列已落库）。
+ * 出参是含税单价输入框原文，空串表示还原不出、须人工重录。
+ * 取法只有除法还原这一条腿，与后端 utils/tax.rs 的 recover_inclusive_unit_price 同源：
+ * 本行有净额口径折扣或数量为 0 时标价含税额还原不出来，一律留空要求录入，
+ * 绝不用「不含税单价 乘 1 加税率」倒造含税价。
+ * 传给谁，usePrRtn 内 normalizeItem 的行映射，写入 ReturnFormItem.unitPriceWithTax。
+ */
+function recoverInclusiveUnitPriceText(raw: PurchaseReturnItem): string {
+  if (raw.discount_amount !== 0 || raw.quantity_returned <= 0) return '';
+  return String(roundToCent(raw.total_amount / raw.quantity_returned));
+}
+
+/**
+ * 逐行派生列重算（方向口径与后端 utils/tax.rs 与前端 money.ts 单源一致）。
+ * 入参，row 是本表一行；读含税单价原文与税率，写派生的不含税单价。
+ * 不含税单价 = 含税单价 ÷ (1 + 税率% ÷ 100) 先舍到分（money.ts 的 netFromInclusive），
+ * 本函数不存在任何乘税率造税额或造含税的写法。
+ * 缺含税单价或税率非法时派生单价回到 0 无值状态，由提交前的必填校验点名拦下，
+ * 不猜档位、不补 0 冒充算得。
+ * 传给谁，PurchaseReturnForm.vue 的含税单价与税率输入框 change 腿与产品带出腿。
+ */
+export function applyDerivedPrices(row: ReturnFormItem): void {
+  const inclusiveUnit = parseDecimalInput(row.unitPriceWithTax);
+  const rate = row.taxPercent;
+  if (
+    inclusiveUnit === undefined ||
+    !Number.isFinite(inclusiveUnit) ||
+    inclusiveUnit < 0 ||
+    rate === undefined ||
+    !Number.isFinite(rate) ||
+    rate < 0
+  ) {
+    row.unitPrice = 0;
+    return;
+  }
+  row.unitPrice = netFromInclusive(inclusiveUnit, rate);
+}
+
+/**
  * 采购退货 composable
  * 集中管理列表、表单、供应商、采购单、产品、详情对话框的业务状态
  * 对话框可见性由父组件本地 ref 管理
@@ -332,47 +372,7 @@ export function usePrRtn() {
     });
   };
 
-  /**
- * 编辑回显的含税单价原文（价税分离的录入事实，主输入列）。
- * 入参，raw 是后端退货明细行（subtotal 与 tax_amount 与 total_amount 三列已落库）。
- * 出参是含税单价输入框原文，空串表示还原不出、须人工重录。
- * 取法只有除法还原这一条腿，与后端 utils/tax.rs 的 recover_inclusive_unit_price 同源：
- * 本行有净额口径折扣或数量为 0 时标价含税额还原不出来，一律留空要求录入，
- * 绝不用「不含税单价 乘 1 加税率」倒造含税价。
- * 传给谁，normalizeItem 的行映射，写入 ReturnFormItem.unitPriceWithTax。
- */
-const recoverInclusiveUnitPriceText = (raw: PurchaseReturnItem): string => {
-  if (raw.discount_amount !== 0 || raw.quantity_returned <= 0) return '';
-  return String(roundToCent(raw.total_amount / raw.quantity_returned));
-};
-
-/**
- * 逐行派生列重算（方向口径与后端 utils/tax.rs 与前端 money.ts 单源一致）。
- * 入参，row 是本表一行；读含税单价原文与税率，写派生的不含税单价。
- * 含税成交额 = 含税单价 乘 数量（事实聚合，税率不进乘法），不含税单价 = 含税单价 ÷ (1 + 税率% ÷ 100)
- * 先舍到分；税额与含税额小计由 money.ts 取差额，本函数不存在任何乘税率造税额或造含税的写法。
- * 出参 undefined（缺含税单价或税率非法）时派生单价回到 0 无值状态，由提交前的必填校验点名拦下，
- * 不猜档位、不补 0 冒充算得。
- * 传给谁，组件的含税单价与税率输入框 change 与产品带出腿。
- */
-export const applyDerivedPrices = (row: ReturnFormItem): void => {
-  const inclusiveUnit = parseDecimalInput(row.unitPriceWithTax);
-  const rate = row.taxPercent;
-  if (
-    inclusiveUnit === undefined ||
-    !Number.isFinite(inclusiveUnit) ||
-    inclusiveUnit < 0 ||
-    rate === undefined ||
-    !Number.isFinite(rate) ||
-    rate < 0
-  ) {
-    row.unitPrice = 0;
-    return;
-  }
-  row.unitPrice = netFromInclusive(inclusiveUnit, rate);
-};
-
-/** 从后端 PurchaseReturnItemDto 归一化为表单本地结构 */
+  /** 从后端 PurchaseReturnItemDto 归一化为表单本地结构 */
   const normalizeItem = (raw: PurchaseReturnItem): ReturnFormItem => ({
     id: raw.id,
     productId: raw.material_id,
