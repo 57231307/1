@@ -157,12 +157,7 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
-import {
-  ElMessage,
-  ElMessageBox,
-  type FormInstance,
-  type FormRules,
-} from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { numberInputRules, numericView } from '@/utils/number-input';
 import { formatAmount } from '../composables/srFmts';
@@ -214,7 +209,7 @@ const itemRules = computed<FormRules>(() => ({
 }));
 const validateItemForm = async (): Promise<boolean> => {
   let ok = false;
-  await itemFormRef.value?.validate((valid) => {
+  await itemFormRef.value?.validate(valid => {
     ok = valid;
   });
   return ok;
@@ -280,13 +275,17 @@ const handleAddItem = async () => {
   }
 };
 
-/** 行编辑：回填添加栏并切换为更新模式（出参数值经 numericView 归一为录入文本） */
+/**
+ * 行编辑：回填添加栏并切换为更新模式
+ * 后端 quantity unit_price tax_percent 是 rust_decimal 出参走线为字符串（形如 "10.0000"）
+ * 先经 Number() 归一再按录入框形态格式化 缺值留空串 由必填与范围规则点名是哪个字段
+ */
 const handleEditItem = (row: SalesReturnItem) => {
   editingItemId.value = row.id ?? null;
-  newItem.productId = numericView(row.product_id ?? 1);
-  newItem.quantity = numericView(row.quantity ?? 1);
-  newItem.unitPrice = numericView(row.unit_price ?? 0, 2);
-  newItem.taxPercent = numericView(row.tax_percent);
+  newItem.productId = numericView(row.product_id);
+  newItem.quantity = row.quantity == null ? '' : numericView(Number(row.quantity), 2);
+  newItem.unitPrice = row.unit_price == null ? '' : numericView(Number(row.unit_price), 2);
+  newItem.taxPercent = row.tax_percent == null ? '' : numericView(Number(row.tax_percent), 2);
   newItem.reason = row.notes ?? '';
 };
 
