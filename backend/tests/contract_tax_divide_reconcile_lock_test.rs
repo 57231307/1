@@ -16,11 +16,17 @@
 //!    与逐档具体数字（不只断接口成功），证明除法反算腿贯通到落库。
 //!    suppliers 属迁移种子参照表不清空，供应商用时间戳后缀自建专属行，互不碰撞。
 //! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 14 个文件）与
-//!    前端 4 个含税派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
+//!    前端 11 个含税录入与派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
 //!    「乘 tax 前缀标识符（含点号接收者形态 `*item.tax_percent` 与 `*row.taxRate`）」
 //!    「乘号括号窗口内税率与 +1 或 +Decimal::ONE 反序加数并存」与硬编码档位字面量；
-//!    不只看首个匹配、行首注释才跳过（行尾注释里的代码照扫）、不按中文字面量放行界面文案，
-//!    后端与前端都另做全文拼串补扫跨行遮蔽形态，改回乘法必红并点名。
+//!    注释剥离走逐行状态机（`//` 与行首 `/*` 与 `<!--` 起始的块注释整体剔除，
+//!    闭合标记之后的文本与行尾注释前的代码照样被扫），rustfmt 与 prettier 换行到
+//!    续行行首的乘号（`* (Decimal::ONE` 与 `* tax_percent`）不再被误当块注释续行跳过，
+//!    注释里的说明性公式也不会混进拼串层造成误报；
+//!    不只看首个匹配（每个 `*(` 与每个 `*` 出现点逐一判定），不按中文字面量放行界面文案；
+//!    后端与前端都把「去注释后的全文拼串」再过一遍同一组判定，跨行遮蔽形态照样命中。
+//!    扫描清单由 PINNED 钉列逐条点名，删条目等于开缺口，即判红。
+//!    判定器自身另有一枚形态自检锁，逐个喂禁止形态与合法形态，漏判或误判都判红。
 //!    正向委托锁逐文件钉内核引用与单源入口，删引用或内联第二套公式同样判红。
 //!
 //! 覆盖策略，纯函数注入 加 真 PostgreSQL（test_common::setup_test_db），跑真实 service 全链路，无 mock。
@@ -416,7 +422,10 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
     ),
 ];
 
-/// 扫描对象，前端含税派生腿源码（与后端同一方向口径，同源反算单源在 utils/money.ts）。
+/// 扫描对象，前端含税录入与派生腿源码（与后端同一方向口径，同源反算单源在 utils/money.ts）。
+/// 清单按「含税单价是录入事实」的界面逐点对齐，报价、销售订单、采购订单、销售退货四条录入腿
+/// 与一枚单源都在列内；采购退货与发票与合同三处前端不自行派生金额（只回显后端权威值），
+/// 所以不在本清单，一旦将来在前端加出这三条派生腿必须同步加进本清单与下面的钉列。
 const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
     (
         "frontend/src/utils/money.ts",
@@ -431,9 +440,72 @@ const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
         include_str!("../../frontend/src/views/quotations/create.vue"),
     ),
     (
+        "frontend/src/views/quotations/detail.vue",
+        include_str!("../../frontend/src/views/quotations/detail.vue"),
+    ),
+    (
         "frontend/src/views/sales/OrderFormDialog.vue",
         include_str!("../../frontend/src/views/sales/OrderFormDialog.vue"),
     ),
+    (
+        "frontend/src/views/sales/composables/useOlv.ts",
+        include_str!("../../frontend/src/views/sales/composables/useOlv.ts"),
+    ),
+    (
+        "frontend/src/views/purchase/composables/useCreate.ts",
+        include_str!("../../frontend/src/views/purchase/composables/useCreate.ts"),
+    ),
+    (
+        "frontend/src/views/purchase/components/PurchaseCreateDialog.vue",
+        include_str!("../../frontend/src/views/purchase/components/PurchaseCreateDialog.vue"),
+    ),
+    (
+        "frontend/src/views/sales-returns/composables/useSr.ts",
+        include_str!("../../frontend/src/views/sales-returns/composables/useSr.ts"),
+    ),
+    (
+        "frontend/src/views/sales-returns/components/ReturnEditDialog.vue",
+        include_str!("../../frontend/src/views/sales-returns/components/ReturnEditDialog.vue"),
+    ),
+    (
+        "frontend/src/views/sales-returns/components/ReturnDetailDialog.vue",
+        include_str!("../../frontend/src/views/sales-returns/components/ReturnDetailDialog.vue"),
+    ),
+];
+
+/// 后端扫描清单的权威钉列。与 [`TAX_PATH_SOURCES`] 必须是同一集合，
+/// 由 [`static_scan_manifest_covers_every_tax_leg`] 逐条点名核对；
+/// 从 TAX_PATH_SOURCES 里删掉任何一条（或在写入腿新文件里写正向公式却不加进清单）都判红。
+const PINNED_BACKEND_TAX_LEGS: &[&str] = &[
+    "src/utils/tax.rs",
+    "src/services/quotation_pricing_service.rs",
+    "src/services/quotation_ops/calc.rs",
+    "src/services/quotation_ops/crud.rs",
+    "src/services/quotation_ops/update.rs",
+    "src/services/po/order_ops/crud.rs",
+    "src/services/po/price.rs",
+    "src/services/po/receipt.rs",
+    "src/services/so/order_crud.rs",
+    "src/services/so/delivery_ops/ship.rs",
+    "src/services/purchase_return_service.rs",
+    "src/services/sales_return_service.rs",
+    "src/services/ap_invoice_ops/receipt.rs",
+    "src/services/outsourcing_ops/receipt.rs",
+];
+
+/// 前端扫描清单的权威钉列，语义与 [`PINNED_BACKEND_TAX_LEGS`] 相同。
+const PINNED_FRONTEND_TAX_LEGS: &[&str] = &[
+    "frontend/src/utils/money.ts",
+    "frontend/src/views/quotations/components/QuotationItemEditor.vue",
+    "frontend/src/views/quotations/create.vue",
+    "frontend/src/views/quotations/detail.vue",
+    "frontend/src/views/sales/OrderFormDialog.vue",
+    "frontend/src/views/sales/composables/useOlv.ts",
+    "frontend/src/views/purchase/composables/useCreate.ts",
+    "frontend/src/views/purchase/components/PurchaseCreateDialog.vue",
+    "frontend/src/views/sales-returns/composables/useSr.ts",
+    "frontend/src/views/sales-returns/components/ReturnEditDialog.vue",
+    "frontend/src/views/sales-returns/components/ReturnDetailDialog.vue",
 ];
 
 /// 把一行源码去掉空白，避免用空格形态绕过（`* (Decimal::ONE +` 与 `*(Decimal::ONE+` 同一目标）。
@@ -441,16 +513,122 @@ fn compact(line: &str) -> String {
     line.chars().filter(|c| !c.is_whitespace()).collect()
 }
 
-/// 是否为注释行（行首标记判定）：`//`、`//!`、`/*`、` * `（块注释续行）、
-/// `<!--` 与 `-->`（HTML 与 Vue 模板注释的起止行）。只按整行起始判定；
-/// 代码后跟的行尾注释不在跳过范围（同一行的代码部分照样被扫），不因此放过藏在行尾的违规。
-fn is_comment_line(line: &str) -> bool {
-    let t = line.trim_start();
-    t.starts_with("//")
-        || t.starts_with("/*")
-        || t.starts_with('*')
-        || t.starts_with("<!--")
-        || t.starts_with("-->")
+/// 块注释闭合标记的最早出现处（`*/` 与 `-->` 两种，取更靠前者与其长度）。
+/// 传给谁 [`code_part_of_line`]，用于跨行推进块注释状态。
+fn block_closer(text: &str) -> Option<(usize, usize)> {
+    let star = text.find("*/").map(|i| (i, 2));
+    let html = text.find("-->").map(|i| (i, 3));
+    match (star, html) {
+        (Some(a), Some(b)) => Some(if a.0 <= b.0 { a } else { b }),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    }
+}
+
+/// 剥掉一行的注释部分，出参是本行剩下的可扫描代码原文，`in_block` 是跨行推进的块注释态。
+///
+/// 入参，line 是源码一行、in_block 是进本行之前的块注释态（调用方持有，逐行传递）。
+/// 出参是本行代码部分（可能为空串，空即本行全是注释）；进本行之后的块注释态写回 in_block。
+/// 判定标记只认注释起始序列本身（`//`、`/*`、`<!--`），闭合认 `*/` 与 `-->`；
+/// 块注释结束同一行若还接代码，那段代码照样返回给调用方扫（`<!-- 说明 --><div>` 与
+/// `/* 备注 */ let x = ...` 都逃不掉）；行尾注释从出现处截断，前面的代码照样返回。
+///
+/// 为什么不用「行首是 `*` 就当注释」的旧判定：rustfmt 与 prettier 会把二元乘号换行到
+/// 续行行首，写出 `* (Decimal::ONE + tax_percent / PERCENT)` 与 `* tax_percent / 100` 这种
+/// 形态，其行首与块注释续行的 `*` 完全同形，旧判定把这类行整行跳过，正向公式改回乘法
+/// 也照样绿（变异自证实测过的遮蔽盲区）。状态机把两件事分开：真注释按状态整体剔除，
+/// 代码态里的 `*` 起头行一律保留，既不放过续行里的乘法，也不把注释星号混进拼串层误报。
+///
+/// 已知取舍，行中出现 `//` 即按行尾注释起点截断，字符串字面量里的 `https://` 会让本行
+/// 后半段不进扫描。25 枚扫描对象逐行核过，没有同一行既带 URL 又带价税算式的写法
+/// （`://` 与 tax 同行零命中），真出现这种写法时按行拆分代码即可，不放宽本判定。
+fn code_part_of_line(line: &str, in_block: &mut bool) -> String {
+    let mut rest = line.to_string();
+    if *in_block {
+        match block_closer(&rest) {
+            Some((pos, len)) => {
+                *in_block = false;
+                rest = rest[pos + len..].to_string();
+            }
+            None => return String::new(),
+        }
+    }
+    loop {
+        let trimmed = rest.trim_start();
+        let indent = rest.len() - trimmed.len();
+        // 整行起始的行注释（含 //! 与 ///）与块注释起始
+        if trimmed.starts_with("//") {
+            return String::new();
+        }
+        let opens_block = if trimmed.starts_with("/*") {
+            Some(2)
+        } else if trimmed.starts_with("<!--") {
+            Some(4)
+        } else {
+            None
+        };
+        if let Some(open_len) = opens_block {
+            return match block_closer(&rest[indent + open_len..]) {
+                // 同行开闭的块注释，保留注释后的部分继续判定
+                Some((pos, len)) => {
+                    rest = rest[indent + open_len + pos + len..].to_string();
+                    continue;
+                }
+                None => {
+                    *in_block = true;
+                    String::new()
+                }
+            };
+        }
+        // 行中出现的注释起始，取最早的一处处理
+        let candidates: [(usize, usize, bool); 3] = [
+            (rest.find("//"), 2, false),
+            (rest.find("/*"), 2, true),
+            (rest.find("<!--"), 4, true),
+        ]
+        .map(|(pos, len, is_block)| (pos.unwrap_or(usize::MAX), len, is_block));
+        let earliest = candidates
+            .iter()
+            .min_by_key(|(pos, _, _)| *pos)
+            .copied()
+            .expect("候选数组恒有三项");
+        if earliest.0 == usize::MAX {
+            return rest;
+        }
+        if !earliest.2 {
+            // 行尾注释，截掉注释部分，前面的代码照扫
+            return rest[..earliest.0].to_string();
+        }
+        match block_closer(&rest[earliest.0 + earliest.1..]) {
+            Some((pos, len)) => {
+                // 行中块注释且同行闭合，注释前后两段拼接后一起返回
+                return format!(
+                    "{} {}",
+                    &rest[..earliest.0],
+                    &rest[earliest.0 + earliest.1 + pos + len..]
+                );
+            }
+            None => {
+                *in_block = true;
+                return rest[..earliest.0].to_string();
+            }
+        }
+    }
+}
+
+/// 逐行剥注释，出参是本文件的代码行清单（1 基行号与剥掉注释后的代码原文）。
+/// 传给谁 [`scan_tax_leg_source`] 与拼串补扫，注释行不进清单也不进拼串。
+fn code_lines_of(src: &str) -> Vec<(usize, String)> {
+    let mut in_block = false;
+    let mut out = Vec::new();
+    for (idx, line) in src.lines().enumerate() {
+        let code = code_part_of_line(line, &mut in_block);
+        if !code.trim().is_empty() {
+            out.push((idx + 1, code));
+        }
+    }
+    out
 }
 
 /// 被禁止的硬编码增值税档位乘数（历史违规形态）。
@@ -472,10 +650,11 @@ const FORBIDDEN_TIER_LITERALS: &[&str] = &["1.13", "0.13", "1.09", "1.06", "1.05
 /// `*(Decimal::ONE+`、`*(rust_decimal::Decimal::ONE+`、`*(1+` 以及任何
 /// `*(<路径前缀>::Decimal::ONE+` 形态。变异自证轮实测限定前缀曾绕过窄形态禁列，
 /// 本判定按「每个 `*(` 出现点」逐个检查其后 48 字符，不是只看首个匹配。
+/// 出参是首个命中的 `*(` 字节偏移（供判红消息取片段），未命中返回 None。
 /// 除法反算写的是 `/ (Decimal::ONE + ...)` 与 `/ (1 + ...)`，乘号是 `*(`，除法是 `/(`，
 /// 两个形态互不误伤。
-fn has_mul_one_plus(c: &str) -> bool {
-    c.match_indices("*(").any(|(idx, _)| {
+fn mul_one_plus_hit(c: &str) -> Option<usize> {
+    c.match_indices("*(").map(|(idx, _)| idx).find(|&idx| {
         let rest: String = c[idx + 2..].chars().take(48).collect();
         rest.starts_with("1+") || rest.contains("Decimal::ONE+")
     })
@@ -483,12 +662,12 @@ fn has_mul_one_plus(c: &str) -> bool {
 
 /// 判定「乘号括号窗口内税率与加数反序并存」，覆盖正序判定漏掉的两个形态：
 /// `*(taxRate+1)` 与 `*(tax_percent / 100 + Decimal::ONE)`（加数在税率之后）。
-/// 与 [`has_mul_one_plus`] 同样逐 `*(` 出现点检查其后 48 字符，不是只看首个匹配。
+/// 与 [`mul_one_plus_hit`] 同样逐 `*(` 出现点检查其后 48 字符，不是只看首个匹配。
 /// 命中条件是「窗口含税率词根（大小写不敏感）且含相邻非数字的 +1 加数，或含
 /// +Decimal::ONE」；`*(i.unit_price_with_tax||0)` 这类窗口含 with_tax 词根但没有
 /// +1 加数的合法聚合不会命中（with_tax 结尾是含税事实不是税率变量，且窗口内没有加法）。
-fn has_mul_tax_reverse_addend(c: &str) -> bool {
-    c.match_indices("*(").any(|(idx, _)| {
+fn mul_tax_reverse_addend_hit(c: &str) -> Option<usize> {
+    c.match_indices("*(").map(|(idx, _)| idx).find(|&idx| {
         let rest: String = c[idx + 2..].chars().take(48).collect();
         let lower = rest.to_lowercase();
         if !lower.contains("tax") {
@@ -506,7 +685,8 @@ fn has_mul_tax_reverse_addend(c: &str) -> bool {
 /// （变异自证侦察确认 `*row.taxRate` 能绕过）。逐 `*` 出现点解析其后的
 /// `[字母数字_]+(\.[字母数字_]+)*` 标识符路径，任一分段以 tax 开头（大小写不敏感）即命中；
 /// `*unit_price_with_tax` 这类以 with_tax 结尾的含税事实聚合腿不在禁列（与既有口径一致）。
-fn mul_by_tax_path_identifier(c: &str) -> bool {
+/// 出参是命中处 `*` 的字节偏移，未命中返回 None。
+fn mul_by_tax_path_identifier_hit(c: &str) -> Option<usize> {
     let b = c.as_bytes();
     let mut i = 0;
     while i < b.len() {
@@ -521,7 +701,7 @@ fn mul_by_tax_path_identifier(c: &str) -> bool {
                     break;
                 }
                 if c[seg_start..j].to_ascii_lowercase().starts_with("tax") {
-                    return true;
+                    return Some(i);
                 }
                 if j < b.len()
                     && b[j] == b'.'
@@ -536,145 +716,246 @@ fn mul_by_tax_path_identifier(c: &str) -> bool {
         }
         i += 1;
     }
-    false
+    None
 }
 
-/// 对一行（已去空白）施加后端全部禁止形态，命中即 panic 点名文件、行号与原文。
-/// 逐行逐点施加，不是找到第一个就停：任何一行漏检都算锁失效。
-fn assert_backend_line_clean(path: &str, line_no: usize, line: &str, c: &str) {
+/// 对一段（已去空白的）源码文本施加全部禁止形态，出参是命中的形态清单（空即合法）。
+/// 每项带命中点的字节偏移，供判红消息定位。后端与前端共用本函数，
+/// 两侧禁列同集合、同顺序，不存在「后端钉了限定前缀、前端只钉裸 1」这类两侧同缺的漏判。
+/// 逐出现点判定，不是只看首个匹配：括号窗口两形态对每一个 `*(` 出现点各查其后 48 字符，
+/// 标识符形态对每一个 `*` 出现点各解析其后的标识符路径。
+fn forward_formula_hits(c: &str) -> Vec<(&'static str, usize)> {
+    let mut hits: Vec<(&'static str, usize)> = Vec::new();
     // 造含税，乘 (1 + 税率)，含任意限定前缀变体
+    if let Some(idx) = mul_one_plus_hit(c) {
+        hits.push(("「乘 (1 + 税率)」造含税（含限定前缀与空格形态）", idx));
+    }
+    // 反序加数形态：`*(tax_percent / 100 + Decimal::ONE)` 与 `*(taxRate + 1)`
+    if let Some(idx) = mul_tax_reverse_addend_hit(c) {
+        hits.push((
+            "「乘括号窗口内税率与 +1 或 +Decimal::ONE 反序加数」造含税",
+            idx,
+        ));
+    }
+    // 造税额，乘任何以 tax 开头的标识符（含点号接收者、驼峰与下划线两种命名；
+    // 合法形态里 `*` 之后只会跟 quantity/percent/share/numerator 等非税率标识符，
+    // unit_price_with_tax 这类以 tax 结尾的含税事实不在禁列，禁的是 tax 开头）
+    if let Some(idx) = mul_by_tax_path_identifier_hit(c) {
+        hits.push(("「乘 tax 开头标识符（含点号接收者与驼峰形态）」造税额", idx));
+    }
+    hits
+}
+
+/// 取命中点附近的文本片段（前后各 60 字符），让文件级拼串判红也能定位到具体写法。
+fn hit_snippet(c: &str, offset: usize) -> String {
+    let char_idx = c[..offset.min(c.len())].chars().count();
+    let chars: Vec<char> = c.chars().collect();
+    let start = char_idx.saturating_sub(60).min(chars.len());
+    let end = (char_idx + 60).min(chars.len());
+    chars[start..end].iter().collect()
+}
+
+/// 对一行代码施加全部禁止形态（含硬编码档位字面量，档位字面量只在逐行层判：
+/// 跨行接缝可能拼出与税率无关的小数，拼串层判它只产误报）。命中即 panic 点名文件、行号与原文。
+/// 逐行逐点施加，不是找到第一个就停：任何一行漏检都算锁失效。
+fn assert_line_free_of_forward_formula(path: &str, line_no: usize, code: &str, c: &str) {
+    let hits = forward_formula_hits(c);
     assert!(
-        !has_mul_one_plus(c),
-        "{path} 第 {line_no} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
-        line.trim()
-    );
-    // 造税额，乘任何以 tax 开头的标识符（税率变量改名成 tax、tax_amt、tax_pct 也钉得住；
-    // 合法形态里 `*` 之后只会跟 quantity/percent/share 等非税率标识符，
-    // unit_price_with_tax 这类以 tax 结尾的含税事实出现在乘号右侧不构成违规，因为禁的是 `*tax` 前缀形态）
-    assert!(
-        !c.contains("*tax"),
-        "{path} 第 {line_no} 行出现「乘税率标识符」造税额的正向公式: {}",
-        line.trim()
-    );
-    // 接收者点号形态：`*item.tax_percent` 与 `*row.tax_rate`（旧形态隔点号漏判）
-    assert!(
-        !mul_by_tax_path_identifier(c),
-        "{path} 第 {line_no} 行出现「乘税率标识符（含点号接收者形态）」造税额的正向公式: {}",
-        line.trim()
-    );
-    // 反序加数形态：`*(tax_percent / 100 + Decimal::ONE)` 这类税率在前、1 在后的加法
-    assert!(
-        !has_mul_tax_reverse_addend(c),
-        "{path} 第 {line_no} 行出现「乘括号窗口内税率与 +1 或 +Decimal::ONE 反序加数」造含税的正向公式: {}",
-        line.trim()
+        hits.is_empty(),
+        "{path} 第 {line_no} 行出现{}的正向公式（命中点附近 {}）: {}",
+        hits.iter()
+            .map(|(form, _)| *form)
+            .collect::<Vec<&str>>()
+            .join("、"),
+        hits.first()
+            .map(|(_, offset)| hit_snippet(c, *offset))
+            .unwrap_or_default(),
+        code.trim()
     );
     for lit in FORBIDDEN_TIER_LITERALS {
         assert!(
             !contains_tier_literal(c, lit),
             "{path} 第 {line_no} 行出现硬编码增值税档位 {lit}: {}",
-            line.trim()
+            code.trim()
         );
     }
 }
 
+/// 逐行加跨行拼串扫描一枚价税腿源码，后端与前端共用同一套判定。
+/// 拼串层把「剥完注释的代码行按行序拼接」再过一遍括号窗口与标识符三形态，
+/// 兜住乘号与括号内容被格式化器拆到不同行的碎形态；
+/// 注释按状态机整体剔除，既不会让续行乘号被当成注释漏扫，也不会让注释里的说明性公式进拼串误报。
+fn scan_tax_leg_source(path: &str, raw: &str) {
+    let src = raw.replace('\r', "");
+    let code_lines = code_lines_of(&src);
+    assert!(
+        !code_lines.is_empty(),
+        "{path} 剥注释后没有任何可扫描代码行，扫描对象被掏空等于锁失效"
+    );
+    for (line_no, code) in &code_lines {
+        assert_line_free_of_forward_formula(path, *line_no, code, &compact(code));
+    }
+    let joined: String = code_lines
+        .iter()
+        .map(|(_, code)| compact(code))
+        .collect::<Vec<String>>()
+        .join("");
+    let joined_hits = forward_formula_hits(&joined);
+    assert!(
+        joined_hits.is_empty(),
+        "{path} 出现跨行拼接后成立的{}正向公式（去注释全文拼串命中，片段 {}）",
+        joined_hits
+            .iter()
+            .map(|(form, _)| *form)
+            .collect::<Vec<&str>>()
+            .join("、"),
+        joined_hits
+            .first()
+            .map(|(_, offset)| hit_snippet(&joined, *offset))
+            .unwrap_or_default(),
+    );
+}
+
+/// 后端价税写入腿的正向公式禁回潮锁，逐行加跨行拼串全量施加判定。
 #[test]
 fn tax_path_has_no_forward_multiply_formula() {
     for (path, raw) in TAX_PATH_SOURCES {
-        let src = raw.replace('\r', "");
-        for (idx, line) in src.lines().enumerate() {
-            if is_comment_line(line) {
-                continue;
-            }
-            assert_backend_line_clean(path, idx + 1, line, &compact(line));
-        }
-        // 跨行遮蔽补扫：rustfmt 会把乘号放在行首，形成 `* (rust_decimal::Decimal::ONE` 加
-        // 下一行 `+ tax_pct ...` 的算子续行；这类行行首是 `*`，与块注释续行形态相同，
-        // 若逐行判注释再拼接会把变异形态整行滤掉造成假绿（变异自证轮实测三连假绿根因）。
-        // 因此本补扫对全文行不做注释过滤，直接拼串查「乘号括号后跟 1+税率或 Decimal::ONE+」
-        // 与「乘 tax 前缀标识符」两个硬形态；档位字面量因字符串与 doc 注释可含合法小数，
-        // 仍按逐行加注释跳过判定，不在拼串层判。
-        let joined: String = src.lines().map(compact).collect::<Vec<String>>().join("");
-        assert!(
-            !has_mul_one_plus(&joined),
-            "{path} 出现跨行拼接后仍成立的「乘 (1 + 税率)」正向公式形态（全文拼串命中，文件级点名）"
-        );
-        assert!(
-            !joined.contains("*tax"),
-            "{path} 出现跨行拼接后仍成立的「乘税率标识符」正向公式形态（全文拼串命中，文件级点名）"
-        );
-        // 反序加数窗口形态同样补跨行拼串判定；接收者点号形态不进拼串层
-        // （`*` 起头的块注释续行在拼串里会产生注释星号假命中，逐行层已覆盖该形态）
-        assert!(
-            !has_mul_tax_reverse_addend(&joined),
-            "{path} 出现跨行拼接后仍成立的「乘括号窗口内税率与 +1 或 +Decimal::ONE 反序加数」正向公式形态（全文拼串命中，文件级点名）"
-        );
+        scan_tax_leg_source(path, raw);
     }
 }
 
 /// 前端同口径锁，含税单价是录入事实，派生腿只准除法反算。
 /// 历史违规点位（OrderFormDialog 硬编码 0.13 与 1.13、QuotationItemEditor 浮点乘 1+税率）
-/// 一旦改回乘法必须判红并点名。
+/// 一旦改回乘法必须判红并点名文件与行号。
 #[test]
 fn frontend_tax_legs_have_no_forward_multiply_formula() {
     for (path, raw) in FRONTEND_TAX_SOURCES {
-        let src = raw.replace('\r', "");
-        for (idx, line) in src.lines().enumerate() {
-            if is_comment_line(line) {
-                continue;
-            }
-            let c = compact(line);
-            assert!(
-                !has_mul_one_plus(&c),
-                "{path} 第 {} 行出现「乘 (1 + 税率)」造含税的正向公式: {}",
-                idx + 1,
-                line.trim()
-            );
-            // 反序加数形态：`*(item.tax_percent + 1)`（税率在前、1 在后）
-            assert!(
-                !has_mul_tax_reverse_addend(&c),
-                "{path} 第 {} 行出现「乘括号窗口内税率与 +1 反序加数」造含税的正向公式: {}",
-                idx + 1,
-                line.trim()
-            );
-            // 接收者点号形态：`*row.taxRate` 与 `*item.tax_percent`
-            assert!(
-                !mul_by_tax_path_identifier(&c),
-                "{path} 第 {} 行出现「乘税率标识符（含点号接收者形态）」造税额的正向公式: {}",
-                idx + 1,
-                line.trim()
-            );
-            // 前端税率标识符驼峰与下划线两种形态都钉
-            for var in ["*taxRate", "*tax_rate", "*taxPercent", "*tax_percent"] {
-                assert!(
-                    !c.contains(var),
-                    "{path} 第 {} 行出现「乘税率变量」造税额的正向公式: {}",
-                    idx + 1,
-                    line.trim()
-                );
-            }
-            for lit in FORBIDDEN_TIER_LITERALS {
-                assert!(
-                    !contains_tier_literal(&c, lit),
-                    "{path} 第 {} 行出现硬编码增值税档位 {lit}: {}",
-                    idx + 1,
-                    line.trim()
-                );
-            }
-        }
-        // 跨行遮蔽补扫（与后端同一根因）：prettier 可能把二元乘号换行到续行行首，
-        // 行首 `*` 被逐行注释判定滤掉造成假绿；拼串层只判括号窗口两形态
-        // （`*(` 正序与反序加数），接收者点号形态不进拼串层——
-        // JSDoc 与块注释的 `*` 续行在拼串里会产生注释星号假命中，逐行层已覆盖。
-        let joined: String = src.lines().map(compact).collect::<Vec<String>>().join("");
+        scan_tax_leg_source(path, raw);
+    }
+}
+
+/// 扫描清单完整性锁，钉列与扫描数组必须是同一集合。
+/// 从 TAX_PATH_SOURCES 或 FRONTEND_TAX_SOURCES 里删掉任何一条（正向公式的回潮面就此消失一处），
+/// 或者钉列与实际清单漂移（两侧同缺同序的盲区），都在此逐条点名判红，不靠人记得住清单。
+#[test]
+fn static_scan_manifest_covers_every_tax_leg() {
+    for pinned in PINNED_BACKEND_TAX_LEGS {
         assert!(
-            !has_mul_one_plus(&joined),
-            "{path} 出现跨行拼接后仍成立的「乘 (1 + 税率)」正向公式形态（全文拼串命中，文件级点名）"
-        );
-        assert!(
-            !has_mul_tax_reverse_addend(&joined),
-            "{path} 出现跨行拼接后仍成立的「乘括号窗口内税率与 +1 反序加数」正向公式形态（全文拼串命中，文件级点名）"
+            TAX_PATH_SOURCES.iter().any(|(path, _)| path == pinned),
+            "后端价税写入腿 {pinned} 不在扫描清单里，删清单条目等于给正向公式开缺口"
         );
     }
+    assert_eq!(
+        TAX_PATH_SOURCES.len(),
+        PINNED_BACKEND_TAX_LEGS.len(),
+        "后端扫描清单与钉列条数不一致，存在清单外的多余条目或钉列漏项（两侧同缺同序即在此判红）"
+    );
+    for pinned in PINNED_FRONTEND_TAX_LEGS {
+        assert!(
+            FRONTEND_TAX_SOURCES.iter().any(|(path, _)| path == pinned),
+            "前端含税录入与派生腿 {pinned} 不在扫描清单里，删清单条目等于给正向公式开缺口"
+        );
+    }
+    assert_eq!(
+        FRONTEND_TAX_SOURCES.len(),
+        PINNED_FRONTEND_TAX_LEGS.len(),
+        "前端扫描清单与钉列条数不一致，存在清单外的多余条目或钉列漏项"
+    );
+    // 每枚扫描对象必须真的有内容（include_str! 指向空文件或被截断等于假绿）
+    for (path, raw) in TAX_PATH_SOURCES.iter().chain(FRONTEND_TAX_SOURCES.iter()) {
+        assert!(
+            raw.len() > 200,
+            "{path} 的源码原文不足 200 字节，扫描对象疑似被掏空"
+        );
+    }
+}
+
+/// 判定器形态自检锁。变异自证两轮证明的是「源码真被扫到、判红能点名」，
+/// 本锁证明的是判定函数本身，三件事缺一不可：
+/// ① 每一种禁止书写形态都命中（限定前缀、空格、反序加数、点号接收者、驼峰与下划线、档位字面量）；
+/// ② 合法形态一律不误判（除法反算、单价乘数量的事实聚合、税额分摊、观察式反推税率），
+///    否则下一轮真改动会因为误报被人为放宽禁列，锁就废了；
+/// ③ 一行里既有合法 `*(` 又有违规 `*(` 时照样命中（防只看首个匹配）。
+#[test]
+fn forward_formula_judges_reject_every_shape_and_tolerate_legal_forms() {
+    // ① 禁止形态，逐条必须命中
+    let forbidden: &[&str] = &[
+        "letinclusive=net*(Decimal::ONE+tax_percent/PERCENT);",
+        "letinclusive=net*(rust_decimal::Decimal::ONE+tax_percent/dec100);",
+        "letinclusive=net*(1+taxPercent/100);",
+        "letinclusive=net*(taxRate+1);",
+        "letinclusive=net*(tax_percent/100+Decimal::ONE);",
+        "lettax=net*tax_percent/100;",
+        "lettax=item.tax_amount*item.tax_percent;",
+        "lettax=row.total*taxRate;",
+        "lettax=qty*tax;",
+        "letinclusive=net*1.13;",
+        "lettax=net*0.13;",
+        "letinclusive=net*1.055;",
+        // 只看首个匹配的盲区，前一处 *( 合法、后一处 *( 违规
+        "letx=f*(q+1)*(Decimal::ONE+tax_percent/PERCENT);",
+    ];
+    for form in forbidden {
+        let hits = forward_formula_hits(form);
+        let tier = FORBIDDEN_TIER_LITERALS
+            .iter()
+            .any(|lit| contains_tier_literal(form, lit));
+        assert!(
+            !hits.is_empty() || tier,
+            "判定器漏判禁止形态 {form}，正向公式换个写法就能绕过本锁"
+        );
+    }
+    // ② 合法形态，一律不得命中（命中即误报，真改动会被当成违规而被放宽）
+    let legal: &[&str] = &[
+        "letnet=(inclusive.round_dp(2)/(Decimal::ONE+tax_percent/PERCENT)).round_dp(2);",
+        "letnet=roundToCent(roundToCent(inclusive)/(1+taxPercent/100));",
+        "letnet=netFromInclusive(inclusive,tax_rate);",
+        "lettax=inclusive-net;",
+        "letamount=(unit_price_with_tax*quantity).round_dp(2);",
+        "letdiscount=(list_inclusive*percent/PERCENT).round_dp(2);",
+        "lettax_share=(recorded_tax*share_numerator/share_denominator).round_dp(2);",
+        "letpct=tax_amount/base*PERCENT;",
+        "letsum=net+tax;",
+        "letpool=i.unit_price_with_tax*(qty||0);",
+        // 单价聚合里乘号后跟的是数量与含税事实，不是税率
+        "lettotal=price*quantity_with_tax;",
+    ];
+    for ok in legal {
+        let hits = forward_formula_hits(ok);
+        assert!(
+            hits.is_empty()
+                && !FORBIDDEN_TIER_LITERALS
+                    .iter()
+                    .any(|lit| contains_tier_literal(ok, lit)),
+            "判定器误判合法形态 {ok}，命中 {:?}，误报会让后来人放宽禁列",
+            hits.iter().map(|(form, _)| *form).collect::<Vec<&str>>()
+        );
+    }
+    // ③ 注释剥离状态机，续行行首的乘号不得被当成块注释跳过（遮蔽盲区），
+    //    块注释里的说明性公式不得进拼串（误报盲区）
+    let split_formula =
+        "fn f() {\n    let inclusive = net\n        * (Decimal::ONE + tax_percent / PERCENT);\n}\n";
+    let lines = code_lines_of(&split_formula.replace('\r', ""));
+    assert!(
+        lines
+            .iter()
+            .any(|(_, code)| forward_formula_hits(&compact(code)).len() == 1),
+        "行首乘号的算子续行被注释判定吞掉，跨行遮蔽的假绿盲区复活"
+    );
+    let doc_formula = "/*\n * 说明 禁止 net * (Decimal::ONE + tax_percent / PERCENT) 这种写法\n */\nlet net = inclusive;\n";
+    let doc_lines = code_lines_of(&doc_formula.replace('\r', ""));
+    assert!(
+        doc_lines
+            .iter()
+            .all(|(_, code)| forward_formula_hits(&compact(code)).is_empty()),
+        "块注释里的说明性公式混进了扫描清单，注释形态会产误报"
+    );
+    assert_eq!(
+        doc_lines.len(),
+        1,
+        "块注释剥完应当只剩一行真代码，实得 {:?}",
+        doc_lines
+    );
 }
 
 /// 正向锁，价税写入腿必须真的调用内核反算单源，而不是各自写一套合并逻辑（防删调用改回内联）。
@@ -730,7 +1011,8 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
         );
     }
     // 前端派生腿：同源单函数 netFromInclusive 必须保有一处除法反算，
-    // 报价明细编辑器与报价表头合计必须真调该单源，不许内联第二套公式
+    // 报价明细编辑器、报价表头合计、销售订单建单行与采购订单建单行四条派生腿
+    // 必须真调该单源，不许内联第二套公式
     let money = read_frontend_source("frontend/src/utils/money.ts");
     assert!(
         money.contains("export function netFromInclusive")
@@ -740,6 +1022,8 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
     for path in [
         "frontend/src/views/quotations/components/QuotationItemEditor.vue",
         "frontend/src/views/quotations/create.vue",
+        "frontend/src/views/sales/OrderFormDialog.vue",
+        "frontend/src/views/purchase/composables/useCreate.ts",
     ] {
         let src = read_frontend_source(path);
         assert!(
@@ -747,6 +1031,23 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
             "{path} 不含税净额必须真调 money.ts 的 netFromInclusive 单源，内联第二套公式即判红"
         );
     }
+    // 税额取差额的单源入口，采购与销售两条建单腿都必须真调
+    for path in [
+        "frontend/src/views/sales/OrderFormDialog.vue",
+        "frontend/src/views/purchase/composables/useCreate.ts",
+    ] {
+        let src = read_frontend_source(path);
+        assert!(
+            src.contains("taxFromInclusive"),
+            "{path} 税额必须真调 money.ts 的 taxFromInclusive（含税减净额取差额），不得自己乘税率造税额"
+        );
+    }
+    // 销售订单行含税单价还原腿：只能由已落库含税额除数量还原，禁止按税率倒造含税价
+    let olv = read_frontend_source("frontend/src/views/sales/composables/useOlv.ts");
+    assert!(
+        olv.contains("total_amount") && olv.contains("roundToCent"),
+        "frontend/src/views/sales/composables/useOlv.ts 的含税单价必须继续由已落库含税额还原，改回按税率倒造即判红"
+    );
 }
 
 /// 按路径读取后端扫描对象原文，清单外路径直接 panic（防正向锁悄悄失焦）。
