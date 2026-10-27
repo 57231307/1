@@ -2913,8 +2913,6 @@ export default {
       start: '开始',
       end: '结束',
       approval: '审批',
-      condition: '条件',
-      notify: '通知',
     },
     approval: {
       title: '审批中心',

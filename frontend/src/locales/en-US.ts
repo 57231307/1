@@ -2934,8 +2934,6 @@ export default {
       start: 'Start',
       end: 'End',
       approval: 'Approval',
-      condition: 'Condition',
-      notify: 'Notify',
     },
     approval: {
       title: 'Approval Center',
