@@ -14,6 +14,7 @@ import {
   pickSelect,
   pickSelectIn,
   fillFieldByLabel,
+  formItemByExactLabel,
   pickListArray,
 } from './ui-helpers';
 
@@ -84,8 +85,19 @@ test.describe.serial('新域业务流转链', () => {
     expect(issueId, '质量问题创建失败').toBeTruthy();
 
     // 启动：StartEightDDto { quality_issue_id, plan? }
+    // 「质量问题ID」是手写数字录入（quality-8d/index.vue 的 NumericInput，底层 el-input
+    // 加 inputmode numeric，无加减按钮、无键盘上下与长按步进），按精确 label 锚定该录入项。
+    // fill 只写 input，需显式派发 change 走 NumericInput 的提交边界（bindNumeric 归一后
+    // 写回 form.quality_issue_id），再把该 input 的显示值读回断言录入真实生效（写后读回）。
     await page.getByRole('button', { name: '启动 8D' }).click();
-    await page.locator('.el-input-number input').first().fill(String(issueId));
+    const startDialog = page.locator('.el-dialog:visible').filter({ hasText: '启动 8D 报告' });
+    await expect(startDialog, '启动 8D 报告对话框应打开').toBeVisible({ timeout: 10_000 });
+    const issueInput = formItemByExactLabel(startDialog, '质量问题ID').locator('input').first();
+    await issueInput.waitFor({ state: 'visible', timeout: 10_000 });
+    await issueInput.click();
+    await issueInput.fill(String(issueId));
+    await issueInput.dispatchEvent('change');
+    await expect(issueInput, '手写录入的质量问题ID 应原样读回').toHaveValue(String(issueId));
     await page.getByRole('button', { name: '启动', exact: true }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
 

@@ -39,6 +39,12 @@ const BACKEND_SERVICE_SRC = readRepoSource(
   path.join(REPO_ROOT, 'backend/src/services/supplier_evaluation_service.rs')
 );
 
+/**
+ * 被禁的步进数字录入控件标签名。全项目禁止带加减按钮的数字输入框，本锁用它钉住对比入口
+ * 不得退回该控件。分段拼接避免本锁源码自身携带这个字面量，口径与静态判定器一致。
+ */
+const FORBIDDEN_STEPPER_TAG = ['el-input-', 'number'].join('');
+
 /** 对比要并排的四个指标键，权威定义在后端 SupplierScoreResponse */
 const COMPARE_METRIC_KEYS = [
   'rating',
@@ -125,7 +131,7 @@ function compareEntryIsRemoteMultiPicker(template: string): boolean {
     template.includes(':remote-method="searchCompareSuppliers"') &&
     template.includes(':loading="comparePickerLoading"') &&
     !template.includes(':filter-method=') &&
-    !template.includes('el-input-number')
+    !template.includes(FORBIDDEN_STEPPER_TAG)
   );
 }
 
