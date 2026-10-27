@@ -85,12 +85,21 @@ export function useOlvProc(refresh: RefreshCallbacks) {
    * 明细行 → 后端 SalesOrderItemRequest 契约映射：
    * product_id/quantity/unit_price 非 Option 必填；color_no 空串=白坯布为业务语义，按原样透传；
    * quantity_tolerance_pct 未填=null（后端 Option，走默认解析：品类>全局）。
-   * id/product_name/product_code/unit/subtotal 为响应/表单派生列，不在请求契约，不下发。
+   * 价税两键必须同批下发：unit_price_with_tax 是含税单价的录入事实（十进制字符串走线，
+   * utils/tax.rs 的 require_inclusive_unit_price 以它作除法反算的唯一起点），
+   * tax_percent 是本行百分数口径税率；两者只报一个都不行——缺含税单价时税率非 0 的行
+   * 被后端点名拒绝，缺税率时含税单价的除法反算退化成等值、税额落 0。
+   * unit_price 是含税单价按税率反算出的派生只读值，后端 ensure_unit_price_reconciles
+   * 逐分复核，与本行含税事实不同源即拒绝。
+   * id/product_name/product_code/unit/subtotal/tax_amount 为响应或表单派生列，
+   * 不在请求契约，不下发。
    */
   const toItemPayload = (it: OrderItemForm): SalesOrderItemPayload => ({
     product_id: it.product_id as number,
     quantity: it.quantity,
     unit_price: it.unit_price,
+    unit_price_with_tax: it.unit_price_with_tax.trim(),
+    tax_percent: it.tax_percent,
     color_no: it.color_no,
     quantity_tolerance_pct: it.quantity_tolerance_pct ?? null,
   });

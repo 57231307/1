@@ -80,7 +80,7 @@ const recoverInclusiveUnitPriceText = (it: SalesOrderItem): string => {
     return String(it.final_price);
   }
   const quantity = decimalWireToNumber(it.quantity);
-  const discount = decimalWireToNumber(it.discount_amount ?? 0);
+  const discount = decimalWireToNumber(it.discount_amount);
   if (discount !== 0 || quantity <= 0) return '';
   return String(roundToCent(decimalWireToNumber(it.total_amount) / quantity));
 };
@@ -421,12 +421,13 @@ export function useOlv() {
         // 含税单价回显只有两条合法腿：报价带入的 final_price 事实，或「成交含税额 ÷ 数量」
         // 的除法还原（有折扣行还原不出标价含税单价，留空要求人工录入，见上面的取法说明）
         unit_price_with_tax: recoverInclusiveUnitPriceText(it),
-        // 税率是后端 sales_order_items.tax_percent 的百分数原值（未落值时保持 undefined）
-        tax_percent: it.tax_rate != null ? Number(it.tax_rate) : undefined,
+        // 税率取 sales_order_items.tax_percent 列的百分数原值（出参恒存在，十进制字符串
+        // 经 decimalWireToNumber 归一），0 是人工显式声明的免税或不含税值，不是缺省代填
+        tax_percent: decimalWireToNumber(it.tax_percent),
         // 下面三列是后端权威派生值，回显只读，不接受前端二次计算覆盖
         unit_price: it.unit_price,
         subtotal: it.subtotal,
-        tax_amount: it.tax_amount != null ? Number(it.tax_amount) : undefined,
+        tax_amount: decimalWireToNumber(it.tax_amount),
         // 后端 Decimal 序列化为字符串，el-input-number 需数值：非空才 Number() 归一，真实空值保持 undefined
         quantity_tolerance_pct:
           it.quantity_tolerance_pct != null ? Number(it.quantity_tolerance_pct) : undefined,

@@ -48,10 +48,18 @@ export interface SalesOrderItem {
   /** 后端 SalesOrderItemDetail 无 unit 键，需后端补 unit */
   unit: string | null;
   unit_price: number;
-  tax_rate?: number;
-  tax_amount?: number;
-  discount_rate?: number;
-  discount_amount?: number;
+  /**
+   * 后端权威出参实名，取自 services/so/mod.rs::SalesOrderItemDetail（无 rename_all，
+   * snake_case，键恒存在）：税率是 tax_percent、税额是 tax_amount、折扣是 discount_percent
+   * 与 discount_amount，四列在 sales_order_items 表均为 NOT NULL DECIMAL，故声明为必填。
+   * rust_decimal 未启 serde-floats，出参走十进制字符串，消费侧用 utils/money.ts 的
+   * decimalWireToNumber 或 Number() 归一后再参与运算。
+   * 调用方：销售订单编辑回显 useOlv.ts 的 prepareEdit 与含税单价还原腿。
+   */
+  tax_percent: number | string;
+  tax_amount: number | string;
+  discount_percent: number | string;
+  discount_amount: number | string;
   subtotal: number;
   /**
    * 后端 SalesOrderItemDetail.total_amount（成交含税额，Decimal 出参为字符串或数值）。
