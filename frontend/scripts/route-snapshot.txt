@@ -1,4 +1,4 @@
-# layers=8 endpoints=1772
+# layers=8 endpoints=1774
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -471,6 +471,7 @@ GET	/api/v1/erp/execute	report_engine_handler::execute_report	analytics
 GET	/api/v1/erp/export	report_engine_handler::export_report	analytics
 GET	/api/v1/erp/export-approvals	export_approval_handler::list_approval_requests	system
 GET	/api/v1/erp/export-approvals/*	export_approval_handler::get_approval_request	system
+GET	/api/v1/erp/export-approvals/*/token-once	export_approval_handler::view_token_once	system
 GET	/api/v1/erp/export-approvals/pending-for-me	export_approval_handler::list_pending_for_me	system
 GET	/api/v1/erp/export-approvals/verify-token	export_approval_handler::verify_token	system
 GET	/api/v1/erp/export-inspections	export_inspection_handler::list_inspections	export_inspection_routes
@@ -1227,6 +1228,7 @@ POST	/api/v1/erp/export-approvals	export_approval_handler::create_approval_reque
 POST	/api/v1/erp/export-approvals/*/approve	export_approval_handler::approve_request	system
 POST	/api/v1/erp/export-approvals/*/cancel	export_approval_handler::cancel_request	system
 POST	/api/v1/erp/export-approvals/*/reject	export_approval_handler::reject_request	system
+POST	/api/v1/erp/export-approvals/*/rotate-token	export_approval_handler::rotate_token	system
 POST	/api/v1/erp/export-inspections	export_inspection_handler::create_inspection	export_inspection_routes
 POST	/api/v1/erp/export-refunds/customs-declarations	export_refund_handler::create_customs_declaration	export_refund
 POST	/api/v1/erp/export-refunds/refund-calculation	export_refund_handler::calculate_refund	export_refund
