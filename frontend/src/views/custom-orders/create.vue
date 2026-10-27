@@ -104,11 +104,7 @@
           prop="total_amount"
           for="co-create-total-amount"
         >
-          <el-input
-            id="co-create-total-amount"
-            v-model="form.total_amount"
-            inputmode="decimal"
-          />
+          <el-input id="co-create-total-amount" v-model="form.total_amount" inputmode="decimal" />
           <el-select v-model="form.currency" style="width: 100px; margin-left: 8px">
             <el-option label="CNY" value="CNY" />
             <el-option label="USD" value="USD" />

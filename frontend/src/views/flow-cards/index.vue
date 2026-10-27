@@ -131,11 +131,7 @@
         </el-form-item>
         <el-form-item :label="t('flowCards.index.labelProductId')" prop="product_id">
           <!-- 产品由所选生产订单带出，只读展示，不允许手改 -->
-          <el-input
-            :model-value="numericView(formData.product_id)"
-            disabled
-            style="width: 100%"
-          />
+          <el-input :model-value="numericView(formData.product_id)" disabled style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('flowCards.index.labelProductName')" prop="product_name">
           <el-input

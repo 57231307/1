@@ -116,16 +116,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="合同ID" prop="contract_id" required
-          ><el-input
-            v-model="signForm.contract_id"
-            inputmode="numeric"
-            class="w-full"
+          ><el-input v-model="signForm.contract_id" inputmode="numeric" class="w-full"
         /></el-form-item>
         <el-form-item label="签署人ID" prop="signer_id" required
-          ><el-input
-            v-model="signForm.signer_id"
-            inputmode="numeric"
-            class="w-full"
+          ><el-input v-model="signForm.signer_id" inputmode="numeric" class="w-full"
         /></el-form-item>
       </el-form>
       <template #footer>
@@ -137,16 +131,13 @@
     <el-dialog v-model="shareVisible" title="共享客户" width="480">
       <el-form ref="shareFormRef" :model="shareForm" :rules="shareRules" label-width="110px">
         <el-form-item label="客户ID" prop="customer_id" required
-          ><el-input
-            v-model="shareForm.customer_id"
-            inputmode="numeric"
-            class="w-full"
+          ><el-input v-model="shareForm.customer_id" inputmode="numeric" class="w-full"
         /></el-form-item>
-        <el-form-item :label="t('crmCustomerShare.sharedToUserId')" prop="shared_to_user_id" required
-          ><el-input
-            v-model="shareForm.shared_to_user_id"
-            inputmode="numeric"
-            class="w-full"
+        <el-form-item
+          :label="t('crmCustomerShare.sharedToUserId')"
+          prop="shared_to_user_id"
+          required
+          ><el-input v-model="shareForm.shared_to_user_id" inputmode="numeric" class="w-full"
         /></el-form-item>
         <el-form-item label="权限" required>
           <!-- 后端词表唯一真相：customer_share.rs SHARE_PERMISSION_VIEW/EDIT/FULL = view/edit/full，
@@ -167,10 +158,7 @@
     <el-dialog v-model="teamVisible" title="添加团队成员" width="460">
       <el-form ref="teamFormRef" :model="teamForm" :rules="teamFormRules" label-width="110px">
         <el-form-item label="客户ID" prop="customer_id" required
-          ><el-input
-            v-model="teamForm.customer_id"
-            inputmode="numeric"
-            class="w-full"
+          ><el-input v-model="teamForm.customer_id" inputmode="numeric" class="w-full"
         /></el-form-item>
         <el-form-item label="用户ID" prop="user_id" required
           ><el-input v-model="teamForm.user_id" inputmode="numeric" class="w-full"
@@ -260,7 +248,7 @@ async function onSign() {
     return;
   }
   let valid = false;
-  await signFormRef.value?.validate((ok) => {
+  await signFormRef.value?.validate(ok => {
     valid = ok;
   });
   if (!valid) return;
@@ -338,7 +326,7 @@ async function onShare() {
     return;
   }
   let valid = false;
-  await shareFormRef.value?.validate((ok) => {
+  await shareFormRef.value?.validate(ok => {
     valid = ok;
   });
   if (!valid) return;
@@ -412,7 +400,7 @@ async function onLoadTeam() {
 /** 工具栏查询表单级校验（数字范围与整数性由单源校验器判定），失败即拦截动作 */
 async function validateTeamQuery(): Promise<boolean> {
   let ok = false;
-  await teamQueryRef.value?.validate((valid) => {
+  await teamQueryRef.value?.validate(valid => {
     ok = valid;
   });
   return ok;
@@ -424,7 +412,7 @@ async function onAddMember() {
     return;
   }
   let valid = false;
-  await teamFormRef.value?.validate((ok) => {
+  await teamFormRef.value?.validate(ok => {
     valid = ok;
   });
   if (!valid) return;

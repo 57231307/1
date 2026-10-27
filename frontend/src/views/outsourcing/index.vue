@@ -227,12 +227,7 @@
       "
       width="560"
     >
-      <el-form
-        ref="orderFormRef"
-        :model="form"
-        :rules="orderRules"
-        label-width="110px"
-      >
+      <el-form ref="orderFormRef" :model="form" :rules="orderRules" label-width="110px">
         <el-form-item v-if="!editingId" :label="$t('outsourcing.columns.orderNo')" required>
           <el-input v-model="form.order_no" readonly />
         </el-form-item>
@@ -280,11 +275,7 @@
           prop="issue_quantity"
           required
         >
-          <el-input
-            v-model="form.issue_quantity"
-            inputmode="decimal"
-            class="w-full"
-          />
+          <el-input v-model="form.issue_quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.unit')">
           <el-input v-model="form.issue_unit" placeholder="kg / m" />
@@ -299,7 +290,11 @@
         </el-form-item>
         <!-- 三费录入（缺陷②修复）：outsourcing_order NOT NULL 列（后端 v15:3247-3249），
              建单必填可填 0；结算 FEE 凭证金额=加工费+运费，不录入成本链恒 0 -->
-        <el-form-item :label="$t('outsourcing.columns.processingFee')" prop="processing_fee" required>
+        <el-form-item
+          :label="$t('outsourcing.columns.processingFee')"
+          prop="processing_fee"
+          required
+        >
           <el-input
             v-model="form.processing_fee"
             inputmode="decimal"
@@ -435,16 +430,8 @@
       width="520"
     >
       <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-width="110px">
-        <el-form-item
-          :label="$t('outsourcing.columns.productId')"
-          prop="product_id"
-          required
-        >
-          <el-input
-            v-model="itemForm.product_id"
-            inputmode="numeric"
-            class="w-full"
-          />
+        <el-form-item :label="$t('outsourcing.columns.productId')" prop="product_id" required>
+          <el-input v-model="itemForm.product_id" inputmode="numeric" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.colorNo')"
           ><el-input v-model="itemForm.color_no"
@@ -470,29 +457,17 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item
-          :label="$t('outsourcing.columns.quantity')"
-          prop="quantity"
-          required
-        >
+        <el-form-item :label="$t('outsourcing.columns.quantity')" prop="quantity" required>
           <el-input v-model="itemForm.quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.unit')"
           ><el-input v-model="itemForm.unit" placeholder="kg / m"
         /></el-form-item>
-        <el-form-item
-          :label="$t('outsourcing.columns.unitCost')"
-          prop="unit_cost"
-          required
-        >
+        <el-form-item :label="$t('outsourcing.columns.unitCost')" prop="unit_cost" required>
           <el-input v-model="itemForm.unit_cost" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.processingFee')" prop="processing_fee">
-          <el-input
-            v-model="itemForm.processing_fee"
-            inputmode="decimal"
-            class="w-full"
-          />
+          <el-input v-model="itemForm.processing_fee" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.freightFee')" prop="freight_fee">
           <el-input v-model="itemForm.freight_fee" inputmode="decimal" class="w-full" />
@@ -514,12 +489,7 @@
       :title="$t('outsourcing.actions.createReceipt')"
       width="560"
     >
-      <el-form
-        ref="receiptFormRef"
-        :model="receiptForm"
-        :rules="receiptRules"
-        label-width="110px"
-      >
+      <el-form ref="receiptFormRef" :model="receiptForm" :rules="receiptRules" label-width="110px">
         <el-form-item :label="$t('outsourcing.columns.receiptNo')" required>
           <el-input v-model="receiptForm.receipt_no" readonly />
         </el-form-item>
@@ -552,11 +522,7 @@
           prop="return_quantity"
           required
         >
-          <el-input
-            v-model="receiptForm.return_quantity"
-            inputmode="decimal"
-            class="w-full"
-          />
+          <el-input v-model="receiptForm.return_quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.lossQuantity')" prop="loss_quantity">
           <el-input v-model="receiptForm.loss_quantity" inputmode="decimal" class="w-full" />
@@ -1318,8 +1284,8 @@ const onSaveReceipt = async () => {
       quality_status: receiptForm.quality_status || null,
       grade: receiptForm.grade || null,
       remarks: receiptForm.remarks || null,
-      // 建单直写口径（CreateOutsourcingReceiptRequest.weight/width/gram_weight
-      // types.rs:230-234 Option<Decimal>）：留空=空串=如实落 NULL（未补录），
+      // 建单直写口径（CreateOutsourcingReceiptRequest 的 weight width gram_weight 为
+      // Option<Decimal>）：留空=空串=如实落 NULL（未补录），
       // 建单无"保持原值"态故不涉及键缺席；>0 已由 checkMeasuredPositive 前置拦截
       weight: receiptForm.weight.trim() === '' ? null : Number(receiptForm.weight),
       width: receiptForm.width.trim() === '' ? null : Number(receiptForm.width),
@@ -1379,8 +1345,7 @@ const openMeasuredDialog = (row: OutsourcingReceipt) => {
   // 灌入手写录入框；null=未补录=留空
   measuredForm.weight = row.weight == null ? '' : numericView(Number(row.weight), 4);
   measuredForm.width = row.width == null ? '' : numericView(Number(row.width), 4);
-  measuredForm.gram_weight =
-    row.gram_weight == null ? '' : numericView(Number(row.gram_weight), 4);
+  measuredForm.gram_weight = row.gram_weight == null ? '' : numericView(Number(row.gram_weight), 4);
   measuredDialogVisible.value = true;
 };
 
@@ -1391,10 +1356,7 @@ const openMeasuredDialog = (row: OutsourcingReceipt) => {
  * 留空且原值有 ⇒ null（显式清空回"未补录"）；
  * 有值 ⇒ 覆盖写入。
  */
-function measuredTriState(
-  cur: string,
-  orig: string | null
-): number | null | undefined {
+function measuredTriState(cur: string, orig: string | null): number | null | undefined {
   if (cur.trim() === '') {
     return orig == null ? undefined : null;
   }

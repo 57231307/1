@@ -105,11 +105,7 @@
           prop="total_amount"
           for="co-edit-total-amount"
         >
-          <el-input
-            id="co-edit-total-amount"
-            v-model="form.total_amount"
-            inputmode="decimal"
-          />
+          <el-input id="co-edit-total-amount" v-model="form.total_amount" inputmode="decimal" />
           <el-select v-model="form.currency" style="width: 100px; margin-left: 8px">
             <el-option label="CNY" value="CNY" />
             <el-option label="USD" value="USD" />
@@ -316,8 +312,7 @@ onMounted(async () => {
         expected_delivery_date: detail.expected_delivery_date?.slice(0, 10) || '',
         total_amount: detail.total_amount ? numericView(Number(detail.total_amount), 2) : '',
         currency: detail.currency || 'CNY',
-        sales_order_id:
-          detail.sales_order_id == null ? '' : String(detail.sales_order_id),
+        sales_order_id: detail.sales_order_id == null ? '' : String(detail.sales_order_id),
         notes: detail.notes || '',
       };
       // 定制要求 JSONB 回填（note 字段）

@@ -157,11 +157,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('labDip.index.labelSampleVersions')" prop="sample_versions">
-          <el-input
-            v-model="formData.sample_versions"
-            inputmode="numeric"
-            style="width: 100%"
-          />
+          <el-input v-model="formData.sample_versions" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('labDip.index.colRequiredDate')" prop="required_date">
           <el-date-picker

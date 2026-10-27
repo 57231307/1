@@ -158,12 +158,7 @@
 
     <!-- 新增节点（createProcessNode） -->
     <el-dialog v-model="nodeDialogVisible" :title="t('customOrders.detail.addNode')" width="480">
-      <el-form
-        ref="nodeFormRef"
-        :model="nodeForm"
-        :rules="nodeRules"
-        label-width="110px"
-      >
+      <el-form ref="nodeFormRef" :model="nodeForm" :rules="nodeRules" label-width="110px">
         <el-form-item :label="t('customOrders.detail.nodeType')" required>
           <el-select v-model="nodeForm.node_type" style="width: 100%">
             <el-option label="裁剪" value="cutting" />
@@ -177,11 +172,7 @@
         <el-form-item :label="t('customOrders.detail.nodeName')" required>
           <el-input v-model="nodeForm.node_name" />
         </el-form-item>
-        <el-form-item
-          :label="t('customOrders.detail.nodeSequence')"
-          prop="sequence"
-          required
-        >
+        <el-form-item :label="t('customOrders.detail.nodeSequence')" prop="sequence" required>
           <el-input v-model="nodeForm.sequence" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('customOrders.detail.plannedStart')">
