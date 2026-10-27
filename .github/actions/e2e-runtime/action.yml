@@ -89,9 +89,12 @@ runs:
     - name: 安装 postgresql-client
       if: inputs.pg-client == 'true'
       shell: bash
+      timeout-minutes: 10
       run: |
-        sudo apt-get update
-        sudo apt-get install -y postgresql-client
+        # apt 镜像在 runner 上偶发无响应挂起，会一直占满 job 时限才被取消，
+        # 因此显式设连接超时与重试次数，并给本步单独设分钟级上限。
+        sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+        sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y postgresql-client
 
     - name: Setup Frontend（Node.js + npm 缓存 + npm ci）
       uses: ./.github/actions/setup-frontend

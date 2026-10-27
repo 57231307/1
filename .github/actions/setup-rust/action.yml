@@ -73,9 +73,11 @@ runs:
     - name: 安装系统依赖
       if: inputs.system-deps != ''
       shell: bash
+      timeout-minutes: 10
       run: |
-        sudo apt-get update
-        sudo apt-get install -y ${{ inputs.system-deps }}
+        # 同上 apt 挂起防护：无响应即按超时失败并由 CI 重试工装重跑，不再吃满 job 时限。
+        sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+        sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y ${{ inputs.system-deps }}
 
     - name: 智能探测可用内存并设置并行度（防 OOM，用满不 OOM 的最大上限）
       shell: bash
