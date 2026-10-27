@@ -1,5 +1,6 @@
 # Composite action：统一 Rust 工具链 + 缓存 + 可选系统依赖（消除 6 个 job 重复配置）
 name: Setup Rust Toolchain
+description: 统一安装 Rust 工具链与缓存并可选装系统依赖，供各 job 复用
 inputs:
   components:
     description: 'Rust components（如 rustfmt, clippy, llvm-tools-preview；空=不装额外组件）'
