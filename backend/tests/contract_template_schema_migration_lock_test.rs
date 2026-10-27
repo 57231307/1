@@ -508,7 +508,9 @@ fn declared_constraint_names_are_exactly_the_pinned_set() {
         let mut found: BTreeSet<String> = BTreeSet::new();
         for raw in src.lines() {
             let line = raw.trim();
-            let Some(at) = line.find("CONSTRAINT ") else { continue };
+            let Some(at) = line.find("CONSTRAINT ") else {
+                continue;
+            };
             let tail = &line[at + "CONSTRAINT ".len()..];
             let name = object_name(tail);
             if name.is_empty() || name == "IF" {
@@ -535,7 +537,10 @@ fn declared_constraint_names_are_exactly_the_pinned_set() {
             // 允许两种形态 只声明一次，或走先撤后加的幂等重建（撤与加各出现一次，合计两次）。
             // 出现两次以上却没有撤销形态，等于同名约束重复声明或探测与施加写重了。
             if count > 1 {
-                assert_eq!(count, 2, "{rel} 的约束名 {name} 出现 {count} 次，超过撤与加配对的两次");
+                assert_eq!(
+                    count, 2,
+                    "{rel} 的约束名 {name} 出现 {count} 次，超过撤与加配对的两次"
+                );
                 assert!(
                     src.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{name}""#)),
                     "{rel} 的约束名 {name} 出现 {count} 次但不带先撤后加的幂等形态，\
@@ -546,7 +551,8 @@ fn declared_constraint_names_are_exactly_the_pinned_set() {
     }
 
     // m0118 的 CHECK 走 for 循环加 format 注入，名单以占位形态出现在 up、以实形态出现在 down。
-    let rel = "migration/src/domain/contract_template_schema/m0118_add_contract_main_clause_columns.rs";
+    let rel =
+        "migration/src/domain/contract_template_schema/m0118_add_contract_main_clause_columns.rs";
     let src = strip_line_comments(&read(rel));
     let down_at = src
         .find("async fn down")
