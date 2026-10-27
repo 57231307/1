@@ -1,4 +1,4 @@
-//! purchase_inspection.inspection_result 值域收口，施加词表 CHECK 与收尾自证（配套 m0112a 只读点名）
+//! purchase_inspection.inspection_result 值域收口，施加词表 CHECK 与收尾自证（配套 m0113a 只读点名）
 //!
 //! 语义定案：本列权威词表唯一出现在 backend 侧 models::status::purchase_inventory::
 //! purchase_inspection_result（pass、fail、partial 三值），完成质检入口已按该白名单强校验；
@@ -24,8 +24,8 @@
 //! down 真实可逆：DROP CONSTRAINT IF EXISTS 带回滚探测，不回退数据，不复活旧越界值也不
 //! 伪造历史行，口径同 wage_energy_vocab_check 的 down。
 //!
-//! 域与注册位置：本域排 lib.rs 迁移链尾，注册在同域 up 链 m0112a 之后，先点名后收口，
-//! 收口失败时日志已有 m0112a 现场。
+//! 域与注册位置：本域排 lib.rs 迁移链尾，注册在同域 up 链 m0113a 之后，先点名后收口，
+//! 收口失败时日志已有 m0113a 现场。
 
 use sea_orm_migration::prelude::*;
 
@@ -33,7 +33,7 @@ use sea_orm_migration::prelude::*;
 pub struct Migration;
 
 /// 与 models::status::purchase_inventory::purchase_inspection_result::ALL 逐字符一致，
-/// 与 m0112a 携带同一份，由纸面锁钉两支迁移逐字相等。
+/// 与 m0113a 携带同一份，由纸面锁钉两支迁移逐字相等。
 const PURCHASE_INSPECTION_RESULT_ALLOWED: &str = "'pass','fail','partial'";
 
 const TABLE: &str = "purchase_inspection";
@@ -55,7 +55,7 @@ BEGIN
     SELECT COUNT(*) INTO bad_rows FROM "{table}"
       WHERE "{col}" IS NOT NULL AND "{col}" NOT IN ({allowed});
     IF bad_rows = 0 THEN
-        RAISE NOTICE 'm0112b 守卫 {table}.{col} 无词表外存量行，可安全施加 CHECK {constraint}';
+        RAISE NOTICE 'm0113b 守卫 {table}.{col} 无词表外存量行，可安全施加 CHECK {constraint}';
     ELSE
         SELECT string_agg(fmt, ' / ' ORDER BY fmt) INTO samples FROM (
             SELECT '''' || "{col}" || '''' || ' 乘 ' || COUNT(*)::text AS fmt
@@ -63,7 +63,7 @@ BEGIN
              WHERE "{col}" IS NOT NULL AND "{col}" NOT IN ({allowed})
              GROUP BY "{col}"
         ) b;
-        RAISE EXCEPTION 'm0112b 守卫 {table}.{col} 存在 % 行词表外取值（逐值分布 %），拒绝施加 CHECK {constraint}', bad_rows, samples
+        RAISE EXCEPTION 'm0113b 守卫 {table}.{col} 存在 % 行词表外取值（逐值分布 %），拒绝施加 CHECK {constraint}', bad_rows, samples
             USING HINT = '本迁移拒绝 UPDATE 造值，请按权威词表 models::status::purchase_inventory::purchase_inspection_result 逐行核实更正存量，更正后重跑；脏值若来自旁路写入先修写入方，不要在迁移里圆场';
     END IF;
 END
@@ -82,7 +82,7 @@ BEGIN
       WHERE conrelid = '{table}'::regclass AND conname = '{constraint}'
         AND contype = 'c' AND convalidated;
     IF n_con <> 1 THEN
-        RAISE EXCEPTION 'm0112b 收尾自证失败，{table} 上约束 {constraint} 不存在或非 CHECK 或 convalidated 为假或同名重复，命中行数 %', n_con;
+        RAISE EXCEPTION 'm0113b 收尾自证失败，{table} 上约束 {constraint} 不存在或非 CHECK 或 convalidated 为假或同名重复，命中行数 %', n_con;
     END IF;
 
     SELECT COUNT(*) INTO n_colchecks FROM pg_constraint c
@@ -90,15 +90,15 @@ BEGIN
         AND pg_get_constraintdef(c.oid) LIKE '%{col}%'
         AND c.conname <> '{constraint}';
     IF n_colchecks <> 0 THEN
-        RAISE EXCEPTION 'm0112b 收尾自证失败，{table}.{col} 除本约束外另有 % 条涉及该列的 CHECK，同列多 CHECK 即第二套词表', n_colchecks;
+        RAISE EXCEPTION 'm0113b 收尾自证失败，{table}.{col} 除本约束外另有 % 条涉及该列的 CHECK，同列多 CHECK 即第二套词表', n_colchecks;
     END IF;
 
     SELECT is_nullable INTO v_nullable FROM information_schema.columns
      WHERE table_schema = 'public' AND table_name = '{table}' AND column_name = '{col}';
     IF v_nullable <> 'YES' THEN
-        RAISE EXCEPTION 'm0112b 收尾自证失败，{table}.{col} 的 is_nullable 为 %（期望 YES，NULL 是本列合法初值，本批不改可空性）', v_nullable;
+        RAISE EXCEPTION 'm0113b 收尾自证失败，{table}.{col} 的 is_nullable 为 %（期望 YES，NULL 是本列合法初值，本批不改可空性）', v_nullable;
     END IF;
-    RAISE NOTICE 'm0112b 收尾自证通过，CHECK 已生效且同列唯一，列可空性维持 YES';
+    RAISE NOTICE 'm0113b 收尾自证通过，CHECK 已生效且同列唯一，列可空性维持 YES';
 END
 $$;
 "#,

@@ -116,13 +116,13 @@
 //!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
 //!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
 //!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
-//! 23. textile_safety: 纺织品安全合规域三支同域迁移（m0109 建八张表、m0110 取值列词表
-//!    CHECK 收口、m0111 GB 18401 与 GB 31701 限值矩阵与出口市场要求播种，建表、CHECK、
+//! 23. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
+//!    CHECK 收口、m0112 GB 18401 与 GB 31701 限值矩阵与出口市场要求播种，建表、CHECK、
 //!    播种次序固定于域 mod.rs）。新建顶层域，与既有七张检验表零交集，送检单仅以
 //!    product_id 外键只读关联 system 建的 products；置于链尾为新的顶层条目，复用库上
 //!    属 pending 必然执行
 //! 24. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
-//!    两支同域迁移（m0112a 严格只读逐值点名先于 m0112b 守卫施加 CHECK，口径照
+//!    两支同域迁移（m0113a 严格只读逐值点名先于 m0113b 守卫施加 CHECK，口径照
 //!    wage_energy_vocab_check 的 m0102 与 m0103 两段式），权威词表 models::status::
 //!    purchase_inventory::purchase_inspection_result，NULL 为完成质检前合法初值，
 //!    守卫拒绝不在迁移里 UPDATE 洗数据；置于链尾为新的顶层条目，晚于 business 建列

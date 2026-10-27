@@ -2,9 +2,9 @@
 //!
 //! 两支同域迁移，注册次序固定，先点名后收口（口径照 wage_energy_vocab_check 的
 //! m0102 与 m0103 两段式，一步都不能少）。
-//! - m0112a_report_purchase_inspection_result_dirty_values 严格只读，逐值把收口前现状
+//! - m0113a_report_purchase_inspection_result_dirty_values 严格只读，逐值把收口前现状
 //!   以 RAISE NOTICE 摊进迁移日志，绝不 RAISE EXCEPTION，可任意重跑，down 显式 no-op。
-//! - m0112b_apply_purchase_inspection_result_check 才做存量守卫与 CHECK 施加与收尾自证，
+//! - m0113b_apply_purchase_inspection_result_check 才做存量守卫与 CHECK 施加与收尾自证，
 //!   词表外残留即拒滚，脏数据交业务逐行定性，不在迁移里 UPDATE 造值。
 //!
 //! 权威词表在 backend 侧 models::status::purchase_inventory::purchase_inspection_result
@@ -14,8 +14,8 @@
 
 use sea_orm_migration::prelude::*;
 
-mod m0112a_report_purchase_inspection_result_dirty_values;
-mod m0112b_apply_purchase_inspection_result_check;
+mod m0113a_report_purchase_inspection_result_dirty_values;
+mod m0113b_apply_purchase_inspection_result_check;
 
 pub struct Migration;
 
@@ -29,10 +29,10 @@ impl MigrationName for Migration {
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 先只读点名，后收口。点名支的现场日志是收口支守卫拒绝时可对照的判据。
-        m0112a_report_purchase_inspection_result_dirty_values::Migration
+        m0113a_report_purchase_inspection_result_dirty_values::Migration
             .up(manager)
             .await?;
-        m0112b_apply_purchase_inspection_result_check::Migration
+        m0113b_apply_purchase_inspection_result_check::Migration
             .up(manager)
             .await?;
         Ok(())
@@ -41,10 +41,10 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // 逆序回滚：先撤收口支施加的 CHECK，再回滚只读点名支（其 up 对库内状态零改变，
         // down 是显式 no-op）。
-        m0112b_apply_purchase_inspection_result_check::Migration
+        m0113b_apply_purchase_inspection_result_check::Migration
             .down(manager)
             .await?;
-        m0112a_report_purchase_inspection_result_dirty_values::Migration
+        m0113a_report_purchase_inspection_result_dirty_values::Migration
             .down(manager)
             .await?;
         Ok(())

@@ -256,7 +256,7 @@ pub mod textile_limit_scope {
     pub const TAG_NONE: &str = "none";
 
     /// 限值行 safety_category 列全部合法取值（三枚稳定码加通配码）：DB CHECK 的唯一取值来源，
-    /// 与 m0110 迁移字面量由纸面锁逐元素钉相等。
+    /// 与 m0111 迁移字面量由纸面锁逐元素钉相等。
     pub const CATEGORIES: &[&str] = &[
         super::textile_safety_category::CLASS_A,
         super::textile_safety_category::CLASS_B,

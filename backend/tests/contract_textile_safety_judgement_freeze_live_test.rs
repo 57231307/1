@@ -1,4 +1,4 @@
-//! 纺织品安全合规域判定链与库存联动的活体锁（真已迁移 PostgreSQL，含 m0111 种子矩阵）
+//! 纺织品安全合规域判定链与库存联动的活体锁（真已迁移 PostgreSQL，含 m0112 种子矩阵）
 //!
 //! 钉什么（每条都读回真值，正反两侧）：
 //! 1. 送检出样（sampling→sent）把批次在库行按"待检不出库"降为待检；撤回解除挂起回合格。
@@ -544,7 +544,7 @@ async fn judge_is_table_driven_under_limit_mutation() {
         .one(&*db)
         .await
         .unwrap()
-        .expect("m0111 种子必须含 HCHO 项目");
+        .expect("m0112 种子必须含 HCHO 项目");
     let before = rows
         .iter()
         .find(|r| r.item_id == item.id)

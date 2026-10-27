@@ -1,20 +1,20 @@
 //! 纺织品安全合规域「Rust 词表常量 ↔ 迁移 CHECK 取值集」纸面双向锁（不连库，CI 常规可跑）。
 //!
 //! 钉什么：
-//! 1. m0110 的 ALLOWED 常量与 models::status::textile_safety 下各词表模块常量双向集合相等，
+//! 1. m0111 的 ALLOWED 常量与 models::status::textile_safety 下各词表模块常量双向集合相等，
 //!    多一个少一个都判红；词表侧与 CHECK 侧任一侧单独增删值都红。
-//! 2. m0110 的 COLUMN_CHECKS 把每个约束名绑到正确的 ALLOWED 常量（约束与列与常量三方对齐，
+//! 2. m0111 的 COLUMN_CHECKS 把每个约束名绑到正确的 ALLOWED 常量（约束与列与常量三方对齐，
 //!    绑错即拿 A 列词表钉 B 列的漂移）。
 //! 3. 裁定 4 的稳定码形态：安全类别必须带 `GB18401_` 前缀、目标市场内销码必须是 `dom`，
 //!    任何"顺手简化回裸 A/B/C 或 domestic"的改动直接判红。
-//! 4. m0112a 与 m0112b 两支携带的 ALLOWED 字面量逐字相等，且与
+//! 4. m0113a 与 m0113b 两支携带的 ALLOWED 字面量逐字相等，且与
 //!    purchase_inventory::purchase_inspection_result::ALL 集合相等（点名口径与收口口径同一字典）。
 //! 5. 限值通配维（textile_limit_scope）与业务词表的并集关系：CATEGORIES 恰为三类别加 any、
 //!    FORMS 恰为两形态加 any、CONDITION_TAGS 恰为 none 加四豁免标签。
 //! 6. 等级编码表：九档 token 齐、半级编码 3-4 对 3.5、编码值互异（判定器数值比较的前提）。
 //! 7. 静态链位：textile_safety 域与 purchase_inspection_result_check 域在 lib.rs 注册晚于
 //!    wage_energy_vocab_check，且 textile 三支的域内次序为先建表、再 CHECK、后播种。
-//! 8. m0111 种子的项目编码唯一出现（ON CONFLICT 幂等的键存在）。
+//! 8. m0112 种子的项目编码唯一出现（ON CONFLICT 幂等的键存在）。
 //!
 //! 为什么双向相等而不是包含：CHECK 比词表宽，旁路脚本能写出业务永不产生的脏 token；
 //! CHECK 比词表窄，某个合法值写入撞 23514 冒裸 500。两侧必须逐元素相等才是同一字典。
@@ -31,13 +31,13 @@ fn read_rel(manifest_rel: &str) -> String {
     fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {}", path, e))
 }
 
-const M0110_REL: &str =
-    "migration/src/domain/textile_safety/m0110_apply_textile_safety_vocab_checks.rs";
-const M0111_REL: &str = "migration/src/domain/textile_safety/m0111_seed_textile_safety_matrix.rs";
-const M0112A_REL: &str =
-    "migration/src/domain/purchase_inspection_result_check/m0112a_report_purchase_inspection_result_dirty_values.rs";
-const M0112B_REL: &str =
-    "migration/src/domain/purchase_inspection_result_check/m0112b_apply_purchase_inspection_result_check.rs";
+const M0111_REL: &str =
+    "migration/src/domain/textile_safety/m0111_apply_textile_safety_vocab_checks.rs";
+const M0112_REL: &str = "migration/src/domain/textile_safety/m0112_seed_textile_safety_matrix.rs";
+const M0113A_REL: &str =
+    "migration/src/domain/purchase_inspection_result_check/m0113a_report_purchase_inspection_result_dirty_values.rs";
+const M0113B_REL: &str =
+    "migration/src/domain/purchase_inspection_result_check/m0113b_apply_purchase_inspection_result_check.rs";
 const LIB_REL: &str = "migration/src/lib.rs";
 const TEXTILE_DOMAIN_MOD_REL: &str = "migration/src/domain/textile_safety/mod.rs";
 
@@ -237,21 +237,21 @@ fn expected_bindings() -> Vec<(&'static str, &'static str, &'static str, BTreeSe
     ]
 }
 
-/// 1+2. m0110 每份 ALLOWED 常量与词表双向相等，且约束名与列名与常量的绑定在原文对齐。
+/// 1+2. m0111 每份 ALLOWED 常量与词表双向相等，且约束名与列名与常量的绑定在原文对齐。
 #[test]
-fn m0110_allowed_consts_match_vocab_and_bindings() {
-    let src = read_rel(M0110_REL);
+fn m0111_allowed_consts_match_vocab_and_bindings() {
+    let src = read_rel(M0111_REL);
     for (constraint, column, const_name, expected) in expected_bindings() {
-        let actual = parse_allowed_const(&src, const_name, M0110_REL);
+        let actual = parse_allowed_const(&src, const_name, M0111_REL);
         assert_eq!(
             actual, expected,
-            "m0110 常量 {const_name}（约束 {constraint}）与 Rust 词表集合不相等：迁移侧多出或残缺 token"
+            "m0111 常量 {const_name}（约束 {constraint}）与 Rust 词表集合不相等：迁移侧多出或残缺 token"
         );
         // 绑定对齐：ColumnCheck 配方里该约束必须绑到该常量并钉在该列上
         let anchor = format!("constraint: \"{constraint}\",");
         let pos = src
             .find(&anchor)
-            .unwrap_or_else(|| panic!("m0110 缺少约束 {constraint} 的 ColumnCheck 配方锚点"));
+            .unwrap_or_else(|| panic!("m0111 缺少约束 {constraint} 的 ColumnCheck 配方锚点"));
         let window = &src[pos.saturating_sub(400)..(pos + 400).min(src.len())];
         assert!(
             window.contains(&format!("allowed: {const_name},")),
@@ -285,21 +285,21 @@ fn ruling4_prefixed_codes_pinned() {
     assert!(!export_market::is_valid("domestic"));
 }
 
-/// 4. m0112 两支 ALLOWED 逐字相等且与采购质检词表集合相等（点名口径即收口口径）。
+/// 4. m0113 两支 ALLOWED 逐字相等且与采购质检词表集合相等（点名口径即收口口径）。
 #[test]
-fn m0112_pair_matches_purchase_vocab() {
-    let a = read_rel(M0112A_REL);
-    let b = read_rel(M0112B_REL);
-    let set_a = parse_allowed_const(&a, "PURCHASE_INSPECTION_RESULT_ALLOWED", M0112A_REL);
-    let set_b = parse_allowed_const(&b, "PURCHASE_INSPECTION_RESULT_ALLOWED", M0112B_REL);
+fn m0113_pair_matches_purchase_vocab() {
+    let a = read_rel(M0113A_REL);
+    let b = read_rel(M0113B_REL);
+    let set_a = parse_allowed_const(&a, "PURCHASE_INSPECTION_RESULT_ALLOWED", M0113A_REL);
+    let set_b = parse_allowed_const(&b, "PURCHASE_INSPECTION_RESULT_ALLOWED", M0113B_REL);
     let expected = from_consts(purchase_inspection_result::ALL);
     assert_eq!(
         set_a, set_b,
-        "m0112a 与 m0112b 词表字面量分叉（点名口径与收口口径必须同一字典）"
+        "m0113a 与 m0113b 词表字面量分叉（点名口径与收口口径必须同一字典）"
     );
     assert_eq!(
         set_a, expected,
-        "m0112 词表与 purchase_inspection_result::ALL 不相等（任一侧单独增删值都红）"
+        "m0113 词表与 purchase_inspection_result::ALL 不相等（任一侧单独增删值都红）"
     );
 }
 
@@ -371,13 +371,13 @@ fn chain_position_registered_after_wage_and_ordered_in_domain() {
 
     let dm = read_rel(TEXTILE_DOMAIN_MOD_REL);
     let create = dm
-        .find("m0109_create_textile_safety_tables::Migration")
+        .find("m0110_create_textile_safety_tables::Migration")
         .expect("域 mod 缺建表锚点");
     let check = dm
-        .find("m0110_apply_textile_safety_vocab_checks::Migration")
+        .find("m0111_apply_textile_safety_vocab_checks::Migration")
         .expect("域 mod 缺 CHECK 锚点");
     let seed = dm
-        .find("m0111_seed_textile_safety_matrix::Migration")
+        .find("m0112_seed_textile_safety_matrix::Migration")
         .expect("域 mod 缺播种锚点");
     assert!(
         create < check && check < seed,
@@ -385,11 +385,11 @@ fn chain_position_registered_after_wage_and_ordered_in_domain() {
     );
 }
 
-/// 8. m0111 每枚种子项目编码都以 VALUES 元组形态出现（ON CONFLICT (item_code) 幂等键存在），
+/// 8. m0112 每枚种子项目编码都以 VALUES 元组形态出现（ON CONFLICT (item_code) 幂等键存在），
 ///    且 manual 条款项在全文件不挂任何限值行（只有人工结论位，不许被自动判定误消费）。
 #[test]
 fn seed_item_codes_present_and_manual_items_have_no_rules() {
-    let src = read_rel(M0111_REL);
+    let src = read_rel(M0112_REL);
     for code in [
         "HCHO",
         "PH",
@@ -416,7 +416,7 @@ fn seed_item_codes_present_and_manual_items_have_no_rules() {
         let needle = format!("('{code}', '");
         assert!(
             src.contains(&needle),
-            "m0111 缺项目 {code} 的 VALUES 元组（种子唯一键形态漂移）"
+            "m0112 缺项目 {code} 的 VALUES 元组（种子唯一键形态漂移）"
         );
     }
     for manual in ["ACCESSOR_TENSILE", "SHARP_EDGE", "SMALL_PARTS", "LABEL_POSITION"] {

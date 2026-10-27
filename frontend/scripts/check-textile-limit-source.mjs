@@ -4,10 +4,10 @@
  *
  * 钉什么（任一不满足即 exit 1，逐条点名，绝不把"没查出问题"当通过）：
  *  1. 单源散布锁：GB 18401 与 GB 31701 的限值数字只允许出现在迁移种子
- *     m0111_seed_textile_safety_matrix.rs 里。判定器 textile_safety_limit_judge.rs
+ *     m0112_seed_textile_safety_matrix.rs 里。判定器 textile_safety_limit_judge.rs
  *     与非测试区的三个 service、三个 handler、前端合规视图与 api 与常量层，都不得
  *     把任何国标限值数值当硬编码字面量散写（判定按行查表，零魔法数）。
- *  2. 种子即国标锁：把 m0111 种子解析成 (项目,类别,形态,条件,比较器,下限,上限) 的
+ *  2. 种子即国标锁：把 m0112 种子解析成 (项目,类别,形态,条件,比较器,下限,上限) 的
  *     全量行集，与独立重述的 GB 18401-2010 三类加 GB 31701-2015 婴童加考权威矩阵
  *     逐行集合相等；多一行少一行改一值都判红并点名差异行。权威矩阵写死在本文件
  *     作为与被检种子相互独立的一方，二源交叉验证，种子漂移即被本锁抓到。
@@ -45,7 +45,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const FRONTEND = resolve(__dirname, '..');
 export const BACKEND = resolve(FRONTEND, '..', 'backend');
 
-const M0111_REL = join('migration', 'src', 'domain', 'textile_safety', 'm0111_seed_textile_safety_matrix.rs');
+const M0112_REL = join('migration', 'src', 'domain', 'textile_safety', 'm0112_seed_textile_safety_matrix.rs');
 const VOCAB_REL = join('src', 'models', 'status', 'textile_safety.rs');
 const JUDGE_REL = join('src', 'services', 'textile_safety_limit_judge.rs');
 
@@ -188,7 +188,7 @@ export function parseVocabTokens(modBody) {
 }
 
 /**
- * 把 m0111 种子里的 textile_limit_rule 全部行解析成规范化行集（含交叉展开的豁免 na 行）。
+ * 把 m0112 种子里的 textile_limit_rule 全部行解析成规范化行集（含交叉展开的豁免 na 行）。
  * 解析口径：逐条 INSERT INTO textile_limit_rule，先读列清单判定是否含 limit_low 与 limit_high，
  * 再逐 SELECT 元组按位置取 (cat,form,tag,cmp, 界值...);界值个数必须等于声明的限值列数，不等即
  * 判红（SQL 形态漂移不能静默少算一行）。交叉展开块单列（item IN(...) 乘 VALUES 标签）。
@@ -450,7 +450,7 @@ function main() {
     process.exit(1);
   }
 
-  const seedPath = join(BACKEND, M0111_REL);
+  const seedPath = join(BACKEND, M0112_REL);
   const vocabPath = join(BACKEND, VOCAB_REL);
   const judgePath = join(BACKEND, JUDGE_REL);
   const seedSrc = readFileSync(seedPath, 'utf-8');
@@ -459,7 +459,7 @@ function main() {
 
   // 种子 SQL 模板（r#" ... "#;）
   const sqlMatch = /let sql = r#"([\s\S]*?)"#;/.exec(seedSrc);
-  if (!sqlMatch) throw new Error('m0111 找不到 r#" 原始字符串 SQL 锚点（种子写法漂移，不能当零发现）');
+  if (!sqlMatch) throw new Error('m0112 找不到 r#" 原始字符串 SQL 锚点（种子写法漂移，不能当零发现）');
   const seedSql = sqlMatch[1];
 
   const seed = parseSeed(seedSql);

@@ -57,7 +57,7 @@ const SEALED_REFERENCE_TABLES: &[&str] = &[
     "supplier_product_colors",
     "supplier_products",
     "suppliers",
-    // 纺织品安全合规域 m0111 种子三表（判定矩阵与项目主数据属迁移种子，
+    // 纺织品安全合规域 m0112 种子三表（判定矩阵与项目主数据属迁移种子，
     // 与 suppliers 族同理不清表；单据族 submission/report/result/check 属业务表照常清空）
     "textile_export_market_requirement",
     "textile_limit_rule",

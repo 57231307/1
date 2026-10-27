@@ -1,4 +1,4 @@
-//! 纺织品安全合规域取值列词表 CHECK 收口（配套 m0109 建表与 m0111 播种）
+//! 纺织品安全合规域取值列词表 CHECK 收口（配套 m0110 建表与 m0112 播种）
 //!
 //! 语义定案：本域全部取值型列的权威词表唯一出现在 backend 侧 models::status::
 //! textile_safety 下各模块，取值集合逐列取自身词表，不做跨列并集；本迁移把取值域钉进
@@ -8,7 +8,7 @@
 //! 1. 先逐列 DROP CONSTRAINT IF EXISTS，重跑或半态库不报错，幂等前置。
 //! 2. 再逐列存量守卫，fail-visible，词表外残留（NOT NULL 列还含 NULL 行）大于 0 即
 //!    RAISE EXCEPTION，消息带表名、列名、行数与逐值分布，HINT 指向权威词表模块。
-//!    新库表恒空守卫天然通过；复用库上若 m0109 与 m0110 之间有旁路写入，本守卫照样拦。
+//!    新库表恒空守卫天然通过；复用库上若 m0110 与 m0111 之间有旁路写入，本守卫照样拦。
 //!    本迁移不 UPDATE 造值洗数据，脏行交业务逐行定性后重跑。
 //! 3. 才允许逐列 ADD CONSTRAINT，取值集由本文件 ALLOWED 常量单源注入 IN 占位，
 //!    不在 ADD CONSTRAINT 里内联第二套清单；可空列 CHECK 形态为（col IS NULL OR col IN
@@ -17,7 +17,7 @@
 //! 4. 收尾回读自证，逐列读 pg_constraint，任一不满足即 RAISE EXCEPTION 点名。约束必须
 //!    contype 为 c 且 convalidated 为真且同名恰一条（NOT VALID 会放行存量脏行不算收口）；
 //!    同列除本约束外不得存在另一条引用该列的 CHECK（同列多 CHECK 即第二套词表漂移，
-//!    m0109 的结构校验 CHECK 只引用数值列与日期列，不与本批词表列重叠）。
+//!    m0110 的结构校验 CHECK 只引用数值列与日期列，不与本批词表列重叠）。
 //!
 //! 豁免标签逗号串列 exemption_tags 与缺项代号逗号串列 rejection_detail 不在本批：逗号串
 //! 列无法用 IN 闭合取值域，逐 token 白名单校验在送检服务与报告服务写入侧执行，列注释已言明。
@@ -29,7 +29,7 @@
 //! 也不伪造历史行，口径同 wage_energy_vocab_check 的 down。
 //!
 //! 域与注册位置：本域排 lib.rs 迁移链尾，晚于 system 建 products；注册在同域 up 链
-//! m0109 之后、m0111 播种之前，种子行天然受已生效 CHECK 校验。
+//! m0110 之后、m0112 播种之前，种子行天然受已生效 CHECK 校验。
 
 use sea_orm_migration::prelude::*;
 
@@ -311,7 +311,7 @@ BEGIN
     SELECT COUNT(*) INTO bad_rows FROM "{table}"
       WHERE {predicate};
     IF bad_rows = 0 THEN
-        RAISE NOTICE 'm0110 守卫 {table}.{col} 无{note}存量行，可安全施加 CHECK {constraint}';
+        RAISE NOTICE 'm0111 守卫 {table}.{col} 无{note}存量行，可安全施加 CHECK {constraint}';
     ELSE
         SELECT string_agg(fmt, ' / ' ORDER BY fmt) INTO samples FROM (
             SELECT COALESCE('''' || "{col}" || '''', '(NULL)') || ' 乘 ' || COUNT(*)::text AS fmt
@@ -319,7 +319,7 @@ BEGIN
              WHERE {predicate}
              GROUP BY "{col}"
         ) b;
-        RAISE EXCEPTION 'm0110 守卫 {table}.{col} 存在 % 行{note}取值（逐值分布 %），拒绝施加 CHECK {constraint}', bad_rows, samples
+        RAISE EXCEPTION 'm0111 守卫 {table}.{col} 存在 % 行{note}取值（逐值分布 %），拒绝施加 CHECK {constraint}', bad_rows, samples
             USING HINT = '本迁移拒绝 UPDATE 造值，请按权威词表 {vocab} 逐行核实更正存量，更正后重跑；脏值若来自旁路写入先修写入方，不要在迁移里圆场';
     END IF;
 END
@@ -381,7 +381,7 @@ BEGIN
           WHERE conrelid = rec.tbl::regclass AND conname = rec.con
             AND contype = 'c' AND convalidated;
         IF n_con <> 1 THEN
-            RAISE EXCEPTION 'm0110 收尾自证失败，% 上约束 % 不存在或非 CHECK 或 convalidated 为假或同名重复，命中行数 %', rec.tbl, rec.con, n_con;
+            RAISE EXCEPTION 'm0111 收尾自证失败，% 上约束 % 不存在或非 CHECK 或 convalidated 为假或同名重复，命中行数 %', rec.tbl, rec.con, n_con;
         END IF;
 
         SELECT COUNT(*) INTO n_colchecks FROM pg_constraint c
@@ -389,10 +389,10 @@ BEGIN
             AND pg_get_constraintdef(c.oid) LIKE ('%' || rec.col || '%')
             AND c.conname <> rec.con;
         IF n_colchecks <> 0 THEN
-            RAISE EXCEPTION 'm0110 收尾自证失败，% 列 % 除本约束外另有 % 条涉及该列的 CHECK，同列多 CHECK 即第二套词表', rec.tbl, rec.col, n_colchecks;
+            RAISE EXCEPTION 'm0111 收尾自证失败，% 列 % 除本约束外另有 % 条涉及该列的 CHECK，同列多 CHECK 即第二套词表', rec.tbl, rec.col, n_colchecks;
         END IF;
     END LOOP;
-    RAISE NOTICE 'm0110 收尾自证通过，26 列 CHECK 均 contype 为 c 且 convalidated 且同列唯一';
+    RAISE NOTICE 'm0111 收尾自证通过，26 列 CHECK 均 contype 为 c 且 convalidated 且同列唯一';
 END
 $$;
 "#,
