@@ -210,9 +210,10 @@ jobs:
 
       - name: 注入安卓权限与打印插件
         # 调用方 严格冒烟·3 与模拟器 E2E 依赖本步产物。入参 无。
-        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，并把
-        #        BluetoothPrintPlugin.kt 与 SystemPrintPlugin.kt 复制进 com.bingxi.erp 包；
-        #        模板锚点或包名变化时脚本直接判红，不静默跳过。
+        # 做什么 向 gen/android 清单补联网/相机/经典蓝牙/文件读写权限与可选硬件声明，把
+        #        BluetoothPrintPlugin.kt 与 SystemPrintPlugin.kt 复制进 com.bingxi.erp 包，
+        #        并把 生成应用图标 步产出的 src-tauri/icons/android 五档 mipmap 复制进
+        #        gen 工程 res 覆盖模板默认图；模板锚点、包名或图标产物缺任一项即判红，不静默跳过。
         # 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库模板。
         working-directory: mobile-app
         run: python3 scripts/patch-android.py
