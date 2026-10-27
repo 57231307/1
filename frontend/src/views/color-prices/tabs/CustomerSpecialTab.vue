@@ -99,7 +99,10 @@
         >
           <el-input v-model="form.special_price" inputmode="decimal" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.discount')" prop="discount_percent">
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.discount')"
+          prop="discount_percent"
+        >
           <el-input v-model="form.discount_percent" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.customerSpecial.dialog.currency')" required>
@@ -230,7 +233,7 @@ const handleSave = async () => {
     return;
   }
   let valid = false;
-  await formRef.value?.validate((ok) => {
+  await formRef.value?.validate(ok => {
     valid = ok;
   });
   if (!valid) return;

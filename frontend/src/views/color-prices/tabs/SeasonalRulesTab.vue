@@ -275,7 +275,7 @@ const handleSave = async () => {
     return;
   }
   let valid = false;
-  await formRef.value?.validate((ok) => {
+  await formRef.value?.validate(ok => {
     valid = ok;
   });
   if (!valid) return;
