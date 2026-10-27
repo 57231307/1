@@ -299,7 +299,8 @@ const deleteRole = async (row: Role) => {
 const permissionDialogVisible = ref(false);
 const currentRoleId = ref(0);
 const currentRoleName = ref('');
-// 目标角色 code：后端锁定面为超管（code=admin）授予由系统维护，界面同口径只读
+// 目标角色 code：超管（code=admin）授予由系统维护，界面按该口径只读；
+// 其余内置角色（is_system=true）保存会被后端整批拒绝，仅自定义角色可批量改授予
 const currentRoleCode = ref('');
 const isTargetRoleSuperAdmin = computed(() => currentRoleCode.value === 'admin');
 const permissionTree = ref<PermissionTreeNode[]>([]);
