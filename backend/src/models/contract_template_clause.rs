@@ -24,7 +24,7 @@ pub struct Model {
     /// 所属模板主键，外键指向 `contract_templates.id`，删除被签约引用的模板被库侧拒绝
     pub template_id: i32,
 
-    /// 条款码，取值见 `models::status::contract_clause_code`
+    /// 条款码，取值见 `models::status::contract_template::contract_clause_code`
     pub clause_code: String,
 
     /// 条款标题，模板侧展示名，可与条款库标题不同
@@ -42,10 +42,10 @@ pub struct Model {
     /// 条款顺序，签约固化时随正文一起写进合同条款快照
     pub sort: i16,
 
-    /// 条件出条款标记，空值表示通用条款，取值见 `models::status::contract_applies_when`
+    /// 条件出条款标记，空值表示通用条款，取值见 `models::status::contract_template::contract_applies_when`
     pub applies_when: Option<String>,
 
-    /// 逐条法务复核状态，取值见 `models::status::contract_legal_review_status`
+    /// 逐条法务复核状态，取值见 `models::status::contract_template::contract_legal_review_status`
     pub legal_review_status: String,
 
     /// 复核人用户主键，复核状态非 pending 时不得为空

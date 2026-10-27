@@ -24,10 +24,10 @@ pub struct Model {
     /// 模板业务编码，与 version 组合唯一，改版沿用同码递增版本
     pub template_code: String,
 
-    /// 合同类别，取值见 `models::status::contract_type`
+    /// 合同类别，取值见 `models::status::contract_template::contract_type`
     pub contract_type: String,
 
-    /// 我方立场，取值见 `models::status::contract_party_side`
+    /// 我方立场，取值见 `models::status::contract_template::contract_party_side`
     pub party_side: String,
 
     /// 模板版本号，签约固化时随条款正文一起写进合同条款快照
@@ -36,7 +36,7 @@ pub struct Model {
     /// 模板标题，合同表头与打印抬头展示用
     pub title: String,
 
-    /// 生命周期状态，取值见 `models::status::contract_template_status`
+    /// 生命周期状态，取值见 `models::status::contract_template::contract_template_status`
     pub status: String,
 
     /// 模板生效日，空值表示尚未定档生效

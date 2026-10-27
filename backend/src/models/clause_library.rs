@@ -5,7 +5,7 @@
 //! 改一处多处生效，而生效只影响新签合同。字段可空性与 DDL 逐列一致。
 //!
 //! 表由 `migration/src/domain/contract_template_schema/m0115_create_clause_library.rs` 建立。
-//! `clause_code` 全表唯一且取值落在 `models::status::contract_clause_code` 的闭合集内，
+//! `clause_code` 全表唯一且取值落在 `models::status::contract_template::contract_clause_code` 的闭合集内，
 //! `body` NOT NULL 且库侧 CHECK 拒绝空串，不给自称是条款而正文为空的行落地的通道。
 
 use chrono::{DateTime, Utc};
@@ -20,7 +20,7 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 条款码，全表唯一，取值见 `models::status::contract_clause_code`
+    /// 条款码，全表唯一，取值见 `models::status::contract_template::contract_clause_code`
     pub clause_code: String,
 
     /// 条款标题
@@ -32,7 +32,7 @@ pub struct Model {
     /// 专章条款适用的合同类别，空值表示通用条款
     pub applies_contract_type: Option<String>,
 
-    /// 条款生命周期，取值见 `models::status::contract_template_status`
+    /// 条款生命周期，取值见 `models::status::contract_template::contract_template_status`
     pub status: String,
 
     /// 备注

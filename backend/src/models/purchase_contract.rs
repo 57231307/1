@@ -52,7 +52,7 @@ pub struct Model {
     pub signature_certificate: Option<String>,
     /// 印花税金额，可空。空值表示未采集，与 0 元是两回事
     pub stamp_tax_amount: Option<Decimal>,
-    /// 内外销标记，可空，取值见 models::status::contract_market。空值表示模板前签约未采集
+    /// 内外销标记，可空，取值见 models::status::contract_template::contract_market。空值表示模板前签约未采集
     pub contract_market: Option<String>,
     /// 含税标记，可空三态。真为含税，假为不含税，空为未采集
     pub tax_inclusive: Option<bool>,

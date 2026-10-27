@@ -128,8 +128,8 @@ async fn exec_ok(db: &DatabaseConnection, stmt: Statement, what: &str) {
 async fn query_text(db: &DatabaseConnection, sql: String, values: Vec<Value>) -> String {
     let row = db
         .query_one_raw(pg_bound(sql, values))
-        .unwrap_or_else(|e| panic!("目录查询失败: {e}"))
         .await
+        .unwrap_or_else(|e| panic!("目录查询失败: {e}"))
         .unwrap_or_else(|| panic!("目录查询返回 0 行，被查找的对象确实不存在"));
     row.try_get_by_index::<String>(0)
         .unwrap_or_else(|e| panic!("目录查询首列解码失败: {e}"))
@@ -239,7 +239,8 @@ async fn seed_template(
             ],
         ))
         .await
-        .unwrap_or_else(|e| panic!("种模板 {code} 失败: {e}"));
+        .unwrap_or_else(|e| panic!("种模板 {code} 失败: {e}"))
+        .unwrap_or_else(|| panic!("种模板 {code} 应回读一行 RETURNING id，实得 0 行"));
     row.try_get_by_index::<i32>(0)
         .unwrap_or_else(|e| panic!("模板主键解码失败: {e}"))
 }
@@ -259,7 +260,8 @@ async fn seed_library(db: &DatabaseConnection, clause_code: &str, body: &str, st
             ],
         ))
         .await
-        .unwrap_or_else(|e| panic!("种条款库 {clause_code} 失败: {e}"));
+        .unwrap_or_else(|e| panic!("种条款库 {clause_code} 失败: {e}"))
+        .unwrap_or_else(|| panic!("种条款库 {clause_code} 应回读一行 RETURNING id，实得 0 行"));
     row.try_get_by_index::<i32>(0)
         .unwrap_or_else(|e| panic!("条款库主键解码失败: {e}"))
 }
@@ -292,7 +294,8 @@ async fn seed_template_clause(
             ],
         ))
         .await
-        .unwrap_or_else(|e| panic!("种模板条款项 {clause_code} 失败: {e}"));
+        .unwrap_or_else(|e| panic!("种模板条款项 {clause_code} 失败: {e}"))
+        .unwrap_or_else(|| panic!("种模板条款项 {clause_code} 应回读一行 RETURNING id，实得 0 行"));
     row.try_get_by_index::<i32>(0)
         .unwrap_or_else(|e| panic!("模板条款项主键解码失败: {e}"))
 }
@@ -1334,7 +1337,8 @@ async fn legacy_contract_rows_keep_null_and_market_check_allows_null() {
             vec![format!("{IT}-LEG-S").into()],
         ))
         .await
-        .unwrap_or_else(|e| panic!("不写任何新列的销售合同必须写得进: {e}"));
+        .unwrap_or_else(|e| panic!("不写任何新列的销售合同必须写得进: {e}"))
+        .unwrap_or_else(|| panic!("销售合同探针应回读一行 RETURNING id，实得 0 行"));
     let sales_id: i32 = sales_row
         .try_get_by_index(0)
         .unwrap_or_else(|e| panic!("销售合同主键解码失败: {e}"));
@@ -1347,7 +1351,8 @@ async fn legacy_contract_rows_keep_null_and_market_check_allows_null() {
             vec![format!("{IT}-LEG-P").into()],
         ))
         .await
-        .unwrap_or_else(|e| panic!("不写任何新列的采购合同必须写得进: {e}"));
+        .unwrap_or_else(|e| panic!("不写任何新列的采购合同必须写得进: {e}"))
+        .unwrap_or_else(|| panic!("采购合同探针应回读一行 RETURNING id，实得 0 行"));
     let purchase_id: i32 = purchase_row
         .try_get_by_index(0)
         .unwrap_or_else(|e| panic!("采购合同主键解码失败: {e}"));

@@ -14,14 +14,14 @@
 //! 形态照 `tests/fulfillment_source_vocab_check_parity_test.rs` 的同族锁，从源文件按锚点
 //! 解析，解析失守（锚点或引号或占位形态变化）直接 panic 点名，绝不解析出空集就当通过。
 
-use bingxi_backend::models::status::contract_applies_when;
-use bingxi_backend::models::status::contract_clause_code;
-use bingxi_backend::models::status::contract_legal_review_status;
-use bingxi_backend::models::status::contract_market;
-use bingxi_backend::models::status::contract_party_side;
-use bingxi_backend::models::status::contract_side_kind;
-use bingxi_backend::models::status::contract_template_status;
-use bingxi_backend::models::status::contract_type;
+use bingxi_backend::models::status::contract_template::contract_applies_when;
+use bingxi_backend::models::status::contract_template::contract_clause_code;
+use bingxi_backend::models::status::contract_template::contract_legal_review_status;
+use bingxi_backend::models::status::contract_template::contract_market;
+use bingxi_backend::models::status::contract_template::contract_party_side;
+use bingxi_backend::models::status::contract_template::contract_side_kind;
+use bingxi_backend::models::status::contract_template::contract_template_status;
+use bingxi_backend::models::status::contract_template::contract_type;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;

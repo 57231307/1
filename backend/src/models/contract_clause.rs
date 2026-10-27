@@ -23,13 +23,13 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
 
-    /// 合同侧别，取值见 `models::status::contract_side_kind`
+    /// 合同侧别，取值见 `models::status::contract_template::contract_side_kind`
     pub contract_kind: String,
 
     /// 所属合同主键，与 `contract_kind` 组合定位
     pub contract_id: i32,
 
-    /// 条款码，取值见 `models::status::contract_clause_code`
+    /// 条款码，取值见 `models::status::contract_template::contract_clause_code`
     pub clause_code: String,
 
     /// 固化当时的条款标题，模板后续改名不回溯改写本列
