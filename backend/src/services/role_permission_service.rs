@@ -515,12 +515,21 @@ impl RolePermissionService {
 
     // ===== assign_permission 私有 helpers（D08 拆分）=====
 
-    /// 校验角色存在且非系统角色（系统角色不允许改权限）
+    /// 校验角色存在且允许改授权。内置角色（is_system=true）的授予由系统维护，
+    /// 整批或单点改写一律拒绝：超管（code=admin，与
+    /// `utils/admin_checker::ADMIN_ROLE_CODE` 同源）先按专属原因可外显拒绝；
+    /// 其余内置岗位角色按"系统角色不允许修改权限"拒绝。仅自定义角色
+    /// （is_system=false）放行进入后续词表与 SoD 校验。
     async fn validate_assignable_role(&self, role_id: i32) -> Result<(), AppError> {
         let role = RoleEntity::find_by_id(role_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
+        if role.code == crate::utils::admin_checker::ADMIN_ROLE_CODE {
+            return Err(AppError::business_displayable(
+                "超级管理员角色的权限由系统维护，不允许修改".to_string(),
+            ));
+        }
         if role.is_system {
             return Err(AppError::business("系统角色不允许修改权限".to_string()));
         }
@@ -528,7 +537,7 @@ impl RolePermissionService {
     }
 
     /// V15 P1-14.3-D：SoD 职责分离校验 — 禁止同一角色同时持有 create 与 approve 权限
-    /// 审计计划 14.3.1 要求"创建采购 + 审批采购"和"创建销售 + 审批销售"冲突分离。；本函数在 assign_permission 时拦截违反 SoD 的授权：新增 `create` 时，若角色已有 `approve`（或 `*`）则拒绝；新增 `approve` 时，若角色已有 `create`（或 `*`）则拒绝；新增 `*` 时，若角色已有 `create` 或 `approve` 则拒绝；admin 角色（is_system=true）在 validate_assignable_role 已被拦截，不会走到此处。
+    /// 审计计划 14.3.1 要求"创建采购 + 审批采购"和"创建销售 + 审批销售"冲突分离。；本函数在 assign_permission 时拦截违反 SoD 的授权：新增 `create` 时，若角色已有 `approve`（或 `*`）则拒绝；新增 `approve` 时，若角色已有 `create`（或 `*`）则拒绝；新增 `*` 时，若角色已有 `create` 或 `approve` 则拒绝；内置角色（is_system=true，含超管 code=admin）在 validate_assignable_role 已被拦截，不会走到此处。
     async fn validate_sod_create_approve(
         &self,
         request: &AssignPermissionRequest,
@@ -876,6 +885,11 @@ impl RolePermissionService {
             .one(&txn)
             .await?
             .ok_or_else(|| AppError::not_found(format!("角色 {} 未找到", role_id)))?;
+        if role.code == crate::utils::admin_checker::ADMIN_ROLE_CODE {
+            return Err(AppError::business_displayable(
+                "超级管理员角色的权限由系统维护，不允许修改".to_string(),
+            ));
+        }
         if role.is_system {
             return Err(AppError::business_displayable(
                 "系统角色不允许修改权限，请改用自定义角色授权".to_string(),

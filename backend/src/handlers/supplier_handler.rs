@@ -404,15 +404,22 @@ pub async fn delete_supplier_qualification(
     )))
 }
 
-/// 供应商列表导出为带水印的 xlsx；端点：`GET /api/v1/suppliers/export`。
-/// 设计要点：复用 `list_suppliers` 的查询参数（SupplierQueryParams）与
-/// `SupplierService::list_suppliers` 一次性查询（page_size=10000 防 OOM）；
-/// 行级数据权限与 `list_suppliers` 一致，调用 `to_data_scope_context`；
-/// 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明；
-/// IP 为 None（middleware 未把 client_ip 注入 AuthContext）。
-/// 导出统一使用 xlsx 格式（含水印），失败用 AppError 信封表达。
+/// 供应商列表导出为带水印的 xlsx，端点为 GET /api/v1/suppliers/export
+///
+/// 功能：按当前筛选与行级数据权限分批取满全部供应商并落成文件
+/// 调用方：供应商路由的导出端点
+/// 入参：查询参数（含筛选、排序与审批令牌）、应用状态、会话上下文
+/// 传给谁：审批门交 ExportApprovalService::enforce_export_download，取数交
+/// query_suppliers_for_export，表格构造交 build_suppliers_table，审计交
+/// record_suppliers_export_audit
+/// 存什么：不写库；水印行写进导出文件，审计行写审计日志表
+/// 存哪里：不适用
+///
+/// 行级数据权限与列表页同源（to_data_scope_context）；IP 为 None，因为中间件未把
+/// client_ip 注入会话上下文。未取全时把用户下一步该做什么写进水印行，因为水印行是
+/// 导出文件里用户直接看得到的通道。导出统一使用 xlsx 格式，失败用 AppError 信封表达。
 pub async fn export_suppliers(
-    Query(mut params): Query<SupplierQueryParams>,
+    Query(params): Query<SupplierQueryParams>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
@@ -423,9 +430,11 @@ pub async fn export_suppliers(
             .enforce_export_download(download_token.as_deref(), "supplier")
             .await?;
 
-    // 复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
-    let items = query_suppliers_for_export(&state, &auth, &mut params).await?;
+    // 分批取满当前筛选与数据权限下的全部行
+    let (items, total) = query_suppliers_for_export(&state, &auth, &params).await?;
     let row_count = items.len();
+    let export_complete = row_count as u64 == total;
+    log_suppliers_export_completeness(row_count, total, export_complete);
 
     let items_json: Vec<serde_json::Value> = items
         .into_iter()
@@ -433,13 +442,13 @@ pub async fn export_suppliers(
         .collect::<Result<Vec<_>, _>>()?;
     let table = build_suppliers_table(&items_json);
 
-    let watermark = build_suppliers_watermark(&auth, row_count);
+    let watermark = build_suppliers_watermark(&auth, row_count, export_complete);
     let filename = format!(
         "suppliers_export_{}",
         chrono::Utc::now().format("%Y%m%d%H%M%S")
     );
 
-    record_suppliers_export_audit(&state, &auth, row_count);
+    record_suppliers_export_audit(&state, &auth, row_count, total, export_complete);
 
     // 敏感导出 fail-closed：记录令牌消费
     crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
@@ -454,20 +463,48 @@ pub async fn export_suppliers(
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }
 
-/// 查询供应商列表用于导出（强制 page=1, page_size=10000）
+/// 查询供应商全量行用于导出（分批取满，不受对外分页上限约束）
+///
+/// 功能：把导出端点已有的筛选、排序与行级数据权限原样交给服务层导出入口
+/// 调用方：本文件的供应商导出端点
+/// 入参：应用状态、会话上下文、导出筛选与排序参数
+/// 传给谁：SupplierService::list_suppliers_for_export
+/// 存什么：不写库，只读 suppliers 表
+/// 存哪里：不适用
 async fn query_suppliers_for_export(
     state: &AppState,
     auth: &AuthContext,
-    params: &mut SupplierQueryParams,
-) -> Result<Vec<crate::models::supplier::Model>, AppError> {
-    params.page = Some(1);
-    params.page_size = Some(10000);
+    params: &SupplierQueryParams,
+) -> Result<(Vec<crate::models::supplier::Model>, u64), AppError> {
     let service = SupplierService::new(state.db.clone());
     let data_scope_ctx = auth.to_data_scope_context();
-    let result = service
-        .list_suppliers(params.clone(), Some(&data_scope_ctx))
-        .await?;
-    Ok(result.items)
+    service
+        .list_suppliers_for_export(params, Some(&data_scope_ctx))
+        .await
+}
+
+/// 记录导出取数是否取全，结论与实际行数一并落日志
+///
+/// 功能：把实际导出行数与服务端总数并列记录，取全与未取全分别走不同级别
+/// 调用方：本文件的供应商导出端点
+/// 入参：实际导出行数、服务端总数
+/// 传给谁：tracing 日志层
+/// 存什么：不落库
+/// 存哪里：不适用
+fn log_suppliers_export_completeness(row_count: usize, total: u64, export_complete: bool) {
+    if export_complete {
+        tracing::info!(
+            "供应商导出已取全: 实际 {} 条, 服务端总数 {} 条",
+            row_count,
+            total
+        );
+    } else {
+        tracing::warn!(
+            "供应商导出未取全: 实际 {} 条, 服务端总数 {} 条（取数期间数据发生变动，或达到分批上界）",
+            row_count,
+            total
+        );
+    }
 }
 
 /// 供应商导出表头（16 列）
@@ -537,20 +574,53 @@ fn build_suppliers_table(items_json: &[serde_json::Value]) -> XlsxTable {
 }
 
 /// 构造供应商导出水印（操作员 + 导出时间 + 资源说明；IP 暂为 None）
-fn build_suppliers_watermark(auth: &AuthContext, row_count: usize) -> WatermarkConfig {
+///
+/// 未取全时把用户下一步该做什么一并写进水印行：水印行是导出文件里用户直接看得到
+/// 的唯一通道，日志与审计都不是给用户的
+fn build_suppliers_watermark(
+    auth: &AuthContext,
+    row_count: usize,
+    export_complete: bool,
+) -> WatermarkConfig {
+    let completeness_note = if export_complete {
+        String::new()
+    } else {
+        "；本次未取全，请缩小筛选范围后重新导出".to_string()
+    };
     WatermarkConfig {
         operator: Some(auth.username.clone()),
         ip_address: None,
         exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("供应商列表导出（共 {} 条）", row_count)),
+        extra: Some(format!(
+            "供应商列表导出（共 {} 条）{}",
+            row_count, completeness_note
+        )),
     }
 }
 
 /// 异步记录供应商导出操作（审计自身，best-effort 不阻塞响应）
-fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count: usize) {
+///
+/// 功能：把一次供应商导出记为导出类审计事件
+/// 调用方：本文件的供应商导出端点
+/// 入参：应用状态、会话上下文、实际导出行数、服务端总数、是否取全
+/// 传给谁：转交 AuditLogService::record_async 异步落库
+/// 存什么：存操作人、导出条数、服务端总数与是否取全的结论
+/// 存哪里：审计日志表
+fn record_suppliers_export_audit(
+    state: &AppState,
+    auth: &AuthContext,
+    row_count: usize,
+    total: u64,
+    export_complete: bool,
+) {
     use crate::models::audit_log::{OperationType, Severity};
     use crate::services::audit_log_service::{AuditEvent, AuditLogService};
     use std::sync::Arc;
+    let completeness = if export_complete {
+        "已取全"
+    } else {
+        "未取全"
+    };
     // 异步记录导出操作
     let svc = AuditLogService::new(state.db.clone());
     let event = AuditEvent {
@@ -561,7 +631,10 @@ fn record_suppliers_export_audit(state: &AppState, auth: &AuthContext, row_count
         resource_type: Some("supplier".to_string()),
         resource_id: None,
         resource_name: Some("供应商列表导出".to_string()),
-        description: Some(format!("导出 {} 条供应商数据（含水印）", row_count)),
+        description: Some(format!(
+            "导出 {} 条供应商数据（含水印），服务端总数 {} 条，{}",
+            row_count, total, completeness
+        )),
         request_method: Some("GET".to_string()),
         request_path: Some("/api/v1/suppliers/export".to_string()),
         before_snapshot: None,

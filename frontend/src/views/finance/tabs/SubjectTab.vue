@@ -212,6 +212,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getSubjectList,
@@ -411,7 +412,7 @@ const deleteSubject = async (row: AccountSubject) => {
   }
 };
 
-const handlePrintSubjects = () => {
+const handlePrintSubjects = async () => {
   const printData = subjects.value.map((item, index) => ({
     [t('finance.subjectTab.exportColIndex')]: index + 1,
     [t('finance.subjectTab.exportColCode')]: item.code,
@@ -422,6 +423,15 @@ const handlePrintSubjects = () => {
       : '-',
     [t('finance.subjectTab.exportColLevel')]: `L${item.level}`,
   }));
+  if (
+    await printTableOnAndroid({
+      title: t('finance.subjectTab.printHeader'),
+      rows: printData,
+      columns: Object.keys(printData[0] || {}),
+      documentKey: 'finance_subject',
+    })
+  )
+    return;
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],

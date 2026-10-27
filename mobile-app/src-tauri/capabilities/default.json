@@ -15,6 +15,8 @@
     "allow-bluetooth-list-printers",
     "allow-bluetooth-connect",
     "allow-bluetooth-print-text",
-    "allow-bluetooth-disconnect"
+    "allow-bluetooth-disconnect",
+    "allow-system-print-html",
+    "allow-system-print-page"
   ]
 }

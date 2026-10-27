@@ -211,15 +211,23 @@ async fn non_admin_fabric_list_and_detail_are_masked() {
 #[tokio::test]
 async fn non_admin_fabric_update_and_approve_responses_are_masked() {
     let app = build_app(base_state().await, make_auth(SALES, SALES_LOGIN, Some(2)));
+    // 更新腿状态收口后不得再携带 status 键（原载荷以 status 直写状态，正是被本族
+    // 契约钉住的缺陷形态）。掩码契约改由真实可更新字段 shipping_address 承载验证，
+    // 状态推进由 approve 动作腿完成，写后读回库内真值。
     let (status, v) = request_json(
         &app,
         Method::PUT,
         "/erp/sales/fabric-orders/1",
-        Some(json!({"status": "pending"})),
+        Some(json!({"shipping_address": "杭州市余杭区文一西路"})),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "更新应成功: {v}");
     assert_order_masked(&v["data"], "PUT /sales/fabric-orders/:id 写响应");
+    assert_eq!(
+        v["data"]["status"],
+        json!("pending"),
+        "更新腿不得改动状态：写响应中状态仍应为 pending"
+    );
 
     let (status, v) = request_json(
         &app,
@@ -228,7 +236,7 @@ async fn non_admin_fabric_update_and_approve_responses_are_masked() {
         None,
     )
     .await;
-    assert_eq!(status, StatusCode::OK, "审核应成功: {v}");
+    assert_eq!(status, StatusCode::OK, "首次审核应成功: {v}");
     assert_eq!(v["data"]["status"], json!("approved"), "审核须真实生效");
     assert_order_masked(&v["data"], "POST /sales/fabric-orders/:id/approve 写响应");
 }
