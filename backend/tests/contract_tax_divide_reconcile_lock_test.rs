@@ -13,10 +13,11 @@
 //!    （净额乘税率再舍入与含税事实差 1 分，票面不钩稽）。
 //! ② 真调生产建单入口 PurchaseOrderService::create_order，逐档建单落库后回读
 //!    purchase_order_item 的 subtotal 与 tax_amount 与 total_amount 三列，断钩稽恒等式
-//!    与逐档具体数字（不只断接口成功），证明除法反算腿贯通到落库。
+//!    与逐档具体数字（不只断接口成功），证明除法反算腿贯通到落库；
+//!    另有一枚带行折扣的逐档活体用例，钉死折扣必须是净额口径（四列钩稽）。
 //!    suppliers 属迁移种子参照表不清空，供应商用时间戳后缀自建专属行，互不碰撞。
-//! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 14 个文件）与
-//!    前端 11 个含税录入与派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
+//! ③ 静态正向公式禁回潮锁，逐行遍历内核与全部价税写入腿（后端 19 个文件）与
+//!    前端 12 个含税录入与派生腿源码，禁列形态含「乘 (Decimal::ONE + 税率)」「乘 (1 + 税率)」
 //!    「乘 tax 前缀标识符（含点号接收者形态 `*item.tax_percent` 与 `*row.taxRate`）」
 //!    「乘号括号窗口内税率与 +1 或 +Decimal::ONE 反序加数并存」与硬编码档位字面量；
 //!    注释剥离走逐行状态机（`//` 与行首 `/*` 与 `<!--` 起始的块注释整体剔除，
@@ -28,8 +29,24 @@
 //!    扫描清单由 PINNED 钉列逐条点名，删条目等于开缺口，即判红。
 //!    判定器自身另有一枚形态自检锁，逐个喂禁止形态与合法形态，漏判或误判都判红。
 //!    正向委托锁逐文件钉内核引用与单源入口，删引用或内联第二套公式同样判红。
+//!    本仓既有的六类假绿盲区逐类对应一道锁，缺一类就是给正向公式留一条活路，
+//!    遮蔽，注释状态机按行推进，闭合标记之后的代码照扫（防「整行当注释跳过」）；
+//!    解绑，委托锁逐文件钉内核入口名，删调用改回内联即判红；
+//!    只校验首个匹配点，每个 `*(` 与每个 `*` 出现点各自判定，合法与违规并存照样命中；
+//!    形态过窄，限定前缀与空格与反序加数与点号接收者与驼峰与档位字面量各自成禁列；
+//!    两侧同缺同序，后端与前端共用同一组判定函数，钉列与扫描数组必须是同一集合且条数相等；
+//!    按中文字面量 grep 判界面文案，本锁一律按标识符与算子形态判定，不看中文，
+//!    中文文案改名或换成 i18n 键都不影响命中，反向也不放行。
+//!    含税录入面七处（报价 销售订单 采购订单 收货 退货 发票 合同）由
+//!    [`PINNED_TAX_ENTRY_SURFACES`] 逐处点名扫描腿，某一处被摘出清单即判红。
 //!
 //! 覆盖策略，纯函数注入 加 真 PostgreSQL（test_common::setup_test_db），跑真实 service 全链路，无 mock。
+//!
+//! 兑付面（用户 2026-10-27 改定的验证分工），本文件的 ① 纯内核逐档 与 ② 真调建单落库回读
+//! 两段属编译与活体用例面，本地车道不跑 cargo，**一律由本次推送触发的云端 CI run 兑付**，
+//! 车道回报里不得写本地 passed。③ 静态段的判据在本地由镜像判定器
+//! frontend/scripts/check-tax-divide-direction.mjs 复算（它直接读本文件的 include_str! 清单取
+//! 扫描对象与形态自检样本，不写第二份清单与第二套样本），变异自证两轮日志随回报交出。
 
 mod test_common;
 
@@ -360,10 +377,89 @@ async fn live_create_order_reconciles_per_tax_tier() {
     }
 }
 
+/// 带行折扣的逐档落库钩稽（活体，由本次推送触发的 CI run 兑付）。
+///
+/// 折扣是这条腿最容易漏的一档，报价行的折扣是含税口径、订单行的折扣列是净额口径，
+/// 两者混用会让落库四列 `subtotal 减 discount_amount 加 tax_amount` 与 `total_amount`
+/// 差出一个折扣额（发货分摊与开票都读这四列）。本用例逐档钉死四列的具体数字与钩稽恒等式，
+/// 折扣一律按 10 个百分点计，含税单价按各档票面可整除值取。
+#[tokio::test]
+async fn live_create_order_reconciles_per_tax_tier_with_discount() {
+    let db = setup_test_db().await;
+    let (supplier_id, warehouse_id, product_id) = seed_po_master_data(&db).await;
+    let svc = PurchaseOrderService::new(Arc::new(db.clone()));
+
+    // (税率, 含税单价, 不含税单价, 期望净额subtotal, 期望净额折扣, 期望税额, 期望含税total)
+    let tiers: &[(&str, &str, &str, &str, &str, &str, &str)] = &[
+        ("0", "10.00", "10.00", "100.00", "10.00", "0.00", "90.00"),
+        ("13", "11.30", "10.00", "100.00", "10.00", "11.70", "101.70"),
+        ("9", "10.90", "10.00", "100.00", "10.00", "8.10", "98.10"),
+        ("6", "10.60", "10.00", "100.00", "10.00", "5.40", "95.40"),
+        ("5.5", "10.55", "10.00", "100.00", "10.00", "4.95", "94.95"),
+    ];
+
+    for (rate, inc_unit, net_unit, expect_subtotal, expect_discount, expect_tax, expect_total) in
+        tiers
+    {
+        let mut req = po_request(
+            supplier_id,
+            warehouse_id,
+            product_id,
+            dec(inc_unit),
+            dec(net_unit),
+            dec(rate),
+        );
+        // 夹具只有一行，直接取首行的可变引用改折扣，不 clone 整个请求（DTO 未派生 Clone）
+        let item = req
+            .items
+            .as_mut()
+            .and_then(|rows| rows.first_mut())
+            .expect("夹具必须带明细行");
+        item.discount_percent = Some(dec("10"));
+
+        let order = svc
+            .create_order(req, 100)
+            .await
+            .unwrap_or_else(|e| panic!("税率 {rate}% 带折扣的合法建单必须成功: {e}"));
+
+        let item = PoItemEntity::find()
+            .filter(PoItemColumn::OrderId.eq(order.id))
+            .one(&db)
+            .await
+            .expect("回查明细失败")
+            .expect("建单应已落明细行");
+
+        assert_eq!(
+            item.subtotal,
+            dec(expect_subtotal),
+            "税率 {rate}% 带折扣行的净额 subtotal 必须是折前含税额的反算值"
+        );
+        assert_eq!(
+            item.discount_amount,
+            dec(expect_discount),
+            "税率 {rate}% 带折扣行的折扣列必须是净额口径差额（折前净额减折后净额）"
+        );
+        assert_eq!(
+            item.tax_amount,
+            dec(expect_tax),
+            "税率 {rate}% 带折扣行的税额必须是成交含税额减折后净额的差额"
+        );
+        assert_eq!(
+            item.total_amount,
+            dec(expect_total),
+            "税率 {rate}% 带折扣行的含税额必须是折后成交含税事实"
+        );
+        assert_eq!(
+            item.subtotal - item.discount_amount + item.tax_amount,
+            item.total_amount,
+            "税率 {rate}% 带折扣行必须逐分满足 净额 减 折扣 加 税额 等于 含税额"
+        );
+    }
+}
+
 // =========================================================
 // ③ 静态正向公式禁回潮锁（税额路径不存在乘 1+税率 的正向公式）
 // =========================================================
-
 /// 扫描对象，价税分离内核与全部价税写入腿源码（后端）。
 /// 清单按写入腿逐点对齐，新增或删减价税写入腿时必须同步本清单，漏一个文件即锁失效。
 const TAX_PATH_SOURCES: &[(&str, &str)] = &[
@@ -371,6 +467,10 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
     (
         "src/services/quotation_pricing_service.rs",
         include_str!("../src/services/quotation_pricing_service.rs"),
+    ),
+    (
+        "src/services/quotation_convert_service.rs",
+        include_str!("../src/services/quotation_convert_service.rs"),
     ),
     (
         "src/services/quotation_ops/calc.rs",
@@ -417,15 +517,32 @@ const TAX_PATH_SOURCES: &[(&str, &str)] = &[
         include_str!("../src/services/ap_invoice_ops/receipt.rs"),
     ),
     (
+        "src/services/ap_invoice_ops/crud.rs",
+        include_str!("../src/services/ap_invoice_ops/crud.rs"),
+    ),
+    (
+        "src/services/finance_invoice_service.rs",
+        include_str!("../src/services/finance_invoice_service.rs"),
+    ),
+    (
+        "src/services/sales_contract_service.rs",
+        include_str!("../src/services/sales_contract_service.rs"),
+    ),
+    (
+        "src/services/purchase_contract_service.rs",
+        include_str!("../src/services/purchase_contract_service.rs"),
+    ),
+    (
         "src/services/outsourcing_ops/receipt.rs",
         include_str!("../src/services/outsourcing_ops/receipt.rs"),
     ),
 ];
 
 /// 扫描对象，前端含税录入与派生腿源码（与后端同一方向口径，同源反算单源在 utils/money.ts）。
-/// 清单按「含税单价是录入事实」的界面逐点对齐，报价、销售订单、采购订单、销售退货四条录入腿
-/// 与一枚单源都在列内；采购退货与发票与合同三处前端不自行派生金额（只回显后端权威值），
-/// 所以不在本清单，一旦将来在前端加出这三条派生腿必须同步加进本清单与下面的钉列。
+/// 清单按「含税事实是录入主输入、净额与税额是派生只读」的界面逐点对齐，报价、销售订单、采购订单、
+/// 销售退货四条反算腿与发票票面两值腿（净额由含税减税额取差）都在列内，一枚单源也在列内；
+/// 采购退货与收货两处的金额与税额由后端权威回传、前端不自行派生，所以不在本清单，
+/// 一旦将来在这些界面加出派生腿必须同步加进本清单与下面的钉列。
 const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
     (
         "frontend/src/utils/money.ts",
@@ -471,6 +588,10 @@ const FRONTEND_TAX_SOURCES: &[(&str, &str)] = &[
         "frontend/src/views/sales-returns/components/ReturnDetailDialog.vue",
         include_str!("../../frontend/src/views/sales-returns/components/ReturnDetailDialog.vue"),
     ),
+    (
+        "frontend/src/views/invoice-details/index.vue",
+        include_str!("../../frontend/src/views/invoice-details/index.vue"),
+    ),
 ];
 
 /// 后端扫描清单的权威钉列。与 [`TAX_PATH_SOURCES`] 必须是同一集合，
@@ -490,6 +611,11 @@ const PINNED_BACKEND_TAX_LEGS: &[&str] = &[
     "src/services/purchase_return_service.rs",
     "src/services/sales_return_service.rs",
     "src/services/ap_invoice_ops/receipt.rs",
+    "src/services/ap_invoice_ops/crud.rs",
+    "src/services/finance_invoice_service.rs",
+    "src/services/sales_contract_service.rs",
+    "src/services/purchase_contract_service.rs",
+    "src/services/quotation_convert_service.rs",
     "src/services/outsourcing_ops/receipt.rs",
 ];
 
@@ -506,6 +632,7 @@ const PINNED_FRONTEND_TAX_LEGS: &[&str] = &[
     "frontend/src/views/sales-returns/composables/useSr.ts",
     "frontend/src/views/sales-returns/components/ReturnEditDialog.vue",
     "frontend/src/views/sales-returns/components/ReturnDetailDialog.vue",
+    "frontend/src/views/invoice-details/index.vue",
 ];
 
 /// 把一行源码去掉空白，避免用空格形态绕过（`* (Decimal::ONE +` 与 `*(Decimal::ONE+` 同一目标）。
@@ -870,6 +997,106 @@ fn static_scan_manifest_covers_every_tax_leg() {
     }
 }
 
+/// 含税录入面七处的权威钉列（报价 销售订单 采购订单 收货 退货 发票 合同）。
+/// 每处点名至少一枚必须已在扫描清单里的腿源码，缺任一处即判红，
+/// 防「报价走除法、订单走乘法」这类双标在某一处静默复活（由
+/// [`every_tax_entry_surface_is_pinned_and_scanned`] 逐条核对）。
+/// 合同一处的依据是订单三值逐字段带入、合同服务内不写第二套增值税算式
+/// （sales_contract 与 purchase_contract 两域连 tax_percent 与 unit_price_with_tax 列都没有，
+/// 只有按合同总额从价计征的印花税，属内核头注写明的非增值税例外，
+/// 判定器按标识符与窗口形态不会命中它）；
+/// 该域将来加含税列时必须把本处从「无第二套算式」升级为「委托内核」，不许就地乘税率。
+const PINNED_TAX_ENTRY_SURFACES: &[(&str, &[&str])] = &[
+    (
+        "报价",
+        &[
+            "src/services/quotation_ops/calc.rs",
+            "frontend/src/views/quotations/components/QuotationItemEditor.vue",
+        ],
+    ),
+    (
+        "销售订单",
+        &[
+            "src/services/so/order_crud.rs",
+            "frontend/src/views/sales/OrderFormDialog.vue",
+        ],
+    ),
+    (
+        "采购订单",
+        &[
+            "src/services/po/order_ops/crud.rs",
+            "frontend/src/views/purchase/composables/useCreate.ts",
+        ],
+    ),
+    (
+        "收货",
+        &[
+            "src/services/po/receipt.rs",
+            "src/services/so/delivery_ops/ship.rs",
+        ],
+    ),
+    (
+        "退货",
+        &[
+            "src/services/purchase_return_service.rs",
+            "src/services/sales_return_service.rs",
+        ],
+    ),
+    (
+        "发票",
+        &[
+            "src/services/finance_invoice_service.rs",
+            "src/services/ap_invoice_ops/crud.rs",
+            "frontend/src/views/invoice-details/index.vue",
+        ],
+    ),
+    (
+        "合同",
+        &[
+            "src/services/sales_contract_service.rs",
+            "src/services/purchase_contract_service.rs",
+            "src/services/quotation_convert_service.rs",
+        ],
+    ),
+];
+
+/// 七处录入面逐处核对，每处点名的腿都必须真在扫描清单里。
+/// 从 [`PINNED_TAX_ENTRY_SURFACES`] 删一处、或把某处的腿从扫描清单里摘掉，都在此逐条点名判红。
+#[test]
+fn every_tax_entry_surface_is_pinned_and_scanned() {
+    assert_eq!(
+        PINNED_TAX_ENTRY_SURFACES.len(),
+        7,
+        "含税录入面固定七处（报价 销售订单 采购订单 收货 退货 发票 合同），增删必须同步工单口径"
+    );
+    for (surface, legs) in PINNED_TAX_ENTRY_SURFACES {
+        assert!(
+            !legs.is_empty(),
+            "{surface} 录入面没有点名任何扫描腿，正向公式的双标可以在这一处静默复活"
+        );
+        for leg in *legs {
+            let in_scan = TAX_PATH_SOURCES.iter().any(|(p, _)| p == leg)
+                || FRONTEND_TAX_SOURCES.iter().any(|(p, _)| p == leg);
+            assert!(
+                in_scan,
+                "{surface} 录入面的腿 {leg} 不在扫描清单里，本锁对这处不生效"
+            );
+        }
+    }
+    // 合同两域的证据核对，本域当前确实没有增值税三值列，一旦加列必须把上面注释里的
+    // 「无第二套算式」升级为委托内核单源，否则本条判红提醒改锁。
+    for path in [
+        "src/services/sales_contract_service.rs",
+        "src/services/purchase_contract_service.rs",
+    ] {
+        let src = read_backend_source(path);
+        assert!(
+            !src.contains("tax_percent") && !src.contains("unit_price_with_tax"),
+            "{path} 已出现增值税价税列的写入面，必须同步把本锁升级为内核委托锁，不许在该文件里自写乘除公式"
+        );
+    }
+}
+
 /// 判定器形态自检锁。变异自证两轮证明的是「源码真被扫到、判红能点名」，
 /// 本锁证明的是判定函数本身，三件事缺一不可：
 /// ① 每一种禁止书写形态都命中（限定前缀、空格、反序加数、点号接收者、驼峰与下划线、档位字面量）；
@@ -967,6 +1194,8 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
         "src/services/po/order_ops/crud.rs",
         "src/services/purchase_return_service.rs",
         "src/services/sales_return_service.rs",
+        // 报价转订单腿，行五值与表头四值同样只能由内核产出（含税折扣抄进净额折扣列即钩稽缺口）
+        "src/services/quotation_convert_service.rs",
     ] {
         let src = read_backend_source(path);
         assert!(
@@ -974,6 +1203,19 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
             "{path} 行级价税必须经内核 line_split 单源并做 ensure_reconciled 钩稽自检，不得各写一套合并逻辑"
         );
     }
+    // 票面两值腿（发票与应付手工建单），不含税净额只能由含税减税额取差额，
+    // 税额超过含税额或两值异号必须由内核点名拒绝，缺这枚入口等于把三列各自录入的旧形态放回来
+    let invoice = read_backend_source("src/services/finance_invoice_service.rs");
+    assert!(
+        invoice.contains("utils::tax::net_from_inclusive_and_tax")
+            && invoice.contains("utils::tax::ensure_reconciled"),
+        "src/services/finance_invoice_service.rs 的不含税金额必须由内核差额单源产出并做钩稽拒绝"
+    );
+    let ap_crud = read_backend_source("src/services/ap_invoice_ops/crud.rs");
+    assert!(
+        ap_crud.contains("utils::tax::ensure_tax_within_inclusive"),
+        "src/services/ap_invoice_ops/crud.rs 手工建票必须走内核票面两值钩稽门，缺它等于允许税额超过含税额"
+    );
     // 销售订单腿：行金额与信用基数共用同一单源 calculate_sales_item_amounts，
     // 内核入口 require_inclusive_unit_price 与 line_split 与 ensure_reconciled 三处都必须在
     let so_crud = read_backend_source("src/services/so/order_crud.rs");
@@ -1018,6 +1260,17 @@ fn tax_write_legs_delegate_to_kernel_single_source() {
         money.contains("export function netFromInclusive")
             && money.contains("/ (1 + taxPercent / 100)"),
         "frontend/src/utils/money.ts 必须保有一处「含税 ÷ (1 + 税率% ÷ 100)」除法反算单源"
+    );
+    // 票面两值腿的前端同源入口，发票界面的不含税金额必须由这枚减法单源派生
+    assert!(
+        money.contains("export function netFromInclusiveAndTax")
+            && money.contains("roundToCent(inclusive) - roundToCent(tax)"),
+        "frontend/src/utils/money.ts 必须保有「含税 减 税额」的票面净额单源，缺它发票界面就会回去手填三列"
+    );
+    let invoice_view = read_frontend_source("frontend/src/views/invoice-details/index.vue");
+    assert!(
+        invoice_view.contains("netFromInclusiveAndTax"),
+        "frontend/src/views/invoice-details/index.vue 的不含税金额必须真调票面净额单源做只读派生，改回三列各自录入即判红"
     );
     for path in [
         "frontend/src/views/quotations/components/QuotationItemEditor.vue",
