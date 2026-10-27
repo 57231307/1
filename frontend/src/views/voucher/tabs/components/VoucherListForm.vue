@@ -72,26 +72,20 @@
                 :value="subject.value"
               />
             </ElSelect>
-            <el-input
-              :model-value="numericView(Number(entry.debit_amount), 2)"
-              inputmode="decimal"
+            <NumericInput
               class="col-debit"
-              @change="
-                (v: string | number) =>
-                  (entry.debit_amount = bindNumeric(String(v), Number(entry.debit_amount), {
-                    precision: 2,
-                  }))
+              :model-value="Number(entry.debit_amount)"
+              :precision="2"
+              @update:model-value="
+                (v: number | null | undefined) => (entry.debit_amount = v ?? 0)
               "
             />
-            <el-input
-              :model-value="numericView(Number(entry.credit_amount), 2)"
-              inputmode="decimal"
+            <NumericInput
               class="col-credit"
-              @change="
-                (v: string | number) =>
-                  (entry.credit_amount = bindNumeric(String(v), Number(entry.credit_amount), {
-                    precision: 2,
-                  }))
+              :model-value="Number(entry.credit_amount)"
+              :precision="2"
+              @update:model-value="
+                (v: number | null | undefined) => (entry.credit_amount = v ?? 0)
               "
             />
             <ElInput
@@ -141,7 +135,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
-import { bindNumeric, numericView } from '@/utils/number-input';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatAmount } from '../composables/vchrLstFmts';
