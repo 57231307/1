@@ -335,9 +335,7 @@ const formatDerivedTax = (row: ReturnFormItem): string => {
   ) {
     return '--';
   }
-  return formatDecimalAmount(
-    taxFromInclusive(inclusiveAmountFromLine(unit, row.quantity), rate)
-  );
+  return formatDecimalAmount(taxFromInclusive(inclusiveAmountFromLine(unit, row.quantity), rate));
 };
 
 // 采购订单数据结构

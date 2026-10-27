@@ -113,7 +113,11 @@
           两值未填时显示为空，不补 0（补 0 会把「没录票面」伪装成「净额为零」）。
         -->
         <el-form-item label="发票金额">
-          <el-input :model-value="derivedAmountText" readonly placeholder="由价税合计与税额自动得出" />
+          <el-input
+            :model-value="derivedAmountText"
+            readonly
+            placeholder="由价税合计与税额自动得出"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
