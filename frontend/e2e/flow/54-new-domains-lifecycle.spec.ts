@@ -236,7 +236,7 @@ test.describe.serial('新域业务流转链', () => {
     await page.goto(`${BASE_URL}/outsourcing`);
     await expect(page.locator('.page')).toBeVisible();
 
-    // 前置（CI E7 判责：测试前提缺失，源码 fail-closed 正确）
+    // 前置说明，源码对发料匹号 fail-closed 属正确校验，须先造真实 AVAILABLE 生产匹再登记明细
     // 委外发料门控对 issue 无条件生效（outsourcing_ops/order.rs::issue_order 事务内
     // reserve_pieces_for_issue → piece_domain_service.rs::validate_pieces_for_issue）：
     // 明细集合为空整单拒绝「委外订单没有发料明细，无法发料；发料必须精确到匹」，
@@ -249,7 +249,7 @@ test.describe.serial('新域业务流转链', () => {
     if (!productId) throw new Error('前置缺失：ctx.productIds[0] 未就绪');
     if (!ctx.supplierId) throw new Error('前置缺失：ctx.supplierId 未就绪（委外单必填加工厂）');
     // 生产匹（胚布 greige）入仓：优先胚布仓，其次未设类型仓；成品仓被
-    // validate_warehouse_for_piece_type 必拒（piece_domain_service.rs:82-107），
+    // validate_warehouse_for_piece_type 必拒（piece_domain_service 校验），
     // 列表无可入仓时显式判红（不 skip、不塞非法仓 id）。
     const whRes = await apiCallRaw<{ items?: unknown }>(
       page,
