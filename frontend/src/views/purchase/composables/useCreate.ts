@@ -141,7 +141,9 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
         // 先点名单价再点名税率：漏录含税单价是本表最容易被当成"已填 0"的一列，提示要指名。
         validator: (_rule: unknown, value: CreateItem[], cb: (error?: Error) => void) => {
           const filled = value.filter(i => i.product_id && i.quantity > 0);
-          const missingUnitPrice = filled.find(i => parseDecimalInput(i.unit_price_with_tax) == null);
+          const missingUnitPrice = filled.find(
+            i => parseDecimalInput(i.unit_price_with_tax) == null
+          );
           if (missingUnitPrice) {
             cb(new Error(i18n.global.t('purchase.createDlg.unitPriceRequired')));
             return;

@@ -159,11 +159,7 @@
               />
             </template>
           </el-table-column>
-          <el-table-column
-            prop="tax_percent"
-            :label="t('sales.orderForm.taxPercent')"
-            width="110"
-          >
+          <el-table-column prop="tax_percent" :label="t('sales.orderForm.taxPercent')" width="110">
             <template #default="{ row }">
               <el-input
                 v-model.number="row.tax_percent"
