@@ -115,8 +115,8 @@ impl QuotationConvertService {
         .await?;
 
         // 6. 复制明细，行金额一律由 utils tax 内核行级单源产出，并累计出表头四值
-        let totals = Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn)
-            .await?;
+        let totals =
+            Self::copy_quotation_items_to_order(&items, &quotation, order.id, now, &txn).await?;
 
         // 7. 表头金额按转出的订单行汇总回写，不照抄报价表头。
         // 报价表头是报价时刻的汇总值，转单腿的行金额改由内核重算后两者可能不同源
