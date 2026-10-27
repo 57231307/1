@@ -515,17 +515,34 @@ const handleSubmit = async () => {
       ElMessage.warning(t('sales.orderForm.unitPriceInvalid'));
       return;
     }
-    const validItems = touched.filter(item => (item.subtotal || 0) > 0);
-    if (validItems.length === 0) {
+    // 税率与含税单价同为必填录入项：留空或非法一律点名拦下。派生列在缺税率时是无值状态
+    // （calculateSubtotal 不猜档位、不补 0），缺税率的行 subtotal 为 0，若仍按 subtotal 大于 0
+    // 筛提交内容，这一行会被静默丢掉，制单人以为下单成功而实际少一行，属金额台账实缺陷。
+    const missingRate = touched.find(item => item.tax_percent === undefined);
+    if (missingRate) {
+      ElMessage.warning(t('sales.orderForm.taxPercentRequired'));
+      return;
+    }
+    const invalidRate = touched.find(
+      item =>
+        item.tax_percent !== undefined &&
+        (!Number.isFinite(item.tax_percent) || item.tax_percent < 0)
+    );
+    if (invalidRate) {
+      ElMessage.warning(t('sales.orderForm.taxPercentInvalid'));
+      return;
+    }
+    // 提交内容 = 已选产品且有数量的行（判空依据与提交内容必须同一集合）。
+    // 0 价行（样布、赠品、寄售）是真实业务形态，subtotal 为 0 也照实提交，不再被筛掉。
+    if (touched.length === 0) {
       ElMessage.warning(t('sales.orderForm.addValidItem'));
       return;
     }
     // 空白明细行（未选产品）的 product_id 为 undefined，序列化后该键缺失，而后端
     // SalesOrderItemRequest.product_id 是非 Option 的 i32（backend/src/services/so/mod.rs:170），
-    // 缺键会导致反序列化失败并报参数错误。判空依据与提交内容必须同为 validItems。
-    // 判空已用 validItems，提交内容必须同为过滤后的有效行（与判空依据一致），杜绝空行入参。
+    // 缺键会导致反序列化失败并报参数错误。判空依据与提交内容必须同为 touched。
     localData.total_amount = calculateTotal();
-    emit('submit', { ...localData, items: validItems });
+    emit('submit', { ...localData, items: touched });
   } catch (error) {
     const err = error as { message?: string };
     if (err.message) {

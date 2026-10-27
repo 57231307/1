@@ -663,6 +663,8 @@ export default {
       unitPriceInvalid: '含税单价须为不小于 0 的数字',
       taxPercent: '税率（%）',
       taxPercentPlaceholder: '请输入税率',
+      taxPercentRequired: '请填写税率（免税或不含税行请填 0）',
+      taxPercentInvalid: '税率须为不小于 0 的百分数（13 表示 13%）',
       unitPrice: '单价',
       subtotal: '小计',
       colorNo: '色号',

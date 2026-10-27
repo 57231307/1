@@ -648,6 +648,8 @@ export default {
       unitPriceInvalid: 'Unit price with tax must be a number of 0 or greater',
       taxPercent: 'Tax Rate (%)',
       taxPercentPlaceholder: 'Enter tax rate',
+      taxPercentRequired: 'Please enter the tax rate (enter 0 for tax-free lines)',
+      taxPercentInvalid: 'Tax rate must be a percentage of 0 or greater (13 means 13%)',
       unitPrice: 'Unit Price',
       subtotal: 'Subtotal',
       operation: 'Operation',
