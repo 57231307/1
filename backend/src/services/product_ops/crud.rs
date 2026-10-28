@@ -172,7 +172,7 @@ impl ProductService {
 
         let result = active_model.insert(&*self.db).await?;
 
-        // 批次 125 v8 复审 P1 修复：PG 事务提交后同步到 ES（最终一致性）
+        // PG 落库提交后同步到 ES（最终一致性），拆分重构前后同形。
         self.sync_product_to_es(&result, "create").await;
 
         Ok(result)
