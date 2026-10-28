@@ -15,7 +15,7 @@ use crate::container::AppState;
 use crate::handlers::contract_template_handler;
 use axum::{
     Router,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
 };
 
 pub fn routes() -> Router<AppState> {
