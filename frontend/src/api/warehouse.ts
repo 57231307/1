@@ -40,7 +40,7 @@ export interface WarehouseLocation {
   location_type: string | null;
   /**
    * max_weight/max_height 为 Option<rust_decimal>，出参序列化为字符串（如 "1250.00"）、NULL→null；
-   * 绑定 el-input-number / 运算前必须 Number() 归一，禁止当 number 直接算。
+   * 绑定带加减按钮的数字输入框的历史形态已退场，当前载体是手写录入控件 / 运算前必须 Number() 归一，禁止当 number 直接算。
    * 入参方向（Create/UpdateLocationRequest）为 f64，以 JSON number 提交。
    */
   max_weight: string | null;
