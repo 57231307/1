@@ -357,7 +357,7 @@ pub fn csrf_ip_drifted(bound_ip: &str, request_ip: &str) -> bool {
     }
     match (ip_comparable(bound_ip), ip_comparable(request_ip)) {
         (Some(a), Some(b)) => a != b,
-        _ => bound_ip.trim().to_ascii_lowercase() != request_ip.trim().to_ascii_lowercase(),
+        _ => !bound_ip.trim().eq_ignore_ascii_case(request_ip.trim()),
     }
 }
 

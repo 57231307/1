@@ -169,7 +169,7 @@ fn test_extract_client_ip_priority() -> Result<(), Box<dyn std::error::Error>> {
         .header("x-real-ip", "203.0.113.10")
         .header("x-forwarded-for", "198.51.100.1, 10.0.0.1")
         .body(Body::empty())?;
-    assert_eq!(extract_client_ip(&req), "203.0.113.10");
+    assert_eq!(extract_client_ip_with_source(&req).0, "203.0.113.10");
     assert_eq!(
         extract_client_ip_with_source(&req).1,
         ClientIpSource::RealIpHeader,
@@ -181,7 +181,7 @@ fn test_extract_client_ip_priority() -> Result<(), Box<dyn std::error::Error>> {
         .uri("/")
         .header("x-forwarded-for", "198.51.100.1, 10.0.0.1")
         .body(Body::empty())?;
-    assert_eq!(extract_client_ip(&req), "198.51.100.1");
+    assert_eq!(extract_client_ip_with_source(&req).0, "198.51.100.1");
     assert_eq!(
         extract_client_ip_with_source(&req).1,
         ClientIpSource::ForwardedForHeader,
@@ -193,7 +193,7 @@ fn test_extract_client_ip_priority() -> Result<(), Box<dyn std::error::Error>> {
     let mut req = Request::builder().uri("/").body(Body::empty())?;
     req.extensions_mut()
         .insert(axum::extract::ConnectInfo(peer));
-    assert_eq!(extract_client_ip(&req), "192.0.2.7");
+    assert_eq!(extract_client_ip_with_source(&req).0, "192.0.2.7");
     assert_eq!(
         extract_client_ip_with_source(&req).1,
         ClientIpSource::ConnectPeer,
@@ -202,7 +202,7 @@ fn test_extract_client_ip_priority() -> Result<(), Box<dyn std::error::Error>> {
 
     // 场景 4: 三级来源全缺才是占位值
     let req = Request::builder().uri("/").body(Body::empty())?;
-    assert_eq!(extract_client_ip(&req), CLIENT_IP_UNRESOLVED);
+    assert_eq!(extract_client_ip_with_source(&req).0, CLIENT_IP_UNRESOLVED);
     assert_eq!(
         extract_client_ip_with_source(&req).1,
         ClientIpSource::Unresolved

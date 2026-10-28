@@ -80,11 +80,6 @@ const AUDIT_EVENT_IP_DRIFT: &str = "csrf_ip_drift";
 /// 不可写 "HttpOnly=false"——RFC 6265 解析器只认属性名，写了即等效开启，前端永远读不到。
 const CSRF_COOKIE_ATTRS: &str = "Path=/; SameSite=Strict; Max-Age=1800";
 
-/// 从请求中提取客户端 IP（保留给测试与外部引用；中间件内部直接用带来源档位的版本）
-pub fn extract_client_ip(request: &Request<Body>) -> String {
-    extract_client_ip_with_source(request).0
-}
-
 /// 判断是否为无副作用的 HTTP 安全方法（GET/HEAD/OPTIONS）
 fn is_safe_method(method: &Method) -> bool {
     matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS)
