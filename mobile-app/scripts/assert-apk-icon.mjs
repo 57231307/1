@@ -21,18 +21,23 @@
 //        两字符短名，字节等值在该档恒不成立。故 release 档改为像素等值。解 PNG 的
 //        IHDR 拿宽高位深色彩类型，压缩与 filter 方法必须为 0、隔行必须为 0，拼合全部
 //        IDAT 用 zlib inflate，按五种 filter（none sub up average paeth）逐行还原原始
-//        scanline，取 sha256 与生成步产物同法摘要比对。crunch 无损，像素必等，
-//        无阈值无容差，两形态都没命中即判红，不降级为警告。
-//   段三 存在性，release 档下包内必须能找到 192x192 且 RGBA（色彩类型 6 位深 8）的
-//        res PNG 条目，用来钉住图标尺寸族确实进了包。像素等值只证同图在包内，
-//        尺寸族存在性防同字节流换了尺寸形态混过。debug 档字节同一已蕴含该断言。
+//        scanline，取 sha256 与生成步产物同法摘要比对。摘要输入除 scanline 本体外
+//        还并入 IHDR 的宽高与位深与色彩类型，同一段 raw 字节在不同宽高分解下不得算作同一枚图。
+//        crunch 无损，像素必等，无阈值无容差，两形态都没命中即判红，不降级为警告。
+//   段三 存在性，release 档下命中像素等值的那一条目自身必须同时是 192x192 且 RGBA（色彩类型 6 位深 8），
+//        两闸门由同一条目同时满足才算通过，不接受一条像素同一的异形态条目与一条同尺寸族但不同图的
+//        条目拼凑过关。像素等值只证同图在包内，同条目尺寸族闸门防换了宽高或色彩类型混过。
+//        res 下不可解码的 PNG 条目数量与逐个原因恒打在日志上，让真红轮能区分被跳过的条目与不存在的条目。
+//        debug 档字节同一已蕴含该断言。
 // 传给谁 失败消息点名文件与实测字节数，并附包内 res PNG 条目数量与名字样例，供 CI 日志直接定位。
 // 存哪里 只读判定，不落盘任何文件。
 //
-// 自检模式合成九枚 APK 夹具，debug 同字节判绿，debug 异字节判红，缺条目判红，
-// 源分家判红，release 重编码同像素判绿，release 异像素判红，release 同像素但缺
-// 192x192 RGBA 尺寸族判红，路径改写同字节判绿，路径改写内容不可解码判红，
-// 九个判定方向都验才算判定器自身可信。
+// 自检模式合成十一枚 APK 夹具共十二个判定方向，debug 同字节判绿，debug 异字节判红，
+// 缺条目判红，源分家判红，release 重编码同像素且同条目满足尺寸族判绿，release 异像素判红，
+// 同 raw 但异 IHDR 不得算像素同一判红，两条目各命中一闸门不得拼凑判红，
+// 像素同一命中但该条目自身不满足尺寸族判红，生成侧非尺寸族时像素命中条目与另一条同尺寸族条目拼凑判红，
+// 路径改写同字节判绿，路径改写内容不可解码判红并要求日志打出跳过计数，
+// 十二个方向全验才算判定器自身可信。
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -229,12 +234,22 @@ function decodePngPixels(buffer, label) {
 
 function pixelDigest(buffer, label) {
   const decoded = decodePngPixels(buffer, label);
+  // 摘要输入先钉 IHDR 的宽高与位深与色彩类型再接 scanline。
+  // 为什么 只哈希 raw 字节时同一段像素数据在 96x384 与 192x192 两种分解下逐字节相同（通道数
+  //        与位深不变时 raw 长度等于宽乘高乘通道乘位深除以 8，乘积可互换），摘要会算作同一枚图，
+  //        异形态条目能被当成消费链命中。IHDR 进摘要后宽高或色彩类型任一变了摘要即变。
+  // 传给谁 段二像素等值比对与段三同条目双闸门，两侧同法生成才可比。
+  const meta = Buffer.alloc(12);
+  meta.writeUInt32BE(decoded.width, 0);
+  meta.writeUInt32BE(decoded.height, 4);
+  meta.writeUInt8(decoded.bitDepth, 8);
+  meta.writeUInt8(decoded.colorType, 9);
   return {
     width: decoded.width,
     height: decoded.height,
     bitDepth: decoded.bitDepth,
     colorType: decoded.colorType,
-    digest: crypto.createHash('sha256').update(decoded.raw).digest('hex'),
+    digest: crypto.createHash('sha256').update(meta).update(decoded.raw).digest('hex'),
   };
 }
 
@@ -287,50 +302,64 @@ function assertApkIcon(apkPath, sourceIconPath, webLogoPath, generatedMipmapPath
   }
 
   const resPngs = entries.filter((entry) => entry.name.startsWith('res/') && entry.name.endsWith('.png'));
-  let pixelHit = null;
-  let familyHit = null;
-  let undecodable = 0;
+  const scanned = [];
+  const undecoded = [];
   for (const entry of resPngs) {
     const data = readEntryData(apkBuffer, entry, apkPath);
-    let px;
     try {
-      px = pixelDigest(data, '条目 ' + entry.name);
-    } catch {
-      undecodable++;
-      continue;
-    }
-    if (familyHit === null && px.width === FAMILY_WIDTH && px.height === FAMILY_HEIGHT && px.colorType === FAMILY_COLOR_TYPE && px.bitDepth === FAMILY_BIT_DEPTH) {
-      familyHit = entry.name;
-    }
-    if (pixelHit === null && px.digest === generated.digest) {
-      pixelHit = entry.name;
+      scanned.push({ name: entry.name, px: pixelDigest(data, '条目 ' + entry.name) });
+    } catch (error) {
+      undecoded.push({ name: entry.name, reason: error.message });
     }
   }
+  const familyText =
+    FAMILY_WIDTH + 'x' + FAMILY_HEIGHT + ' RGBA 位深 ' + FAMILY_BIT_DEPTH + ' 色彩类型 ' + FAMILY_COLOR_TYPE;
+  // 不可解码计数无条件打，判绿轮也要能看见被跳过了哪些条目，
+  // 否则真红轮分不清"这些条目解码失败被跳过"与"包里压根没有这类条目"。
+  // 隔行扫描与 16 位深与调色板与多压缩形态与带 tRNS 的条目都会走解码器抛错进这一列。
+  info(
+    'release 档扫描 res 下 PNG 条目 ' + resPngs.length + ' 个，可解码 ' + scanned.length + ' 个，不可解码 ' +
+      undecoded.length + ' 个' +
+      (undecoded.length === 0
+        ? ''
+        : '，跳过清单 ' + undecoded.slice(0, 8).map((item) => item.name + '（' + item.reason + '）').join('，'))
+  );
 
-  if (pixelHit !== null && familyHit !== null) {
+  const isFamily = (px) =>
+    px.width === FAMILY_WIDTH && px.height === FAMILY_HEIGHT && px.colorType === FAMILY_COLOR_TYPE && px.bitDepth === FAMILY_BIT_DEPTH;
+  const pixelHits = scanned.filter((item) => item.px.digest === generated.digest);
+  const bothHits = pixelHits.filter((item) => isFamily(item.px));
+
+  if (bothHits.length > 0) {
     info(
-      '消费链通过，release 档 APK 条目 ' + pixelHit +
-        ' 与生成 mipmap 像素同一（unfilter 后 scanline sha256 一致，生成侧 ' + generatedBuffer.length +
-        ' 字节），尺寸族存在性通过，包内有 ' + FAMILY_WIDTH + 'x' + FAMILY_HEIGHT +
-        ' RGBA 位深 ' + FAMILY_BIT_DEPTH + ' 条目 ' + familyHit +
+      '消费链通过，release 档 APK 条目 ' + bothHits[0].name +
+        ' 与生成 mipmap 像素同一（IHDR 宽高与位深与色彩类型连同 unfilter 后 scanline 一并 sha256 一致，生成侧 ' +
+        generatedBuffer.length + ' 字节），同条目自身同时满足尺寸族 ' + familyText +
         '，原名条目缺席与字节改写均不影响该档判定'
     );
     return;
   }
 
   const sampleNames = resPngs.slice(0, 12).map((entry) => entry.name).join('，');
-  if (pixelHit === null) {
+  const scanText = 'res 下 ' + resPngs.length + ' 个 PNG 条目（可解码 ' + scanned.length + ' 个，不可解码 ' + undecoded.length + ' 个）';
+  if (pixelHits.length === 0) {
     fail(
       '消费链断，APK 内未找到 res/mipmap-xxxhdpi 的 ic_launcher.png 条目，' +
-        'res 下 ' + resPngs.length + ' 个 PNG 条目内（' + undecodable + ' 个不可解码）没有与生成步产物 ' +
-        generatedMipmapPath + ' 共 ' + generatedBuffer.length + ' 字节像素同一的条目，安卓图标未进包，条目样例 ' +
+        scanText + '内没有与生成步产物 ' + generatedMipmapPath + ' 共 ' + generatedBuffer.length +
+        ' 字节像素同一（IHDR 四项连同 scanline 一并入摘要）的条目，安卓图标未进包，条目样例 ' +
         (sampleNames || '无')
     );
   }
+  // 走到这里说明有条目像素同一却不满足尺寸族，而摘要已绑 IHDR，唯一成因是生成侧产物自身
+  // 就不是该尺寸族，即上游图标口径变了，报出两侧实测值而不是悄悄拼凑另一条同尺寸族条目过关。
+  const hit = pixelHits[0];
   fail(
-    '消费链断，像素同一已命中条目 ' + pixelHit + '，但 res 下 ' + resPngs.length +
-      ' 个 PNG 条目内没有 ' + FAMILY_WIDTH + 'x' + FAMILY_HEIGHT + ' RGBA 位深 ' + FAMILY_BIT_DEPTH +
-      ' 的图标尺寸族条目，图标族没有进包，条目样例 ' + (sampleNames || '无')
+    '消费链断，像素同一已命中条目 ' + hit.name + '（自身 ' + hit.px.width + 'x' + hit.px.height +
+      ' 位深 ' + hit.px.bitDepth + ' 色彩类型 ' + hit.px.colorType + '），但该条目自身不满足尺寸族 ' + familyText +
+      '，生成步产物 ' + generatedMipmapPath + ' 自身为 ' + generated.width + 'x' + generated.height +
+      ' 位深 ' + generated.bitDepth + ' 色彩类型 ' + generated.colorType +
+      '，两闸门须由同一条目同时满足，不接受拿另一条同尺寸族条目拼凑；生成侧尺寸族口径已变需人工校准判定常量，条目样例 ' +
+      (sampleNames || '无')
   );
 }
 
@@ -428,12 +457,21 @@ function selfTest() {
   const flippedRaw = Buffer.from(genRaw);
   flippedRaw[0] ^= 0xff;
   const pixelDiffPng = buildSelfPng(SELF_W, SELF_H, flippedRaw, () => 0, 8192, 6, false);
+  // 宽高分解互换夹具，raw 字节与生成侧逐字节相同但 IHDR 记的是 96x384（96 乘 4 乘 384 等于 192 乘 4 乘 192），
+  // 摘要不并入 IHDR 时这两者算同一枚图，是段二与段三两条判据共用的漏洞夹具。
   const wrongSizePng = buildSelfPng(96, 384, genRaw, () => 0, 8192, 6, false);
+  if (wrongSizePng.equals(genPng)) fail('自检失败，异 IHDR 夹具字节未变，宽高互换差异没造出来');
+  // 生成侧自身就不是尺寸族形态的夹具，用来走"像素同一命中但同条目不满足尺寸族"那条红分支。
+  const genWidePng = buildSelfPng(96, 384, genRaw, (y) => y % 5, 1024, 9, true);
   const decoyRaw = buildRawPixels(48, 48, 7);
   const decoyPng = buildSelfPng(48, 48, decoyRaw, (y) => y % 5, 1024, 9, true);
+  // 同尺寸族但另一枚图的夹具，专打"一条异形态条目命中像素闸门加一条同尺寸族条目命中尺寸闸门"的拼凑口径。
+  const decoy192Raw = buildRawPixels(SELF_W, SELF_H, 7);
+  const decoy192Png = buildSelfPng(SELF_W, SELF_H, decoy192Raw, () => 0, 8192, 6, false);
 
   fs.writeFileSync(filePath('source.png'), genPng);
   fs.writeFileSync(filePath('webbad.png'), pixelDiffPng);
+  fs.writeFileSync(filePath('genwide.png'), genWidePng);
 
   const zip = (entries2) => buildZip([manifest, ...entries2]);
   fs.writeFileSync(filePath('good.apk'), zip([{ name: directName, data: genPng }]));
@@ -448,6 +486,19 @@ function selfTest() {
     { name: 'res/rK.png', data: pixelDiffPng },
   ]));
   fs.writeFileSync(filePath('nosize.apk'), zip([{ name: 'res/aB.png', data: wrongSizePng }]));
+  // 拼凑夹具，一条同尺寸族但异像素，一条同 raw 但异 IHDR。摘要不绑 IHDR 且两闸门分属两条目时
+  // 这两条会各自命中一个闸门而假绿，修复后必须判红。
+  fs.writeFileSync(filePath('splitgate.apk'), zip([
+    { name: 'res/aE.png', data: pixelDiffPng },
+    { name: 'res/aF.png', data: wrongSizePng },
+  ]));
+  fs.writeFileSync(filePath('widegen.apk'), zip([{ name: 'res/aG.png', data: wrongSizePng }]));
+  // 生成侧本身就不是尺寸族形态时，摘要绑 IHDR 后仍会命中一条 96x384 的异形态条目。
+  // 若两闸门允许分属两条目，这条 192x192 的另一枚图会被拉来凑成"尺寸族存在"而假绿。
+  fs.writeFileSync(filePath('famsplice.apk'), zip([
+    { name: 'res/aH.png', data: wrongSizePng },
+    { name: 'res/aI.png', data: decoy192Png },
+  ]));
   fs.writeFileSync(filePath('shortgood.apk'), zip([
     { name: 'res/aC.png', data: decoyPng },
     { name: 'res/aD.png', data: genPng },
@@ -457,51 +508,60 @@ function selfTest() {
     { name: 'res/aD.png', data: Buffer.from('TEMPLATE-DEFAULT-ICON-BYTES') },
   ]));
 
-  const expectGreen = (apk, note) => {
+  const run = (apk, web, generated) => {
+    const lines = [];
+    let ok = true;
     try {
-      runQuiet(() => assertApkIcon(filePath(apk), filePath('source.png'), filePath('source.png'), filePath('source.png')));
+      runQuiet(() => assertApkIcon(filePath(apk), filePath('source.png'), filePath(web), filePath(generated)), lines);
     } catch {
-      fail('自检失败，' + note + ' 必须判绿但判定器判了红，判定器不可信');
+      ok = false;
     }
+    return { ok, text: lines.join('\n') };
   };
-  const expectRed = (apk, web, note) => {
-    let detected = false;
-    try {
-      runQuiet(() => assertApkIcon(filePath(apk), filePath('source.png'), filePath(web), filePath('source.png')));
-    } catch {
-      detected = true;
+  let checked = 0;
+  const expectGreen = (apk, web, generated, note) => {
+    const result = run(apk, web, generated);
+    checked++;
+    if (!result.ok) fail('自检失败，' + note + ' 必须判绿但判定器判了红，判定器不可信');
+  };
+  const expectRed = (apk, web, generated, note, needle) => {
+    const result = run(apk, web, generated);
+    checked++;
+    if (result.ok) fail('自检失败，' + note + ' 必须判红但没有判红，判定器不可信');
+    if (needle !== undefined && !result.text.includes(needle)) {
+      fail('自检失败，' + note + ' 判红了但输出里没有「' + needle + '」，判定依据没打在日志上');
     }
-    if (!detected) fail('自检失败，' + note + ' 必须判红但没有判红，判定器不可信');
   };
 
   try {
-    expectGreen('good.apk', 'debug 档同字节');
-    expectRed('bad.apk', 'source.png', 'debug 档异字节');
-    expectRed('noicon.apk', 'source.png', '缺 ic_launcher 条目');
-    let splitDetected = false;
-    try {
-      runQuiet(() => assertApkIcon(filePath('good.apk'), filePath('source.png'), filePath('webbad.png'), filePath('source.png')));
-    } catch {
-      splitDetected = true;
-    }
-    if (!splitDetected) fail('自检失败，源图与 web logo 分家必须判同源断链红，判定器不可信');
-    expectGreen('crunchgreen.apk', 'release 档重编码同像素');
-    expectRed('pixelred.apk', 'source.png', 'release 档异像素');
-    expectRed('nosize.apk', 'source.png', 'release 档像素同一但缺 192x192 RGBA 尺寸族');
-    expectGreen('shortgood.apk', '路径改写同字节');
-    expectRed('shortbad.apk', 'source.png', 'release 档条目内容不可解码');
-    info('自检通过 9 条，覆盖 debug 同字节判绿、debug 异字节判红、缺条目判红、源分家判红、release 重编码同像素判绿、release 异像素判红、release 同像素缺尺寸族判红、路径改写同字节判绿、路径改写不可解码判红');
+    expectGreen('good.apk', 'source.png', 'source.png', 'debug 档同字节');
+    expectRed('bad.apk', 'source.png', 'source.png', 'debug 档异字节');
+    expectRed('noicon.apk', 'source.png', 'source.png', '缺 ic_launcher 条目');
+    expectRed('good.apk', 'webbad.png', 'source.png', '源图与 web logo 分家');
+    expectGreen('crunchgreen.apk', 'source.png', 'source.png', 'release 档重编码同像素且同条目满足尺寸族');
+    expectRed('pixelred.apk', 'source.png', 'source.png', 'release 档异像素');
+    expectRed('nosize.apk', 'source.png', 'source.png', 'release 档同 raw 异 IHDR 不得算像素同一');
+    expectRed('splitgate.apk', 'source.png', 'source.png', 'release 档两条目各命中一闸门不得拼凑过关');
+    expectRed('widegen.apk', 'source.png', 'genwide.png', 'release 档像素同一命中但同条目不满足尺寸族');
+    expectRed('famsplice.apk', 'source.png', 'genwide.png', 'release 档像素命中条目与另一条同尺寸族条目拼凑不得过关');
+    expectGreen('shortgood.apk', 'source.png', 'source.png', '路径改写同字节');
+    expectRed('shortbad.apk', 'source.png', 'source.png', 'release 档条目内容不可解码', '不可解码 2 个');
+    info('自检通过 ' + checked + ' 条，覆盖 debug 同字节判绿、debug 异字节判红、缺条目判红、源分家判红、release 重编码同像素且同条目双闸门判绿、release 异像素判红、同 raw 异 IHDR 判红、两条目各命中一闸门判红、像素同一但同条目不满足尺寸族判红、像素命中条目与另一条同尺寸族条目拼凑判红、路径改写同字节判绿、不可解码判红并打印跳过计数');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
-function runQuiet(fn) {
+function runQuiet(fn, sink) {
   const originalLog = console.log;
   const originalError = console.error;
   const originalExit = process.exitCode;
-  console.log = () => {};
-  console.error = () => {};
+  console.log = (message) => {
+    if (sink) sink.push(String(message));
+  };
+  console.error = (message) => {
+    if (sink) sink.push(String(message));
+  };
   try {
     return fn();
   } finally {
