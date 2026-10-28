@@ -23,10 +23,15 @@ const PENDING_REMOVAL: &[(&str, usize)] = &[("purchase.rs", 1), ("sales.rs", 1)]
 fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries = fs::read_dir(dir).unwrap_or_else(|e| panic!("读取 {} 失败: {e}", dir.display()));
     for entry in entries {
-        let path = entry.unwrap_or_else(|e| panic!("读取 {} 目录项失败: {e}", dir.display())).path();
+        let path = entry
+            .unwrap_or_else(|e| panic!("读取 {} 目录项失败: {e}", dir.display()))
+            .path();
         if path.is_dir() {
             collect_rs(&path, out);
-        } else if path.extension().is_some_and(|e| e.to_string_lossy() == "rs") {
+        } else if path
+            .extension()
+            .is_some_and(|e| e.to_string_lossy() == "rs")
+        {
             out.push(path);
         }
     }
@@ -35,7 +40,11 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn generate_no_display_routes_must_not_reappear() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/routes");
-    assert!(root.is_dir(), "路由扫描面根目录必须存在: {}", root.display());
+    assert!(
+        root.is_dir(),
+        "路由扫描面根目录必须存在: {}",
+        root.display()
+    );
     let mut files: Vec<PathBuf> = Vec::new();
     collect_rs(&root, &mut files);
     assert!(

@@ -125,34 +125,76 @@ const GEN: &str = "src/utils/number_generator.rs";
 #[test]
 fn inventory_adjustment_no_comes_from_create_txn_and_response() {
     let handler = read("src/handlers/inventory_adjustment_handler.rs");
-    assert!(!handler.contains("pub async fn generate_no("),
-        "调整单展示端函数不得再现（假可供性已废除，单号只从建单响应回读）");
-    assert!(!handler.contains("generate-no"), "调整单 handler 不得再现展示端路径文案");
+    assert!(
+        !handler.contains("pub async fn generate_no("),
+        "调整单展示端函数不得再现（假可供性已废除，单号只从建单响应回读）"
+    );
+    assert!(
+        !handler.contains("generate-no"),
+        "调整单 handler 不得再现展示端路径文案"
+    );
     let svc = read("src/services/inventory_adjustment_service.rs");
-    assert!(svc.contains("self.generate_adjustment_no(&txn)"), "调整单必须在建单事务内取号");
-    assert!(svc.contains("adjustment.insert(&txn)"), "调整单必须与取号同事务插入");
-    assert!(svc.contains("adjustment_no: Set(adjustment_no)"), "调整单落库必须消费事务内取号结果");
-    assert!(handler.contains("pub adjustment_no: String"),
-        "调整单建单响应必须回带真实单号字段 adjustment_no");
+    assert!(
+        svc.contains("self.generate_adjustment_no(&txn)"),
+        "调整单必须在建单事务内取号"
+    );
+    assert!(
+        svc.contains("adjustment.insert(&txn)"),
+        "调整单必须与取号同事务插入"
+    );
+    assert!(
+        svc.contains("adjustment_no: Set(adjustment_no)"),
+        "调整单落库必须消费事务内取号结果"
+    );
+    assert!(
+        handler.contains("pub adjustment_no: String"),
+        "调整单建单响应必须回带真实单号字段 adjustment_no"
+    );
     let view = read_frontend("src/views/inventory-adjustment/tabs/AdjustmentFormDialogTab.vue");
-    assert!(view.contains("res.data?.adjustment_no"),
-        "调整单前端必须从建单响应回读单号（不得另有取号来源）");
+    assert!(
+        view.contains("res.data?.adjustment_no"),
+        "调整单前端必须从建单响应回读单号（不得另有取号来源）"
+    );
 }
 
 /// 盘点单：展示腿已废，落库腿事务内取号加同事务插入，建单入参不得回填单号
 #[test]
 fn inventory_count_no_comes_from_create_txn_and_response() {
     let handler = read("src/handlers/inventory_count_handler.rs");
-    assert!(!handler.contains("pub async fn generate_no("), "盘点单展示端函数不得再现");
-    assert!(!handler.contains("generate-no"), "盘点单 handler 不得再现展示端路径文案");
+    assert!(
+        !handler.contains("pub async fn generate_no("),
+        "盘点单展示端函数不得再现"
+    );
+    assert!(
+        !handler.contains("generate-no"),
+        "盘点单 handler 不得再现展示端路径文案"
+    );
     let svc = read("src/services/inventory_count_service.rs");
-    assert!(svc.contains("DocumentNumberGenerator::generate_no_with_txn("), "盘点单必须在建单事务内取号");
-    assert!(svc.contains("count_active.insert(&txn)"), "盘点单必须与取号同事务插入");
-    assert!(svc.contains("count_no: Set(count_no)"), "盘点单落库必须消费事务内取号结果");
-    assert!(!svc.contains("count_no: req.count_no"), "盘点单建单入参不得回填单号（后端为唯一取号来源）");
-    assert!(handler.contains("pub count_no: String"), "盘点单建单响应必须回带真实单号字段 count_no");
+    assert!(
+        svc.contains("DocumentNumberGenerator::generate_no_with_txn("),
+        "盘点单必须在建单事务内取号"
+    );
+    assert!(
+        svc.contains("count_active.insert(&txn)"),
+        "盘点单必须与取号同事务插入"
+    );
+    assert!(
+        svc.contains("count_no: Set(count_no)"),
+        "盘点单落库必须消费事务内取号结果"
+    );
+    assert!(
+        !svc.contains("count_no: req.count_no"),
+        "盘点单建单入参不得回填单号（后端为唯一取号来源）"
+    );
+    assert!(
+        handler.contains("pub count_no: String"),
+        "盘点单建单响应必须回带真实单号字段 count_no"
+    );
     let view = read_frontend("src/views/inventory-count/tabs/CountFormDialogTab.vue");
-    assert!(view.contains("res.data?.count_no"), "盘点单前端必须从建单响应回读单号");
+    assert!(
+        view.contains("res.data?.count_no"),
+        "盘点单前端必须从建单响应回读单号"
+    );
 }
 
 /// 调拨单：展示腿已废，落库腿事务内取号、查重后同事务插入；调拨列表无建单落库
@@ -160,35 +202,73 @@ fn inventory_count_no_comes_from_create_txn_and_response() {
 #[test]
 fn inventory_transfer_no_comes_from_create_txn_and_response() {
     let handler = read("src/handlers/inventory_transfer_handler.rs");
-    assert!(!handler.contains("pub async fn generate_no("), "调拨单展示端函数不得再现");
-    assert!(!handler.contains("generate-no"), "调拨单 handler 不得再现展示端路径文案");
+    assert!(
+        !handler.contains("pub async fn generate_no("),
+        "调拨单展示端函数不得再现"
+    );
+    assert!(
+        !handler.contains("generate-no"),
+        "调拨单 handler 不得再现展示端路径文案"
+    );
     let svc = read("src/services/inv/inventory_move.rs");
-    assert!(svc.contains("self.generate_transfer_no(&txn)"), "调拨单必须在建单事务内取号");
-    assert!(svc.contains("transfer.insert(&txn)"), "调拨单必须与取号同事务插入");
-    assert!(svc.contains("validate_transfer_no_uniqueness(&txn, &transfer_no)"), "调拨单事务内取号后必须查重");
-    assert!(handler.contains("serde_json::to_value(transfer)"),
-        "调拨单建单响应必须整模型序列化回带（含真实 transfer_no）");
-    assert!(read("src/models/inventory_transfer.rs").contains("pub transfer_no: String"),
-        "调拨单模型必须有 transfer_no 列供建单响应回读");
+    assert!(
+        svc.contains("self.generate_transfer_no(&txn)"),
+        "调拨单必须在建单事务内取号"
+    );
+    assert!(
+        svc.contains("transfer.insert(&txn)"),
+        "调拨单必须与取号同事务插入"
+    );
+    assert!(
+        svc.contains("validate_transfer_no_uniqueness(&txn, &transfer_no)"),
+        "调拨单事务内取号后必须查重"
+    );
+    assert!(
+        handler.contains("serde_json::to_value(transfer)"),
+        "调拨单建单响应必须整模型序列化回带（含真实 transfer_no）"
+    );
+    assert!(
+        read("src/models/inventory_transfer.rs").contains("pub transfer_no: String"),
+        "调拨单模型必须有 transfer_no 列供建单响应回读"
+    );
 }
 
 /// 入库单：展示腿已废，取号宏在 facade、事务腿在 ops/crud，回读腿整模型序列化
 #[test]
 fn purchase_receipt_no_comes_from_create_txn_and_response() {
     let handler = read("src/handlers/purchase_receipt_handler.rs");
-    assert!(!handler.contains("pub async fn generate_no("), "入库单展示端函数不得再现");
-    assert!(!handler.contains("generate-no"), "入库单 handler 不得再现展示端路径文案");
+    assert!(
+        !handler.contains("pub async fn generate_no("),
+        "入库单展示端函数不得再现"
+    );
+    assert!(
+        !handler.contains("generate-no"),
+        "入库单 handler 不得再现展示端路径文案"
+    );
     let svc = read("src/services/purchase_receipt_service.rs");
-    assert!(svc.contains("receipt_no: Set(receipt_no)"), "入库单落库必须消费事务内取号结果");
+    assert!(
+        svc.contains("receipt_no: Set(receipt_no)"),
+        "入库单落库必须消费事务内取号结果"
+    );
     let crud = read("src/services/purchase_receipt_ops/crud.rs");
-    assert!(crud.contains("self.generate_receipt_no(&txn)"), "入库单必须在建单事务内取号");
+    assert!(
+        crud.contains("self.generate_receipt_no(&txn)"),
+        "入库单必须在建单事务内取号"
+    );
     assert!(crud.contains(".insert(&txn)"), "入库单必须与取号同事务插入");
-    assert!(handler.contains("serde_json::to_value(receipt)"),
-        "入库单建单响应必须整模型序列化回带（含真实 receipt_no）");
-    assert!(read("src/models/purchase_receipt.rs").contains("pub receipt_no: String"),
-        "入库单模型必须有 receipt_no 列供建单响应回读");
+    assert!(
+        handler.contains("serde_json::to_value(receipt)"),
+        "入库单建单响应必须整模型序列化回带（含真实 receipt_no）"
+    );
+    assert!(
+        read("src/models/purchase_receipt.rs").contains("pub receipt_no: String"),
+        "入库单模型必须有 receipt_no 列供建单响应回读"
+    );
     let view = read_frontend("src/views/purchase-receipt/composables/usePrcProc.ts");
-    assert!(view.contains("res.data?.receipt_no"), "入库单前端必须从建单响应回读单号");
+    assert!(
+        view.contains("res.data?.receipt_no"),
+        "入库单前端必须从建单响应回读单号"
+    );
 }
 
 /// 凭证：展示腿已废（generate_voucher_no），落库腿事务内取号加同事务插入，
@@ -196,16 +276,40 @@ fn purchase_receipt_no_comes_from_create_txn_and_response() {
 #[test]
 fn voucher_no_comes_from_create_txn_and_response() {
     let handler = read("src/handlers/voucher_handler.rs");
-    assert!(!handler.contains("pub async fn generate_voucher_no("), "凭证展示端函数不得再现");
-    assert!(!handler.contains("generate-no"), "凭证 handler 不得再现展示端路径文案");
+    assert!(
+        !handler.contains("pub async fn generate_voucher_no("),
+        "凭证展示端函数不得再现"
+    );
+    assert!(
+        !handler.contains("generate-no"),
+        "凭证 handler 不得再现展示端路径文案"
+    );
     let crud = read("src/services/voucher_ops/crud.rs");
-    assert!(crud.contains("DocumentNumberGenerator::generate_no_with_txn("), "凭证必须在建单事务内取号");
-    assert!(crud.contains("voucher_no: sea_orm::Set(voucher_no)"), "凭证落库必须消费事务内取号结果");
-    assert!(crud.contains("active_model.insert(&txn)"), "凭证必须与取号同事务插入");
-    assert!(handler.contains("Json<ApiResponse<voucher::Model>>"), "凭证建单响应必须回带整模型（含真实 voucher_no）");
-    assert!(read("src/models/voucher.rs").contains("pub voucher_no: String"), "凭证模型必须有 voucher_no 列供建单响应回读");
+    assert!(
+        crud.contains("DocumentNumberGenerator::generate_no_with_txn("),
+        "凭证必须在建单事务内取号"
+    );
+    assert!(
+        crud.contains("voucher_no: sea_orm::Set(voucher_no)"),
+        "凭证落库必须消费事务内取号结果"
+    );
+    assert!(
+        crud.contains("active_model.insert(&txn)"),
+        "凭证必须与取号同事务插入"
+    );
+    assert!(
+        handler.contains("Json<ApiResponse<voucher::Model>>"),
+        "凭证建单响应必须回带整模型（含真实 voucher_no）"
+    );
+    assert!(
+        read("src/models/voucher.rs").contains("pub voucher_no: String"),
+        "凭证模型必须有 voucher_no 列供建单响应回读"
+    );
     let view = read_frontend("src/views/voucher/tabs/composables/useVchrLst.ts");
-    assert!(view.contains("res.data?.voucher_no"), "凭证前端必须从建单响应回读单号");
+    assert!(
+        view.contains("res.data?.voucher_no"),
+        "凭证前端必须从建单响应回读单号"
+    );
 }
 
 // ============================================================
