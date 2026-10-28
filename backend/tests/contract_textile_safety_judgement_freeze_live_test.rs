@@ -23,9 +23,7 @@ use bingxi_backend::models::product::ActiveModel as ProductActiveModel;
 use bingxi_backend::models::status::purchase_inventory::{
     inventory_stock_quality_status as stock_quality, inventory_stock_status as stock_status,
 };
-use bingxi_backend::models::status::textile_safety::{
-    submission_status, textile_safety_category,
-};
+use bingxi_backend::models::status::textile_safety::{submission_status, textile_safety_category};
 use bingxi_backend::models::textile_limit_rule::{
     ActiveModel as LimitActiveModel, Column as LimitColumn, Entity as LimitRule,
 };
@@ -38,9 +36,7 @@ use bingxi_backend::services::textile_safety_submission_service::{
     CreateSubmissionReq, TextileSafetySubmissionService,
 };
 use rust_decimal::Decimal;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set,
-};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 
 const TEST_OPERATOR: i32 = 9901;
@@ -167,7 +163,11 @@ async fn advance_to_sent(db: &Arc<DatabaseConnection>, no: &str, batch: Option<&
     assert_eq!(model.status, submission_status::SENT);
     // 送检出样即挂起：有批次号时必命中种子库存行（联动不许静默）
     if batch.is_some() {
-        assert_eq!(link.matched, 1, "sent 挂起必须命中 1 行在库库存：{}", link.scope_note);
+        assert_eq!(
+            link.matched, 1,
+            "sent 挂起必须命中 1 行在库库存：{}",
+            link.scope_note
+        );
         assert_eq!(link.updated_stock_ids.len(), 1);
     }
     created.id
@@ -283,7 +283,10 @@ async fn report_full_chain(
             test_method: Some("GB/T 3920".to_string()),
         },
     ];
-    service.upsert_results(report.id, rows, TEST_OPERATOR).await.unwrap();
+    service
+        .upsert_results(report.id, rows, TEST_OPERATOR)
+        .await
+        .unwrap();
     let (accepted, missing) = service
         .run_acceptance_gate(report.id, TEST_OPERATOR)
         .await
@@ -293,7 +296,10 @@ async fn report_full_chain(
         "要素齐全的报告必须过门，缺项点名 {missing:?}（状态 {}）",
         accepted.acceptance_status
     );
-    service.judge_report(report.id, TEST_OPERATOR).await.unwrap();
+    service
+        .judge_report(report.id, TEST_OPERATOR)
+        .await
+        .unwrap();
 }
 
 /// 1+2. 送检挂起、fail 冻结、复检 pass 放行的完整链路（读回库存真值）。
@@ -310,7 +316,10 @@ async fn hold_freeze_release_chain() {
     // 甲醛 90 对 B 类 lte 75 → 整单 fail → 冻结
     report_full_chain(&db, sid, "RPT-TXT-FAIL", "90", "2027-12-31").await;
     let sub_service = TextileSafetySubmissionService::new(db.clone());
-    let outcome = sub_service.judge_submission(sid, TEST_OPERATOR).await.unwrap();
+    let outcome = sub_service
+        .judge_submission(sid, TEST_OPERATOR)
+        .await
+        .unwrap();
     assert_eq!(
         outcome.submission.overall_verdict.as_deref(),
         Some("fail"),
@@ -326,7 +335,10 @@ async fn hold_freeze_release_chain() {
 
     // 同批次复检（甲醛 15）整单 pass → 放行
     let sid2 = {
-        let created = sub_service.create(submission_req("SUB-TXT-PASS", Some(BATCH_A))).await.unwrap();
+        let created = sub_service
+            .create(submission_req("SUB-TXT-PASS", Some(BATCH_A)))
+            .await
+            .unwrap();
         sub_service
             .generate_items(created.id, vec![], TEST_OPERATOR)
             .await
@@ -343,7 +355,10 @@ async fn hold_freeze_release_chain() {
         created.id
     };
     report_full_chain(&db, sid2, "RPT-TXT-PASS", "15", "2027-12-31").await;
-    let outcome2 = sub_service.judge_submission(sid2, TEST_OPERATOR).await.unwrap();
+    let outcome2 = sub_service
+        .judge_submission(sid2, TEST_OPERATOR)
+        .await
+        .unwrap();
     assert_eq!(
         outcome2.submission.overall_verdict.as_deref(),
         Some("pass"),
@@ -368,8 +383,17 @@ async fn withdraw_releases_pending_hold() {
         .await
         .unwrap();
     assert_eq!(model.status, submission_status::WITHDRAWN);
-    assert_eq!(link.updated_stock_ids.len(), 1, "撤回必须解除挂起：{}", link.scope_note);
-    assert_eq!(stock_quality_of(&db).await, stock_quality::PASS, "撤回后回合格（送检前状态）");
+    assert_eq!(
+        link.updated_stock_ids.len(),
+        1,
+        "撤回必须解除挂起：{}",
+        link.scope_note
+    );
+    assert_eq!(
+        stock_quality_of(&db).await,
+        stock_quality::PASS,
+        "撤回后回合格（送检前状态）"
+    );
 }
 
 /// 1c. 无批次号的送检单不静默跳过联动，scope_note 必须点名原因。
@@ -389,7 +413,11 @@ async fn no_batch_named_not_silent() {
         "无批次联动回显必须点名原因，实际：{}",
         outcome.stock_link.scope_note
     );
-    assert_eq!(stock_quality_of(&db).await, stock_quality::PASS, "无批次单不得误改任何库存行");
+    assert_eq!(
+        stock_quality_of(&db).await,
+        stock_quality::PASS,
+        "无批次单不得误改任何库存行"
+    );
 }
 
 /// 3. 完整性门缺项逐条点名并落 rejected；未过门报告不得产判定。
@@ -419,15 +447,28 @@ async fn acceptance_gate_names_missing_and_blocks_judgement() {
         })
         .await
         .unwrap();
-    let (_, missing) = service.run_acceptance_gate(report.id, TEST_OPERATOR).await.unwrap();
-    for expected in ["cma", "cnas", "sample_name", "material_composition", "test_basis", "conclusion", "expired"]
-    {
+    let (_, missing) = service
+        .run_acceptance_gate(report.id, TEST_OPERATOR)
+        .await
+        .unwrap();
+    for expected in [
+        "cma",
+        "cnas",
+        "sample_name",
+        "material_composition",
+        "test_basis",
+        "conclusion",
+        "expired",
+    ] {
         assert!(
             missing.iter().any(|m| m == expected),
             "缺项必须点名 {expected}，实际 {missing:?}"
         );
     }
-    assert!(missing.iter().any(|m| m == "batch_mismatch"), "工艺色号与送检单不一致必须点名 batch_mismatch，实际 {missing:?}");
+    assert!(
+        missing.iter().any(|m| m == "batch_mismatch"),
+        "工艺色号与送检单不一致必须点名 batch_mismatch，实际 {missing:?}"
+    );
     let saved = service.get(report.id).await.unwrap();
     assert_eq!(saved.acceptance_status, "rejected");
     let err = service
@@ -476,7 +517,10 @@ async fn expired_reports_named_and_excluded() {
     let old = active.update(&*db).await.unwrap();
 
     let sub_service = TextileSafetySubmissionService::new(db.clone());
-    let outcome = sub_service.judge_submission(sid, TEST_OPERATOR).await.unwrap();
+    let outcome = sub_service
+        .judge_submission(sid, TEST_OPERATOR)
+        .await
+        .unwrap();
     assert_eq!(
         outcome.expired_reports_named,
         vec![old.report_no.clone()],
@@ -498,8 +542,14 @@ async fn vocabulary_and_state_machine_reject() {
     // 裸字母类别：词表只认带前缀稳定码
     let mut bare = submission_req("SUB-TXT-VOCAB", Some(BATCH_A));
     bare.safety_category = "B".to_string();
-    let err = service.create(bare).await.expect_err("裸字母类别必须被词表拒");
-    assert!(err.to_string().contains("安全类别"), "报错必须点名维度列，实际：{err}");
+    let err = service
+        .create(bare)
+        .await
+        .expect_err("裸字母类别必须被词表拒");
+    assert!(
+        err.to_string().contains("安全类别"),
+        "报错必须点名维度列，实际：{err}"
+    );
 
     // 婴幼儿申报 B 类：松于 GB 31701 法定最低 A 类
     let mut loose = submission_req("SUB-TXT-LOOSE", Some(BATCH_A));
@@ -519,7 +569,10 @@ async fn vocabulary_and_state_machine_reject() {
         .set_status(created.id, submission_status::JUDGED, TEST_OPERATOR)
         .await
         .expect_err("judged 不得手工直达");
-    assert!(err.to_string().contains("judged"), "报错必须点名目标态，实际：{err}");
+    assert!(
+        err.to_string().contains("judged"),
+        "报错必须点名目标态，实际：{err}"
+    );
 }
 
 /// 6. 判定器变异自证：限值行从 75 变异到 100，实测 90 的结论必须从 fail 翻为 pass；
@@ -570,7 +623,10 @@ async fn judge_is_table_driven_under_limit_mutation() {
         .await
         .unwrap();
     let after = judged.iter().find(|r| r.item_id == item.id).unwrap();
-    assert_eq!(after.verdict, "pass", "限值变异到 100 后同一实测 90 必须翻为 pass（判定查表自证）");
+    assert_eq!(
+        after.verdict, "pass",
+        "限值变异到 100 后同一实测 90 必须翻为 pass（判定查表自证）"
+    );
 
     // 回拨：恢复 75，重判必须翻回 fail
     let fresh = LimitRule::find()
@@ -583,7 +639,13 @@ async fn judge_is_table_driven_under_limit_mutation() {
     let mut restore: LimitActiveModel = fresh.into();
     restore.limit_high = Set(original_high);
     restore.update(&*db).await.unwrap();
-    let judged2 = service.judge_report(reports[0].id, TEST_OPERATOR).await.unwrap();
+    let judged2 = service
+        .judge_report(reports[0].id, TEST_OPERATOR)
+        .await
+        .unwrap();
     let back = judged2.iter().find(|r| r.item_id == item.id).unwrap();
-    assert_eq!(back.verdict, "fail", "限值回拨后结论必须翻回 fail（变异双向锁）");
+    assert_eq!(
+        back.verdict, "fail",
+        "限值回拨后结论必须翻回 fail（变异双向锁）"
+    );
 }

@@ -18,7 +18,10 @@
 //! 消费方：`textile_safety_report_service.rs` 判逐项目实测结果、
 //! `textile_safety_submission_service.rs` 判童装加考 measurable 行与汇总整单结论。
 
-use crate::models::textile_limit_rule::{ActiveModel as LimitActiveModel, Column as LimitColumn, Entity as LimitRule, Model as LimitRuleModel};
+use crate::models::textile_limit_rule::{
+    ActiveModel as LimitActiveModel, Column as LimitColumn, Entity as LimitRule,
+    Model as LimitRuleModel,
+};
 use crate::models::textile_test_item::Model as TestItemModel;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
@@ -111,19 +114,15 @@ pub fn tier_score(rule: &CandidateRule) -> u8 {
 /// 入参 rules 为该 item_id 的所有限值行（调用方按 item 一次取回后可复用切片）。
 /// 返回最高分层的全部行；无任何候选行时返回空 Vec，由调用方 `resolve_verdict` 报错点名。
 pub fn select_candidates(rules: &[CandidateRule], dims: &JudgeDims<'_>) -> Vec<CandidateRule> {
-    use crate::models::status::{textile_limit_scope as scope};
+    use crate::models::status::textile_limit_scope as scope;
     let candidates: Vec<CandidateRule> = rules
         .iter()
         .filter(|r| {
             let cat_ok = r.safety_category == dims.safety_category
                 || r.safety_category == scope::CATEGORY_ANY;
-            let form_ok =
-                r.product_form == dims.product_form || r.product_form == scope::FORM_ANY;
+            let form_ok = r.product_form == dims.product_form || r.product_form == scope::FORM_ANY;
             let tag_ok = r.condition_tag == scope::TAG_NONE
-                || dims
-                    .condition_tags
-                    .iter()
-                    .any(|t| t == &r.condition_tag);
+                || dims.condition_tags.iter().any(|t| t == &r.condition_tag);
             cat_ok && form_ok && tag_ok
         })
         .cloned()
@@ -151,7 +150,11 @@ fn judge_row(rule: &CandidateRule, measured: &MeasuredInput) -> Result<RowOutcom
                     rule_debug(rule)
                 ))
             })?;
-            Ok(if v <= high { RowOutcome::Pass } else { RowOutcome::Fail })
+            Ok(if v <= high {
+                RowOutcome::Pass
+            } else {
+                RowOutcome::Fail
+            })
         }
         cmp::GTE => {
             let v = require_value(rule, measured)?;
@@ -161,7 +164,11 @@ fn judge_row(rule: &CandidateRule, measured: &MeasuredInput) -> Result<RowOutcom
                     rule_debug(rule)
                 ))
             })?;
-            Ok(if v >= low { RowOutcome::Pass } else { RowOutcome::Fail })
+            Ok(if v >= low {
+                RowOutcome::Pass
+            } else {
+                RowOutcome::Fail
+            })
         }
         cmp::BETWEEN => {
             let v = require_value(rule, measured)?;
@@ -182,16 +189,20 @@ fn judge_row(rule: &CandidateRule, measured: &MeasuredInput) -> Result<RowOutcom
             match measured.text.as_deref() {
                 Some(t) if t == flag::NONE => Ok(RowOutcome::Pass),
                 Some(t) if t == flag::DETECTED => Ok(RowOutcome::Fail),
-                _ => Err(input_incomplete(rule, "必须为无型项目要求实测 flag 为 none 或 detected")),
+                _ => Err(input_incomplete(
+                    rule,
+                    "必须为无型项目要求实测 flag 为 none 或 detected",
+                )),
             }
         }
-        cmp::FORBIDDEN => {
-            match measured.text.as_deref() {
-                Some(t) if t == flag::NONE => Ok(RowOutcome::Pass),
-                Some(t) if t == flag::DETECTED => Ok(RowOutcome::Fail),
-                _ => Err(input_incomplete(rule, "禁用型项目要求实测 flag 为 none 或 detected")),
-            }
-        }
+        cmp::FORBIDDEN => match measured.text.as_deref() {
+            Some(t) if t == flag::NONE => Ok(RowOutcome::Pass),
+            Some(t) if t == flag::DETECTED => Ok(RowOutcome::Fail),
+            _ => Err(input_incomplete(
+                rule,
+                "禁用型项目要求实测 flag 为 none 或 detected",
+            )),
+        },
         other => Err(AppError::business(format!(
             "限值行 {} 携带词表外比较器 {}，判定表数据被旁路写坏，请核实修正",
             rule_debug(rule),
@@ -203,7 +214,10 @@ fn judge_row(rule: &CandidateRule, measured: &MeasuredInput) -> Result<RowOutcom
 /// 合取判定（同分层多行全部满足才合格；任一行 na 即不适用压顶）。
 ///
 /// 空分层不可调用本函数——候选为空的报错在 `resolve_verdict`（需要 item 上下文拼消息）。
-pub fn judge_conjunction(rows: &[CandidateRule], measured: &MeasuredInput) -> Result<RowOutcome, AppError> {
+pub fn judge_conjunction(
+    rows: &[CandidateRule],
+    measured: &MeasuredInput,
+) -> Result<RowOutcome, AppError> {
     let mut outcome = RowOutcome::Pass;
     for rule in rows {
         match judge_row(rule, measured)? {
@@ -216,9 +230,9 @@ pub fn judge_conjunction(rows: &[CandidateRule], measured: &MeasuredInput) -> Re
 }
 
 fn require_value(rule: &CandidateRule, measured: &MeasuredInput) -> Result<Decimal, AppError> {
-    measured.value.ok_or_else(|| {
-        input_incomplete(rule, "数值与等级型项目必须录入实测数值后才能判定")
-    })
+    measured
+        .value
+        .ok_or_else(|| input_incomplete(rule, "数值与等级型项目必须录入实测数值后才能判定"))
 }
 
 fn input_incomplete(rule: &CandidateRule, why: &str) -> AppError {
@@ -256,14 +270,20 @@ pub async fn resolve_verdict(
     if selected.is_empty() {
         return Err(AppError::business(format!(
             "项目 {}（{}）在安全类别 {}、产品形态 {}、条件标签 {:?} 组合下无限值行，判定矩阵未覆盖该组合，请在限值判定表维护后重试，判定器拒绝凭空造限值",
-            item.item_code, item.item_name, dims.safety_category, dims.product_form, dims.condition_tags
+            item.item_code,
+            item.item_name,
+            dims.safety_category,
+            dims.product_form,
+            dims.condition_tags
         )));
     }
     let outcome = judge_conjunction(&selected, measured)?;
     Ok(match outcome {
         RowOutcome::Pass => crate::models::status::textile_verdict::PASS.to_string(),
         RowOutcome::Fail => crate::models::status::textile_verdict::FAIL.to_string(),
-        RowOutcome::NotApplicable => crate::models::status::textile_verdict::NOT_APPLICABLE.to_string(),
+        RowOutcome::NotApplicable => {
+            crate::models::status::textile_verdict::NOT_APPLICABLE.to_string()
+        }
     })
 }
 
@@ -317,7 +337,14 @@ mod tests {
         s.parse().unwrap()
     }
 
-    fn rule(cat: &str, form: &str, tag: &str, cmp: &str, low: Option<&str>, high: Option<&str>) -> CandidateRule {
+    fn rule(
+        cat: &str,
+        form: &str,
+        tag: &str,
+        cmp: &str,
+        low: Option<&str>,
+        high: Option<&str>,
+    ) -> CandidateRule {
         CandidateRule {
             safety_category: cat.to_string(),
             product_form: form.to_string(),
@@ -329,7 +356,11 @@ mod tests {
     }
 
     fn dims<'a>(cat: &'a str, form: &'a str, tags: &'a [String]) -> JudgeDims<'a> {
-        JudgeDims { safety_category: cat, product_form: form, condition_tags: tags }
+        JudgeDims {
+            safety_category: cat,
+            product_form: form,
+            condition_tags: tags,
+        }
     }
 
     /// 甲醛 A 类 25 mg/kg 对 lte 20 必判 fail；15 必判 pass（钉比较器方向）。
@@ -339,13 +370,19 @@ mod tests {
         let tags: Vec<String> = vec![];
         let fail = judge_conjunction(
             &select_candidates(&rows, &dims("GB18401_A", "final", &tags)),
-            &MeasuredInput { value: Some(dec("25")), text: None },
+            &MeasuredInput {
+                value: Some(dec("25")),
+                text: None,
+            },
         )
         .unwrap();
         assert_eq!(fail, RowOutcome::Fail);
         let pass = judge_conjunction(
             &select_candidates(&rows, &dims("GB18401_A", "final", &tags)),
-            &MeasuredInput { value: Some(dec("15")), text: None },
+            &MeasuredInput {
+                value: Some(dec("15")),
+                text: None,
+            },
         )
         .unwrap();
         assert_eq!(pass, RowOutcome::Pass);
@@ -354,16 +391,37 @@ mod tests {
     /// pH 区间闭区间边界值 7.5 合格、7.6 不合格（钉 between 含边界）。
     #[test]
     fn between_inclusive_bounds() {
-        let rows = vec![rule("GB18401_A", "final", "none", "between", Some("4.0"), Some("7.5"))];
+        let rows = vec![rule(
+            "GB18401_A",
+            "final",
+            "none",
+            "between",
+            Some("4.0"),
+            Some("7.5"),
+        )];
         let tags: Vec<String> = vec![];
         let sel = select_candidates(&rows, &dims("GB18401_A", "final", &tags));
         assert_eq!(sel.len(), 1);
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: Some(dec("7.5")), text: None }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: Some(dec("7.5")),
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::Pass
         );
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: Some(dec("7.6")), text: None }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: Some(dec("7.6")),
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::Fail
         );
     }
@@ -373,15 +431,36 @@ mod tests {
     #[test]
     fn ph_relaxation_requires_matching_condition() {
         let rows = vec![
-            rule("GB18401_A", "final", "none", "between", Some("4.0"), Some("7.5")),
-            rule("any", "intermediate", "wet_processing", "between", Some("4.0"), Some("10.5")),
+            rule(
+                "GB18401_A",
+                "final",
+                "none",
+                "between",
+                Some("4.0"),
+                Some("7.5"),
+            ),
+            rule(
+                "any",
+                "intermediate",
+                "wet_processing",
+                "between",
+                Some("4.0"),
+                Some("10.5"),
+            ),
         ];
         let tags = vec!["wet_processing".to_string()];
         let sel = select_candidates(&rows, &dims("GB18401_A", "intermediate", &tags));
         assert_eq!(sel.len(), 1);
         assert_eq!(sel[0].limit_high, Some(dec("10.5")));
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: Some(dec("10.0")), text: None }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: Some(dec("10.0")),
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::Pass
         );
         let no_tags: Vec<String> = vec![];
@@ -400,14 +479,28 @@ mod tests {
         assert_eq!(sel.len(), 1);
         assert_eq!(sel[0].comparator, "na");
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: Some(dec("2.0")), text: None }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: Some(dec("2.0")),
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::NotApplicable
         );
         // 无豁免标签时回到下限行，2.0 低于 3.5 判 fail
         let no_tags: Vec<String> = vec![];
         let sel2 = select_candidates(&rows, &dims("GB18401_A", "final", &no_tags));
         assert_eq!(
-            judge_conjunction(&sel2, &MeasuredInput { value: Some(dec("2.0")), text: None }).unwrap(),
+            judge_conjunction(
+                &sel2,
+                &MeasuredInput {
+                    value: Some(dec("2.0")),
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::Fail
         );
     }
@@ -419,7 +512,14 @@ mod tests {
         let tags: Vec<String> = vec![];
         let sel = select_candidates(&rows, &dims("GB18401_B", "final", &tags));
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: None, text: None }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: None,
+                    text: None
+                }
+            )
+            .unwrap(),
             RowOutcome::NotApplicable
         );
     }
@@ -438,7 +538,10 @@ mod tests {
         assert_eq!(
             judge_conjunction(
                 &sel,
-                &MeasuredInput { value: Some(dec("15")), text: Some("detected".into()) }
+                &MeasuredInput {
+                    value: Some(dec("15")),
+                    text: Some("detected".into())
+                }
             )
             .unwrap(),
             RowOutcome::Fail
@@ -446,7 +549,10 @@ mod tests {
         assert_eq!(
             judge_conjunction(
                 &sel,
-                &MeasuredInput { value: Some(dec("25")), text: Some("none".into()) }
+                &MeasuredInput {
+                    value: Some(dec("25")),
+                    text: Some("none".into())
+                }
             )
             .unwrap(),
             RowOutcome::Fail
@@ -454,7 +560,10 @@ mod tests {
         assert_eq!(
             judge_conjunction(
                 &sel,
-                &MeasuredInput { value: Some(dec("15")), text: Some("none".into()) }
+                &MeasuredInput {
+                    value: Some(dec("15")),
+                    text: Some("none".into())
+                }
             )
             .unwrap(),
             RowOutcome::Pass
@@ -467,12 +576,37 @@ mod tests {
         let rows = vec![rule("any", "any", "none", "lte", None, Some("90"))];
         let tags: Vec<String> = vec![];
         let sel = select_candidates(&rows, &dims("GB18401_A", "final", &tags));
-        assert!(judge_conjunction(&sel, &MeasuredInput { value: None, text: None }).is_err());
+        assert!(
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: None,
+                    text: None
+                }
+            )
+            .is_err()
+        );
         let odor = vec![rule("any", "any", "none", "must_none", None, None)];
         let sel = select_candidates(&odor, &dims("GB18401_C", "final", &tags));
-        assert!(judge_conjunction(&sel, &MeasuredInput { value: None, text: Some("鱼腥味".into()) }).is_err());
+        assert!(
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: None,
+                    text: Some("鱼腥味".into())
+                }
+            )
+            .is_err()
+        );
         assert_eq!(
-            judge_conjunction(&sel, &MeasuredInput { value: None, text: Some("none".into()) }).unwrap(),
+            judge_conjunction(
+                &sel,
+                &MeasuredInput {
+                    value: None,
+                    text: Some("none".into())
+                }
+            )
+            .unwrap(),
             RowOutcome::Pass
         );
     }

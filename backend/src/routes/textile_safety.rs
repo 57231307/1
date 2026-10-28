@@ -19,10 +19,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/textile-reports", report_routes())
         .nest("/textile-test-items", test_item_routes())
         .nest("/textile-limit-rules", limit_rule_routes())
-        .nest(
-            "/textile-export-requirements",
-            export_requirement_routes(),
-        )
+        .nest("/textile-export-requirements", export_requirement_routes())
 }
 
 /// 送检单面：建单、列表、详情、要素修改、草稿删除、状态机、清单推导、童装核查、整单判定。
@@ -83,8 +80,14 @@ fn test_item_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(textile_safety_master_handler::list_test_items))
         .route("/", post(textile_safety_master_handler::create_test_item))
-        .route("/{id}", put(textile_safety_master_handler::update_test_item))
-        .route("/{id}", delete(textile_safety_master_handler::delete_test_item))
+        .route(
+            "/{id}",
+            put(textile_safety_master_handler::update_test_item),
+        )
+        .route(
+            "/{id}",
+            delete(textile_safety_master_handler::delete_test_item),
+        )
 }
 
 /// 限值判定表面（四维矩阵的可维护通道）。
@@ -92,8 +95,14 @@ fn limit_rule_routes() -> Router<AppState> {
     Router::new()
         .route("/", get(textile_safety_master_handler::list_limit_rules))
         .route("/", post(textile_safety_master_handler::create_limit_rule))
-        .route("/{id}", put(textile_safety_master_handler::update_limit_rule))
-        .route("/{id}", delete(textile_safety_master_handler::delete_limit_rule))
+        .route(
+            "/{id}",
+            put(textile_safety_master_handler::update_limit_rule),
+        )
+        .route(
+            "/{id}",
+            delete(textile_safety_master_handler::delete_limit_rule),
+        )
 }
 
 /// 出口市场要求登记面（报价与订单侧只读消费 GET，写权归质量岗）。

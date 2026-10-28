@@ -3,6 +3,13 @@
 //! 送检流程真实口径：建单 → 按人群与接触方式与市场推项目清单 → 取样（同品种同色号同工艺
 //! 一批）→ 送有资质机构 → 收报告 → 核对要素与有效期 → 判定归档 → 关闭；撤回为旁支终态。
 //! 状态迁移白名单单源在本文件 `ALLOWED_TRANSITIONS`，与词表 `submission_status` 同步维护。
+use crate::models::inventory_stock::{
+    ActiveModel as StockActiveModel, Column as StockColumn, Entity as InventoryStock,
+};
+use crate::models::product::Entity as ProductEntity;
+use crate::models::status::purchase_inventory::{
+    inventory_stock_quality_status as stock_quality, inventory_stock_status as stock_status,
+};
 use crate::models::status::{
     export_market, sampling_color_role, submission_status, textile_basis_standard,
     textile_check_kind, textile_contact_type, textile_end_user_group, textile_exemption_tag,
@@ -13,31 +20,21 @@ use crate::models::textile_child_safety_check::{
     ActiveModel as CheckActiveModel, Column as CheckColumn, Entity as ChildCheck,
     Model as ChildCheckModel,
 };
-use crate::models::textile_report_item_result::{
-    Column as ResultColumn, Entity as ReportResult,
-};
-use crate::models::textile_safety_submission::{
-    ActiveModel, Column, Entity as Submission, Model,
-};
+use crate::models::textile_report_item_result::{Column as ResultColumn, Entity as ReportResult};
+use crate::models::textile_safety_submission::{ActiveModel, Column, Entity as Submission, Model};
 use crate::models::textile_safety_submission_item::{
-    ActiveModel as ItemActiveModel, Column as ItemColumn, Entity as SubmissionItem, Model as ItemModel,
+    ActiveModel as ItemActiveModel, Column as ItemColumn, Entity as SubmissionItem,
+    Model as ItemModel,
 };
 use crate::models::textile_test_item::{
     Column as ItemMasterColumn, Entity as TestItem, Model as TestItemModel,
-};
-use crate::models::inventory_stock::{
-    ActiveModel as StockActiveModel, Column as StockColumn, Entity as InventoryStock,
-};
-use crate::models::product::Entity as ProductEntity;
-use crate::models::status::purchase_inventory::{
-    inventory_stock_quality_status as stock_quality, inventory_stock_status as stock_status,
 };
 use crate::models::textile_third_party_report::{
     Column as ReportColumn, Entity as ThirdPartyReport,
 };
 use crate::services::audit_log_service::AuditLogService;
 use crate::services::textile_safety_limit_judge::{
-    fetch_rules_for_item, resolve_verdict, CandidateRule, JudgeDims, MeasuredInput,
+    CandidateRule, JudgeDims, MeasuredInput, fetch_rules_for_item, resolve_verdict,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -219,10 +216,7 @@ impl TextileSafetySubmissionService {
     }
 
     /// 分页列表（品种、状态、市场过滤）。分页语义与全仓一致：page 1-based，越界 400 不夹紧。
-    pub async fn list(
-        &self,
-        params: SubmissionListParams,
-    ) -> Result<(Vec<Model>, u64), AppError> {
+    pub async fn list(&self, params: SubmissionListParams) -> Result<(Vec<Model>, u64), AppError> {
         let page = params.page.unwrap_or(1);
         let page_size = params.page_size.unwrap_or(20);
         if page == 0 {
@@ -259,7 +253,9 @@ impl TextileSafetySubmissionService {
             }
             query = query.filter(Column::TargetMarket.eq(market));
         }
-        let paginator = query.order_by_desc(Column::CreatedAt).paginate(self.db.as_ref(), page_size);
+        let paginator = query
+            .order_by_desc(Column::CreatedAt)
+            .paginate(self.db.as_ref(), page_size);
         let (items, total) = paginate_with_total(paginator, page).await?;
         Ok((items, total))
     }
@@ -335,11 +331,7 @@ impl TextileSafetySubmissionService {
             .exec(self.db.as_ref())
             .await?;
         Submission::delete_by_id(id).exec(self.db.as_ref()).await?;
-        tracing::info!(
-            submission_id = id,
-            operator,
-            "纺织品安全送检单草稿已删除"
-        );
+        tracing::info!(submission_id = id, operator, "纺织品安全送检单草稿已删除");
         Ok(())
     }
 
@@ -461,7 +453,7 @@ impl TextileSafetySubmissionService {
                 | (StockLinkAction::ReleaseOnPass, stock_quality::FAIL) => {
                     Some(stock_quality::PASS)
                 }
-                    _ => None,
+                _ => None,
             };
             if let Some(target_value) = target {
                 let mut active: StockActiveModel = row.into();
@@ -819,7 +811,9 @@ impl TextileSafetySubmissionService {
             let item = TestItem::find_by_id(row.item_id)
                 .one(self.db.as_ref())
                 .await?
-                .ok_or_else(|| AppError::business(format!("童装核查行 {} 的项目主数据缺失", row.id)))?;
+                .ok_or_else(|| {
+                    AppError::business(format!("童装核查行 {} 的项目主数据缺失", row.id))
+                })?;
             let verdict = if row.check_kind == textile_check_kind::MANUAL {
                 match row.manual_conclusion.as_deref() {
                     Some(c) if textile_verdict::JUDGED.contains(&c) => c.to_string(),
@@ -851,9 +845,11 @@ impl TextileSafetySubmissionService {
                         item.item_code, item.item_name
                     )));
                 }
-                crate::services::textile_safety_limit_judge::judge_conjunction(&selected, &measured)?
-                    .into_verdict_token()
-                    .to_string()
+                crate::services::textile_safety_limit_judge::judge_conjunction(
+                    &selected, &measured,
+                )?
+                .into_verdict_token()
+                .to_string()
             };
             let now = chrono::Utc::now();
             let mut active: CheckActiveModel = row.into();
@@ -958,12 +954,36 @@ impl TextileSafetySubmissionService {
         exemption_tags: &[String],
     ) -> Result<(), AppError> {
         let checks: [(&str, bool, &str); 6] = [
-            (end_user_group, textile_end_user_group::is_valid(end_user_group), "终端人群"),
-            (contact_type, textile_contact_type::is_valid(contact_type), "接触方式"),
-            (safety_category, textile_safety_category::is_valid(safety_category), "安全类别"),
-            (product_form, textile_product_form::is_valid(product_form), "产品形态"),
-            (target_market, export_market::is_valid(target_market), "目标市场"),
-            (color_role, sampling_color_role::is_valid(color_role), "色号角色"),
+            (
+                end_user_group,
+                textile_end_user_group::is_valid(end_user_group),
+                "终端人群",
+            ),
+            (
+                contact_type,
+                textile_contact_type::is_valid(contact_type),
+                "接触方式",
+            ),
+            (
+                safety_category,
+                textile_safety_category::is_valid(safety_category),
+                "安全类别",
+            ),
+            (
+                product_form,
+                textile_product_form::is_valid(product_form),
+                "产品形态",
+            ),
+            (
+                target_market,
+                export_market::is_valid(target_market),
+                "目标市场",
+            ),
+            (
+                color_role,
+                sampling_color_role::is_valid(color_role),
+                "色号角色",
+            ),
         ];
         for (value, ok, label) in checks {
             if !ok {
@@ -1019,7 +1039,9 @@ impl TextileSafetySubmissionService {
     }
 
     pub fn split_exemption_tags(raw: Option<&str>) -> Result<Vec<String>, AppError> {
-        let Some(raw) = raw else { return Ok(Vec::new()) };
+        let Some(raw) = raw else {
+            return Ok(Vec::new());
+        };
         if raw.trim().is_empty() {
             return Ok(Vec::new());
         }

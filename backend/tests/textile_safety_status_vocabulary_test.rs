@@ -34,10 +34,8 @@ fn read_rel(manifest_rel: &str) -> String {
 const M0111_REL: &str =
     "migration/src/domain/textile_safety/m0111_apply_textile_safety_vocab_checks.rs";
 const M0112_REL: &str = "migration/src/domain/textile_safety/m0112_seed_textile_safety_matrix.rs";
-const M0113A_REL: &str =
-    "migration/src/domain/purchase_inspection_result_check/m0113a_report_purchase_inspection_result_dirty_values.rs";
-const M0113B_REL: &str =
-    "migration/src/domain/purchase_inspection_result_check/m0113b_apply_purchase_inspection_result_check.rs";
+const M0113A_REL: &str = "migration/src/domain/purchase_inspection_result_check/m0113a_report_purchase_inspection_result_dirty_values.rs";
+const M0113B_REL: &str = "migration/src/domain/purchase_inspection_result_check/m0113b_apply_purchase_inspection_result_check.rs";
 const LIB_REL: &str = "migration/src/lib.rs";
 const TEXTILE_DOMAIN_MOD_REL: &str = "migration/src/domain/textile_safety/mod.rs";
 
@@ -306,30 +304,21 @@ fn m0113_pair_matches_purchase_vocab() {
 /// 5. 限值通配维与业务词表的并集关系逐项钉死。
 #[test]
 fn limit_scope_is_business_vocab_plus_wildcard() {
-    assert_eq!(
-        from_consts(textile_limit_scope::CATEGORIES),
-        {
-            let mut s = from_consts(textile_safety_category::ALL);
-            s.insert("any".to_string());
-            s
-        }
-    );
-    assert_eq!(
-        from_consts(textile_limit_scope::FORMS),
-        {
-            let mut s = from_consts(textile_product_form::ALL);
-            s.insert("any".to_string());
-            s
-        }
-    );
-    assert_eq!(
-        from_consts(textile_limit_scope::CONDITION_TAGS),
-        {
-            let mut s = from_consts(textile_exemption_tag::ALL);
-            s.insert("none".to_string());
-            s
-        }
-    );
+    assert_eq!(from_consts(textile_limit_scope::CATEGORIES), {
+        let mut s = from_consts(textile_safety_category::ALL);
+        s.insert("any".to_string());
+        s
+    });
+    assert_eq!(from_consts(textile_limit_scope::FORMS), {
+        let mut s = from_consts(textile_product_form::ALL);
+        s.insert("any".to_string());
+        s
+    });
+    assert_eq!(from_consts(textile_limit_scope::CONDITION_TAGS), {
+        let mut s = from_consts(textile_exemption_tag::ALL);
+        s.insert("none".to_string());
+        s
+    });
 }
 
 /// 6. 等级编码表：九档齐、3-4 对 3.5、编码互异（半级取值域含四个半级）。
@@ -366,8 +355,14 @@ fn chain_position_registered_after_wage_and_ordered_in_domain() {
     let pi = lib
         .find("domain::purchase_inspection_result_check::Migration")
         .expect("lib.rs 缺 purchase_inspection_result_check 域注册锚点");
-    assert!(wage < textile, "textile_safety 域必须晚于 wage_energy_vocab_check 注册");
-    assert!(textile < pi, "purchase_inspection_result_check 域必须晚于 textile_safety 注册");
+    assert!(
+        wage < textile,
+        "textile_safety 域必须晚于 wage_energy_vocab_check 注册"
+    );
+    assert!(
+        textile < pi,
+        "purchase_inspection_result_check 域必须晚于 textile_safety 注册"
+    );
 
     let dm = read_rel(TEXTILE_DOMAIN_MOD_REL);
     let create = dm
@@ -419,7 +414,12 @@ fn seed_item_codes_present_and_manual_items_have_no_rules() {
             "m0112 缺项目 {code} 的 VALUES 元组（种子唯一键形态漂移）"
         );
     }
-    for manual in ["ACCESSOR_TENSILE", "SHARP_EDGE", "SMALL_PARTS", "LABEL_POSITION"] {
+    for manual in [
+        "ACCESSOR_TENSILE",
+        "SHARP_EDGE",
+        "SMALL_PARTS",
+        "LABEL_POSITION",
+    ] {
         let rule_anchor = format!("WHERE item_code = '{manual}'");
         assert!(
             !src.contains(&rule_anchor),

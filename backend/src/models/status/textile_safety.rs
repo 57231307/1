@@ -149,8 +149,12 @@ pub mod textile_exemption_tag {
     pub const TRADITIONAL_HAND_DYED: &str = "traditional_hand_dyed";
 
     /// 全部合法取值：入参校验与 DB CHECK 的唯一取值来源
-    pub const ALL: &[&str] =
-        &[WET_PROCESSING, LAUNDERING_FADE_NON_FINAL, PLAIN_OR_BLEACHED, TRADITIONAL_HAND_DYED];
+    pub const ALL: &[&str] = &[
+        WET_PROCESSING,
+        LAUNDERING_FADE_NON_FINAL,
+        PLAIN_OR_BLEACHED,
+        TRADITIONAL_HAND_DYED,
+    ];
 
     /// 白名单判定：单个标签逐字符匹配，词表外一律 false
     pub fn is_valid(tag: &str) -> bool {
@@ -159,8 +163,11 @@ pub mod textile_exemption_tag {
 
     /// 色牢度类项目（耐水、耐酸汗渍、耐碱汗渍、耐干摩擦、耐湿摩擦、耐唾液等）的豁免标签集合：
     /// 命中任一即该项目判"不考核"。pH 的放宽不在此集内（放宽不等于不考核，见判定器）。
-    pub const FASTNESS_EXEMPTIONS: &[&str] =
-        &[LAUNDERING_FADE_NON_FINAL, PLAIN_OR_BLEACHED, TRADITIONAL_HAND_DYED];
+    pub const FASTNESS_EXEMPTIONS: &[&str] = &[
+        LAUNDERING_FADE_NON_FINAL,
+        PLAIN_OR_BLEACHED,
+        TRADITIONAL_HAND_DYED,
+    ];
 }
 
 /// 逐项目判定三态（本域结论词表：合格、不合格、不考核、待判定）
@@ -357,15 +364,7 @@ pub mod submission_status {
     pub const WITHDRAWN: &str = "withdrawn";
 
     /// 全部合法取值：入参校验与 DB CHECK 的唯一取值来源
-    pub const ALL: &[&str] = &[
-        DRAFT,
-        SAMPLING,
-        SENT,
-        REPORTED,
-        JUDGED,
-        CLOSED,
-        WITHDRAWN,
-    ];
+    pub const ALL: &[&str] = &[DRAFT, SAMPLING, SENT, REPORTED, JUDGED, CLOSED, WITHDRAWN];
 
     /// 白名单判定，口径同 `textile_safety_category::is_valid`
     pub fn is_valid(status: &str) -> bool {

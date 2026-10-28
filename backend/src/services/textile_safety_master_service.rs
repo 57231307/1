@@ -11,10 +11,12 @@ use crate::models::status::{
 use crate::models::textile_child_safety_check::Column as CheckColumn;
 use crate::models::textile_child_safety_check::Entity as ChildCheck;
 use crate::models::textile_export_market_requirement::{
-    ActiveModel as ReqActiveModel, Column as ReqColumn, Entity as ExportRequirement, Model as ReqModel,
+    ActiveModel as ReqActiveModel, Column as ReqColumn, Entity as ExportRequirement,
+    Model as ReqModel,
 };
 use crate::models::textile_limit_rule::{
-    ActiveModel as LimitActiveModel, Column as LimitColumn, Entity as LimitRule, Model as LimitModel,
+    ActiveModel as LimitActiveModel, Column as LimitColumn, Entity as LimitRule,
+    Model as LimitModel,
 };
 use crate::models::textile_report_item_result::Column as ResultColumn;
 use crate::models::textile_report_item_result::Entity as ReportResult;
@@ -78,10 +80,7 @@ impl TextileSafetyMasterService {
 
     // ===== 检测项目主数据 =====
 
-    pub async fn list_test_items(
-        &self,
-        basis: Option<&str>,
-    ) -> Result<Vec<ItemModel>, AppError> {
+    pub async fn list_test_items(&self, basis: Option<&str>) -> Result<Vec<ItemModel>, AppError> {
         let mut query = TestItem::find();
         if let Some(basis) = basis {
             if !textile_basis_standard::is_valid(basis) {
@@ -93,7 +92,10 @@ impl TextileSafetyMasterService {
             }
             query = query.filter(ItemColumn::BasisStandard.eq(basis));
         }
-        Ok(query.order_by(ItemColumn::ItemCode, Order::Asc).all(self.db.as_ref()).await?)
+        Ok(query
+            .order_by(ItemColumn::ItemCode, Order::Asc)
+            .all(self.db.as_ref())
+            .await?)
     }
 
     pub async fn create_test_item(&self, req: TestItemReq) -> Result<ItemModel, AppError> {
@@ -243,7 +245,11 @@ impl TextileSafetyMasterService {
     }
 
     /// 修订限值行（按行 id 定位，改后仍受同一套形态与唯一性校验）。
-    pub async fn update_limit_rule(&self, id: i32, req: LimitRuleReq) -> Result<LimitModel, AppError> {
+    pub async fn update_limit_rule(
+        &self,
+        id: i32,
+        req: LimitRuleReq,
+    ) -> Result<LimitModel, AppError> {
         let row = LimitRule::find_by_id(id)
             .one(self.db.as_ref())
             .await?
@@ -370,7 +376,9 @@ impl TextileSafetyMasterService {
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| AppError::not_found(format!("出口要求 {} 不存在", id)))?;
-        ExportRequirement::delete_by_id(id).exec(self.db.as_ref()).await?;
+        ExportRequirement::delete_by_id(id)
+            .exec(self.db.as_ref())
+            .await?;
         Ok(())
     }
 
@@ -446,9 +454,9 @@ impl TextileSafetyMasterService {
             cmp::GTE if req.limit_low.is_none() => Err(AppError::validation_displayable(
                 "gte 行必须给出 limit_low 下限（等级型给半级编码数值）",
             )),
-            cmp::BETWEEN if req.limit_low.is_none() || req.limit_high.is_none() => {
-                Err(AppError::validation_displayable("between 行必须同时给出上下界"))
-            }
+            cmp::BETWEEN if req.limit_low.is_none() || req.limit_high.is_none() => Err(
+                AppError::validation_displayable("between 行必须同时给出上下界"),
+            ),
             cmp::FORBIDDEN | cmp::MUST_NONE | cmp::NOT_APPLICABLE => {
                 if req.limit_low.is_some() || req.limit_high.is_some() {
                     return Err(AppError::validation_displayable(
@@ -463,7 +471,9 @@ impl TextileSafetyMasterService {
 
     fn validate_requirement(req: &ExportRequirementReq) -> Result<(), AppError> {
         if req.requirement_code.trim().is_empty() || req.detail.trim().is_empty() {
-            return Err(AppError::validation_displayable("要求编码与细则说明不能为空"));
+            return Err(AppError::validation_displayable(
+                "要求编码与细则说明不能为空",
+            ));
         }
         if !export_market::is_valid(&req.market) || req.market == export_market::DOM {
             return Err(AppError::validation_displayable(format!(

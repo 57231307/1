@@ -103,7 +103,9 @@ pub async fn list_test_items(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyMasterService::new(state.db.clone());
     let items = service.list_test_items(q.basis.as_deref()).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "items": items }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "items": items }),
+    )))
 }
 
 pub async fn create_test_item(
@@ -159,8 +161,14 @@ pub async fn delete_test_item(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyMasterService::new(state.db.clone());
     service.delete_test_item(id).await?;
-    tracing::info!(item_id = id, operator = auth.user_id, "检测项目主数据已删除");
-    Ok(Json(ApiResponse::success(serde_json::json!({ "deleted": id }))))
+    tracing::info!(
+        item_id = id,
+        operator = auth.user_id,
+        "检测项目主数据已删除"
+    );
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": id }),
+    )))
 }
 
 // ===== 限值判定表 =====
@@ -173,7 +181,9 @@ pub async fn list_limit_rules(
     let rows = service
         .list_limit_rules(q.item_id, q.safety_category.as_deref())
         .await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "rules": rows }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "rules": rows }),
+    )))
 }
 
 pub async fn create_limit_rule(
@@ -232,7 +242,9 @@ pub async fn delete_limit_rule(
     let service = TextileSafetyMasterService::new(state.db.clone());
     service.delete_limit_rule(id).await?;
     tracing::info!(rule_id = id, operator = auth.user_id, "限值判定表行已删除");
-    Ok(Json(ApiResponse::success(serde_json::json!({ "deleted": id }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": id }),
+    )))
 }
 
 // ===== 出口市场要求登记 =====
@@ -242,8 +254,12 @@ pub async fn list_export_requirements(
     Query(q): Query<RequirementQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyMasterService::new(state.db.clone());
-    let rows = service.list_export_requirements(q.market.as_deref()).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "requirements": rows }))))
+    let rows = service
+        .list_export_requirements(q.market.as_deref())
+        .await?;
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "requirements": rows }),
+    )))
 }
 
 pub async fn create_export_requirement(
@@ -297,6 +313,12 @@ pub async fn delete_export_requirement(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyMasterService::new(state.db.clone());
     service.delete_export_requirement(id).await?;
-    tracing::info!(requirement_id = id, operator = auth.user_id, "出口市场要求登记已删除");
-    Ok(Json(ApiResponse::success(serde_json::json!({ "deleted": id }))))
+    tracing::info!(
+        requirement_id = id,
+        operator = auth.user_id,
+        "出口市场要求登记已删除"
+    );
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": id }),
+    )))
 }

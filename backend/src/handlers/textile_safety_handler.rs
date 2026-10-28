@@ -7,8 +7,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::services::textile_safety_report_service::TextileSafetyReportService;
 use crate::services::textile_safety_submission_service::{
-    ChildCheckUpsertReq, CreateSubmissionReq, SubmissionListParams,
-    TextileSafetySubmissionService,
+    ChildCheckUpsertReq, CreateSubmissionReq, SubmissionListParams, TextileSafetySubmissionService,
 };
 use crate::utils::error::AppError;
 use crate::utils::response::{ApiResponse, PaginatedResponse};
@@ -94,9 +93,9 @@ fn submission_req(body: CreateSubmissionBody, created_by: i32) -> CreateSubmissi
         color_no: body.color_no,
         process_no: body.process_no,
         // 色号角色缺省为全检（full 是词表内的中性缺省，不代表"浅色系列以深色代表"口径）
-        color_role: body.color_role.unwrap_or_else(|| {
-            crate::models::status::sampling_color_role::FULL.to_string()
-        }),
+        color_role: body
+            .color_role
+            .unwrap_or_else(|| crate::models::status::sampling_color_role::FULL.to_string()),
         end_user_group: body.end_user_group,
         contact_type: body.contact_type,
         safety_category: body.safety_category,
@@ -178,7 +177,11 @@ pub async fn create_submission(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
     let saved = service.create(submission_req(body, auth.user_id)).await?;
-    tracing::info!(submission_id = saved.id, operator = auth.user_id, "纺织品安全送检单已创建");
+    tracing::info!(
+        submission_id = saved.id,
+        operator = auth.user_id,
+        "纺织品安全送检单已创建"
+    );
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
 
@@ -190,8 +193,14 @@ pub async fn update_submission(
     Json(body): Json<CreateSubmissionBody>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
-    let saved = service.update(id, submission_req(body, auth.user_id)).await?;
-    tracing::info!(submission_id = id, operator = auth.user_id, "纺织品安全送检单要素已修改");
+    let saved = service
+        .update(id, submission_req(body, auth.user_id))
+        .await?;
+    tracing::info!(
+        submission_id = id,
+        operator = auth.user_id,
+        "纺织品安全送检单要素已修改"
+    );
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
 
@@ -203,7 +212,9 @@ pub async fn delete_submission(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
     service.delete_draft(id, auth.user_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "deleted": id }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "deleted": id }),
+    )))
 }
 
 /// 状态迁移（白名单推进与撤回；reported 与 judged 由登记与判定动作自动产出，不走本入口）。
@@ -229,7 +240,9 @@ pub async fn generate_items(
     Json(body): Json<GenerateItemsBody>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
-    let rows = service.generate_items(id, body.extra_item_codes, auth.user_id).await?;
+    let rows = service
+        .generate_items(id, body.extra_item_codes, auth.user_id)
+        .await?;
     let items_json: Vec<serde_json::Value> = rows
         .iter()
         .map(|(row, item)| {
@@ -243,7 +256,9 @@ pub async fn generate_items(
             })
         })
         .collect();
-    Ok(Json(ApiResponse::success(serde_json::json!({ "items": items_json }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "items": items_json }),
+    )))
 }
 
 /// 童装加考核查登记（GB 31701 条款逐行 upsert；人工项只给条目与结论位）。

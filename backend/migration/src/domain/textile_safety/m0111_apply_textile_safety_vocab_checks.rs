@@ -44,8 +44,7 @@ const BASIS_STANDARD_ALLOWED: &str = "'GB18401','GB31701','EXPORT','CUSTOMER'";
 const CHECK_KIND_ALLOWED: &str = "'measurable','manual'";
 const LIMIT_CATEGORY_ALLOWED: &str = "'GB18401_A','GB18401_B','GB18401_C','any'";
 const LIMIT_FORM_ALLOWED: &str = "'final','intermediate','any'";
-const LIMIT_TAG_ALLOWED: &str =
-    "'none','wet_processing','laundering_fade_non_final','plain_or_bleached','traditional_hand_dyed'";
+const LIMIT_TAG_ALLOWED: &str = "'none','wet_processing','laundering_fade_non_final','plain_or_bleached','traditional_hand_dyed'";
 const COMPARATOR_ALLOWED: &str = "'lte','gte','between','forbidden','must_none','na'";
 const END_USER_GROUP_ALLOWED: &str = "'infant','child','adult'";
 const CONTACT_TYPE_ALLOWED: &str = "'direct','indirect','infant_use'";
@@ -296,11 +295,23 @@ impl MigrationTrait for Migration {
         // 2) 逐列存量守卫，fail-visible，严禁 UPDATE 造值洗数据。
         for spec in COLUMN_CHECKS {
             let predicate = if spec.nullable {
-                format!("\"{col}\" IS NOT NULL AND \"{col}\" NOT IN ({allowed})", col = spec.column, allowed = spec.allowed)
+                format!(
+                    "\"{col}\" IS NOT NULL AND \"{col}\" NOT IN ({allowed})",
+                    col = spec.column,
+                    allowed = spec.allowed
+                )
             } else {
-                format!("\"{col}\" IS NULL OR \"{col}\" NOT IN ({allowed})", col = spec.column, allowed = spec.allowed)
+                format!(
+                    "\"{col}\" IS NULL OR \"{col}\" NOT IN ({allowed})",
+                    col = spec.column,
+                    allowed = spec.allowed
+                )
             };
-            let null_note = if spec.nullable { "词表外" } else { "词表外或 NULL" };
+            let null_note = if spec.nullable {
+                "词表外"
+            } else {
+                "词表外或 NULL"
+            };
             sql.push_str(&format!(
                 r#"
 DO $$
@@ -337,9 +348,17 @@ $$;
         // 3) 逐列施加 CHECK，取值集由 ALLOWED 常量注入 IN 占位，并固化列注释。
         for spec in COLUMN_CHECKS {
             let expr = if spec.nullable {
-                format!("\"{col}\" IS NULL OR \"{col}\" IN ({allowed})", col = spec.column, allowed = spec.allowed)
+                format!(
+                    "\"{col}\" IS NULL OR \"{col}\" IN ({allowed})",
+                    col = spec.column,
+                    allowed = spec.allowed
+                )
             } else {
-                format!("\"{col}\" IN ({allowed})", col = spec.column, allowed = spec.allowed)
+                format!(
+                    "\"{col}\" IN ({allowed})",
+                    col = spec.column,
+                    allowed = spec.allowed
+                )
             };
             let null_note = if spec.nullable {
                 "NULL 为合法初值"

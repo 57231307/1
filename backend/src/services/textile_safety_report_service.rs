@@ -19,7 +19,9 @@ use crate::models::textile_safety_submission::{
 use crate::models::textile_safety_submission_item::{
     Column as ListItemColumn, Entity as SubmissionItem,
 };
-use crate::models::textile_test_item::{Column as ItemCodeColumn, Entity as TestItem, Model as TestItemModel};
+use crate::models::textile_test_item::{
+    Column as ItemCodeColumn, Entity as TestItem, Model as TestItemModel,
+};
 use crate::models::textile_third_party_report::{
     ActiveModel as ReportActiveModel, Column as ReportColumn, Entity as ThirdPartyReport,
     Model as ReportModel,
@@ -87,7 +89,10 @@ impl TextileSafetyReportService {
             .one(self.db.as_ref())
             .await?
             .ok_or_else(|| {
-                AppError::not_found(format!("送检单 {} 不存在，报告必须挂真实送检单", req.submission_id))
+                AppError::not_found(format!(
+                    "送检单 {} 不存在，报告必须挂真实送检单",
+                    req.submission_id
+                ))
             })?;
         if submission.status != submission_status::SENT
             && submission.status != submission_status::REPORTED
@@ -417,7 +422,11 @@ impl TextileSafetyReportService {
     /// 每行走判定器 `resolve_item_verdict`（四维取行、合取、分层），输入不足即整批报错
     /// （fail-visible，已判行保持，重跑幂等）。
     /// 传给谁：handler judge_report 端点（PUT /textile-reports/{id}/judgement）。
-    pub async fn judge_report(&self, report_id: i32, operator: i32) -> Result<Vec<Model>, AppError> {
+    pub async fn judge_report(
+        &self,
+        report_id: i32,
+        operator: i32,
+    ) -> Result<Vec<Model>, AppError> {
         let report = self.get(report_id).await?;
         if report.acceptance_status != report_acceptance_status::ACCEPTED {
             return Err(AppError::business(format!(
@@ -455,7 +464,9 @@ impl TextileSafetyReportService {
                 value: row.measured_value,
                 text: row.measured_text.clone(),
             };
-            let verdict = sub_service.resolve_item_verdict(&item, &dims, &measured).await?;
+            let verdict = sub_service
+                .resolve_item_verdict(&item, &dims, &measured)
+                .await?;
             let now = chrono::Utc::now();
             let mut active: ActiveModel = row.into();
             active.verdict = ActiveValue::Set(verdict);
@@ -491,7 +502,10 @@ impl TextileSafetyReportService {
                         item.item_code, item.item_name
                     ))
                 })?;
-                Ok((req.measured_value, normalized_flag(req.measured_text.as_deref())?))
+                Ok((
+                    req.measured_value,
+                    normalized_flag(req.measured_text.as_deref())?,
+                ))
             }
             textile_item_kind::GRADE => {
                 if req.measured_value.is_some() {
@@ -517,9 +531,9 @@ impl TextileSafetyReportService {
                 }
                 let encoded = textile_fastness_grade::encode(token)
                     .ok_or_else(|| AppError::internal("等级词表与编码表漂移"))?;
-                let value: Decimal = encoded
-                    .parse()
-                    .map_err(|_| AppError::internal(format!("等级编码 {} 无法解析为数值", encoded)))?;
+                let value: Decimal = encoded.parse().map_err(|_| {
+                    AppError::internal(format!("等级编码 {} 无法解析为数值", encoded))
+                })?;
                 Ok((Some(value), None))
             }
             textile_item_kind::SENSORY | textile_item_kind::BOOLEAN => {
@@ -611,7 +625,9 @@ mod tests {
     #[test]
     fn accepts_full_basis_with_class() {
         assert!(test_basis_format_ok("GB 18401-2010 B类"));
-        assert!(test_basis_format_ok("检验依据 GB 18401-2010 A类、GB 31701-2015"));
+        assert!(test_basis_format_ok(
+            "检验依据 GB 18401-2010 A类、GB 31701-2015"
+        ));
     }
 
     /// 反向：缺类别、裸标准号、缺年份、错空格形态一律拒绝（钉校验强度而非恒真）。

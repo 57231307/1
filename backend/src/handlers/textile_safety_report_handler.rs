@@ -98,7 +98,9 @@ pub async fn list_reports(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyReportService::new(state.db.clone());
     let items = service.list_by_submission(q.submission_id).await?;
-    Ok(Json(ApiResponse::success(serde_json::json!({ "reports": items }))))
+    Ok(Json(ApiResponse::success(
+        serde_json::json!({ "reports": items }),
+    )))
 }
 
 /// 报告详情（报告本体加逐项目结果行）。
@@ -123,7 +125,11 @@ pub async fn create_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyReportService::new(state.db.clone());
     let saved = service.register(register_req(body, auth.user_id)).await?;
-    tracing::info!(report_id = saved.id, operator = auth.user_id, "第三方报告已登记");
+    tracing::info!(
+        report_id = saved.id,
+        operator = auth.user_id,
+        "第三方报告已登记"
+    );
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
 
@@ -136,7 +142,11 @@ pub async fn update_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyReportService::new(state.db.clone());
     let saved = service.update(id, register_req(body, auth.user_id)).await?;
-    tracing::info!(report_id = id, operator = auth.user_id, "第三方报告要素已修正，受理态已复位待核");
+    tracing::info!(
+        report_id = id,
+        operator = auth.user_id,
+        "第三方报告要素已修正，受理态已复位待核"
+    );
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
 
@@ -186,6 +196,11 @@ pub async fn judge_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetyReportService::new(state.db.clone());
     let saved = service.judge_report(id, auth.user_id).await?;
-    tracing::info!(report_id = id, judged = saved.len(), operator = auth.user_id, "第三方报告逐项目判定完成");
+    tracing::info!(
+        report_id = id,
+        judged = saved.len(),
+        operator = auth.user_id,
+        "第三方报告逐项目判定完成"
+    );
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
