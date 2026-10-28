@@ -641,11 +641,19 @@ impl SalesAnalysisService {
         Ok(items)
     }
 
-    /// 更新销售目标
+    /// 更新销售目标 —— PUT 出参与 GET 列表共用唯一映射点 `to_target_dto`。
+    ///
+    /// 谁调：handler `update_sales_target`（PUT targets/:period 路由）。
+    /// 入参：周期键 + 更新请求体 + 登录者数据范围 + 共享缓存（范围与缓存透传取数腿）。
+    /// 实际成交额来自 `fetch_actual_amounts` 现算 `sales_orders`（历史缺陷形态
+    /// "actual 取 total_amount 自身导致完成率恒 100、差额恒 0" 已摘除，
+    /// 契约锁测试对退化形态反向自证）。
     pub async fn update_target(
         &self,
         period: &str,
         req: UpdateSalesTargetRequest,
+        scope: DataScopeContext,
+        cache: Arc<AppCache>,
     ) -> Result<SalesTargetDto, AppError> {
         info!("更新销售目标，周期：{}", period);
 
@@ -678,24 +686,14 @@ impl SalesAnalysisService {
             active.insert(&*self.db).await?
         };
 
-        let actual_amount = updated.total_amount;
-        let completion_rate = if updated.total_amount > Decimal::ZERO {
-            (actual_amount / updated.total_amount * Decimal::from(100))
-                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
-        } else {
-            Decimal::ZERO
-        };
-        let variance = actual_amount - updated.total_amount;
-
-        Ok(SalesTargetDto {
-            id: updated.id,
-            period: updated.period,
-            target_amount: updated.total_amount,
-            actual_amount,
-            completion_rate,
-            variance,
+        let actuals = self
+            .fetch_actual_amounts(&[period.to_string()], scope, cache)
+            .await?;
+        Ok(Self::to_target_dto(
+            &updated,
+            actuals.get(period).copied(),
             status,
-        })
+        ))
     }
 
     /// 导出销售分析报告

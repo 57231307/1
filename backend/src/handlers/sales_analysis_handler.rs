@@ -226,15 +226,24 @@ pub async fn get_customer_ranking(
 }
 
 /// PUT /api/v1/erp/sales-analysis/targets/:period - 更新销售目标
+/// 出参 `SalesTargetDto`：派生键与 GET 列表共用 service 唯一映射点构造，
+/// 实际成交额按登录者数据范围现算（透传数据范围与共享缓存给取数腿）。
 pub async fn update_sales_target(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(period): Path<String>,
     Json(req): Json<UpdateSalesTargetRequest>,
 ) -> Result<Json<ApiResponse<SalesTargetDto>>, AppError> {
-    info!("正在更新销售目标，周期：{}", period);
+    info!("用户 {} 正在更新销售目标，周期：{}", auth.user_id, period);
     let service = SalesAnalysisService::new(state.db.clone());
-    let target = service.update_target(&period, req).await?;
+    let target = service
+        .update_target(
+            &period,
+            req,
+            auth.to_data_scope_context(),
+            state.cache.clone(),
+        )
+        .await?;
     Ok(Json(ApiResponse::success(target)))
 }
 
