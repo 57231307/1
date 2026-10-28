@@ -553,7 +553,7 @@ const CHILD_INLINE_CONSTRAINTS: &[(&str, &[&str])] = &[
 /// 跳过 `CONSTRAINT IF EXISTS` 这种撤销语句；解析结果为空直接 panic，绝不当成无约束通过。
 #[test]
 fn declared_constraint_names_are_exactly_the_pinned_set() {
-    for (child, pinned) in CHILD_INLINE_CONSTRAINTS {
+    for &(child, pinned) in CHILD_INLINE_CONSTRAINTS {
         let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
         let src = strip_line_comments(&read(&rel));
         let mut found: BTreeSet<String> = BTreeSet::new();
