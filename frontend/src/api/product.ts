@@ -82,6 +82,13 @@ export interface Product {
    * 克重（g/m²，可空）。同上，是转单派生公斤数的必需元数据；Decimal→string、NULL→null。
    */
   gram_weight?: number | string | null;
+  /**
+   * 面料成分（如 "65%棉 35%涤"，可空）。对应后端 models/product.rs 的 fabric_composition（Option<String>，NULL→null）。
+   * 报价明细编辑器选中产品后随编码/幅宽/克重一并只读带出展示；报价明细表无对应列，不落库，
+   * 报价转销售订单的换算链按报价行实时回查 products 主档取值，不消费明细快照。
+   * 本接口同时被产品表单入参复用（字符串），故可空即未配置。
+   */
+  fabric_composition?: string | null;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;

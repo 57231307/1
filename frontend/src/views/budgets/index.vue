@@ -163,21 +163,16 @@
           <el-input v-model="formData.item_type" placeholder="选填" />
         </el-form-item>
         <el-form-item label="预算年度" prop="budget_year">
-          <el-input-number
-            v-model="formData.budget_year"
-            :min="2000"
-            :max="2100"
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input v-model="formData.budget_year" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item label="计划金额" prop="planned_amount">
-          <el-input-number
+          <el-input
             v-model="formData.planned_amount"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
@@ -226,6 +221,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { useI18n } from 'vue-i18n';
 import {
   getBudgetItemList,
@@ -325,22 +321,34 @@ const formData = reactive<{
   item_code: string;
   item_type: string;
   plan_id: number | undefined;
-  budget_year: number | undefined;
-  planned_amount: number | undefined;
+  budget_year: string;
+  planned_amount: string;
   remark: string;
 }>({
   item_name: '',
   item_code: '',
   item_type: '',
   plan_id: undefined,
-  budget_year: undefined,
-  planned_amount: undefined,
+  budget_year: '',
+  planned_amount: '',
   remark: '',
 });
 
 const formRules: FormRules = {
   item_name: [{ required: true, message: '请输入预算名称', trigger: 'blur' }],
-  planned_amount: [{ required: true, message: '请输入计划金额', trigger: 'blur' }],
+  planned_amount: numberInputRules({
+    label: '计划金额',
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: '请输入计划金额' },
+  }),
+  budget_year: numberInputRules({
+    label: '预算年度',
+    min: 2000,
+    max: 2100,
+    integer: true,
+  }),
   plan_id: [{ required: true, message: '请选择所属预算方案', trigger: 'change' }],
 };
 
@@ -449,8 +457,8 @@ const resetForm = () => {
   formData.item_code = '';
   formData.item_type = '';
   formData.plan_id = undefined;
-  formData.budget_year = undefined;
-  formData.planned_amount = undefined;
+  formData.budget_year = '';
+  formData.planned_amount = '';
   formData.remark = '';
   formRef.value?.resetFields();
 };
@@ -459,8 +467,8 @@ const submitCreate = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async valid => {
     if (!valid) return;
-    if (!formData.planned_amount) return;
     if (!formData.plan_id) return;
+    if (formData.planned_amount === '' || Number(formData.planned_amount) <= 0) return;
     submitLoading.value = true;
     try {
       await createBudgetItem({
@@ -468,10 +476,10 @@ const submitCreate = async () => {
         item_code: formData.item_code || undefined,
         item_type: formData.item_type || undefined,
         plan_id: formData.plan_id,
-        budget_year: formData.budget_year,
+        budget_year: formData.budget_year === '' ? undefined : Number(formData.budget_year),
         // 后端 CreateBudgetDto.planned_amount 为 rust_decimal（serde-floats 未启用，
-        // JSON 浮点字面量反序列化即拒）：视图态 number 转两位小数十进制字符串下发
-        planned_amount: formData.planned_amount.toFixed(2),
+        // JSON 浮点字面量反序列化即拒）：视图态字符串转两位小数十进制字符串下发
+        planned_amount: Number(formData.planned_amount).toFixed(2),
         remark: formData.remark || undefined,
       });
       ElMessage.success('预算创建成功');

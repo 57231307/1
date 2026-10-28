@@ -464,3 +464,11 @@ pub mod aging_grade_config;
 pub mod industry_benchmark_config;
 // batch-21 P2 25.4-I: 长任务处理机制
 pub mod long_running_task;
+// 合同模板体系四张表的 Model。contract_template 是模板主数据（含版本与启用位），
+// clause_library 是条款库正文，contract_template_clause 是模板下的条款项，
+// contract_clause 是签约时固化到合同实例的条款快照。
+// 表由 migration/src/domain/contract_template_schema 域建立，词表在 models/status/contract_template。
+pub mod contract_template;
+pub mod clause_library;
+pub mod contract_template_clause;
+pub mod contract_clause;

@@ -33,6 +33,7 @@ import {
   seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, pickListArray } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 interface PurchaseOrderLite {
   id: number;
@@ -278,7 +279,18 @@ test.describe('13 UI 采购收货确认 → 库存四维回写', () => {
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
     await pickSelectIn(dialog, page, '仓库');
-    await dialog.getByRole('spinbutton').first().fill('5');
+    // 本次收货录入按列头「本次收货」锚定（控件已无 spinbutton 角色）。
+    // 填 5 后失焦触发提交归一并 toHaveValue 读回真值——录入无 precision，
+    // 归一后回显为纯整数文本 '5'，断的是控件真实形态而非位置型命中
+    const receiveTable = dialog.locator('.el-table').first();
+    const receiveQtyInput = await cellInputByColumn(
+      receiveTable,
+      receiveTable.locator('.el-table__row').first(),
+      '本次收货'
+    );
+    await receiveQtyInput.fill('5');
+    await receiveQtyInput.press('Tab');
+    await expect(receiveQtyInput).toHaveValue('5');
     // 辅量为创建契约必填输入：本批按主单位计量，显式录 0（合法的实收零值，区别于未填被拦）
     await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('0');
     await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);

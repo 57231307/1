@@ -76,12 +76,11 @@
           />
         </el-form-item>
         <el-form-item :label="t('system.slowQuery.label.minDuration')">
-          <el-input-number
+          <NumericInput
             v-model="filterForm.min_duration"
-            :min="0"
-            :step="50"
             :placeholder="t('system.slowQuery.placeholder.ms')"
             style="width: 140px"
+            :min="0"
           />
         </el-form-item>
         <el-form-item :label="t('system.slowQuery.label.keyword')">
@@ -130,6 +129,7 @@
  * - 后端路由：/api/v1/erp/slow-queries（list / stats / refresh）
  */
 import { ref, reactive, onMounted, h, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElTag } from 'element-plus';

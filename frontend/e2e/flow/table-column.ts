@@ -63,6 +63,30 @@ export async function rowCellText(row: Locator, index: number): Promise<string> 
   return (await row.locator('> td').nth(index).innerText()).trim();
 }
 
+/**
+ * 按列头文案锚定某数据行的行内录入框 Locator（rowCellText 的录入面对端）。
+ *
+ * 用途 表格行内数值录入换成 el-input 底层的手写录入控件后，控件不再有 spinbutton 角色，
+ * 行内录入框唯一稳定锚点是列头文案。列下标由 columnIndex 按表头实时求得（与列文本断言同源），
+ * 列序调整时取到的仍是该列单元格，列缺失即抛错并附实际列头清单，不做静默兜底。
+ * 调用方 采购收货对话框本次收货数量录入（purchase/13、fullflow/20），
+ * 采购退货明细退货数量预填回读（purchase/11、fullflow/22）。
+ * 入参 table 主表 Locator（与 columnIndex 同容器），row 数据行 Locator，
+ * headerText 列头全文（与页面 i18n 列头逐字一致）。
+ * 传给谁 返回的 Locator 由调用方 fill、失焦与 toHaveValue 读回，本函数只负责定位并等可见。
+ * 存什么 不存储 仅定位
+ */
+export async function cellInputByColumn(
+  table: Locator,
+  row: Locator,
+  headerText: string
+): Promise<Locator> {
+  const index = await columnIndex(table, headerText);
+  const input = row.locator('> td').nth(index).locator('input').first();
+  await input.waitFor({ state: 'visible', timeout: 30_000 });
+  return input;
+}
+
 /** 主表体行数 */
 export async function rowCount(table: Locator): Promise<number> {
   return table.locator(BODY_ROW).count();

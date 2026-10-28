@@ -304,12 +304,7 @@
           >
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldAmount')" prop="amount">
-          <el-input-number
-            v-model="operationForm.amount"
-            :min="0.01"
-            :precision="2"
-            style="width: 100%"
-          />
+          <el-input v-model="operationForm.amount" inputmode="decimal" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('fund.accountTab.fieldRemark')">
           <el-input
@@ -338,6 +333,7 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { Plus, Money } from '@element-plus/icons-vue';
 import {
   createFundAccount,
@@ -404,7 +400,7 @@ const accountForm = reactive<Partial<FundAccount>>({
 });
 
 const operationForm = reactive({
-  amount: 0,
+  amount: '',
   remark: '',
 });
 
@@ -422,7 +418,13 @@ const accountRules: FormRules = {
 };
 
 const operationRules: FormRules = {
-  amount: [{ required: true, message: t('fund.accountTab.validateAmount'), trigger: 'blur' }],
+  amount: numberInputRules({
+    label: t('fund.accountTab.fieldAmount'),
+    required: true,
+    min: 0.01,
+    precision: 2,
+    messages: { empty: t('fund.accountTab.validateAmount') },
+  }),
 };
 
 /** 账户状态 → i18n 标签（语言切换响应） */
@@ -512,7 +514,7 @@ const viewDetail = (row: FundAccount) => {
 const handleDeposit = (row: FundAccount) => {
   currentAccount.value = row;
   operationType.value = 'deposit';
-  operationForm.amount = 0;
+  operationForm.amount = '';
   operationForm.remark = '';
   operationVisible.value = true;
 };
@@ -520,7 +522,7 @@ const handleDeposit = (row: FundAccount) => {
 const handleWithdraw = (row: FundAccount) => {
   currentAccount.value = row;
   operationType.value = 'withdraw';
-  operationForm.amount = 0;
+  operationForm.amount = '';
   operationForm.remark = '';
   operationVisible.value = true;
 };
@@ -533,7 +535,7 @@ const handleOperationSubmit = async () => {
     try {
       const isDeposit = operationType.value === 'deposit';
       const action = isDeposit ? depositFund : withdrawFund;
-      await action(currentAccount.value!.id, operationForm.amount, operationForm.remark);
+      await action(currentAccount.value!.id, Number(operationForm.amount), operationForm.remark);
       ElMessage.success(
         isDeposit
           ? t('fund.accountTab.messageDepositSuccess')

@@ -52,8 +52,9 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item :label="t('printDialog.copies')" prop="copies">
-        <el-input-number v-model="form.copies" :min="1" :max="99" />
+      <el-form-item :label="t('printDialog.copies')" prop="copies" :rules="copiesRules">
+        <!-- 手写录入 打印份数 正整数 1 到 99（原步进控件 min max 与默认精度 0 落到 rules 与提交门） -->
+        <el-input v-model="form.copies" inputmode="numeric" />
       </el-form-item>
     </el-form>
 
@@ -108,6 +109,7 @@ import {
   printTaskStatusTagType,
 } from '@/constants/print-task-status';
 import { logAuxLoadFailure } from '@/utils/logger';
+import { numberInputRules } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -140,7 +142,25 @@ const task = ref<PrintTask | null>(null);
 const form = reactive({
   template_id: undefined as number | undefined,
   target_name: undefined as string | undefined,
-  copies: 1,
+  // 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字
+  copies: '1',
+});
+
+/** 份数录入的提交门 与行内 rules 同源 整数 1 到 99 */
+const copiesRules = numberInputRules({
+  label: t('printDialog.copies'),
+  required: true,
+  min: 1,
+  max: 99,
+  integer: true,
+});
+
+/** 份数录入的提交门 与行内 rules 同源 整数 1 到 99 */
+const copiesValid = computed(() => {
+  const raw = form.copies.trim();
+  if (!/^\d+$/.test(raw)) return false;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= 99;
 });
 
 /** 该单据类型下「启用」的模板：停用的模板后端不会用于渲染，列出即误导 */
@@ -159,7 +179,8 @@ function targetLabel(target: PrintTarget): string {
 function applyTemplateDefaults() {
   const tpl = templateOptions.value.find(item => item.id === form.template_id);
   if (!tpl) return;
-  form.copies = tpl.copies_default;
+  // 模板缺省份数带出时钳到 1 到 99（原步进控件的边界钳制语义保留），以字符串灌入手写录入框
+  form.copies = String(Math.min(99, Math.max(1, tpl.copies_default)));
   form.target_name = tpl.default_target_name ?? form.target_name;
 }
 
@@ -178,6 +199,7 @@ const canSubmit = computed(
   () =>
     !!props.docId &&
     !!form.target_name &&
+    copiesValid.value &&
     templateOptions.value.length > 0 &&
     !submitting.value &&
     !blockingHint.value
@@ -214,7 +236,7 @@ watch(
     task.value = null;
     form.template_id = undefined;
     form.target_name = undefined;
-    form.copies = 1;
+    form.copies = '1';
     await loadAux();
     const preferred = templateOptions.value.find(tpl => tpl.is_default) ?? templateOptions.value[0];
     if (preferred) {
@@ -257,7 +279,8 @@ const handleSubmit = async () => {
       doc_id: props.docId,
       target_name: form.target_name,
       template_id: form.template_id,
-      copies: form.copies,
+      // 提交边界：字符串编辑态转回契约数字（canSubmit 已保证为 1 到 99 整数）
+      copies: Number(form.copies),
     });
     const settled = await pollUntilTerminal(res.data.id);
     if (settled?.status === 'succeeded') {

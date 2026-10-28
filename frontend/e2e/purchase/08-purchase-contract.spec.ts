@@ -128,7 +128,7 @@ test.describe('08 采购合同', () => {
     // 供应商（filterable el-select，label '供应商'）：pickSelectIn 点 wrapper→选首项，
     // 消除点外层 .el-select/只读 input 后 dropdown first() 不稳定的 30s 超时（#4654 根因）。
     await pickSelectIn(dlg, page, '供应商');
-    // 合同金额（el-input-number，label '合同金额'）
+    // 合同金额（手写数字录入，label '合同金额'）
     await fillFieldByLabel(dlg, page, '合同金额', '100000');
     // 交货日期（el-date-picker，后端 CreateContractRequestDto 必填 NaiveDate）
     const dateInput = dlg
