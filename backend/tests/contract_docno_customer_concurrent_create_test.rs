@@ -183,7 +183,7 @@ async fn customer_conflict_retry_recovers_without_database_error() {
             .to_string()
             .into(),
     ];
-    btxn.execute(Statement::from_sql_and_values(
+    btxn.execute_raw(Statement::from_sql_and_values(
         DbBackend::Postgres,
         "INSERT INTO customers (customer_code, customer_name, customer_type) VALUES ($1, $2, $3)",
         seed_values,
