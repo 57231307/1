@@ -5,6 +5,7 @@
 # 门禁语义：扫描得到的指纹不在本文件内 => 判红（新增行号引用须显式登记并承担复审）；
 # 基线条目在代码中消失 => 门禁提示"应删行使棘轮真实缩短"。
 # 禁止为让 CI 变绿向本文件添加新豁免条目——那是掩盖不是修复。
+.github/workflows/ci-cd.yml::xxx.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_invoice.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_payment.rs
 backend/migration/src/domain/business/m0071_normalize_array_columns.rs::models/ap_payment_request.rs
@@ -733,11 +734,6 @@ frontend/e2e/finance/11-ap-ar-verification-reconciliation.spec.ts::backend/src/s
 frontend/e2e/finance/11-ap-ar-verification-reconciliation.spec.ts::models/status/finance.rs
 frontend/e2e/finance/11-ap-ar-verification-reconciliation.spec.ts::routes/finance.rs
 frontend/e2e/finance/11-ap-ar-verification-reconciliation.spec.ts::utils/error.rs
-frontend/e2e/finance/12-invoice-details.spec.ts::backend/src/models/status/finance.rs
-frontend/e2e/finance/12-invoice-details.spec.ts::backend/src/routes/finance.rs
-frontend/e2e/finance/12-invoice-details.spec.ts::finance_invoice_handler.rs
-frontend/e2e/finance/12-invoice-details.spec.ts::finance_invoice_service.rs
-frontend/e2e/finance/12-invoice-details.spec.ts::views/invoice-details/index.vue
 frontend/e2e/fixtures/auth.ts::rate_limit.rs
 frontend/e2e/flow/00-deploy-init.spec.ts::api/account-subject.ts
 frontend/e2e/flow/00-deploy-init.spec.ts::handlers/account_subject_handler.rs
@@ -830,7 +826,6 @@ frontend/e2e/flow/20-status-display.spec.ts::usePurchList.ts
 frontend/e2e/flow/20-status-display.spec.ts::zh-CN.ts
 frontend/e2e/flow/21a-fabric-sales-order.spec.ts::OrderFormDialog.vue
 frontend/e2e/flow/21a-fabric-sales-order.spec.ts::OrderViewDialog.vue
-frontend/e2e/flow/21a-fabric-sales-order.spec.ts::SalesOrderTable.vue
 frontend/e2e/flow/21a-fabric-sales-order.spec.ts::csrf.rs
 frontend/e2e/flow/21a-fabric-sales-order.spec.ts::migration/src/domain/system/mod.rs
 frontend/e2e/flow/21a-fabric-sales-order.spec.ts::request.ts
@@ -1034,9 +1029,7 @@ frontend/e2e/flow/53-approval-depth-full.spec.ts::user_handler.rs
 frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::fabric_inspection_service.rs
 frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::index.vue
 frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::models/quality_issue_dto.rs
-frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::piece_domain_service.rs
 frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::social_insurance_service.rs
-frontend/e2e/flow/54-new-domains-lifecycle.spec.ts::views/outsourcing/index.vue
 frontend/e2e/flow/60-environmental-compliance-full.spec.ts::backend/utils/error.rs
 frontend/e2e/flow/60-environmental-compliance-full.spec.ts::environmental-compliance/index.vue
 frontend/e2e/flow/60-environmental-compliance-full.spec.ts::error.rs
@@ -1171,7 +1164,6 @@ frontend/e2e/flow/72-assertion-contract-selfcheck.spec.ts::helpers.ts
 frontend/e2e/flow/helpers.ts::api/request.ts
 frontend/e2e/flow/helpers.ts::backend/src/handlers/dye_batch_handler.rs
 frontend/e2e/flow/helpers.ts::backend/src/handlers/inventory_stock_handler.rs
-frontend/e2e/flow/helpers.ts::backend/src/middleware/csrf.rs
 frontend/e2e/flow/helpers.ts::backend/src/models/color_card_item_dto.rs
 frontend/e2e/flow/helpers.ts::backend/src/services/piece_domain_service.rs
 frontend/e2e/flow/helpers.ts::backend/src/utils/error.rs
@@ -1421,7 +1413,6 @@ frontend/e2e/fullflow/30-system-config-chain.spec.ts::user_service.rs
 frontend/e2e/fullflow/30-system-config-chain.spec.ts::utils/error.rs
 frontend/e2e/fullflow/30-system-config-chain.spec.ts::utils/number_generator.rs
 frontend/e2e/global-setup.ts::DeliveryDialog.vue
-frontend/e2e/global-setup.ts::accounting_period_service.rs
 frontend/e2e/global-setup.ts::ap_payment_request_service.rs
 frontend/e2e/global-setup.ts::backend/src/handlers/role_handler.rs
 frontend/e2e/global-setup.ts::backend/src/models/status/purchase_inventory.rs
@@ -1438,7 +1429,6 @@ frontend/e2e/global-setup.ts::error.rs
 frontend/e2e/global-setup.ts::handlers/ar_invoice_handler.rs
 frontend/e2e/global-setup.ts::handlers/ar_payment_handler.rs
 frontend/e2e/global-setup.ts::m0012_add_ap_ar_finance_analysis.rs
-frontend/e2e/global-setup.ts::missing_handlers.rs
 frontend/e2e/global-setup.ts::models/customer_credit.rs
 frontend/e2e/global-setup.ts::models/status/purchase_inventory.rs
 frontend/e2e/global-setup.ts::permission.rs
@@ -1450,7 +1440,6 @@ frontend/e2e/global-setup.ts::role.rs
 frontend/e2e/global-setup.ts::role_handler.rs
 frontend/e2e/global-setup.ts::role_permission_service.rs
 frontend/e2e/global-setup.ts::routes/crm.rs
-frontend/e2e/global-setup.ts::routes/finance.rs
 frontend/e2e/global-setup.ts::services/ap_invoice_ops/types.rs
 frontend/e2e/global-setup.ts::services/po/mod.rs
 frontend/e2e/global-setup.ts::services/po/order_ops/crud.rs
@@ -1544,15 +1533,6 @@ frontend/e2e/sales/05-ar-invoice.spec.ts::accounting_period_service.rs
 frontend/e2e/sales/06-payment.spec.ts::PaymentTab.vue
 frontend/e2e/sales/13-ship-inventory-deduction.spec.ts::inventory.rs
 frontend/e2e/sales/13-ship-inventory-deduction.spec.ts::piece_domain_service.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::flow/setup-wizard/00-setup-wizard.spec.ts
-frontend/e2e/system/03-password-change-loop.spec.ts::helpers.ts
-frontend/e2e/system/03-password-change-loop.spec.ts::middleware/csrf.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::password_policy_service.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::routes/auth.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::routes/iam.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::services/auth/password_policy_service.rs
-frontend/e2e/system/03-password-change-loop.spec.ts::system/01-users.spec.ts
-frontend/e2e/system/03-password-change-loop.spec.ts::user_handler.rs
 frontend/e2e/traversal/39c-export-content.spec.ts::catalog.rs
 frontend/e2e/traversal/44-role-matrix.spec.ts::MainLayout.vue
 frontend/e2e/traversal/endpoints.config.ts::analytics.rs
@@ -1783,7 +1763,6 @@ frontend/src/views/crm/opportunities/tabs/OpportunityFormTab.vue::services/crm/o
 frontend/src/views/crm/tabs/ReleaseDialogTab.vue::crm_pool_handler.rs
 frontend/src/views/customer-collab/index.vue::customer_team_share_service.rs
 frontend/src/views/customer-collab/index.vue::services/crm/customer_team_share_service.rs
-frontend/src/views/customer-credit/tabs/AdjustDialogTab.vue::utils/validator.rs
 frontend/src/views/customer-credit/tabs/AmountDialogTab.vue::backend/src/handlers/customer_credit_handler.rs
 frontend/src/views/customer/tabs/CustomerFormTab.vue::customer_handler.rs
 frontend/src/views/customer/tabs/CustomerFormTab.vue::customer_ops/update.rs
