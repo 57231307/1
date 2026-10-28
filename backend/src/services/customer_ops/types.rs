@@ -66,8 +66,9 @@ pub(super) fn build_select_only_query(
 /// 创建客户参数对象（消除 create_customer 的 too_many_arguments 警告）
 #[derive(Debug, Clone)]
 pub struct CreateCustomerArgs {
-    /// 客户编码
-    pub customer_code: String,
+    /// 客户编码：Some(非空) 为调用方手工指定值，落库前查重；
+    /// None 或 Some(空) 由 create_customer 在写入事务内自动取号
+    pub customer_code: Option<String>,
     /// 客户名称
     pub customer_name: String,
     /// 联系人

@@ -5,9 +5,10 @@ use bingxi_backend::services::production_recipe_service::*;
 use rust_decimal::Decimal;
 use rust_decimal::prelude::FromPrimitive;
 
-// 大货/加料处方单号（PR{YYYYMMDD}{NNN} / PA{YYYYMMDD}{NNN}）已迁移至
-// DocumentNumberGenerator 统一生成器（依赖 DB 事务 + advisory lock），
-// 不再有可纯单测的静态取号函数；格式断言由集成侧覆盖（待测试专家补 DB 用例）。
+// 大货/加料处方单号（RP{YYYYMMDD}{NNN} / PA{YYYYMMDD}{NNN}）由
+// DocumentNumberGenerator 统一生成器生成（依赖 DB 事务 + advisory lock），
+// 无可纯单测的静态取号函数；格式与锁作用域断言由集成侧
+// contract_docno_remaining5_lock_scope_test.rs 活库用例覆盖。
 
 /// 测试浴比解析
 #[test]
