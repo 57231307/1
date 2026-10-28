@@ -499,9 +499,10 @@ async fn test_token_of_other_session_is_rejected() {
     let req = build_write_request(WriteReq::signed(token, IP_WIFI, USER_ID, SESSION));
     let resp = app.oneshot(req).await.expect("执行请求失败");
 
+    let status = resp.status();
     let body = read_json(resp.into_body()).await;
     assert_eq!(
-        resp.status(),
+        status,
         StatusCode::FORBIDDEN,
         "跨会话消费必须 403（IP 一致也不例外）"
     );
@@ -537,9 +538,10 @@ async fn test_request_without_auth_context_is_rejected() {
     });
     let resp = app.oneshot(req).await.expect("执行请求失败");
 
+    let status = resp.status();
     let body = read_json(resp.into_body()).await;
     assert_eq!(
-        resp.status(),
+        status,
         StatusCode::FORBIDDEN,
         "无认证上下文不得消费用户绑定的 CSRF Token"
     );
@@ -575,9 +577,10 @@ async fn test_forged_forwarded_ip_cannot_bypass_session_binding() {
 
     let app = build_test_app(state.clone());
     let resp = app.oneshot(req).await.expect("执行请求失败");
+    let status = resp.status();
     let body = read_json(resp.into_body()).await;
     assert_eq!(
-        resp.status(),
+        status,
         StatusCode::FORBIDDEN,
         "IP 逐字相等不得被当成会话归属证明"
     );
@@ -659,9 +662,10 @@ async fn test_expired_token_still_rejected_as_invalid() {
         session: Some(SESSION),
     });
     let resp = app.oneshot(req).await.expect("执行请求失败");
+    let status = resp.status();
     let body = read_json(resp.into_body()).await;
     assert_eq!(
-        resp.status(),
+        status,
         StatusCode::FORBIDDEN,
         "过期 token 不得因漂移逻辑被救活"
     );
