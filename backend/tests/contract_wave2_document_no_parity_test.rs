@@ -64,7 +64,7 @@ fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// 从 `from` 起找第一个「独立数字」（前后不邻接标识符字符），返回 (值, 结束下标)
+/// 从 `from` 起找第一个"独立数字"（前后不邻接标识符字符），返回 (值, 结束下标)
 fn first_bare_number(src: &str, from: usize) -> (usize, usize) {
     let bytes = src.as_bytes();
     let mut i = from;
@@ -258,14 +258,15 @@ fn storage_leg_prefixes_are_pairwise_distinct() {
         ),
         "src/services/inventory_count_service.rs",
     ));
-    for i in 0..prefixes.len() {
-        for j in (i + 1)..prefixes.len() {
+    let mut seen: Vec<(String, &str)> = Vec::new();
+    for (prefix, file) in prefixes {
+        for (earlier, earlier_file) in &seen {
             assert_ne!(
-                prefixes[i].0, prefixes[j].0,
-                "落库面前缀撞车：{} 与 {} 同为 {}",
-                prefixes[i].1, prefixes[j].1, prefixes[i].0
+                &prefix, earlier,
+                "落库面前缀撞车：{file} 与 {earlier_file} 同为 {prefix}"
             );
         }
+        seen.push((prefix, file));
     }
 }
 

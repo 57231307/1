@@ -26,7 +26,7 @@ fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.unwrap_or_else(|e| panic!("读取 {} 目录项失败: {e}", dir.display())).path();
         if path.is_dir() {
             collect_rs(&path, out);
-        } else if path.extension().map(|e| e.to_string_lossy() == "rs").unwrap_or(false) {
+        } else if path.extension().is_some_and(|e| e.to_string_lossy() == "rs") {
             out.push(path);
         }
     }
