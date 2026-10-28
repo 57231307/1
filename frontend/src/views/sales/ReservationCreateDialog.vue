@@ -47,11 +47,13 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="t('sales.reservation.quantity')" required prop="quantity">
-        <el-input-number
+        <!-- 预留数量未填保持 undefined 由提交校验点名 清空不得塌成 0 假量 optional 承接未填态 -->
+        <NumericInput
           v-model="form.quantity"
           :min="0.01"
           :max="selectedMax ?? undefined"
           :precision="2"
+          :optional="true"
         />
       </el-form-item>
       <el-form-item :label="t('sales.reservation.remark')" prop="notes">
@@ -77,6 +79,8 @@ import { reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { SalesOrderItem } from '@/api/sales';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -252,7 +252,8 @@ export function useSc() {
         product_spec: i.product_spec,
         unit: i.unit,
         quantity: i.quantity,
-        // el-input-number 清空为 undefined ⇒ JSON 序列化后为缺省，后端 Option=None（走默认允差解析）
+        // 明细行允差是手写录入三态字段 清空回 undefined 未填态（录入框 optional 标记承接）
+        // JSON 序列化后该键缺省 后端按 Option 空值走默认允差解析
         quantity_tolerance_pct: i.quantity_tolerance_pct,
         unit_price: i.unit_price,
         delivery_date: i.delivery_date,

@@ -124,7 +124,7 @@
           />
           <el-table-column :label="t('sales.delivery.currentDelivery')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 :model-value="row.deliver_quantity"
                 :min="0"
                 :max="row.quantity - (row.delivered_quantity || 0)"
@@ -164,6 +164,8 @@ import { ElMessage } from 'element-plus';
 import type { InventoryStock } from '@/api/inventory';
 import type { InventoryPieceRow } from '@/api/inventory-transfer';
 import { stockRowKey, deliveryPiecesKey, type DeliveryItemForm } from './composables/useOlv';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
