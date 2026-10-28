@@ -439,6 +439,7 @@ import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

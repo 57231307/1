@@ -197,6 +197,7 @@ import NumericInput from '@/components/NumericInput.vue';
 import { STOCK_GRADE, STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';
+import NumericInput from '@/components/NumericInput.vue';
 
 const hasLoaded = createLazyLoader();
 const router = useRouter();

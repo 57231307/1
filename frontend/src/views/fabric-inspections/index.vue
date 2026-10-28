@@ -441,6 +441,7 @@ import {
   INSPECTION_STATUS_LABEL,
   type FabricInspection,
 } from '@/api/fabric-inspection';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 const inspections = ref<FabricInspection[]>([]);
