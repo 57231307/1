@@ -815,7 +815,7 @@ impl ExportApprovalService {
         }
 
         if let Some(requested) = requested_params {
-            Self::validate_scope_against_approval(&model, &requested)?;
+            self.validate_scope_against_approval(&model, &requested)?;
         }
 
         self.gate_and_register_attempt(&model).await
