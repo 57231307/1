@@ -115,7 +115,7 @@
             <el-table-column :label="$t('bpm.pendingTable.operation')" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button
-                  v-permission="PERMISSIONS.BPM_TASK_APPROVE"
+                  v-permission="PERMISSIONS.BPM_APPROVAL_EXECUTE"
                   type="primary"
                   link
                   size="small"
@@ -425,7 +425,6 @@ import { Clock, CircleCheck, Warning, Timer } from '@element-plus/icons-vue';
 import {
   getBpmTaskList,
   getBpmInstanceListForMonitor,
-  approveBpmTask,
   getBpmInstanceById,
   transferBpmTask,
   urgeBpmTask,
@@ -443,6 +442,9 @@ import {
   getTaskStatusLabel,
   getTaskStatusType,
 } from '@/constants/bpm-status';
+// 审批办理的唯一写口：本页的行内快捷办理与审批中心对话框办理共用同一提交函数，
+// 两入口不再各自拼审批载荷（载荷键与取值域只在该模块内组装一次）。
+import { submitBpmApproval } from '@/views/bpm/approval/composables/bpmApprovalSubmit';
 import { useUserStore } from '@/store/user';
 import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
@@ -700,9 +702,15 @@ const openBusinessRelationDialog = () => {
   businessRelation.visible = true;
 };
 
+/**
+ * 待办行内快捷办理（本页的第二个办理入口）。
+ * 载荷组装与发送不在这里：一律经 submitBpmApproval 这个唯一写口，与审批中心
+ * 对话框办理同一条链路；办理人身份取登录态，取不到就不发请求。
+ * 成功后同时回读待办与已办两张列表，使刚办理任务的状态与任务列表侧一致
+ * （只刷待办会让已办页签停在旧数据上，同一任务在两处显示不同步）。
+ */
 const handleApprove = async (row: BPMTask) => {
-  // 审批人身份取登录态：后端 ApproveTaskRequest 必填 handler_id / handler_name
-  //（models/dto/bpm_dto.rs:76-77）
+  // 审批人身份取登录态：后端 ExecuteApprovalRequest 必填 handler_id 与 handler_name
   const user = userStore.userInfo;
   if (!user) {
     ElMessage.error(t('bpm.message.currentUserMissing'));
@@ -714,17 +722,15 @@ const handleApprove = async (row: BPMTask) => {
       t('bpm.message.approveConfirmTitle'),
       { type: 'info' }
     );
-    // 任务主键为 id（models/bpm_task.rs:13）；审批意见字段为 approval_opinion；
-    // action 取值域 approve | reject（services/bpm_ops/task.rs:45-49）
-    await approveBpmTask({
-      task_id: row.id,
-      handler_id: user.id,
-      handler_name: user.real_name || user.username,
+    await submitBpmApproval({
+      taskId: row.id,
+      handlerId: user.id,
+      handlerName: user.real_name || user.username,
       action: 'approve',
-      approval_opinion: t('bpm.message.approveComment'),
+      opinion: t('bpm.message.approveComment'),
     });
     ElMessage.success(t('bpm.message.approveSuccess'));
-    fetchPendingTasks();
+    await Promise.all([fetchPendingTasks(), fetchProcessedTasks()]);
   } catch (e) {
     if (!isDialogDismissal(e)) logger.error(String(e));
   }

@@ -4,14 +4,14 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, genCode, tryCleanup } from '../flow/helpers';
-import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { pickSelectIn, pickSelectOwned } from '../flow/ui-helpers';
 
 /**
  * 01-04 编辑流程定义的前置构造：
  * 本目录不跑 ensureTestEntities，库里可能一条流程定义都没有，"按钮可见才断言"
  * 会退化为零断言假绿。故先 POST /bpm/definitions 建一条带唯一 process_key 的定义，
  * 按该 key 定位自己那一行点编辑，再断言编辑对话框打开且回填「流程标识」。
- * 编辑按钮无状态条件（BpmDefinitionTable.vue:61 恒渲染，仅受 bpm_definition:update 权限控制，admin 满足）。
+ * 编辑按钮无状态条件（BpmDefinitionTable.vue 恒渲染，仅受 bpm_definition:update 权限控制，admin 满足）。
  */
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -20,22 +20,24 @@ test.afterEach(async ({ page }) => {
 });
 
 /**
- * 节点行内第一个 el-select（节点类型列）按可见下拉的文本选项。
+ * 节点行内第一个 el-select（节点类型列）在该行自己的下拉面板里选文本项。
  * 调用方：01-02 走 UI 建定义时把首行设为「开始」、末行设为「结束」。
  * 选项文本来自 i18n bpm.definitions.nodeType（zh-CN 值 开始/审批/结束），
  * 提交值才是引擎 token，界面不裸露英文常量。
- * 等待口径复用仓内既有下拉助手：点下拉外壳展开，把选项限定在最后打开的可见面板内，
- * 等选项可见且稳定后再点，点完等面板收起才返回。
- * 三行节点下拉的选项文本同名，面板又都挂到 body，跨面板取首个可见选项会命中上一行
- * 正在收起的旧面板，表现为选项一度解析到之后一直不可见直至超时；限定到最新面板并
- * 等收起收尾即消除该竞态。选项缺失或面板不收的真实缺陷仍会超时判红，不放宽。
+ *
+ * 为什么必须按归属面板取项：三行节点下拉的选项文本同名，而每颗下拉的选项面板都
+ * teleport 到 body 且默认 persistent（收起只隐藏、选项仍在 DOM）。按「最后一个可见
+ * 面板」或全局选项类名取项时，上一行面板正在播收起动画而仍被判可见的那一瞬会被命中，
+ * 表现为同名项一度解析到、随后一直不可见直至超时，命中与否取决于动画时序。
+ * pickSelectOwned 把归属从面板顺序收紧为「触发器 aria-controls 指向的那一层面板」，
+ * 与顺序和动画时序都无关；选项缺失或面板不出现的真实缺陷仍自然超时判红，不放宽。
  */
 async function pickRowOption(
   page: import('@playwright/test').Page,
   row: import('@playwright/test').Locator,
   text: string
 ) {
-  await pickSelect(page, row.locator('.el-select').first(), text, { timeout: 15_000 });
+  await pickSelectOwned(page, row.locator('.el-select').first(), text);
 }
 
 /** 建一条流程定义，返回 { id, processKey } */
@@ -119,9 +121,10 @@ test.describe('01 流程定义', () => {
     await pickRowOption(page, nodeRows.nth(0), '开始');
     await pickRowOption(page, nodeRows.nth(2), '结束');
     // 中间行保持默认审批节点，行内第二个 el-select 是审批人类型列，选项全量渲染，取首项。
-    // 与节点类型列走同一下拉助手，选项作用域限定在最后打开的可见面板，点完等面板收起，
-    // 避免残留面板盖住后续确定按钮；面板或候选取不到即超时判红，不放宽。
-    await pickSelect(page, nodeRows.nth(1).locator('.el-select').nth(1), undefined, {
+    // 与节点类型列走同一个带归属的面板助手：选项只在该下拉自己的面板内取，
+    // 点完等本层面板收起再返回，避免残留面板盖住后续确定按钮；面板或候选取不到
+    // 即超时判红，不放宽。
+    await pickSelectOwned(page, nodeRows.nth(1).locator('.el-select').nth(1), undefined, {
       timeout: 30_000,
     });
 

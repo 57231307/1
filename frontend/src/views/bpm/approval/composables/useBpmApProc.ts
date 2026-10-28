@@ -7,6 +7,8 @@
  * - /bpm/approval/execute → handlers/bpm_handler.rs ExecuteApprovalRequest
  *   { task_id, handler_id, handler_name, action, approval_opinion }，
  *   action 取值域 approve | reject（services/bpm_ops/task.rs 状态机同一来源）。
+ *   该载荷的组装与发送不在本文件，一律经 bpmApprovalSubmit.ts 的 submitBpmApproval
+ *   这个唯一写口，与审批管理页的行内快捷办理共用同一条提交链。
  * - /bpm/tasks/{id}/transfer → handlers/bpm_handler.rs TransferTaskRequest
  *   { new_assignee_id, transfer_reason }。转办不走 execute：execute 的 action
  *   没有 transfer 语义（非 reject 即按 approve 推进流程，会把转办写成审批）。
@@ -14,19 +16,19 @@
  */
 import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
-import { type FormInstance, type FormRules } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { msg } from '@/utils/message';
 import { useUserStore } from '@/store/user';
 import { i18n } from '@/i18n';
 import { getUserList, type User } from '@/api/user';
 import {
-  executeBpmApproval,
   getBpmEnhancedApprovalChain,
   transferBpmEnhancedTask,
   type ApprovalTask,
   type ApprovalChainNode,
 } from '@/api/bpm-enhanced';
 import { logger } from '@/utils/logger';
+import { submitBpmApproval } from './bpmApprovalSubmit';
 
 /**
  * 单据类型到前端路由路径的映射（BPM 审批完成后回跳来源单据上下文）。
@@ -110,26 +112,34 @@ export function useBpmApProc(refresh: RefreshCallbacks) {
     approveDialogVisible.value = true;
   };
 
-  /** 确认审批 */
+  /**
+   * 确认审批（审批中心的办理提交面）。
+   * 载荷组装与发送全部交给 submitBpmApproval 这个唯一写口；办理人身份取登录态，
+   * 取不到就不发请求（不给后端编一个 handler_id=0 的办理记录）。
+   */
   const confirmApproval = async () => {
     if (!currentTask.value) return;
+    const user = userStore.userInfo;
+    if (!user) {
+      ElMessage.error(i18n.global.t('bpm.message.currentUserMissing'));
+      return;
+    }
     submitLoading.value = true;
     try {
-      const res = await executeBpmApproval({
-        task_id: currentTask.value.id,
-        handler_id: userStore.userInfo?.id ?? 0,
-        handler_name: userStore.userInfo?.real_name || userStore.userInfo?.username || '',
+      const data = await submitBpmApproval({
+        taskId: currentTask.value.id,
+        handlerId: user.id,
+        handlerName: user.real_name || user.username,
         action: approveAction.value,
-        approval_opinion: approveForm.comment || undefined,
+        opinion: approveForm.comment,
       });
       msg.success(approveAction.value === 'approve' ? 'approvePassed' : 'approveRejected');
       approveDialogVisible.value = false;
       await Promise.all([refresh.fetchPendingTasks(), refresh.fetchCompletedTasks()]);
-      // 审批完成后回跳来源单据（响应体携带 business_type/business_id/instance_id 用于导航）。
+      // 审批完成后回跳来源单据（出参携带 business_type/business_id/instance_id 用于导航）。
       // 链路补齐口径：目标路由必须带上 instanceId 与 source，让来源单据页能定位刚办理的那条
-      // 上下文并给出返回审批中心的入口；business_id 缺省（历史 unwrap_or(0)）时仍按 instanceId
-      // 回跳，避免"成功后没带 sourceId 回跳"落到无上下文的列表首页。
-      const data = res.data;
+      // 上下文并给出返回审批中心的入口；business_id 缺省时仍按 instanceId 回跳，
+      // 避免"成功后没带 sourceId 回跳"落到无上下文的列表首页。
       if (data && 'business_type' in data) {
         const navFn = BUSINESS_ROUTE_MAP[data.business_type];
         if (navFn) {

@@ -2184,3 +2184,82 @@ export async function closeDialogByX(page: Page): Promise<void> {
     .click()
     .catch(e => console.error('[E2E] 操作失败:', (e as Error).message));
 }
+
+// ---------------------------------------------------------------------------
+// 带归属的 el-select 面板定位（表格多行同名选项场景）
+// ---------------------------------------------------------------------------
+
+/**
+ * 读出某颗 el-select 自己的选项面板标识。
+ *
+ * 归属判据取自组件自身的无障碍关系：el-select 的 combobox input 带
+ * `aria-controls=面板 id`，面板内的滚动容器带同值 id（element-plus 的 useId 按组件
+ * 实例生成，页内唯一）。由触发器读出这个 id 再定位面板，取到的必然是这颗下拉自己的
+ * 那一层，与 DOM 追加顺序、展开收起动画时序都无关。
+ *
+ * 为什么不能按「最后一个可见面板」或全局选项类名取项：面板 teleport 到 body 且默认
+ * persistent，收起只是隐藏、选项节点仍留在 DOM 里；表格里多行同列的下拉选项文本又
+ * 完全同名（如节点类型列的开始、审批、结束三行），上一行的面板正在播收起动画而仍被
+ * 判为可见的那一瞬，按顺序或按全局类名都会命中旧面板里的同名项，表现为项一度解析到
+ * 之后始终不可见直至超时，命中与否取决于动画时序，属可见性竞态。
+ *
+ * 读不到标识即抛错点名（无障碍属性缺失是真实缺陷），不降级回按顺序猜测。
+ *
+ * @param trigger 指向 el-select（或其容器）的 Locator，须为容器作用域
+ * @param timeout 单步超时（默认 15_000ms，CI 并发慢）
+ */
+async function ownedSelectPanelId(trigger: Locator, timeout: number): Promise<string> {
+  const combobox = trigger.locator('input[role="combobox"]').first();
+  await combobox.waitFor({ state: 'attached', timeout });
+  const panelId = await combobox.getAttribute('aria-controls');
+  if (!panelId) {
+    throw new Error(
+      `[pickSelectOwned] 触发器内的 combobox 未带 aria-controls，无法按归属定位选项面板` +
+        `（URL=${trigger.page().url()}）——无障碍标识缺失属真实缺陷，不降级按可见面板顺序猜测`
+    );
+  }
+  return panelId;
+}
+
+/**
+ * 展开一颗 el-select，并在「该 select 自己的面板」内选中目标项。
+ *
+ * 与 openSelectDropdownItems 同一思路（收窄到面板内再取项），差别是本函数把归属
+ * 从「最后打开的可见面板」收紧为「触发器 aria-controls 指向的那一个」，因此不受
+ * 相邻行残留面板的可见性动画影响。
+ *
+ * 契约同本文件「唯一事实源」区块头部三条：点触发器（点 wrapper，不点只读内层 input）、
+ * 等面板可见、选项缺失或面板不出现一律自然超时抛错（无静默、不吞成空集合）。
+ * 唯一软等待是点完之后本层面板收起的动画收尾（面板已确认出现且项已点击成功）。
+ *
+ * @param page       Playwright Page（面板 teleport 到 body，需页级作用域）
+ * @param trigger    指向 el-select（或其容器）的 Locator，须为容器作用域
+ * @param optionText 目标项文本（string 走子串匹配，RegExp 按原样）；省略则按下标 index 选，默认首项
+ * @param opts.index 未传 optionText 时按下标选第 N 项
+ * @param opts.timeout 单步超时（默认 15_000ms）
+ */
+export async function pickSelectOwned(
+  page: Page,
+  trigger: Locator,
+  optionText?: string | RegExp,
+  opts: { index?: number; timeout?: number } = {}
+): Promise<void> {
+  const timeout = opts.timeout ?? 15_000;
+  const panelId = await ownedSelectPanelId(trigger, timeout);
+
+  const wrapper = trigger.locator('.el-select__wrapper').first();
+  const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
+  await clickTarget.waitFor({ state: 'visible', timeout });
+  await clickTarget.click({ timeout });
+
+  const panel = page.locator(`[id="${panelId}"]`).first();
+  await panel.waitFor({ state: 'visible', timeout });
+  const items = panel.locator('.el-select-dropdown__item, .el-select-v2__item');
+  const option =
+    optionText === undefined
+      ? items.nth(opts.index ?? 0)
+      : items.filter({ hasText: optionText }).first();
+  await option.waitFor({ state: 'visible', timeout });
+  await option.click({ timeout });
+  await panel.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
+}
