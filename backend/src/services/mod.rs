@@ -181,6 +181,8 @@ pub mod quality_inspection_service;
 pub mod quality_standard_service;
 pub mod sales_analysis_service;
 pub mod sales_contract_service;
+// 销售订单转销售合同 Service（转换通路：预填带出、事务化取号建单、金额与订单同源重算）
+pub mod sales_contract_convert_service;
 pub mod sales_price_service;
 pub mod sales_return_service;
 // 销售报价单 Service（P12 批 1 P0 port PR-2：DTO + 基础 Service）

@@ -15,7 +15,8 @@
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
-//!   → m0104_add_document_no_partial_unique_four_tables → export_approval_lifecycle
+//!   → m0104_add_document_no_partial_unique_four_tables
+//!   → sales_contract_source_order → export_approval_lifecycle
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -194,6 +195,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
             Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
+            Box::new(domain::sales_contract_source_order::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),
         ]
     }

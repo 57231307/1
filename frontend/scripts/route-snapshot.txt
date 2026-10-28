@@ -894,6 +894,7 @@ GET	/api/v1/erp/sales/sales-contracts/*	sales_contract_handler::get_contract	sal
 GET	/api/v1/erp/sales/sales-contracts/*/items	sales_contract_handler::get_contract_items	sales
 GET	/api/v1/erp/sales/sales-contracts/*/print	print_handler::sales_contract_print_docx	sales
 GET	/api/v1/erp/sales/sales-contracts/export	sales_contract_handler::export_contracts	sales
+GET	/api/v1/erp/sales/sales-contracts/preview-from-order/*	sales_contract_handler::preview_convert_from_order	sales
 GET	/api/v1/erp/sales/sales-prices	sales_price_handler::list_prices	sales
 GET	/api/v1/erp/sales/sales-prices/*	sales_price_handler::get_price	sales
 GET	/api/v1/erp/sales/sales-prices/export	sales_price_handler::export_prices	sales
@@ -1568,6 +1569,7 @@ POST	/api/v1/erp/sales/orders/*/submit	sales_order_handler::submit_order	sales
 POST	/api/v1/erp/sales/sales-contracts	sales_contract_handler::create_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/approve	sales_contract_handler::approve_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/reject	sales_contract_handler::reject_contract	sales
+POST	/api/v1/erp/sales/sales-contracts/from-order/*	sales_contract_handler::convert_from_order	sales
 POST	/api/v1/erp/sales/sales-prices	sales_price_handler::create_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/approve	sales_price_handler::approve_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/reject	sales_price_handler::reject_price	sales

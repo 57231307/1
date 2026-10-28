@@ -85,6 +85,11 @@
 //!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
 //!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
 //!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
+//! - sales_contract_source_order: 销售合同与合同明细补 source_order_id 与
+//!   source_order_item_id 两条溯源列（外键随源单删除置空），明细行另补折扣率与折扣额与税率
+//!   与税额四列和行级色号列，两表各补一条检索索引；新增列一律可空且不带默认，历史合同保持
+//!   空值即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据。置于链尾为新的顶层
+//!   条目，台账名取域名 m_sales_contract_source_order
 //! - export_approval_lifecycle: 导出审批令牌生命周期改造域（export_approval_request 补
 //!   BPM 关联/令牌哈希化/重试窗口列 + status CHECK 扩 consumed、exhausted + 登记
 //!   export_approval BPM 流程定义行；依赖 system 建的 bpm_process_definition 与
@@ -128,4 +133,5 @@ pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
 pub mod m0104_add_document_no_partial_unique_four_tables;
+pub mod sales_contract_source_order;
 pub mod export_approval_lifecycle;
