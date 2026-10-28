@@ -4248,6 +4248,15 @@ jobs:
               track_single = (ext != '.rs')
               in_block = None  # (open_tok, close_tok)
               for i, line in enumerate(text.splitlines(), start=1):
+                  # YAML 与流水线定义文件只认"整行注释"（首个非空白字符是 #）。
+                  # 行内 # 不能当注释起点：这些文件里大量 run 与脚本行是 shell 语句，
+                  # 其中 $( ) 与不定长引号会让字符串态跟丢，把 W0 之类的变量名误判成注释；
+                  # 也不在此类文件里找 // 与 /* */（URL 里的 https:// 会被误当行注释起点）。
+                  if ext in SHARP_EXTS:
+                      s = line.lstrip()
+                      if s.startswith('#'):
+                          yield (i, line)
+                      continue
                   start_pos = 0
                   if in_block:
                       close = line.find(in_block[1])
@@ -4284,12 +4293,6 @@ jobs:
                           break
                       if ext == '.vue' and line[pos:pos + 4] == '<!--':
                           found, kind = pos, 'html'
-                          break
-                      # `#` 仅在行首或前一字符是空格/tab 时才算注释起点（YAML 语义）；
-                      # 引号内的 # 已被上面的 in_str 分支吞掉，不会走到这里。
-                      if (ext in SHARP_EXTS and ch == '#'
-                              and (pos == 0 or line[pos - 1] in ' \t')):
-                          found, kind = pos, 'line'
                           break
                       pos += 1
                   if found is None:
