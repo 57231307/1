@@ -16,6 +16,7 @@
 //!   → customers_nullable_columns_norm
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
 //!   → m0104_add_document_no_partial_unique_four_tables
+//!   → sales_contract_source_order
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -136,7 +137,13 @@
 //!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
 //!    建表（四表表定义见 v15 域），置于链尾为新的顶层条目：链尾晚于 v15 执行，
 //!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
-//! 26. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
+//! 26. sales_contract_source_order: 销售合同与合同明细的两列溯源与四列行级金额与色号扩展
+//!    （source_order_id 与 source_order_item_id 外键随源单删除置空，折扣率与折扣额与税率与
+//!    税额四列和行级色号列，两表各一条检索索引）；新增列一律可空无默认，历史合同保持空值
+//!    即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据；置于链尾为新的顶层条目，
+//!    依赖 system 与 business 与 v15 建好的合同两表与销售订单两表，台账名取域名
+//!    m_sales_contract_source_order
+//! 27. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
 //!    追加一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
 //!    供详情腿单义回查必填标记；up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、
 //!    不建外键、不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码)
@@ -191,6 +198,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
             Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
+            Box::new(domain::sales_contract_source_order::Migration),
             Box::new(domain::contract_clause_snapshot_provenance::Migration),
         ]
     }

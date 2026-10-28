@@ -279,6 +279,8 @@ async fn sales_create_persists_remark_and_reads_back() {
                 contract_no: Some("SC-W2-PG-001".to_string()),
                 contract_name: "备注落库验证".to_string(),
                 customer_id: cid,
+                // 手工建档链路，无来源销售订单，溯源列置 None
+                source_order_id: None,
                 total_amount: Decimal::from(100),
                 contract_type: None,
                 payment_terms: None,
@@ -498,6 +500,8 @@ async fn live_sales_update_ignores_duplicate_contract_no_and_persists_remark() {
         contract_no: Some(no.to_string()),
         contract_name: "活库合同".to_string(),
         customer_id: cust.id,
+        // 手工建档链路，无来源销售订单，溯源列置 None
+        source_order_id: None,
         total_amount: Decimal::from(100),
         contract_type: None,
         payment_terms: None,
