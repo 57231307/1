@@ -919,7 +919,7 @@ async fn legacy_snapshot_rows_resolve_required_with_no_guessing() {
          body_rendered, template_id, template_version, sort) \
          VALUES ('sales', 900231, 'subject_and_spec', '标的与规格', '历史固化正文', $1, 1, 1)"
             .to_string(),
-        vec![Value::Int(template_id)],
+        vec![Value::Int(Some(template_id))],
     ))
     .await
     .expect("插历史快照行失败");
@@ -938,7 +938,7 @@ async fn legacy_snapshot_rows_resolve_required_with_no_guessing() {
         "INSERT INTO contract_template_clauses (template_id, clause_code, title, body, required, sort, applies_when) \
          VALUES ($1, 'subject_and_spec', '标的变体', '变体正文', false, 8, 'export')"
             .to_string(),
-        vec![Value::Int(template_id)],
+        vec![Value::Int(Some(template_id))],
     ))
     .await
     .expect("旁路插变体失败（模板已是 active，绕过服务门直写库面）");
@@ -965,7 +965,7 @@ async fn snapshot_body_db_backstops_reject_blank_and_residue() {
              body_rendered, template_id, template_version, sort) \
              VALUES ('sales', 900241, 'subject_and_spec', '标的', '', $1, 1, 1)"
                 .to_string(),
-            vec![Value::Int(template_id)],
+            vec![Value::Int(Some(template_id))],
         ),
         "23514",
         "chk_cc_body_rendered",
@@ -980,7 +980,7 @@ async fn snapshot_body_db_backstops_reject_blank_and_residue() {
              body_rendered, template_id, template_version, sort) \
              VALUES ('sales', 900242, 'subject_and_spec', '标的', '半成品 {{customer_name}} 正文', $1, 1, 1)"
                 .to_string(),
-            vec![Value::Int(template_id)],
+            vec![Value::Int(Some(template_id))],
         ),
         "23514",
         "chk_cc_body_fully_rendered",

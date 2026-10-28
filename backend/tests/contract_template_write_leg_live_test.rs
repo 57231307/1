@@ -362,7 +362,7 @@ async fn delete_allows_unreferenced_draft_and_names_snapshot_references() {
          body_rendered, template_id, template_version, sort) \
          VALUES ('sales', $1, 'subject_and_spec', '标的与规格', '固化正文', $2, 1, 1)"
             .to_string(),
-        vec![Value::Int(IT_SNAPSHOT_CONTRACT_ID), Value::Int(b)],
+        vec![Value::Int(Some(IT_SNAPSHOT_CONTRACT_ID)), Value::Int(Some(b))],
     ))
     .await
     .expect("写快照探针行失败");
@@ -734,7 +734,7 @@ async fn db_backstops_reject_bypass_writes_by_constraint_name() {
             "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
              VALUES ($1, 'domestic_sales', 'seller', 1, '词表外状态探针', $2)"
                 .to_string(),
-            vec![Value::String(format!("{IT}-DB-1")), opt_str(Some("enabled"))],
+            vec![Value::String(Some(format!("{IT}-DB-1"))), opt_str(Some("enabled"))],
         ),
         "23514",
         "chk_contract_templates_status",
@@ -748,7 +748,7 @@ async fn db_backstops_reject_bypass_writes_by_constraint_name() {
             "INSERT INTO contract_templates (template_code, contract_type, party_side, version, title, status) \
              VALUES ($1, 'domestic_sales', 'seller', 1, '无复核启用探针', 'active')"
                 .to_string(),
-            vec![Value::String(format!("{IT}-DB-2"))],
+            vec![Value::String(Some(format!("{IT}-DB-2")))],
         ),
         "23514",
         "chk_contract_templates_active_approved",
@@ -766,7 +766,7 @@ async fn db_backstops_reject_bypass_writes_by_constraint_name() {
             "UPDATE contract_templates SET status = 'active', approved_by = 9106, approved_at = now() \
              WHERE id = $1"
                 .to_string(),
-            vec![Value::Int(two)],
+            vec![Value::Int(Some(two))],
         ))
         .await
         .err()
@@ -789,7 +789,7 @@ async fn db_backstops_reject_bypass_writes_by_constraint_name() {
             "INSERT INTO contract_template_clauses (template_id, clause_code, title, sort) \
              VALUES ($1, 'notice_and_service', '两源皆空探针', 2)"
                 .to_string(),
-            vec![Value::Int(one)],
+            vec![Value::Int(Some(one))],
         ),
         "23514",
         "chk_ctc_text_source",
