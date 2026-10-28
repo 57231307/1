@@ -20,6 +20,34 @@ interface InspectionItemRow {
   remark: string | null;
 }
 
+// 采购质检单终止腿与回读断言。质检单没有根记录删除端点，整单的唯一合法终止是
+// 待检状态经 complete 跃迁为已完成（后端 purchase_inspection_service 完成前置为 pending）。
+// 调用方为本文件三个用例各自自建的质检单。入参为页面对象、质检单 id、合格合计与不合格合计。
+// 传给后端 pass_quantity、reject_quantity、inspection_result，结论取值域为权威表
+// purchase_inspection_result 的小写码 pass、fail、partial，此处按合格与不合格并存的语义取 partial。
+// 跃迁后回读 GET 库里 inspection_status 落库值等于 completed，证明终止腿真实生效而非只回状态码。
+async function completeInspectionAndVerify(
+  page: import('@playwright/test').Page,
+  inspectionId: number,
+  passQuantity: number,
+  rejectQuantity: number
+): Promise<void> {
+  await apiCall(page, 'POST', `/purchase/inspections/${inspectionId}/complete`, {
+    pass_quantity: passQuantity,
+    reject_quantity: rejectQuantity,
+    inspection_result: 'partial',
+  });
+  const closed = await apiCallRaw<{ inspection_status: string }>(
+    page,
+    'GET',
+    `/purchase/inspections/${inspectionId}`
+  );
+  expect(
+    closed.inspection_status,
+    `complete 终止腿生效后质检单状态应回读为 completed，实际值 ${closed.inspection_status}`
+  ).toBe('completed');
+}
+
 test.describe('04 不合格质检 → 退货明细回读', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
@@ -39,7 +67,6 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       inspection_type: 'incoming',
     });
     expect(inspection.id, '创建质检单应返回 id').toBeTruthy();
-    CLEANUP.push({ path: `/purchase/inspections/${inspection.id}`, label: 'po_inspection' });
 
     // 添加质检明细：合格 80，不合格 20
     const unqualifiedQty = '20';
@@ -74,6 +101,9 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       `回读 unqualified_quantity 应为 20，实际: ${found!.unqualified_quantity}`
     ).toBe(20);
     expect(Number(found!.qualified_quantity), `回读 qualified_quantity 应为 80`).toBe(80);
+
+    // 用例断言全部达成后，走整单终止腿把本轮质检单跃迁为已完成并回读落库状态
+    await completeInspectionAndVerify(page, inspection.id, 80, Number(unqualifiedQty));
   });
 
   test('04-02 退货明细 quantity_returned 按质检不合格数预填并回读正确', async ({ page }) => {
@@ -89,7 +119,6 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       inspection_type: 'incoming',
     });
     expect(inspection.id).toBeTruthy();
-    CLEANUP.push({ path: `/purchase/inspections/${inspection.id}`, label: 'insp_linkage' });
 
     await apiCall(page, 'POST', `/purchase/inspections/${inspection.id}/items`, {
       product_id: productId,
@@ -162,6 +191,9 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       Number(rItem!.quantity_returned),
       `退货 quantity_returned(${rItem!.quantity_returned}) 应精确等于质检 unqualified_quantity(${unqualifiedQty})`
     ).toBe(unqualifiedQty);
+
+    // 用例断言全部达成后，走整单终止腿把本轮质检单跃迁为已完成并回读落库状态
+    await completeInspectionAndVerify(page, inspection.id, 85, unqualifiedQty);
   });
 
   test('04-03 多条不合格明细 → 退货预填各行数量独立正确', async ({ page }) => {
@@ -180,7 +212,6 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       order_id: ctx.purchaseOrderId,
       inspection_date: new Date().toISOString().slice(0, 10),
     });
-    CLEANUP.push({ path: `/purchase/inspections/${inspection.id}`, label: 'insp_multi' });
 
     await apiCall(page, 'POST', `/purchase/inspections/${inspection.id}/items`, {
       product_id: product1,
@@ -238,5 +269,8 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     expect(row2, `退货明细应含 material=${product2}`).toBeDefined();
     expect(Number(row1!.quantity_returned), `第1行退货数量应为 ${qty1}`).toBe(qty1);
     expect(Number(row2!.quantity_returned), `第2行退货数量应为 ${qty2}`).toBe(qty2);
+
+    // 用例断言全部达成后走整单终止腿，合格与不合格各取两条明细合计并回读落库状态
+    await completeInspectionAndVerify(page, inspection.id, 90 + 75, qty1 + qty2);
   });
 });
