@@ -27,6 +27,7 @@
  * 审批人列必须是可搜索用户选择（el-select），不得回到手填 ID 的 el-input。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SCAN_TIMEOUT_MS, guardScanSize, reportScanElapsed } from './repo-scan-budget';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { createBpmDefinition, updateBpmDefinition, type ProcessNode } from '@/api/bpm-enhanced';
@@ -505,8 +506,13 @@ describe('表单源码静态锁：节点类型选项与审批人输入形态', (
       }
       return out;
     };
+    // 冷跑实测本条 9474ms，是 vitest 默认 5 秒预算的两倍；给扫描型预算并自证规模
+    // （全仓 vue 与 ts 共 724 个，下限取九成），超时判红与断言判红从此可分
+    const startedAt = performance.now();
+    const scanned = walkVueTs(SRC);
+    guardScanSize('bpm 反向锁 getUserList 削顶全仓扫描', scanned, 650);
     const found: Record<string, number> = {};
-    for (const file of walkVueTs(SRC)) {
+    for (const file of scanned) {
       const calls =
         readFileSync(file, 'utf-8').match(/getUserList\s*\(\s*\{[^}]*?page_size:\s*(\d+)/g) ?? [];
       const over = calls.filter(c => Number(/page_size:\s*(\d+)/.exec(c)![1]) > 100);
@@ -514,6 +520,11 @@ describe('表单源码静态锁：节点类型选项与审批人输入形态', (
         found[relative(FRONTEND, file).split(sep).join('/')] = over.length;
       }
     }
+    reportScanElapsed(
+      'bpm 反向锁 getUserList 削顶全仓扫描',
+      performance.now() - startedAt,
+      scanned.length
+    );
     expect(found).toEqual(KNOWN_PENDING_OVERCLAMP);
-  });
+  }, SCAN_TIMEOUT_MS);
 });

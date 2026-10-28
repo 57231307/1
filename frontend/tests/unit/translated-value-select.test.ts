@@ -11,6 +11,11 @@
  *   3. 各常量表的取值与后端/写入端的真实词表逐项相等，防止把界面码改成库里没有的值。
  */
 import { describe, it, expect } from 'vitest';
+import {
+  SCAN_TIMEOUT_MS,
+  guardScanSize,
+  reportScanElapsed,
+} from './repo-scan-budget';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { relative, sep, join } from 'node:path';
 import zhCN from '@/locales/zh-CN';
@@ -87,14 +92,28 @@ function hasKey(messages: Record<string, unknown>, dotted: string): boolean {
 }
 
 describe('「译文当业务值」门禁', () => {
-  it('残留点位与挂账清单逐一对应', () => {
-    const found: Record<string, number> = {};
-    for (const file of walkVue(SRC)) {
-      const n = countTranslatedValues(file);
-      if (n > 0) found[relative(FRONTEND, file).split(sep).join('/')] = n;
-    }
-    expect(found).toEqual(KNOWN_PENDING);
-  });
+  it(
+    '残留点位与挂账清单逐一对应',
+    () => {
+      // 全仓 .vue 递归读，冷跑实测百毫秒级但在多门禁抢同一块盘时被放大过默认 5 秒预算，
+      // 故显式给扫描型预算并自证扫描规模（只收 .vue，实仓 404 个，下限取九成防"没读到"假绿）
+      const startedAt = performance.now();
+      const files = walkVue(SRC);
+      guardScanSize('translated-value-select 残留点位对账', files, 360);
+      const found: Record<string, number> = {};
+      for (const file of files) {
+        const n = countTranslatedValues(file);
+        if (n > 0) found[relative(FRONTEND, file).split(sep).join('/')] = n;
+      }
+      reportScanElapsed(
+        'translated-value-select 残留点位对账',
+        performance.now() - startedAt,
+        files.length
+      );
+      expect(found).toEqual(KNOWN_PENDING);
+    },
+    SCAN_TIMEOUT_MS
+  );
 
   it('常量表引用的 i18n 键在两门语言中都存在', () => {
     const maps = [

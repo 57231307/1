@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { SCAN_TIMEOUT_MS, guardScanSize, reportScanElapsed } from './repo-scan-budget';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND_ROOT = path.resolve(HERE, '../..');
@@ -169,14 +170,28 @@ describe('9 创建端点请求侧身份键锁', () => {
     }
   });
 
-  it('solid-waste-disposals 正向锁：任何提及该端点的 src 文件不得携带身份键', () => {
-    const mentioning = listSourceFiles().filter(f => readRepoSource(f).includes('solid-waste'));
-    // 当前前端未接入该端点（提及文件集为空集，接入后自动纳入扫描而不需改本锁）
-    for (const f of mentioning) {
-      const src = readRepoSource(f);
-      expect(identityViolationsInSource(src), `${f} 携带身份键`).toEqual([]);
-    }
-  });
+  it(
+    'solid-waste-disposals 正向锁：任何提及该端点的 src 文件不得携带身份键',
+    () => {
+      // 该用例走 src/api 与 src/views 全量（实仓 601 个文件），冷跑百毫秒级、
+      // 多门禁抢盘时被放大过默认 5 秒预算；给扫描型预算并按规模下限自证"真读到了"
+      const startedAt = performance.now();
+      const scanned = listSourceFiles();
+      guardScanSize('created-by-upload-locks solid-waste 全量扫描', scanned, 540);
+      const mentioning = scanned.filter(f => readRepoSource(f).includes('solid-waste'));
+      // 当前前端未接入该端点（提及文件集为空集，接入后自动纳入扫描而不需改本锁）
+      for (const f of mentioning) {
+        const src = readRepoSource(f);
+        expect(identityViolationsInSource(src), `${f} 携带身份键`).toEqual([]);
+      }
+      reportScanElapsed(
+        'created-by-upload-locks solid-waste 全量扫描',
+        performance.now() - startedAt,
+        scanned.length
+      );
+    },
+    SCAN_TIMEOUT_MS
+  );
 
   it('检测力自证：注入身份键的夹具必须被上述判据抓到，而非静默通过', () => {
     // 夹具 1：往真实接口文本里塞 created_by 声明，接口判据必须点名
