@@ -159,132 +159,16 @@ impl ProductService {
     }
 
     /// 创建产品（面料行业版）（批次 339 v10 复审 P3 修复：签名从 19 参数改为单一参数对象 `CreateProductArgs`，；消除 `clippy::too_many_arguments` 警告。）
+    /// 判据三连、ActiveModel 构造与类别外键预校验各自独立成函数，
+    /// 与通用数据导入中心产品腿（import_export_ops::import::import_product_row）共用同一组，
+    /// 单条 HTTP 建品 两路文件导入与批量四条路径都撞同一份判据，任一路径无法绕过。
     pub async fn create_product(
         &self,
         args: CreateProductArgs,
     ) -> Result<product::Model, AppError> {
-        let CreateProductArgs {
-            name,
-            code,
-            barcode,
-            category_id,
-            specification,
-            unit,
-            standard_price,
-            cost_price,
-            description,
-            status,
-            product_type,
-            fabric_composition,
-            yarn_count,
-            density,
-            width,
-            gram_weight,
-            structure,
-            finish,
-            min_order_quantity,
-            lead_time,
-            execution_standard,
-            factory_name,
-            factory_address,
-            product_grade,
-            width_needle_included_cm,
-            weight_tolerance,
-            spandex_percent,
-            usage,
-            safety_category,
-            meters_per_piece,
-        } = args;
-        // 新建建品必录校验（面料类三列 + 产品类型显式提交）落在此服务层唯一入口：
-        // 单条 HTTP 建品与 CSV 导入建品都汇到本函数，共用判据函数 validate_product_create_fields，任一路径都无法绕过。
-        // 批量建品走 batch_service，另在彼处调用同一函数，判据仍是同一份。
-        // 幅宽与克重入参到落库全程 Decimal（DECIMAL(10,2) 列真相形态），与批量侧同型直接比较，无 f64 往返。
-        validate_product_create_fields(
-            product_type.as_deref(),
-            width,
-            gram_weight,
-            fabric_composition.as_deref(),
-        )?;
-        // 取值域校验与必录门分权：必录门管「面料类这三列必须有值」，本函数管「提交了就必须合法」
-        // （类型在词表内、幅宽克重>0、量价不为负）。辅料类提交非法数值同样在这里被点名拒绝。
-        validate_product_numeric_domains(
-            product_type.as_deref(),
-            width,
-            gram_weight,
-            min_order_quantity,
-            lead_time,
-            standard_price,
-            cost_price,
-        )?;
-        // 安全类别取值域（GB 18401 三类）与必录门、数值域门分权：出现即必须在词表内，缺席或未录入放行。
-        validate_product_safety_category(safety_category.as_deref())?;
-        // 校验已保证类型非空且去空白，落库取校验后的规范值（products.product_type 为 NOT NULL）。
-        // 缺省即被拒，不再回落成成品布，与 validate_product_create_fields 的显式类型判据同源。
-        let product_type = product_type
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| {
-                AppError::validation_displayable("新建产品必须显式提交产品类型，不允许缺省")
-            })?;
-        // 外键预校验：products.category_id REFERENCES product_categories(id)，
-        // 无 ON DELETE 动作。若未预校验，非法 category_id 会在 insert 时抛出
-        // "violates foreign key constraint fk_products_category" 并被映射成 500 DATABASE_ERROR，
-        // 调用方无法区分数据错误与系统故障。
-        if let Some(cat_id) = category_id {
-            product_category::Entity::find_by_id(cat_id)
-                .one(&*self.db)
-                .await?
-                .ok_or_else(|| AppError::business(format!("产品分类 {} 不存在", cat_id)))?;
-        }
-
-        let active_model = product::ActiveModel {
-            id: NotSet,
-            name: Set(name),
-            code: Set(code),
-            barcode: Set(barcode),
-            category_id: Set(category_id),
-            specification: Set(specification),
-            unit: Set(unit),
-            // DECIMAL 列透传入参原值：入参已是 Decimal，去掉 from_f64_retain 往返与 unwrap_or(ZERO) 静默落 0
-            standard_price: Set(standard_price),
-            cost_price: Set(cost_price),
-            description: Set(description),
-            status: Set(status),
-            is_deleted: Set(false),
-            // 面料行业字段
-            product_type: Set(product_type),
-            fabric_composition: Set(fabric_composition),
-            yarn_count: Set(yarn_count),
-            density: Set(density),
-            // DECIMAL 列透传入参原值（入参已是 Decimal，不做 f64 往返、不以 0 兜底掩盖缺值）
-            width: Set(width),
-            gram_weight: Set(gram_weight),
-            structure: Set(structure),
-            finish: Set(finish),
-            min_order_quantity: Set(min_order_quantity),
-            lead_time: Set(lead_time),
-            created_at: Set(Utc::now()),
-            updated_at: Set(Utc::now()),
-            supplier_product_code: sea_orm::ActiveValue::NotSet,
-            supplier_id: sea_orm::ActiveValue::NotSet,
-            is_batch_managed: sea_orm::ActiveValue::NotSet,
-            batch_level: sea_orm::ActiveValue::NotSet,
-            // V15 P1 合规字段（《产品质量法》第 27 条）
-            execution_standard: Set(execution_standard),
-            factory_name: Set(factory_name),
-            factory_address: Set(factory_address),
-            product_grade: Set(product_grade),
-            // m0106 扩的规格列：带针幅宽/克重公差/氨纶含量/用途/安全类别，透传录入值，未录入落 NULL。
-            // 带针幅与公差与氨纶含量全程 Decimal 不 f64 往返；安全类别取值已由服务层词表判据把关。
-            width_needle_included_cm: Set(width_needle_included_cm),
-            weight_tolerance: Set(weight_tolerance),
-            spandex_percent: Set(spandex_percent),
-            usage: Set(usage),
-            safety_category: Set(safety_category),
-            // 每匹米数换算元数据：透传录入值（按匹与按卷换算共用此列，一卷即一匹，供 dual_unit_converter 读取）；
-            // 未录入为 NULL，不影响既有；库存落库真相仍为米与公斤双列，本列不参与库存计量
-            meters_per_piece: Set(meters_per_piece),
-        };
+        Self::validate_product_create_gates(&args)?;
+        let active_model = Self::product_active_model_from_args(&args)?;
+        Self::require_product_category_exists(&*self.db, args.category_id).await?;
 
         let result = active_model.insert(&*self.db).await?;
 
@@ -292,6 +176,122 @@ impl ProductService {
         self.sync_product_to_es(&result, "create").await;
 
         Ok(result)
+    }
+
+    /// 建品判据三连：面料类必录门、取值域门、安全类别门，调用次序与既有形态一致。
+    /// 调用方 `create_product`（单条 HTTP 与产品 CSV 导入共用入口）与 通用数据导入中心产品腿。
+    /// 判据本体是 services::product_service 的三个纯函数（batch_service 直调同组函数为先例），
+    /// 本函数只固化次序与入参取用，不复制第二套规则。
+    /// 幅宽与克重入参到落库全程 Decimal（DECIMAL(10,2) 列真相形态），与批量侧同型直接比较，无 f64 往返。
+    pub(crate) fn validate_product_create_gates(args: &CreateProductArgs) -> Result<(), AppError> {
+        // 新建建品必录校验（面料类三列 + 产品类型显式提交）：单条 HTTP 建品与两路导入建品
+        // 都汇到本判据函数 validate_product_create_fields。
+        validate_product_create_fields(
+            args.product_type.as_deref(),
+            args.width,
+            args.gram_weight,
+            args.fabric_composition.as_deref(),
+        )?;
+        // 取值域校验与必录门分权：必录门管「面料类这三列必须有值」，本函数管「提交了就必须合法」
+        // （类型在词表内、幅宽克重>0、量价不为负）。辅料类提交非法数值同样在这里被点名拒绝。
+        validate_product_numeric_domains(
+            args.product_type.as_deref(),
+            args.width,
+            args.gram_weight,
+            args.min_order_quantity,
+            args.lead_time,
+            args.standard_price,
+            args.cost_price,
+        )?;
+        // 安全类别取值域（GB 18401 三类）与必录门、数值域门分权：出现即必须在词表内，缺席或未录入放行。
+        validate_product_safety_category(args.safety_category.as_deref())
+    }
+
+    /// 由建品入参组装产品 ActiveModel。
+    /// 调用方 `create_product` 与通用数据导入中心产品腿：全列透传的构造形态只此一份，
+    /// 新增入参列只补这一处，不存在只补一条腿漏另一条腿的漂移。
+    /// 前置契约：产品类型须已过 `validate_product_create_gates`（显式且非空白）；
+    /// 空白仍在本函数拒绝，不回落成成品布（缺省会绕过按品类分级必填，
+    /// 与 validate_product_create_fields 的显式类型判据同源）。
+    pub(crate) fn product_active_model_from_args(
+        args: &CreateProductArgs,
+    ) -> Result<product::ActiveModel, AppError> {
+        // 校验已保证类型非空且去空白，落库取校验后的规范值（products.product_type 为 NOT NULL）。
+        let product_type = args
+            .product_type
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .ok_or_else(|| {
+                AppError::validation_displayable("新建产品必须显式提交产品类型，不允许缺省")
+            })?;
+        Ok(product::ActiveModel {
+            id: NotSet,
+            name: Set(args.name.clone()),
+            code: Set(args.code.clone()),
+            // DECIMAL 列透传入参原值：入参已是 Decimal，不做 from_f64_retain 往返与静默落 0
+            barcode: Set(args.barcode.clone()),
+            category_id: Set(args.category_id),
+            specification: Set(args.specification.clone()),
+            unit: Set(args.unit.clone()),
+            standard_price: Set(args.standard_price),
+            cost_price: Set(args.cost_price),
+            description: Set(args.description.clone()),
+            status: Set(args.status.clone()),
+            is_deleted: Set(false),
+            // 面料行业字段
+            product_type: Set(product_type),
+            fabric_composition: Set(args.fabric_composition.clone()),
+            yarn_count: Set(args.yarn_count.clone()),
+            density: Set(args.density.clone()),
+            // DECIMAL 列透传入参原值（入参已是 Decimal，不做 f64 往返、不以 0 兜底掩盖缺值）
+            width: Set(args.width),
+            gram_weight: Set(args.gram_weight),
+            structure: Set(args.structure.clone()),
+            finish: Set(args.finish.clone()),
+            min_order_quantity: Set(args.min_order_quantity),
+            lead_time: Set(args.lead_time),
+            created_at: Set(Utc::now()),
+            updated_at: Set(Utc::now()),
+            supplier_product_code: sea_orm::ActiveValue::NotSet,
+            supplier_id: sea_orm::ActiveValue::NotSet,
+            is_batch_managed: sea_orm::ActiveValue::NotSet,
+            batch_level: sea_orm::ActiveValue::NotSet,
+            // V15 P1 合规字段（《产品质量法》第 27 条）
+            execution_standard: Set(args.execution_standard.clone()),
+            factory_name: Set(args.factory_name.clone()),
+            factory_address: Set(args.factory_address.clone()),
+            product_grade: Set(args.product_grade.clone()),
+            // m0106 扩的规格列：带针幅宽/克重公差/氨纶含量/用途/安全类别，透传录入值，未录入落 NULL。
+            // 带针幅与公差与氨纶含量全程 Decimal 不 f64 往返；安全类别取值已由服务层词表判据把关。
+            width_needle_included_cm: Set(args.width_needle_included_cm),
+            weight_tolerance: Set(args.weight_tolerance),
+            spandex_percent: Set(args.spandex_percent),
+            usage: Set(args.usage.clone()),
+            safety_category: Set(args.safety_category.clone()),
+            // 每匹米数换算元数据：透传录入值（按匹与按卷换算共用此列，一卷即一匹，供 dual_unit_converter 读取）；
+            // 未录入为 NULL，不影响既有；库存落库真相仍为米与公斤双列，本列不参与库存计量
+            meters_per_piece: Set(args.meters_per_piece),
+        })
+    }
+
+    /// 类别外键预校验（products.category_id REFERENCES product_categories(id)，无 ON DELETE 动作）。
+    /// 调用方 `create_product` 与通用数据导入中心产品腿，判据一份两处同门。
+    /// 若未预校验，非法 category_id 会在 insert 时抛出
+    /// "violates foreign key constraint fk_products_category" 并被映射成 500 DATABASE_ERROR，
+    /// 调用方无法区分数据错误与系统故障。
+    pub(crate) async fn require_product_category_exists(
+        db: &sea_orm::DatabaseConnection,
+        category_id: Option<i32>,
+    ) -> Result<(), AppError> {
+        if let Some(cat_id) = category_id {
+            product_category::Entity::find_by_id(cat_id)
+                .one(db)
+                .await?
+                .ok_or_else(|| AppError::business(format!("产品分类 {} 不存在", cat_id)))?;
+        }
+        Ok(())
     }
 
     /// 删除产品

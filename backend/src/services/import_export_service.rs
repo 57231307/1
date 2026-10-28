@@ -127,49 +127,35 @@ impl ImportExportService {
         }
     }
 
-    /// 构建产品导入模板
+    /// 构建产品导入模板（数据导入中心 products 面）。
+    /// 调用方 /import/templates/download/products 与 /import/templates/meta/products 与
+    /// 数据导入中心注册表 products 行（handlers::import_export_handler 的 IMPORT_TEMPLATE_STORE）。
+    /// 列名 必需性 数据类型 示例值逐列取自产品文件导入权威表
+    /// `services::product_ops::import_export::product_import_columns`（/products/import 与
+    /// /excel 两条导入腿实际解析的同一张表），本函数不抄第二套列清单（形态同
+    /// build_sku_mapping_template），杜绝模板面与解析面漂移。
+    /// 列序即 /excel 产品腿按位读列的次序（import_export_ops::import::import_product_row
+    /// 按本表列序 zip），顺序变了就会把克重读进幅宽列，模板与读列由同表同序钉住，不许单边改动。
+    /// 表头文本必须等于解析键，否则用户按模板填的文件会被判成缺列。
+    /// 面料类分级必填（坯布 成品布 必须同时填 幅宽 克重 面料成分）属条件必填，
+    /// 判据在服务层建品门 validate_product_create_fields，不由 required 位表达，写进 description 提示用户。
     pub(crate) fn build_products_template() -> ImportTemplate {
         ImportTemplate {
             import_type: "products".to_string(),
             name: "产品导入模板".to_string(),
-            description: "用于批量导入产品信息".to_string(),
-            columns: vec![
-                ImportColumnDef {
-                    field: "code".to_string(),
-                    title: "产品编码".to_string(),
-                    data_type: "string".to_string(),
-                    required: true,
-                    example: Some("P001".to_string()),
-                },
-                ImportColumnDef {
-                    field: "name".to_string(),
-                    title: "产品名称".to_string(),
-                    data_type: "string".to_string(),
-                    required: true,
-                    example: Some("棉布A".to_string()),
-                },
-                ImportColumnDef {
-                    field: "category".to_string(),
-                    title: "产品类别".to_string(),
-                    data_type: "string".to_string(),
-                    required: false,
-                    example: Some("面料".to_string()),
-                },
-                ImportColumnDef {
-                    field: "unit".to_string(),
-                    title: "单位".to_string(),
-                    data_type: "string".to_string(),
-                    required: true,
-                    example: Some("米".to_string()),
-                },
-                ImportColumnDef {
-                    field: "price".to_string(),
-                    title: "单价".to_string(),
-                    data_type: "decimal".to_string(),
-                    required: false,
-                    example: Some("15.50".to_string()),
-                },
-            ],
+            description: "用于批量导入产品信息。产品类型必须显式填写且只接受词表值（坯布 成品布 辅料）；\
+                          面料类（坯布 成品布）必须同时填写 幅宽 克重 面料成分 三列且数值为正，缺任一整行拒绝。"
+                .to_string(),
+            columns: crate::services::product_ops::import_export::product_import_columns()
+                .iter()
+                .map(|c| ImportColumnDef {
+                    field: c.field.to_string(),
+                    title: c.title.to_string(),
+                    data_type: c.data_type.to_string(),
+                    required: c.required,
+                    example: Some(c.example.to_string()),
+                })
+                .collect(),
         }
     }
 
