@@ -32,7 +32,9 @@
               :value="key"
             />
           </el-select>
-          <el-button type="primary" @click="openCreate">新建送检单</el-button>
+          <el-button v-permission="'textile-submissions:create'" type="primary" @click="openCreate"
+            >新建送检单</el-button
+          >
         </div>
       </div>
 

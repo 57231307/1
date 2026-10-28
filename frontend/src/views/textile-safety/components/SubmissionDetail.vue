@@ -48,7 +48,7 @@
       <div class="section-head">
         <h3>检测项目清单</h3>
         <el-button
-          v-permission="'textile-submissions:update'"
+          v-permission="'textile-submissions:create'"
           size="small"
           type="primary"
           :disabled="!editable"
@@ -171,7 +171,7 @@
               >过完整性门</el-button
             >
             <el-button
-              v-permission="'textile-reports:update'"
+              v-permission="'textile-reports:create'"
               link
               type="primary"
               @click="openResultsDialog(row)"
