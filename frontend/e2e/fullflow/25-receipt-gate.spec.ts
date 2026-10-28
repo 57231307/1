@@ -28,6 +28,26 @@
 //    PASSED 真能生成）——该入口可绕过 confirm 直连，与 confirm 共用同一判定；
 // 6) 正向镜像：质检合格 → 确认成功 → 应付单确由本收货单派生落库（source_id 回读）。
 // afterEach 尽力清理（被拒收货单仍 DRAFT 可删；已确认单删除会失败，属既有 DRAFT-only 门，忽略）。
+// 清理腿事实（看板 #138 S1 逐处取证）：**purchase/inspections 族后端无终止腿**——
+//   backend/src/routes/purchase.rs:139-184 只注册集合口 GET/POST、单体口 GET/PUT、
+//   /{id}/complete、明细口 /{id}/items 与 /{id}/items/{item_id}（DELETE 只到**明细行**）与打印口；
+//   主单既无 DELETE 也无 cancel/reject，实体 models/purchase_inspection.rs:9-33 亦无 is_deleted 列。
+//   本文件用到的 complete 腿更不能当清理用：它除 pending→completed 外，还在同一事务内把结论
+//   回写 purchase_receipt.inspection_status（services/purchase_inspection_service.rs:266-296，
+//   pass→PASSED、fail/partial→REJECTED）——而这正是本文件 25-01~25-05 的被测对象；
+//   若在断言之外再"为清理"补一次 complete，既被 "仅 pending 可完成" 门（service:234-239）拒成
+//   噪音红，又可能把对照组的入库单检验状态改判，属自污染。
+//   ⇒ 本文件对质检单取处置 A：不登记清理位点。隔离判据：
+//     · 质检单建后立即 complete（inspectAndComplete 的固定形状），残留恒为
+//       completed 终态（词表 models/status/purchase_inventory.rs:138-144 仅 pending/completed），
+//       不再进入可操作态（PUT 门 service:165-170 只认 pending）；
+//     · 建单 notes 携带本用例自带唯一标记 E2E-F25-INSPECT-<结论>-<genCode 时间戳+随机后缀>，
+//       残留可逐条点名；列表隔离用在册过滤位 /purchase/inspections?keyword=<inspection_no>
+//       （service:370-377 匹配 inspection_no 或 receipt_no）与 status/result/supplier_id 口径；
+//     · 本文件全部回读走 GET /purchase/receipts/{id} 与 GET /ap/invoices 的**按源单 id/单号**
+//       精确锚定（25-04 的"零应付行"判定同样按 source_id 过滤），不依赖质检列表计数 ⇒
+//       残留不会把本文件或别的用例改红。
+//   **给该族补 DELETE 或 cancel 端点属对外可见 API 新增，留用户终审，本支不动 backend/。**
 import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -158,14 +178,22 @@ async function inspectAndComplete(
   base: { receipt_id: number; supplier_id: number },
   result: 'pass' | 'fail' | 'partial'
 ): Promise<number> {
+  // 唯一标记：本用例自带 时间戳+随机后缀（genCode），残留可按 notes 逐条点名
+  const inspMarker = `E2E-F25-INSPECT-${result}-${genCode('F25')}`;
   const insp = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/purchase/inspections', {
     receipt_id: base.receipt_id,
     supplier_id: base.supplier_id,
     inspection_date: todayStr(),
-    notes: `E2E-F25-INSPECT-${result}`,
+    notes: inspMarker,
   });
   const inspId = requireNum(insp.id, '建质检单');
-  CLEANUP.push({ path: `/purchase/inspections/${inspId}`, label: `purchase_inspection#${inspId}` });
+  // 此处不登记清理位点：purchase/inspections 主单无 DELETE 也无 cancel（routes/purchase.rs:139-184），
+  // 原 DELETE 登记每次 afterEach 恒打空并被 tryCleanup 吞成告警；complete 是本文件的被测腿且带
+  // 入库单检验状态回写，不可当清理用（判据全文见文件头「清理腿事实」）。
+  console.warn(
+    `[25] 采购质检单 id=${inspId} notes=${inspMarker} 无法清理` +
+      '（后端 purchase/inspections 主单无 DELETE 与 cancel 腿，见缺口清单与文件头清理腿事实）'
+  );
   const rejectQuantity = result === 'pass' ? 0 : 50;
   await apiCall(page, 'POST', `/purchase/inspections/${inspId}/complete`, {
     pass_quantity: result === 'pass' ? 200 : 150,

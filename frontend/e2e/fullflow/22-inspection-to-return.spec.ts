@@ -13,7 +13,8 @@
 // 「生成退货」（purchase/11 源码事实）。
 //
 // 契约真值源：
-//   质检状态词表（小写）   backend/src/models/status/purchase_inventory.rs:114-120（pending/completed）
+//   质检状态词表（小写）   backend/src/models/status/purchase_inventory.rs:138-144
+//     purchase_inspection（pending/completed）
 //   完成三连 prompt        usePiProc.handleComplete（purchase/04 头注释：合格数量→不合格数量→结论，
 //     pattern /^(pass|fail|partial)$/，确认按钮文案 '确认'，成功 toast '操作成功'）
 //   完成后端落库           services/purchase_inspection_service.rs:169-215：pass_quantity/reject_quantity/
@@ -28,13 +29,37 @@
 //      batch_no 全列直出）；GET /purchase/returns/{id}/items 的 data 为**裸数组**（handler:226-237）
 //   生成退货入口门控       completed 且 result∈{fail,partial} 行显示「生成退货」（purchase/11）
 //   原因预填               constants/return-reason qualityDefect 档 = 落库原值「品质瑕疵」
-// 诚实标注（写入侧真实缺口，报告同步）：purchase complete_inspection 不回写
-//   purchase_receipt.inspection_status（PENDING/PASSED/REJECTED 词表列，
-//   models/status/purchase_inventory.rs:163-190 与 from_inspection_result 只被通用质检记录域使用），
-//   本文件不断该回写（断不存在=假绿，断存在=误红），列入后端缺口清单；
-//   inspection_result 后端为**自由文本**（service:199 直接 Set(req.inspection_result)），
-//   词表 pass/fail/partial 仅前端 prompt pattern 把关——API 直送任意词会照单全收，
-//   该缺口只报告不加宽松断言掩盖。
+// 诚实标注（本波 #138 S1 复核后按当前实现改正两处旧声明，只改注释文本、未动任何断言）：
+//   ① 旧注释声称 purchase complete_inspection **不回写** purchase_receipt.inspection_status——
+//     该事实已随 wave5 变更：services/purchase_inspection_service.rs:266-296 在同一事务内
+//     把结论回写 receipt.inspection_status（pass→PASSED、fail/partial→REJECTED，映射经权威表
+//     同源函数 purchase_inspection_result::to_receipt_inspection_status，:216），回写失败 `?` 上抛、
+//     整体回滚；被回写的词表列是 models/status/purchase_inventory.rs:193-207
+//     purchase_receipt_inspection（旧注释写的 :163-190 实为 inventory_piece，指错模组）。
+//     本文件仍不复断该回写——它由 fullflow/25-receipt-gate 逐字符钉住，此处重复断只会把
+//     同一后端结论绑到两个红点。
+//   ② 旧注释声称 inspection_result 后端为**自由文本**、仅前端 prompt pattern 把关——
+//     该事实也已变更：service:205-232 在写库前按权威表 purchase_inspection_result 白名单
+//     逐字符校验，词表外走 validation_displayable 外显真实原因。
+//   inspection 明细键名、GET /{id}/items 出参形状等其余口径不变。
+// 清理腿事实（看板 #138 S1 逐处取证）：**purchase/inspections 族后端无终止腿**——
+//   backend/src/routes/purchase.rs:139-184 只注册集合口 GET/POST、单体口 GET/PUT、
+//   /{id}/complete、/{id}/items 集合口 GET/POST、/{id}/items/{item_id} 的 PUT/DELETE 与打印口；
+//   DELETE 只到**明细行**，主单既无 DELETE 也无 cancel/reject，实体
+//   models/purchase_inspection.rs:9-33 亦**无 is_deleted 列**（软删口径不成立）。
+//   唯一状态推进腿 complete 不可当清理用：它除写 pending→completed 外还带上一条所述的
+//   入库单检验状态回写，并且受 "仅 pending 可完成" 门（service:234-239）——
+//   拿它做清理会把跨域回写造出来，直接污染同一入库单上的别的断言（假清理）。
+//   ⇒ 本文件对质检单取处置 A：不登记清理位点。隔离判据：
+//     · 本文件的质检单一律经 UI 建单后立即 complete（22-01/02/03 三条路径皆然），
+//       残留恒为 completed 终态，不再进入任何可操作态（PUT 门 service:165-170 与
+//       UI「完成」按钮都只认 pending）；
+//     · 锚定与过滤用后端生成的唯一 inspection_no（本夹具已强制其非空并全程按它选行），
+//       列表口另有在册过滤位 /purchase/inspections?keyword=<inspection_no>
+//       （service base_filtered_query:370-377 匹配 inspection_no 或 receipt_no）；
+//     · 全库对质检列表口的读取只有 flow/27 的健康探针与 flow/99 按**全新供应商** supplier_id
+//       过滤的零值域断言，无一处对 total 或行数做精确计数 ⇒ 残留不会把别的用例改红。
+//   **给该族补 DELETE 或 cancel 端点属对外可见 API 新增，留用户终审，本支不动 backend/。**
 import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -232,7 +257,9 @@ async function createInspectionViaUI(
   expect(resp, `UI 建质检单未捕获 POST /purchase/inspections（入库单 ${rcvNo}）`).not.toBeNull();
   const body = (await resp!.json()) as { data?: { id?: number } };
   const id = requireNum(body.data?.id, '质检单创建响应 id');
-  CLEANUP.push({ path: `/purchase/inspections/${id}`, label: `purchase_inspection#${id}` });
+  // 此处不登记清理位点：purchase/inspections 主单无 DELETE 也无 cancel（routes/purchase.rs:139-184），
+  // 原 DELETE 登记每次 afterEach 恒打空并被 tryCleanup 吞成告警；complete 是带入库单检验状态
+  // 回写的复合腿，不可当清理用（判据全文见文件头「清理腿事实」）。
 
   // ①全字段回读：下拉派生的三个外键必须真实落库
   const detail = await apiCallRaw<Record<string, unknown>>(
@@ -253,6 +280,11 @@ async function createInspectionViaUI(
   const inspection_no = String(detail.inspection_no ?? '');
   if (!inspection_no)
     throw new Error(`质检单缺 inspection_no，实际键=${Object.keys(detail).join(',')}`);
+  // 残留点名：唯一 inspection_no 即隔离锚点（列表口 ?keyword=<inspection_no> 可按它精确过滤）
+  console.warn(
+    `[22] 采购质检单 id=${id} inspection_no=${inspection_no} 无法清理` +
+      '（后端 purchase/inspections 主单无 DELETE 与 cancel 腿，见缺口清单与文件头清理腿事实）'
+  );
   return { id, inspection_no, notes: detail.notes };
 }
 
