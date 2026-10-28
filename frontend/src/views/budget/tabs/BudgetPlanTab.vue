@@ -104,12 +104,10 @@
           <el-input v-model="form.plan_name" />
         </el-form-item>
         <el-form-item :label="$t('budget.plan.dialog.budgetYear')" prop="budget_year">
-          <el-input-number
-            v-model="form.budget_year"
-            :min="2000"
-            :max="2100"
-            :precision="0"
+          <el-input
+            v-model="budgetYearField.text"
             style="width: 100%"
+            @blur="budgetYearField.normalize()"
           />
         </el-form-item>
         <el-form-item :label="$t('budget.plan.dialog.budgetType')" prop="budget_type">
@@ -119,19 +117,17 @@
           />
         </el-form-item>
         <el-form-item :label="$t('budget.plan.dialog.departmentId')" prop="department_id">
-          <el-input-number
-            v-model="form.department_id"
-            :min="1"
-            :precision="0"
+          <el-input
+            v-model="departmentIdField.text"
             style="width: 100%"
+            @blur="departmentIdField.normalize()"
           />
         </el-form-item>
         <el-form-item :label="$t('budget.plan.dialog.totalAmount')" prop="total_amount">
-          <el-input-number
-            v-model="form.total_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="totalAmountField.text"
             style="width: 100%"
+            @blur="totalAmountField.normalize()"
           />
         </el-form-item>
         <el-form-item :label="$t('budget.plan.dialog.remark')" prop="remark">
@@ -149,10 +145,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
+import { useNumberField } from '@/composables/useNumberField';
 import {
   getBudgetPlanList,
   createBudgetPlan,
@@ -214,16 +211,39 @@ const emptyForm = () => ({
 
 const form = reactive(emptyForm());
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const budgetYearField = useNumberField(toRef(form, 'budget_year'), {
+  label: t('budget.plan.dialog.budgetYear'),
+  required: true,
+  min: 2000,
+  max: 2100,
+  precision: 0,
+  requiredMessage: t('budget.plan.validation.budgetYearRequired'),
+});
+const departmentIdField = useNumberField(
+  toRef(form, 'department_id'),
+  {
+    label: t('budget.plan.dialog.departmentId'),
+    required: true,
+    min: 1,
+    precision: 0,
+    requiredMessage: t('budget.plan.validation.departmentRequired'),
+  },
+  'undefined'
+);
+const totalAmountField = useNumberField(toRef(form, 'total_amount'), {
+  label: t('budget.plan.dialog.totalAmount'),
+  min: 0,
+  precision: 2,
+});
+
 const rules: FormRules = {
   plan_name: [
     { required: true, message: t('budget.plan.validation.planNameRequired'), trigger: 'blur' },
   ],
-  budget_year: [
-    { required: true, message: t('budget.plan.validation.budgetYearRequired'), trigger: 'blur' },
-  ],
-  department_id: [
-    { required: true, message: t('budget.plan.validation.departmentRequired'), trigger: 'blur' },
-  ],
+  budget_year: [budgetYearField.rule],
+  department_id: [departmentIdField.rule],
+  total_amount: [totalAmountField.rule],
 };
 
 const openDialog = () => {

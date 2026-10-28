@@ -101,7 +101,7 @@
           />
         </el-form-item>
         <el-form-item :label="t('departments.index.colSortOrder')" prop="sort_order">
-          <el-input-number v-model="formData.sort_order" :min="0" />
+          <el-input v-model="formData.sort_order" inputmode="numeric" />
         </el-form-item>
         <el-form-item :label="t('departments.index.colStatus')" prop="is_active">
           <el-select
@@ -128,6 +128,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import { numberInputRules } from '@/utils/number-input';
 import { PERMISSIONS } from '@/constants/permissions';
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -178,7 +179,7 @@ interface DeptFormData {
   // 提交时归一化为显式 null（后端三态：null=清空父级，键缺席=保持原值）
   parent_id: number | null | undefined;
   manager_name: string;
-  sort_order: number;
+  sort_order: string;
   is_active: boolean;
 }
 
@@ -188,13 +189,19 @@ const formData = reactive<DeptFormData>({
   code: '',
   parent_id: undefined,
   manager_name: '',
-  sort_order: 0,
+  sort_order: '0',
   is_active: true,
 });
 
 const formRules: FormRules = {
   name: [{ required: true, message: t('departments.index.ruleNameRequired'), trigger: 'blur' }],
   code: [{ required: true, message: t('departments.index.ruleCodeRequired'), trigger: 'blur' }],
+  sort_order: numberInputRules({
+    label: t('departments.index.colSortOrder'),
+    required: true,
+    min: 0,
+    integer: true,
+  }),
   is_active: [
     { required: true, message: t('departments.index.ruleStatusRequired'), trigger: 'change' },
   ],
@@ -234,7 +241,7 @@ const handleCreate = () => {
     code: '',
     parent_id: undefined,
     manager_name: '',
-    sort_order: 0,
+    sort_order: '0',
     is_active: true,
   });
   dialogVisible.value = true;
@@ -262,7 +269,7 @@ const handleEdit = async (row: DepartmentTreeNode) => {
     parent_id: detail.parent_id ?? undefined,
     // manager_name 为后端回填展示瞬态字段：未指派为 null，表单绑 string 归一为空串
     manager_name: detail.manager_name ?? '',
-    sort_order: detail.sort_order,
+    sort_order: String(detail.sort_order),
     is_active: detail.is_active,
   });
   dialogVisible.value = true;
@@ -305,7 +312,7 @@ const handleSubmit = async () => {
         const payload: DepartmentCreateRequest = {
           name: formData.name,
           code: formData.code,
-          sort_order: formData.sort_order,
+          sort_order: Number(formData.sort_order),
         };
         if (formData.parent_id != null) payload.parent_id = formData.parent_id;
         await createDepartment(payload);
@@ -319,7 +326,7 @@ const handleSubmit = async () => {
           name: formData.name,
           code: formData.code,
           parent_id: formData.parent_id ?? null,
-          sort_order: formData.sort_order,
+          sort_order: Number(formData.sort_order),
           is_active: formData.is_active,
         };
         await updateDepartment(formData.id!, payload);

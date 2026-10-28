@@ -314,7 +314,8 @@ const getValueInput = (condition: FilterCondition) => {
 
   switch (field.type) {
     case 'number':
-      return 'el-input-number';
+      // 条件值本就是字符串载体 数值字段同样走手写录入 禁带加减按钮的步进控件
+      return 'el-input';
     case 'date':
       return 'el-date-picker';
     case 'select':

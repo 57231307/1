@@ -159,23 +159,18 @@
         :aria-label="$t('colorPrices.detail.tierDialog.formAriaLabel')"
       >
         <el-form-item :label="$t('colorPrices.detail.tierDialog.minQuantity')" prop="min_quantity">
-          <el-input-number v-model="tierForm.min_quantity" :min="1" style="width: 100%" />
+          <el-input v-model="tierForm.min_quantity" inputmode="numeric" style="width: 100%" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.tierDialog.maxQuantity')">
-          <el-input-number
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.maxQuantity')" prop="max_quantity">
+          <el-input
             v-model="tierForm.max_quantity"
-            :min="0"
+            inputmode="numeric"
             style="width: 100%"
             :placeholder="$t('colorPrices.detail.tierDialog.maxQuantityPlaceholder')"
           />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.tierDialog.tierPrice')" prop="tier_price">
-          <el-input-number
-            v-model="tierForm.tier_price"
-            :min="0"
-            :precision="4"
-            style="width: 100%"
-          />
+          <el-input v-model="tierForm.tier_price" inputmode="decimal" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.tierDialog.customerLevel')">
           <el-select
@@ -190,8 +185,8 @@
             <el-option label="C" value="C" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.tierDialog.sequence')">
-          <el-input-number v-model="tierForm.sequence" :min="1" style="width: 100%" />
+        <el-form-item :label="$t('colorPrices.detail.tierDialog.sequence')" prop="sequence">
+          <el-input v-model="tierForm.sequence" inputmode="numeric" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -209,9 +204,13 @@
       :title="$t('colorPrices.detail.editDialog.title')"
       width="480"
     >
-      <el-form :model="editForm" label-width="110px">
-        <el-form-item :label="$t('colorPrices.detail.editDialog.basePrice')" required>
-          <el-input-number v-model="editForm.base_price" :precision="2" :min="0" />
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="110px">
+        <el-form-item
+          :label="$t('colorPrices.detail.editDialog.basePrice')"
+          prop="base_price"
+          required
+        >
+          <el-input v-model="editForm.base_price" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveFrom')" required>
           <el-input v-model="editForm.effective_from" placeholder="2026-01-01" />
@@ -219,8 +218,8 @@
         <el-form-item :label="$t('colorPrices.detail.editDialog.effectiveTo')">
           <el-input v-model="editForm.effective_to" placeholder="2026-12-31" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.detail.editDialog.priority')">
-          <el-input-number v-model="editForm.priority" :min="0" :max="999" />
+        <el-form-item :label="$t('colorPrices.detail.editDialog.priority')" prop="priority">
+          <el-input v-model="editForm.priority" inputmode="numeric" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.detail.editDialog.notes')">
           <el-input v-model="editForm.notes" type="textarea" :rows="2" />
@@ -297,6 +296,7 @@ import {
   type PriceTier,
   type CreatePriceTierDto,
 } from '@/api/color-price';
+import { numberInputRules, numericView } from '@/utils/number-input';
 import PriceHistoryChart from '@/components/PriceHistoryChart.vue';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -339,34 +339,54 @@ const tierDialogVisible = ref(false);
 const tierSubmitting = ref(false);
 const tierFormRef = ref<FormInstance>();
 const tierForm = reactive<{
-  min_quantity: number;
-  max_quantity: number | null;
-  tier_price: number;
+  // 手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
+  min_quantity: string;
+  max_quantity: string;
+  tier_price: string;
   customer_level: string | null;
-  sequence: number;
+  sequence: string;
 }>({
-  min_quantity: 1,
-  max_quantity: null,
-  tier_price: 0,
+  min_quantity: '1',
+  max_quantity: '',
+  tier_price: '0',
   customer_level: null,
-  sequence: 1,
+  sequence: '1',
 });
-// 表单校验规则（响应式：随语言切换自动更新提示文案）
+// 表单校验规则（响应式：随语言切换自动更新提示文案；范围与精度靠校验器，不靠步进按钮）
 const tierRules = computed<FormRules>(() => ({
   min_quantity: [
     { required: true, message: t('colorPrices.validation.minQuantityRequired'), trigger: 'blur' },
+    ...numberInputRules({
+      label: t('colorPrices.detail.tierDialog.minQuantity'),
+      min: 1,
+      integer: true,
+    }),
   ],
+  max_quantity: numberInputRules({
+    label: t('colorPrices.detail.tierDialog.maxQuantity'),
+    min: 0,
+  }),
   tier_price: [
     { required: true, message: t('colorPrices.validation.tierPriceRequired'), trigger: 'blur' },
+    ...numberInputRules({
+      label: t('colorPrices.detail.tierDialog.tierPrice'),
+      min: 0,
+      precision: 4,
+    }),
   ],
+  sequence: numberInputRules({
+    label: t('colorPrices.detail.tierDialog.sequence'),
+    min: 1,
+    integer: true,
+  }),
 }));
 
 const handleAddTier = () => {
-  tierForm.min_quantity = 1;
-  tierForm.max_quantity = null;
-  tierForm.tier_price = 0;
+  tierForm.min_quantity = '1';
+  tierForm.max_quantity = '';
+  tierForm.tier_price = '0';
   tierForm.customer_level = null;
-  tierForm.sequence = (tiers.value.length || 0) + 1;
+  tierForm.sequence = String((tiers.value.length || 0) + 1);
   tierDialogVisible.value = true;
 };
 
@@ -376,14 +396,14 @@ const onSubmitTier = async () => {
     if (!valid) return;
     tierSubmitting.value = true;
     try {
+      const maxQty = tierForm.max_quantity.trim() === '' ? 0 : Number(tierForm.max_quantity);
       const payload: CreatePriceTierDto = {
         product_color_price_id: priceId,
-        min_quantity: tierForm.min_quantity,
-        max_quantity:
-          tierForm.max_quantity && tierForm.max_quantity > 0 ? tierForm.max_quantity : null,
-        tier_price: tierForm.tier_price,
+        min_quantity: Number(tierForm.min_quantity),
+        max_quantity: maxQty && maxQty > 0 ? maxQty : null,
+        tier_price: Number(tierForm.tier_price),
         customer_level: tierForm.customer_level || null,
-        sequence: tierForm.sequence,
+        sequence: Number(tierForm.sequence),
       };
       await createTier(payload);
       ElMessage.success(t('colorPrices.message.tierAddSuccess'));
@@ -422,21 +442,45 @@ const handleDeleteTier = async (row: PriceTier) => {
 // 编辑色号价格（updateColorPrice）
 const editDialogVisible = ref(false);
 const editSaving = ref(false);
-const editForm = reactive({
-  base_price: 0,
+const editFormRef = ref<FormInstance>();
+// 手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
+const editForm = reactive<{
+  base_price: string;
+  effective_from: string;
+  effective_to: string;
+  priority: string;
+  notes: string;
+}>({
+  base_price: '0.00',
   effective_from: '',
   effective_to: '',
-  priority: 0,
+  priority: '0',
   notes: '',
 });
+// 基准价与优先级范围靠校验器判定（0 起、两位小数、优先级 0 到 999 的整数）
+const editRules = computed<FormRules>(() => ({
+  base_price: numberInputRules({
+    label: t('colorPrices.detail.editDialog.basePrice'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  priority: numberInputRules({
+    label: t('colorPrices.detail.editDialog.priority'),
+    min: 0,
+    max: 999,
+    integer: true,
+  }),
+}));
 
 const openEditDialog = () => {
   if (!price.value) return;
   Object.assign(editForm, {
-    base_price: Number(price.value.base_price) || 0,
+    // 后端 base_price 是 Decimal 出参走线为字符串 先 Number() 归一再按两位小数灌框
+    base_price: numericView(Number(price.value.base_price) || 0, 2),
     effective_from: price.value.effective_from || '',
     effective_to: price.value.effective_to || '',
-    priority: price.value.priority || 0,
+    priority: numericView(price.value.priority || 0),
     notes: price.value.notes || '',
   });
   editDialogVisible.value = true;
@@ -447,26 +491,30 @@ const onSubmitEdit = async () => {
     ElMessage.warning(t('colorPrices.detail.editDialog.effectiveFrom'));
     return;
   }
-  editSaving.value = true;
-  try {
-    await updateColorPrice(priceId, {
-      base_price: editForm.base_price,
-      effective_from: editForm.effective_from,
-      // 后端 UpdateColorPriceDto 为 Option-skip 语义（提交 null/"" 无效），空值直接省略键
-      ...(editForm.effective_to ? { effective_to: editForm.effective_to } : {}),
-      priority: editForm.priority,
-      ...(editForm.notes ? { notes: editForm.notes } : {}),
-    });
-    ElMessage.success(t('colorPrices.message.createSuccess'));
-    editDialogVisible.value = false;
-    loadData();
-  } catch (e: unknown) {
-    ElMessage.error(
-      t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : String(e) })
-    );
-  } finally {
-    editSaving.value = false;
-  }
+  if (!editFormRef.value) return;
+  await editFormRef.value.validate(async valid => {
+    if (!valid) return;
+    editSaving.value = true;
+    try {
+      await updateColorPrice(priceId, {
+        base_price: Number(editForm.base_price),
+        effective_from: editForm.effective_from,
+        // 后端 UpdateColorPriceDto 为 Option-skip 语义（提交 null/"" 无效），空值直接省略键
+        ...(editForm.effective_to ? { effective_to: editForm.effective_to } : {}),
+        priority: Number(editForm.priority),
+        ...(editForm.notes ? { notes: editForm.notes } : {}),
+      });
+      ElMessage.success(t('colorPrices.message.createSuccess'));
+      editDialogVisible.value = false;
+      loadData();
+    } catch (e: unknown) {
+      ElMessage.error(
+        t('colorPrices.message.loadFailed', { msg: e instanceof Error ? e.message : String(e) })
+      );
+    } finally {
+      editSaving.value = false;
+    }
+  });
 };
 
 // 价格审批（approveColorPrice）

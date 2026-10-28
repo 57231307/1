@@ -138,21 +138,19 @@
         <h4 class="paper-subtitle">{{ t('printTargets.paper.documentTitle') }}</h4>
         <el-form label-width="auto">
           <el-form-item :label="t('printTargets.paper.width')">
-            <el-input-number
+            <NumericInput
               v-model="documentPaper.widthMm"
               :min="20"
               :max="1000"
-              :controls="false"
               class="paper-number"
             />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.height')">
-            <el-input-number
+            <NumericInput
               v-model="documentPaper.heightMm"
               :min="0"
               :max="1000"
-              :controls="false"
               class="paper-number"
             />
             <span class="paper-unit">mm</span>
@@ -174,23 +172,11 @@
         <h4 class="paper-subtitle">{{ t('printTargets.paper.labelTitle') }}</h4>
         <el-form label-width="auto">
           <el-form-item :label="t('printTargets.paper.width')">
-            <el-input-number
-              v-model="labelPaper.widthMm"
-              :min="20"
-              :max="300"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="labelPaper.widthMm" :min="20" :max="300" class="paper-number" />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.height')">
-            <el-input-number
-              v-model="labelPaper.heightMm"
-              :min="10"
-              :max="300"
-              :controls="false"
-              class="paper-number"
-            />
+            <NumericInput v-model="labelPaper.heightMm" :min="10" :max="300" class="paper-number" />
             <span class="paper-unit">mm</span>
           </el-form-item>
           <el-form-item :label="t('printTargets.paper.orientation')">
@@ -383,13 +369,12 @@
             :label="t('printTargets.dialog.port')"
             prop="port"
           >
-            <!-- 端口同样不用步进键，范围与必填由本项的表单级校验给 -->
-            <el-input-number
-              v-model="form.port"
-              :min="1"
-              :max="65535"
-              :controls="false"
+            <!-- 端口手写录入，数字键盘输入，范围与必填由本项的表单级校验给 -->
+            <el-input
+              :model-value="numericView(form.port)"
+              inputmode="numeric"
               :placeholder="t('printTargets.dialog.portPlaceholder')"
+              @update:model-value="onPortInput"
             />
           </el-form-item>
           <el-form-item
@@ -415,8 +400,12 @@
         </template>
 
         <el-form-item :label="t('printTargets.dialog.defaultCopies')" prop="default_copies">
-          <!-- 步进按钮在竖屏触控区过小且误触即改值，改为无步进键的数值输入加表单级范围校验 -->
-          <el-input-number v-model="form.default_copies" :min="1" :max="99" :controls="false" />
+          <!-- 份数手写录入，竖屏误触不再改值，1 到 99 的范围由表单级校验给 -->
+          <el-input
+            :model-value="numericView(form.default_copies)"
+            inputmode="numeric"
+            @update:model-value="onDefaultCopiesInput"
+          />
         </el-form-item>
         <el-form-item :label="t('printTargets.dialog.enabled')">
           <el-switch v-model="form.enabled" />
@@ -438,6 +427,8 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Refresh, Setting } from '@element-plus/icons-vue';
 import { isDialogDismissal } from '@/utils/monitor';
+import { bindNumeric, numericView } from '@/utils/number-input';
+import NumericInput from '@/components/NumericInput.vue';
 import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
 import { PERMISSIONS } from '@/constants/permissions';
@@ -525,6 +516,18 @@ const deletingId = ref<number | null>(null);
 const formRef = ref<FormInstance>();
 const form = reactive<TargetForm>(emptyForm());
 const original = ref<PrintTarget | null>(null);
+
+// 端口与份数手写录入归一：文本经数值绑定器钳到界内后写回 number 模型，提交契约不变
+const onPortInput = (val: string | number): void => {
+  form.port = bindNumeric(String(val), form.port, { min: 1, max: 65535 });
+};
+const onDefaultCopiesInput = (val: string | number): void => {
+  form.default_copies = bindNumeric(String(val), form.default_copies, {
+    min: 1,
+    max: 99,
+    integer: true,
+  });
+};
 
 async function fetchList(): Promise<void> {
   loading.value = true;

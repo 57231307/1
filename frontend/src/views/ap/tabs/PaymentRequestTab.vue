@@ -146,7 +146,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('apModule.paymentRequest.requestAmount')" prop="request_amount">
-          <el-input-number v-model="form.request_amount" :min="0.01" :precision="2" />
+          <el-input v-model="requestAmountField.text" @blur="requestAmountField.normalize()" />
         </el-form-item>
         <el-form-item :label="t('apModule.paymentRequest.currencyLabel')" prop="currency">
           <el-select v-model="form.currency" style="width: 120px">
@@ -169,12 +169,10 @@
           prop="exchange_rate"
         >
           <div>
-            <el-input-number
-              v-model="form.exchange_rate"
-              :min="0.000001"
-              :precision="6"
-              controls-position="right"
+            <el-input
+              v-model="exchangeRateField.text"
               style="width: 200px"
+              @blur="exchangeRateField.normalize()"
             />
             <div class="rate-hint">{{ t('apModule.paymentRequest.exchangeRateHint') }}</div>
           </div>
@@ -235,12 +233,10 @@
               </el-table-column>
               <el-table-column :label="t('apModule.paymentRequest.colApplyAmount')" width="170">
                 <template #default="{ row }">
-                  <el-input-number
-                    v-model="row.apply_amount"
-                    :min="0.01"
-                    :precision="2"
-                    controls-position="right"
+                  <el-input
+                    v-model="applyAmountField(row, 'apply_amount').text"
                     style="width: 100%"
+                    @blur="applyAmountField(row, 'apply_amount').normalize()"
                   />
                 </template>
               </el-table-column>
@@ -318,7 +314,13 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive, watch, onMounted } from 'vue';
+import { ref, reactive, toRef, watch, onMounted } from 'vue';
+import {
+  createNumberFieldPool,
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -425,6 +427,31 @@ const form = reactive({
   notes: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const requestAmountField = useNumberField(toRef(form, 'request_amount'), {
+  label: t('apModule.paymentRequest.requestAmount'),
+  required: true,
+  min: 0.01,
+  precision: 2,
+  requiredMessage: t('apModule.payment.amountRequired'),
+});
+const exchangeRateField = useNumberField(
+  toRef(form, 'exchange_rate'),
+  {
+    label: t('apModule.paymentRequest.exchangeRateLabel'),
+    min: 0.000001,
+    precision: 6,
+  },
+  'undefined'
+);
+// 明细行申请金额 行内单元格按行对象惰性建桥 未填写与显式 0 三态口径由 undefined 承载
+const applyAmountSpec: NumberFieldSpec = {
+  label: t('apModule.paymentRequest.colApplyAmount'),
+  min: 0.01,
+  precision: 2,
+};
+const applyAmountField = createNumberFieldPool(applyAmountSpec, 'undefined');
+
 const rules: FormRules = {
   supplier_id: [
     { required: true, message: t('apModule.payment.supplierRequired'), trigger: 'change' },
@@ -432,10 +459,9 @@ const rules: FormRules = {
   request_date: [
     { required: true, message: t('apModule.payment.dateRequired'), trigger: 'change' },
   ],
-  request_amount: [
-    { required: true, message: t('apModule.payment.amountRequired'), trigger: 'blur' },
-  ],
+  request_amount: [requestAmountField.rule],
   exchange_rate: [
+    exchangeRateField.rule,
     {
       validator: (_rule: unknown, value: unknown, callback: (err?: Error) => void) => {
         if (form.currency === BASE_CURRENCY) {
@@ -542,6 +568,12 @@ const buildItemsPayload = (): {
       ElMessage.warning(t('apModule.paymentRequest.applyAmountRequired'));
       return { ok: false };
     }
+    // 范围与精度以校验器裁决（输入桥只约束字符形态，位数与下限在此拦）
+    const applyInvalid = validateNumberValue(row.apply_amount, applyAmountSpec);
+    if (applyInvalid) {
+      ElMessage.warning(applyInvalid);
+      return { ok: false };
+    }
     if (seen.has(row.invoice_id)) {
       const inv = payableInvoices.value.find(i => i.id === row.invoice_id);
       ElMessage.warning(
@@ -583,6 +615,7 @@ const resetForm = () => {
   form.notes = '';
   itemRows.value = [];
   payableInvoices.value = [];
+  applyAmountField.forget();
 };
 
 const openCreateDialog = () => {
@@ -609,7 +642,7 @@ const openEditDialog = (row: APPaymentRequest) => {
 const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
-  // 表头金额显式前置校验（el-input-number 清空会送 null/undefined，直接 .toFixed 即运行期崩；
+  // 表头金额显式前置校验（手输框清空会送 null/undefined，直接 .toFixed 即运行期崩；
   // 后端 validate_positive_decimal_payment :677-682 仍是最终裁决，本地只是把错误提前且不留崩溃面）
   const headerAmount = Number(form.request_amount);
   if (!Number.isFinite(headerAmount) || headerAmount <= 0) {

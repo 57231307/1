@@ -136,11 +136,11 @@
       width="380"
       append-to-body
     >
-      <el-input-number
+      <NumericInput
         v-model="linkPoId"
-        :min="1"
         style="width: 100%"
         :placeholder="t('logistics.detail.events.linkPoPlaceholder')"
+        :min="1"
       />
       <template #footer>
         <el-button @click="linkPoVisible = false">{{
@@ -156,6 +156,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import {

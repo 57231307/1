@@ -24,7 +24,7 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.amount')" prop="amount">
-        <el-input-number v-model="form.amount" :min="0" :precision="2" style="width: 100%" />
+        <el-input v-model="form.amount" style="width: 100%" inputmode="decimal" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.adjust.label.reason')" prop="reason">
         <el-input v-model="form.reason" type="textarea" :rows="3" />
@@ -52,6 +52,7 @@ import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { adjustCreditLimit } from '@/api/customer-credit';
 import { PERMISSIONS } from '@/constants/permissions';
+import { numberInputRules } from '@/utils/number-input';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -75,7 +76,7 @@ const formRef = ref<FormInstance>();
 
 const form = reactive({
   adjustmentType: 'increase' as 'increase' | 'decrease',
-  amount: 0,
+  amount: '',
   reason: '',
 });
 
@@ -87,25 +88,17 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-  amount: [
-    {
-      required: true,
-      message: t('customerCredit.adjust.validation.amountRequired'),
-      trigger: 'blur',
+  amount: numberInputRules({
+    label: t('customerCredit.adjust.label.amount'),
+    required: true,
+    min: 0,
+    precision: 2,
+    positive: true,
+    messages: {
+      empty: t('customerCredit.adjust.validation.amountRequired'),
+      mustPositive: t('customerCredit.adjust.validation.amountMustPositive'),
     },
-    {
-      // 后端 CreditLimitAdjustmentRequestDto.amount 走 validate_amount_range（utils/validator.rs:14）
-      // 强制 amount>0；async-validator 的 required 对数字 0 视为有效值不会拦截，故补 >0 校验防 422。
-      validator: (_rule, value, callback) => {
-        if (value !== undefined && value !== null && Number(value) <= 0) {
-          callback(new Error(t('customerCredit.adjust.validation.amountMustPositive')));
-        } else {
-          callback();
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
+  }),
   reason: [
     {
       required: true,
@@ -121,7 +114,7 @@ watch(
     visible.value = val;
     if (val) {
       form.adjustmentType = 'increase';
-      form.amount = 0;
+      form.amount = '';
       form.reason = '';
     }
   }
@@ -138,7 +131,7 @@ const handleSubmit = async () => {
     submitLoading.value = true;
     await adjustCreditLimit(props.customerId, {
       adjustment_type: form.adjustmentType,
-      amount: form.amount,
+      amount: Number(form.amount),
       reason: form.reason,
     });
     ElMessage.success(t('customerCredit.adjust.message.success'));

@@ -60,11 +60,11 @@
                 </el-tooltip>
               </span>
             </template>
-            <el-input-number
+            <NumericInput
               v-model="localFormData.price"
-              :precision="6"
-              :min="0"
               style="width: 100%"
+              :min="0"
+              :precision="6"
             />
           </el-form-item>
         </el-col>
@@ -96,11 +96,11 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('salesPrice.form.labelMinOrderQty')" prop="min_order_qty">
-            <el-input-number
+            <NumericInput
               v-model="localFormData.min_order_qty"
-              :precision="2"
-              :min="0"
               style="width: 100%"
+              :min="0"
+              :precision="2"
             />
           </el-form-item>
         </el-col>
@@ -184,6 +184,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import type { Customer } from '@/api/customer';
@@ -191,7 +192,7 @@ import type { Product } from '@/api/product';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 表单数据类型 = 编辑态（el-input-number/el-select/el-date-picker 的原生值形态），
+// 表单数据类型 = 编辑态（数值录入控件/el-select/el-date-picker 的原生值形态），
 // 与父组件 useSp.ts formData 一一对应；price/min_order_qty 在此保持 number|undefined，
 // undefined=未填（占位为空，不再伪造 0）。写线格式（Decimal 十进制字符串、缺值省略键）
 // 由 useSp.handleSubmitForm 在提交边界换算（SalesPriceCreateInput/SalesPriceUpdateInput，
