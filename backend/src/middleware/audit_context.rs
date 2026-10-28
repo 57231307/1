@@ -114,7 +114,7 @@ pub fn extract_client_ip_with_source(request: &Request<Body>) -> (String, Client
 }
 
 /// 提取客户端 IP（依次 X-Real-IP、X-Forwarded-For、ConnectInfo）
-/// P2-12c 修复（批次 83 v1 复审）：公开为统一 helper，供 auth_middleware 复用
+/// 公开为统一 helper，入参当前请求，传给 auth_middleware 与认证处理腿复用，返回 IP 文本
 pub fn extract_client_ip(request: &Request<Body>) -> String {
     extract_client_ip_with_source(request).0
 }
