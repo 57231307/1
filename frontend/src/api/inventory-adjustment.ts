@@ -1,4 +1,5 @@
 import { request } from './request';
+import type { ApiResponse } from '@/types/api';
 
 /**
  * 库存调整单列表行出参：与后端
