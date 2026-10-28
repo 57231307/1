@@ -171,7 +171,10 @@ test.describe('06 委外加工单 API 契约', () => {
       `/production/outsourcing-orders/items/${item.id}`,
       { quantity: null }
     );
-    expect(fail.status, `清空 NOT NULL quantity 应返回 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(400);
+    expect(
+      fail.status,
+      `清空 NOT NULL quantity 应返回 4xx，实际 ${fail.status}`
+    ).toBeGreaterThanOrEqual(400);
     expect(fail.status, '应为业务拒绝 4xx 而非 5xx').toBeLessThan(500);
 
     // 拒绝不得改动存量：回读 quantity 仍为创建值 10
@@ -260,7 +263,9 @@ test.describe('06 委外加工单 API 契约', () => {
       'POST',
       `/production/outsourcing-orders/${order.id}/cancel`
     );
-    expect(cancelled.status, `取消后状态应为 cancelled，实际 ${cancelled.status}`).toBe('cancelled');
+    expect(cancelled.status, `取消后状态应为 cancelled，实际 ${cancelled.status}`).toBe(
+      'cancelled'
+    );
 
     // 取消是软性终态转移：回读一致，且已取消不可重复取消（cancel 门：CANCELLED → business）
     const detail = await apiCallRaw<OutsourcingOrder>(
@@ -285,18 +290,26 @@ test.describe('06 委外加工单 API 契约', () => {
     const order = await createDraftOrder(page, `VOCH-${stamp}`);
     const vno = `E2E-VCH-${stamp}`;
 
-    const v = await apiCallRaw<OutsourcingVoucher>(page, 'POST', '/production/outsourcing-vouchers', {
-      voucher_no: vno,
-      outsourcing_order_id: order.id,
-      voucher_type: 'issue',
-      debit_account: '1405',
-      credit_account: '1403',
-      amount: 1234.5,
-      tax_amount: 100,
-      voucher_date: new Date().toISOString().slice(0, 10),
-      remarks: 'E2E 发料凭证',
+    const v = await apiCallRaw<OutsourcingVoucher>(
+      page,
+      'POST',
+      '/production/outsourcing-vouchers',
+      {
+        voucher_no: vno,
+        outsourcing_order_id: order.id,
+        voucher_type: 'issue',
+        debit_account: '1405',
+        credit_account: '1403',
+        amount: 1234.5,
+        tax_amount: 100,
+        voucher_date: new Date().toISOString().slice(0, 10),
+        remarks: 'E2E 发料凭证',
+      }
+    );
+    CLEANUP.push({
+      path: `/production/outsourcing-vouchers/${v.id}`,
+      label: 'outsourcing_voucher',
     });
-    CLEANUP.push({ path: `/production/outsourcing-vouchers/${v.id}`, label: 'outsourcing_voucher' });
 
     expect(v.id, '创建凭证应返回 id').toBeTruthy();
     expect(v.voucher_no, '凭证号应回显提交值').toBe(vno);
@@ -320,7 +333,9 @@ test.describe('06 委外加工单 API 契约', () => {
       amount: 10,
       voucher_date: new Date().toISOString().slice(0, 10),
     });
-    expect(fail.status, `非法 voucher_type 应 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(400);
+    expect(fail.status, `非法 voucher_type 应 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(
+      400
+    );
     expect(fail.status, '类型校验拒绝应为 4xx 非 5xx').toBeLessThan(500);
   });
 
@@ -329,15 +344,20 @@ test.describe('06 委外加工单 API 契约', () => {
     const order = await createDraftOrder(page, `VOCH-BYNO-${stamp}`);
     const vno = `E2E-VCH-BYNO-${stamp}`;
 
-    const created = await apiCallRaw<OutsourcingVoucher>(page, 'POST', '/production/outsourcing-vouchers', {
-      voucher_no: vno,
-      outsourcing_order_id: order.id,
-      voucher_type: 'fee',
-      debit_account: '5001',
-      credit_account: '1122',
-      amount: 250,
-      voucher_date: new Date().toISOString().slice(0, 10),
-    });
+    const created = await apiCallRaw<OutsourcingVoucher>(
+      page,
+      'POST',
+      '/production/outsourcing-vouchers',
+      {
+        voucher_no: vno,
+        outsourcing_order_id: order.id,
+        voucher_type: 'fee',
+        debit_account: '5001',
+        credit_account: '1122',
+        amount: 250,
+        voucher_date: new Date().toISOString().slice(0, 10),
+      }
+    );
     CLEANUP.push({
       path: `/production/outsourcing-vouchers/${created.id}`,
       label: 'outsourcing_voucher',
@@ -360,15 +380,20 @@ test.describe('06 委外加工单 API 契约', () => {
     const order = await createDraftOrder(page, `VOCH-DEL-${stamp}`);
     const vno = `E2E-VCH-DEL-${stamp}`;
 
-    const created = await apiCallRaw<OutsourcingVoucher>(page, 'POST', '/production/outsourcing-vouchers', {
-      voucher_no: vno,
-      outsourcing_order_id: order.id,
-      voucher_type: 'loss',
-      debit_account: '1901',
-      credit_account: '1405',
-      amount: 88,
-      voucher_date: new Date().toISOString().slice(0, 10),
-    });
+    const created = await apiCallRaw<OutsourcingVoucher>(
+      page,
+      'POST',
+      '/production/outsourcing-vouchers',
+      {
+        voucher_no: vno,
+        outsourcing_order_id: order.id,
+        voucher_type: 'loss',
+        debit_account: '1901',
+        credit_account: '1405',
+        amount: 88,
+        voucher_date: new Date().toISOString().slice(0, 10),
+      }
+    );
 
     // 未过账凭证可删：DELETE 成功
     const del = await apiCall(page, 'DELETE', `/production/outsourcing-vouchers/${created.id}`);
