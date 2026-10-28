@@ -85,6 +85,11 @@
 //!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
 //!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
 //!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
+//! - sales_contract_source_order: 销售合同与合同明细补 source_order_id 与
+//!   source_order_item_id 两条溯源列（外键随源单删除置空），明细行另补折扣率与折扣额与税率
+//!   与税额四列和行级色号列，两表各补一条检索索引；新增列一律可空且不带默认，历史合同保持
+//!   空值即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据。置于链尾为新的顶层
+//!   条目，台账名取域名 m_sales_contract_source_order
 //! - print_template_default_slot: 打印模板默认位库侧唯一门域。给 print_templates 按单据
 //!   类型 doc_type 建"启用且默认至多一行"的部分唯一索引 uq_print_template_active_default，
 //!   谓词三条件与出件解析过滤逐字符同源；存量违例只读探测 fail-visible 中止，不 UPDATE
@@ -129,4 +134,5 @@ pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
 pub mod m0104_add_document_no_partial_unique_four_tables;
+pub mod sales_contract_source_order;
 pub mod print_template_default_slot;

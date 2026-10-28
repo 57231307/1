@@ -42,6 +42,7 @@
       @reject="olvProc.handleReject"
       @delete-order="olvProc.handleDelete"
       @detail="olvProc.handleDetail"
+      @convert-contract="onConvertContract"
     />
 
     <!-- 拆分后的对话框子组件 -->
@@ -91,11 +92,18 @@
       :submitting="olvBulkColorSubmitting"
       @submit="onBulkColorSubmit"
     />
+
+    <ConvertToContractDialog
+      v-model:visible="convertDialogVisible"
+      :order-id="convertOrderId"
+      @success="onConvertSuccess"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
@@ -114,11 +122,13 @@ import OrderViewDialog from '../OrderViewDialog.vue';
 import DeliveryDialog from '../DeliveryDialog.vue';
 import ReservationCreateDialog from '../ReservationCreateDialog.vue';
 import BulkColorCreateDialog from '../BulkColorCreateDialog.vue';
+import ConvertToContractDialog from '../ConvertToContractDialog.vue';
 // Batch 468 P0-S28：引入权限码常量，与后端 sales-orders 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 
 const { t } = useI18n({ useScope: 'global' });
 
+const router = useRouter();
 const olv = useOlv();
 const olvProc = useOlvProc({
   refresh: olv.refresh,
@@ -236,6 +246,20 @@ const onBulkColorSubmit = async (payload: {
   } finally {
     olvBulkColorSubmitting.value = false;
   }
+};
+
+/** 转合同：打开预填对话框。预览带出、可编辑、重复转换提示都在对话框内完成，
+ *  列表只负责按行 order_id 触发并把成功后跳合同页接到 onConvertSuccess。 */
+const convertDialogVisible = ref(false);
+const convertOrderId = ref<number | null>(null);
+const onConvertContract = (row: SalesOrder) => {
+  convertOrderId.value = row.id;
+  convertDialogVisible.value = true;
+};
+const onConvertSuccess = (contractId: number) => {
+  // 生成的是草稿合同，跳到销售合同页供用户继续审阅/提交审批
+  void contractId;
+  router.push('/sales-contract');
 };
 
 /** 发货提交（出库四维扣减：warehouse_code 从已选仓库带出，后端按编码查仓） */
