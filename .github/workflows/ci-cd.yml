@@ -4166,7 +4166,9 @@ jobs:
           REPORT_PATH = os.environ.get('GATE_REPORT', '/tmp/comment-format-report.md')
           SAMPLE_N = int(os.environ.get('GATE_SAMPLE_N', '20'))
 
-          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件（IR 口径=代码注释）。
+          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件，外加 .github/ 流水线定义。
+          # 扩进 .github/ 的理由同 IR 禁令本身：这些文件里的注释写的是"某轮 CI 怎么修的"，
+          # 与代码注释是同一种变更日志式内容，此前只因为不在面内而从未被判过。
           # .md/.monkeycode/ 等文档不在本规则面内——同时规避裁定采纳记录里
           # "门禁反向判定 MEMORY.md 自身引用行号写法需用户确认"的风险（默认不碰）。
           SCAN_PREFIXES = ('backend/', 'frontend/', '.github/')
@@ -4255,6 +4257,9 @@ jobs:
                   # 其中的子命令替换与不定长引号会让字符串态跟丢，把等号左边的变量名
                   # 误判成注释起点（实测在安卓计时那一行造出一条与本道无关的假红）；
                   # 也不在此类文件里找 // 与 /* */（URL 里的 https:// 会被误当行注释起点）。
+                  # 已知边界，非无声漏判：run 块与值后的行内注释因此不进扫描面，实量
+                  # 当前流水线定义里此类形态 0 处（引号成对的行内井号行逐行核过），
+                  # 一旦将来出现带禁止形态的行内注释，须连同引号态判定一起重新设计。
                   if ext in SHARP_EXTS:
                       s = line.lstrip()
                       if s.startswith('#'):
