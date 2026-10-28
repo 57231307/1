@@ -145,7 +145,10 @@ fn constraint_of(err: &DbErr) -> Option<String> {
 fn assert_unique_violation_on_active_default_index(err: DbErr, case: &str) {
     let constraint = constraint_of(&err);
     assert!(
-        matches!(err.sql_err(), Some(sea_orm::SqlErr::UniqueConstraintViolation(_))),
+        matches!(
+            err.sql_err(),
+            Some(sea_orm::SqlErr::UniqueConstraintViolation(_))
+        ),
         "{case}：期望唯一冲突（23505），实际 sql_err()={:?}\n错误原文: {err}",
         err.sql_err()
     );
@@ -174,8 +177,10 @@ fn migration_up_predicate_text_three_copies_and_parser_same_source() {
     );
 
     // 谓词中的启用 token 由权威词表拼装比对：词表值一改，迁移文本单边滞留即红。
-    let pred_from_vocab =
-        format!("WHERE is_default AND status='{}'", print_template_status::ACTIVE);
+    let pred_from_vocab = format!(
+        "WHERE is_default AND status='{}'",
+        print_template_status::ACTIVE
+    );
     assert_eq!(
         up.matches(pred_from_vocab.as_str()).count(),
         3,
@@ -214,7 +219,10 @@ fn migration_up_predicate_text_three_copies_and_parser_same_source() {
         1,
         "应恰有一条 fail-closed RAISE EXCEPTION"
     );
-    assert!(up.contains("USING HINT"), "拒绝段应带人工处置口径 HINT（同 m0082 范式）");
+    assert!(
+        up.contains("USING HINT"),
+        "拒绝段应带人工处置口径 HINT（同 m0082 范式）"
+    );
 
     // 解析侧过滤三条件与升序取首行逐字在场（同源的对方）。
     let th = task_handler_src();
@@ -285,7 +293,9 @@ fn registration_at_migration_chain_tail_locked() {
         domain.matches(call).count()
     );
     assert_eq!(
-        domain.matches("mod m0120_add_print_template_active_default_unique;").count(),
+        domain
+            .matches("mod m0120_add_print_template_active_default_unique;")
+            .count(),
         1,
         "域聚合应恰有一条域内支 mod 声明"
     );
