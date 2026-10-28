@@ -578,6 +578,7 @@ async fn test_forged_forwarded_ip_cannot_bypass_session_binding() {
     let app = build_test_app(state.clone());
     let resp = app.oneshot(req).await.expect("执行请求失败");
     let status = resp.status();
+    let restored_token = resp.headers().get("x-new-csrf-token").cloned();
     let body = read_json(resp.into_body()).await;
     assert_eq!(
         status,
@@ -591,7 +592,7 @@ async fn test_forged_forwarded_ip_cannot_bypass_session_binding() {
         body.get("code")
     );
     assert!(
-        resp.headers().get("x-new-csrf-token").is_none(),
+        restored_token.is_none(),
         "伪造来源不得换来一枚可用的恢复 token"
     );
 }
