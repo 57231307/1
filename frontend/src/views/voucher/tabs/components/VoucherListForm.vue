@@ -72,8 +72,18 @@
                 :value="subject.value"
               />
             </ElSelect>
-            <ElInputNumber v-model="entry.debit_amount" :precision="2" class="col-debit" />
-            <ElInputNumber v-model="entry.credit_amount" :precision="2" class="col-credit" />
+            <NumericInput
+              class="col-debit"
+              :model-value="Number(entry.debit_amount)"
+              :precision="2"
+              @update:model-value="(v: number | null | undefined) => (entry.debit_amount = v ?? 0)"
+            />
+            <NumericInput
+              class="col-credit"
+              :model-value="Number(entry.credit_amount)"
+              :precision="2"
+              @update:model-value="(v: number | null | undefined) => (entry.credit_amount = v ?? 0)"
+            />
             <ElInput
               v-model="entry.description"
               :placeholder="t('voucher.voucherListForm.placeholderSummaryEntry')"
@@ -121,6 +131,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, computed, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatAmount } from '../composables/vchrLstFmts';
@@ -128,7 +139,7 @@ import { formatAmount } from '../composables/vchrLstFmts';
 const { t } = useI18n({ useScope: 'global' });
 
 /**
- * 分录编辑模型：ElInputNumber 双向绑定与借贷合计实时计算均以 number 为契约。
+ * 分录编辑模型：金额手写录入在 change 提交边界归一为 number，借贷合计实时计算以 number 为契约。
  * 入参金额来自后端 rust_decimal（JSON 序列化为字符串，见 @/api/voucher 的 VoucherEntry），
  * 在 prop→local 边界经 Number() 归一，避免以字符串驱动数值控件。
  * UI 键沿用后端详情双命名里的 account_subject_id 与 debit/credit 金额、description 一族。

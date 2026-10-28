@@ -47,7 +47,11 @@ import type { PrcForm } from './usePrc';
 /**
  * 十进制出参解析（rust_decimal 序列化输出十进制**字符串**，models/purchase_receipt_item.rs
  * 的 quantity/quantity_alt/unit_price/amount 均为 Decimal 列）：
+<<<<<<< HEAD
  * 表单模型（数值录入用 el-input 加 Number 转换 / 金额计算）只接受 number，加载边界必须显式解析，
+=======
+ * 表单模型（手写数值录入 加 金额计算）只接受 number，加载边界必须显式解析，
+>>>>>>> origin/main
  * 禁止 `?? 0` 把缺值/脏值伪装成合法数量。
  * - 必填（NOT NULL 列 quantity）：缺席/非法即抛错，由调用方拒绝回显并留痕——
  *   那是契约违例，不能静默渲染；

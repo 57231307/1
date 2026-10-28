@@ -89,7 +89,9 @@
       <el-col :span="10">
         <el-card :header="$t('colorPrices.batchAdjust.adjustSetting')">
           <el-form
+            ref="formRef"
             :model="form"
+            :rules="adjustRules"
             label-width="120px"
             :aria-label="$t('colorPrices.batchAdjust.form.ariaLabel')"
           >
@@ -114,22 +116,17 @@
             <el-form-item
               v-if="form.mode === 'percentage'"
               :label="$t('colorPrices.batchAdjust.form.adjustPercentage')"
+              prop="percentage"
             >
-              <el-input-number
-                v-model="form.percentage"
-                :min="-100"
-                :max="100"
-                :step="1"
-                :precision="2"
-                style="width: 200px"
-              />
+              <el-input v-model="form.percentage" inputmode="decimal" style="width: 200px" />
               <span style="margin-left: 8px">%</span>
             </el-form-item>
             <el-form-item
               v-if="form.mode === 'fixed'"
               :label="$t('colorPrices.batchAdjust.form.adjustAmount')"
+              prop="fixedAmount"
             >
-              <el-input-number v-model="form.fixedAmount" :precision="2" style="width: 200px" />
+              <el-input v-model="form.fixedAmount" inputmode="decimal" style="width: 200px" />
               <span style="margin-left: 8px">{{
                 $t('colorPrices.batchAdjust.form.unitYuanPerMeter')
               }}</span>
@@ -177,10 +174,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import {
   getColorPriceList,
   batchAdjustColorPrices,
@@ -190,6 +187,7 @@ import {
   type ColorPriceListItem,
   type ListColorPricesQuery,
 } from '@/api/color-price';
+import { numberInputRules } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -212,12 +210,31 @@ const filterForm = reactive<ListColorPricesQuery>({
   is_active: true,
 });
 
+const formRef = ref<FormInstance>();
+
 const form = reactive({
   mode: 'percentage' as 'percentage' | 'fixed' | 'tier',
-  percentage: 5,
-  fixedAmount: 1.0,
+  // 手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值；默认值按两位小数呈现
+  percentage: '5.00',
+  fixedAmount: '1.00',
   changeReason: '',
 });
+
+// 调价幅度校验（范围与精度靠校验器，不靠步进按钮）：百分比 -100~100，固定额不限正负
+const adjustRules = computed<FormRules>(() => ({
+  percentage: numberInputRules({
+    label: t('colorPrices.batchAdjust.form.adjustPercentage'),
+    required: true,
+    min: -100,
+    max: 100,
+    precision: 2,
+  }),
+  fixedAmount: numberInputRules({
+    label: t('colorPrices.batchAdjust.form.adjustAmount'),
+    required: true,
+    precision: 2,
+  }),
+}));
 
 const loadPrices = async () => {
   loading.value = true;
@@ -249,12 +266,21 @@ const handleSubmit = async () => {
     ElMessage.warning(t('colorPrices.message.selectColorFirst'));
     return;
   }
+  // tier 模式两个调价输入框均隐藏，跳过数值校验；其余模式先过数字/范围/精度校验
+  if (form.mode !== 'tier' && formRef.value) {
+    let valid = false;
+    await formRef.value.validate(ok => {
+      valid = ok;
+    });
+    if (!valid) return;
+  }
   submitting.value = true;
   try {
     const items = selectedRows.value.map(row => ({
       price_id: row.id,
       adjustment_type: form.mode === 'tier' ? 'percentage' : (form.mode as 'percentage' | 'fixed'),
-      adjustment_value: form.mode === 'percentage' ? form.percentage / 100 : form.fixedAmount,
+      adjustment_value:
+        form.mode === 'percentage' ? Number(form.percentage) / 100 : Number(form.fixedAmount),
     }));
     const r = await batchAdjustColorPrices({
       items,

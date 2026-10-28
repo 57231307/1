@@ -201,23 +201,21 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('apModule.invoice.invoiceAmount')" prop="invoice_amount">
-              <el-input-number
-                v-model="invoiceForm.invoice_amount"
-                :min="0"
-                :precision="2"
+              <el-input
+                v-model="invoiceAmountField.text"
                 style="width: 100%"
+                @blur="invoiceAmountField.normalize()"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <!-- 税额不预置 0：0 只能由建单人显式敲出，代表"本票无进项税"这条声明 -->
             <el-form-item :label="$t('apModule.invoice.taxAmount')" prop="tax_amount">
-              <el-input-number
-                v-model="invoiceForm.tax_amount"
-                :min="0"
-                :precision="2"
+              <el-input
+                v-model="taxAmountField.text"
                 :placeholder="$t('apModule.invoice.taxAmountPlaceholder')"
                 style="width: 100%"
+                @blur="taxAmountField.normalize()"
               />
             </el-form-item>
           </el-col>
@@ -265,12 +263,14 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
+import { useNumberField } from '@/composables/useNumberField';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
   getAPInvoiceList,
@@ -429,6 +429,26 @@ const invoiceForm = reactive({
   remark: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const invoiceAmountField = useNumberField(toRef(invoiceForm, 'invoice_amount'), {
+  label: t('apModule.invoice.invoiceAmount'),
+  required: true,
+  min: 0,
+  precision: 2,
+  requiredMessage: t('apModule.invoice.invoiceAmountRequired'),
+});
+const taxAmountField = useNumberField(
+  toRef(invoiceForm, 'tax_amount'),
+  {
+    label: t('apModule.invoice.taxAmount'),
+    required: true,
+    min: 0,
+    precision: 2,
+    requiredMessage: t('apModule.invoice.taxAmountRequired'),
+  },
+  'undefined'
+);
+
 const invoiceRules: FormRules = {
   supplier_id: [
     { required: true, message: t('apModule.invoice.supplierRequired'), trigger: 'change' },
@@ -440,12 +460,8 @@ const invoiceRules: FormRules = {
     { required: true, message: t('apModule.invoice.invoiceDateRequired'), trigger: 'change' },
   ],
   due_date: [{ required: true, message: t('apModule.invoice.dueDateRequired'), trigger: 'change' }],
-  invoice_amount: [
-    { required: true, message: t('apModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
-  ],
-  tax_amount: [
-    { required: true, message: t('apModule.invoice.taxAmountRequired'), trigger: 'blur' },
-  ],
+  invoice_amount: [invoiceAmountField.rule],
+  tax_amount: [taxAmountField.rule],
 };
 
 const openInvoiceDialog = () => {
@@ -561,7 +577,7 @@ const cancelInvoice = async (row: APInvoice) => {
 };
 
 // 批次 157a P1-1 修复：实现应付发票打印（参考 ar 模块 printJS 实现）
-const handlePrintInvoices = () => {
+const handlePrintInvoices = async () => {
   if (invoices.value.length === 0) {
     ElMessage.warning(t('apModule.invoice.noPrintData'));
     return;
@@ -575,6 +591,15 @@ const handlePrintInvoices = () => {
     [t('common.status')]: getInvoiceStatusLabel(item.invoice_status),
     [t('apModule.invoice.invoiceDate')]: item.invoice_date,
   }));
+  if (
+    await printTableOnAndroid({
+      title: t('apModule.invoice.printHeader'),
+      rows: printData,
+      columns: Object.keys(printData[0] || {}),
+      documentKey: 'ap_invoice',
+    })
+  )
+    return;
   printJS({
     printable: printData,
     properties: Object.keys(printData[0] || {}) as string[],

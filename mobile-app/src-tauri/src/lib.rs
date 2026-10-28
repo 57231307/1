@@ -23,6 +23,7 @@ struct BluetoothConnectPayload<'a> {
 }
 
 /// 打印命令载荷，字段名与 Kotlin 侧 BluetoothPrintTextArgs 一一对应。
+/// address 为空时只用壳内已有的蓝牙会话，非空时打印前按需连接该打印机。
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BluetoothPrintTextPayload<'a> {
@@ -30,6 +31,27 @@ struct BluetoothPrintTextPayload<'a> {
     cut: bool,
     feed_lines: u8,
     encoding: &'a str,
+    address: Option<&'a str>,
+}
+
+/// 安卓系统打印插件句柄。仅安卓注册成功后才 manage，桌面端命令据此返回不可用。
+struct SystemPrintBackend {
+    handle: PluginHandle<tauri::Wry>,
+}
+
+/// 整页打印载荷，字段名与 Kotlin 侧 SystemPrintHtmlArgs 一一对应。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SystemPrintHtmlPayload<'a> {
+    html: &'a str,
+    job_name: Option<&'a str>,
+}
+
+/// 当前页面打印载荷，字段名与 Kotlin 侧 SystemPrintJobArgs 一一对应。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SystemPrintJobPayload<'a> {
+    job_name: Option<&'a str>,
 }
 
 /// Tauri v2 Android 客户端 Rust 内核。
@@ -45,6 +67,7 @@ struct BluetoothPrintTextPayload<'a> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(bluetooth_plugin())
+        .plugin(system_print_plugin())
         .manage(GatewayUrl(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             app_info,
@@ -57,7 +80,9 @@ pub fn run() {
             bluetooth_list_printers,
             bluetooth_connect,
             bluetooth_print_text,
-            bluetooth_disconnect
+            bluetooth_disconnect,
+            system_print_html,
+            system_print_page
         ])
         .run(tauri::generate_context!())
         .expect("Bingxi ERP 移动端启动失败");
@@ -83,6 +108,29 @@ fn bluetooth_plugin() -> TauriPlugin<tauri::Wry> {
 fn bluetooth_backend(app: &tauri::AppHandle) -> Result<tauri::State<'_, BluetoothBackend>, String> {
     app.try_state::<BluetoothBackend>()
         .ok_or_else(|| "蓝牙打印仅在安卓客户端可用".to_string())
+}
+
+/// 注册安卓系统打印插件；桌面端不注册，对应命令统一返回不可用。
+fn system_print_plugin() -> TauriPlugin<tauri::Wry> {
+    Builder::new("system-print")
+        .setup(|app, api| {
+            #[cfg(target_os = "android")]
+            {
+                let handle = api.register_android_plugin("com.bingxi.erp", "SystemPrintPlugin")?;
+                app.manage(SystemPrintBackend { handle });
+            }
+            #[cfg(not(target_os = "android"))]
+            let _ = (app, api);
+            Ok(())
+        })
+        .build()
+}
+
+fn system_print_backend(
+    app: &tauri::AppHandle,
+) -> Result<tauri::State<'_, SystemPrintBackend>, String> {
+    app.try_state::<SystemPrintBackend>()
+        .ok_or_else(|| "系统打印仅在安卓客户端可用".to_string())
 }
 
 /// IPC 探针：确认 WebView↔Rust 通路可用，供前端识别"运行在原生壳内"。
@@ -248,7 +296,7 @@ async fn bluetooth_connect(
         .map_err(|e| e.to_string())
 }
 
-/// 向已连接的打印机发送纯文本小票。
+/// 向已连接的打印机发送纯文本小票；带 address 时打印前按需连接该打印机。
 #[tauri::command]
 async fn bluetooth_print_text(
     app: tauri::AppHandle,
@@ -256,6 +304,7 @@ async fn bluetooth_print_text(
     cut: Option<bool>,
     feed_lines: Option<u8>,
     encoding: Option<String>,
+    address: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let encoding = encoding.unwrap_or_else(|| "GBK".to_string());
     let payload = BluetoothPrintTextPayload {
@@ -263,10 +312,45 @@ async fn bluetooth_print_text(
         cut: cut.unwrap_or(true),
         feed_lines: feed_lines.unwrap_or(3),
         encoding: &encoding,
+        address: address.as_deref().filter(|value| !value.trim().is_empty()),
     };
     bluetooth_backend(&app)?
         .handle
         .run_mobile_plugin_async("printText", payload)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 把前端排好的整页 HTML 交给系统打印对话框。
+#[tauri::command]
+async fn system_print_html(
+    app: tauri::AppHandle,
+    html: String,
+    job_name: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let payload = SystemPrintHtmlPayload {
+        html: &html,
+        job_name: job_name.as_deref(),
+    };
+    system_print_backend(&app)?
+        .handle
+        .run_mobile_plugin_async("printHtml", payload)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 把当前 WebView 显示的页面交给系统打印对话框。
+#[tauri::command]
+async fn system_print_page(
+    app: tauri::AppHandle,
+    job_name: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let payload = SystemPrintJobPayload {
+        job_name: job_name.as_deref(),
+    };
+    system_print_backend(&app)?
+        .handle
+        .run_mobile_plugin_async("printCurrentPage", payload)
         .await
         .map_err(|e| e.to_string())
 }

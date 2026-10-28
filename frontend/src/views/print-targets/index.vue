@@ -80,12 +80,6 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="t('printTargets.bluetooth.paperWidth')">
-          <el-radio-group v-model="paperWidth">
-            <el-radio-button value="58">{{ t('printTargets.bluetooth.paper58') }}</el-radio-button>
-            <el-radio-button value="80">{{ t('printTargets.bluetooth.paper80') }}</el-radio-button>
-          </el-radio-group>
-        </el-form-item>
       </el-form>
 
       <div class="bluetooth-actions">
@@ -95,6 +89,117 @@
         <el-button :disabled="!btConnectedAddress || btLoading" @click="handleBluetoothDisconnect">
           {{ t('printTargets.bluetooth.disconnect') }}
         </el-button>
+      </div>
+    </el-card>
+
+    <el-card v-if="androidClient" class="routing-card" shadow="hover">
+      <template #header>
+        <div class="bluetooth-header">
+          <span class="bluetooth-title">{{ t('printTargets.routing.title') }}</span>
+        </div>
+      </template>
+      <p class="bluetooth-description">{{ t('printTargets.routing.description') }}</p>
+      <el-table :data="routeRows" size="small" :aria-label="t('printTargets.routing.ariaLabel')">
+        <el-table-column :label="t('printTargets.routing.group')" width="90">
+          <template #default="{ row }">{{ row.groupLabel }}</template>
+        </el-table-column>
+        <el-table-column :label="t('printTargets.routing.type')" min-width="130">
+          <template #default="{ row }">{{ row.typeLabel }}</template>
+        </el-table-column>
+        <el-table-column :label="t('printTargets.routing.printer')" min-width="220">
+          <template #default="{ row }">
+            <el-select
+              :model-value="row.address"
+              :placeholder="t('printTargets.routing.followDefault')"
+              clearable
+              style="width: 100%"
+              @change="handleRouteChange(row, $event)"
+            >
+              <el-option
+                v-for="printer in btState?.printers || []"
+                :key="printer.address"
+                :label="printer.name ? `${printer.name} (${printer.address})` : printer.address"
+                :value="printer.address"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
+    <el-card v-if="androidClient" class="paper-card" shadow="hover">
+      <template #header>
+        <div class="bluetooth-header">
+          <span class="bluetooth-title">{{ t('printTargets.paper.title') }}</span>
+        </div>
+      </template>
+      <p class="bluetooth-description">{{ t('printTargets.paper.description') }}</p>
+      <div class="paper-section">
+        <h4 class="paper-subtitle">{{ t('printTargets.paper.documentTitle') }}</h4>
+        <el-form label-width="auto">
+          <el-form-item :label="t('printTargets.paper.width')">
+            <NumericInput
+              v-model="documentPaper.widthMm"
+              :min="20"
+              :max="1000"
+              class="paper-number"
+            />
+            <span class="paper-unit">mm</span>
+          </el-form-item>
+          <el-form-item :label="t('printTargets.paper.height')">
+            <NumericInput
+              v-model="documentPaper.heightMm"
+              :min="0"
+              :max="1000"
+              class="paper-number"
+            />
+            <span class="paper-unit">mm</span>
+            <span class="paper-hint">{{ t('printTargets.paper.heightHint') }}</span>
+          </el-form-item>
+          <el-form-item :label="t('printTargets.paper.orientation')">
+            <el-radio-group v-model="documentPaper.orientation">
+              <el-radio-button value="portrait">
+                {{ t('printTargets.paper.portrait') }}
+              </el-radio-button>
+              <el-radio-button value="landscape">
+                {{ t('printTargets.paper.landscape') }}
+              </el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+        </el-form>
+      </div>
+      <div class="paper-section">
+        <h4 class="paper-subtitle">{{ t('printTargets.paper.labelTitle') }}</h4>
+        <el-form label-width="auto">
+          <el-form-item :label="t('printTargets.paper.width')">
+            <NumericInput v-model="labelPaper.widthMm" :min="20" :max="300" class="paper-number" />
+            <span class="paper-unit">mm</span>
+          </el-form-item>
+          <el-form-item :label="t('printTargets.paper.height')">
+            <NumericInput v-model="labelPaper.heightMm" :min="10" :max="300" class="paper-number" />
+            <span class="paper-unit">mm</span>
+          </el-form-item>
+          <el-form-item :label="t('printTargets.paper.orientation')">
+            <el-radio-group v-model="labelPaper.orientation">
+              <el-radio-button value="portrait">
+                {{ t('printTargets.paper.portrait') }}
+              </el-radio-button>
+              <el-radio-button value="landscape">
+                {{ t('printTargets.paper.landscape') }}
+              </el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item :label="t('printTargets.paper.labelFields')">
+            <div class="paper-fields">
+              <el-checkbox-group v-model="labelPaper.fields">
+                <el-checkbox v-for="field in LABEL_FIELD_KEYS" :key="field" :value="field">
+                  {{ t(LABEL_FIELD_TEXT[field]) }}
+                </el-checkbox>
+              </el-checkbox-group>
+              <span class="paper-hint">{{ t('printTargets.paper.labelFieldsHint') }}</span>
+            </div>
+          </el-form-item>
+        </el-form>
       </div>
     </el-card>
 
@@ -264,13 +369,12 @@
             :label="t('printTargets.dialog.port')"
             prop="port"
           >
-            <!-- 端口同样不用步进键，范围与必填由本项的表单级校验给 -->
-            <el-input-number
-              v-model="form.port"
-              :min="1"
-              :max="65535"
-              :controls="false"
+            <!-- 端口手写录入，数字键盘输入，范围与必填由本项的表单级校验给 -->
+            <el-input
+              :model-value="numericView(form.port)"
+              inputmode="numeric"
               :placeholder="t('printTargets.dialog.portPlaceholder')"
+              @update:model-value="onPortInput"
             />
           </el-form-item>
           <el-form-item
@@ -296,8 +400,12 @@
         </template>
 
         <el-form-item :label="t('printTargets.dialog.defaultCopies')" prop="default_copies">
-          <!-- 步进按钮在竖屏触控区过小且误触即改值，改为无步进键的数值输入加表单级范围校验 -->
-          <el-input-number v-model="form.default_copies" :min="1" :max="99" :controls="false" />
+          <!-- 份数手写录入，竖屏误触不再改值，1 到 99 的范围由表单级校验给 -->
+          <el-input
+            :model-value="numericView(form.default_copies)"
+            inputmode="numeric"
+            @update:model-value="onDefaultCopiesInput"
+          />
         </el-form-item>
         <el-form-item :label="t('printTargets.dialog.enabled')">
           <el-switch v-model="form.enabled" />
@@ -319,23 +427,39 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Refresh, Setting } from '@element-plus/icons-vue';
 import { isDialogDismissal } from '@/utils/monitor';
+import { bindNumeric, numericView } from '@/utils/number-input';
+import NumericInput from '@/components/NumericInput.vue';
 import { msg } from '@/utils/message';
 import { logger } from '@/utils/logger';
 import { PERMISSIONS } from '@/constants/permissions';
 import {
+  DOCUMENT_PRINT_TYPES,
+  LABEL_PRINT_TYPES,
   connectBluetoothPrinter,
   disconnectBluetoothPrinter,
+  documentPrintRoute,
   isAndroidClient,
+  labelPrintRoute,
   listBluetoothPrinters,
-  loadPaperWidth,
+  loadPrintRoutes,
   loadPrinterPreference,
   openBluetoothSettings,
   requestBluetoothPermission,
-  savePaperWidth,
+  savePrintRoute,
   savePrinterPreference,
   type BluetoothAdapterState,
-  type ReceiptPaperWidth,
+  type PrintRouteKey,
 } from '@/utils/bluetooth-print';
+import {
+  LABEL_FIELD_KEYS,
+  loadDocumentPaper,
+  loadLabelPaper,
+  saveDocumentPaper,
+  saveLabelPaper,
+  type LabelFieldKey,
+  type LabelPaperSettings,
+  type PaperSettings,
+} from '@/utils/print-settings';
 import {
   getPrintTargetList,
   createPrintTarget,
@@ -392,6 +516,18 @@ const deletingId = ref<number | null>(null);
 const formRef = ref<FormInstance>();
 const form = reactive<TargetForm>(emptyForm());
 const original = ref<PrintTarget | null>(null);
+
+// 端口与份数手写录入归一：文本经数值绑定器钳到界内后写回 number 模型，提交契约不变
+const onPortInput = (val: string | number): void => {
+  form.port = bindNumeric(String(val), form.port, { min: 1, max: 65535 });
+};
+const onDefaultCopiesInput = (val: string | number): void => {
+  form.default_copies = bindNumeric(String(val), form.default_copies, {
+    min: 1,
+    max: 99,
+    integer: true,
+  });
+};
 
 async function fetchList(): Promise<void> {
   loading.value = true;
@@ -692,9 +828,93 @@ const btLoading = ref(false);
 const btState = ref<BluetoothAdapterState | null>(null);
 const btSelectedAddress = ref('');
 const btConnectedAddress = ref<string | null>(null);
-const paperWidth = ref<ReceiptPaperWidth>(loadPaperWidth());
 
-watch(paperWidth, value => savePaperWidth(value));
+const documentPaper = reactive<PaperSettings>(loadDocumentPaper());
+const labelPaper = reactive<LabelPaperSettings>(loadLabelPaper());
+
+watch(
+  documentPaper,
+  value => {
+    if (!Number.isFinite(value.widthMm) || value.widthMm < 20) return;
+    saveDocumentPaper({ ...value });
+  },
+  { deep: true }
+);
+watch(
+  labelPaper,
+  value => {
+    if (!Number.isFinite(value.widthMm) || value.widthMm < 20) return;
+    if (!Number.isFinite(value.heightMm) || value.heightMm < 10) return;
+    saveLabelPaper({ ...value, fields: [...value.fields] });
+  },
+  { deep: true }
+);
+
+const LABEL_FIELD_TEXT: Record<LabelFieldKey, string> = {
+  piece_no: 'printTargets.paper.fields.pieceNo',
+  dye_lot_no: 'printTargets.paper.fields.dyeLotNo',
+  color_no: 'printTargets.paper.fields.colorNo',
+  length: 'printTargets.paper.fields.length',
+  weight: 'printTargets.paper.fields.weight',
+  width: 'printTargets.paper.fields.width',
+  gram_weight: 'printTargets.paper.fields.gramWeight',
+  barcode: 'printTargets.paper.fields.barcode',
+  warehouse_in_at: 'printTargets.paper.fields.warehouseInAt',
+};
+
+const ROUTE_TYPE_TEXT: Record<string, string> = {
+  purchase_order: 'printTargets.routing.types.purchase_order',
+  voucher: 'printTargets.routing.types.voucher',
+  inventory_stock: 'printTargets.routing.types.inventory_stock',
+  ap_invoice: 'printTargets.routing.types.ap_invoice',
+  ar_invoice: 'printTargets.routing.types.ar_invoice',
+  finance_subject: 'printTargets.routing.types.finance_subject',
+  customer: 'printTargets.routing.types.customer',
+  supplier: 'printTargets.routing.types.supplier',
+  warehouse: 'printTargets.routing.types.warehouse',
+  fabric_piece: 'printTargets.routing.types.fabric_piece',
+};
+
+interface RouteRow {
+  key: PrintRouteKey;
+  groupLabel: string;
+  typeLabel: string;
+  address: string;
+}
+
+function buildRouteRows(): RouteRow[] {
+  const routes = loadPrintRoutes();
+  return [
+    ...DOCUMENT_PRINT_TYPES.map(type => {
+      const key = documentPrintRoute(type);
+      return {
+        key,
+        groupLabel: t('printTargets.routing.documentGroup'),
+        typeLabel: t(ROUTE_TYPE_TEXT[type]),
+        address: routes[key]?.address ?? '',
+      };
+    }),
+    ...LABEL_PRINT_TYPES.map(type => {
+      const key = labelPrintRoute(type);
+      return {
+        key,
+        groupLabel: t('printTargets.routing.labelGroup'),
+        typeLabel: t(ROUTE_TYPE_TEXT[type]),
+        address: routes[key]?.address ?? '',
+      };
+    }),
+  ];
+}
+
+const routeRows = ref<RouteRow[]>(buildRouteRows());
+
+function handleRouteChange(row: RouteRow, value?: unknown): void {
+  const address = typeof value === 'string' ? value : '';
+  const printer = (btState.value?.printers ?? []).find(item => item.address === address);
+  savePrintRoute(row.key, address ? { name: printer?.name || address, address } : null);
+  row.address = address;
+  ElMessage.success(t('printTargets.routing.saved'));
+}
 
 function bluetoothErrorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -815,6 +1035,35 @@ onMounted(() => {
 }
 .bluetooth-card {
   margin-bottom: 20px;
+}
+.routing-card,
+.paper-card {
+  margin-bottom: 20px;
+}
+.paper-section + .paper-section {
+  margin-top: 20px;
+}
+.paper-subtitle {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+}
+.paper-number {
+  width: 140px;
+}
+.paper-unit {
+  margin: 0 12px 0 6px;
+  color: #606266;
+}
+.paper-hint {
+  color: #909399;
+  font-size: 12px;
+}
+.paper-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .bluetooth-header {
   display: flex;

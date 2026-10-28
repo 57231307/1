@@ -76,12 +76,20 @@
           />
           <el-table-column :label="t('purchase.receiveDlg.colThisReceive')" width="120">
             <template #default="{ row }">
+<<<<<<< HEAD
               <!-- 数值录入按 el-input 十进制串采集（全项目禁步进框），
                    大于零与可收量上限由 usePurchRcv.submitReceive 校验器点名拒绝 -->
               <el-input
                 v-model="row.receive_quantity"
                 size="small"
                 :placeholder="t('purchase.receiveDlg.qtyPlaceholder')"
+=======
+              <NumericInput
+                v-model="row.receive_quantity"
+                size="small"
+                :min="0"
+                :max="row.quantity - row.received_quantity"
+>>>>>>> origin/main
               />
             </template>
           </el-table-column>
@@ -94,10 +102,19 @@
           -->
           <el-table-column :label="t('purchase.receiveDlg.colAltQty')" width="130">
             <template #default="{ row }">
+<<<<<<< HEAD
               <el-input
                 v-model="row.receive_quantity_alt"
                 size="small"
                 :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
+=======
+              <NumericInput
+                v-model="row.receive_quantity_alt"
+                size="small"
+                :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
+                :min="0"
+                optional
+>>>>>>> origin/main
               />
             </template>
           </el-table-column>
@@ -164,6 +181,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Warehouse } from '@/api/warehouse';

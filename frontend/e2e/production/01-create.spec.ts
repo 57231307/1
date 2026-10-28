@@ -105,9 +105,10 @@ test.describe('生产计划 - 01 工单创建与排产', () => {
     await expect(page.locator('.el-dialog')).toBeVisible({ timeout: 30000 });
     // 限定到可见 .el-dialog 消除与筛选栏「订单编号」同名 strict；提交按钮真实文案「确定」
     // （production.form.buttonConfirm）；成功提示 production.index.messageCreateSuccess=「创建生产订单成功」。
-    // 计划数量/优先级为 el-input-number：fillFieldByLabel 填入后按 Tab 失焦提交 v-model，
+    // 计划数量/优先级为手写数字录入（inputmode 数字框）：fillFieldByLabel 填入后按 Tab 失焦提交模型，
     // 否则 modelValue 不更新 → 必填校验拦下 → 不发请求 → 成功 toast 永不出现。
     const dlg = page.locator('.el-dialog:visible').last();
+    await expect(dlg.getByRole('spinbutton'), '生产表单数值录入不应是步进角色').toHaveCount(0);
     // 新建对话框「订单编号」是系统自动取号字段：DOM 事实——input 带 disabled 且
     // placeholder=「单据号由系统自动生成，无需填写」；fillFieldByLabel 对 disabled input
     // 恒 "element is not enabled" 重试到 10s 超时（同型：fabric/02 批次号 readonly）。

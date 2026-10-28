@@ -127,11 +127,9 @@
       </el-form-item>
 
       <el-form-item :label="t('skuMapping.fields.leadTime')">
-        <el-input-number
+        <el-input
           v-model="proc.form.lead_time"
-          :min="0"
           :placeholder="t('skuMapping.placeholders.leadTime')"
-          style="width: 100%"
         />
       </el-form-item>
 

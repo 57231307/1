@@ -84,48 +84,70 @@
             </template>
           </el-table-column>
         </el-table>
-        <div v-if="editable" class="add-item-bar">
-          <el-input-number
-            v-model="newItem.productId"
-            :min="1"
-            :disabled="editingItemId !== null"
-            style="width: 140px"
-          />
-          <el-input-number v-model="newItem.quantity" :min="1" style="width: 120px" />
-          <el-input-number
-            v-model="newItem.unitPrice"
-            :min="0"
-            :precision="2"
-            style="width: 130px"
-          />
-          <el-input-number
-            v-model="newItem.taxPercent"
-            :min="0"
-            :max="100"
-            :precision="2"
-            :controls="false"
-            placeholder="税率%(空=取订单税率)"
-            style="width: 180px"
-          />
-          <el-input v-model="newItem.reason" style="width: 160px" placeholder="退货原因" />
-          <el-button
-            v-if="editingItemId === null"
-            type="primary"
-            plain
-            :loading="itemSaving"
-            @click="handleAddItem"
-          >
-            {{ t('salesReturns.detailDialog.buttonAddItem') }}
-          </el-button>
-          <template v-else>
-            <el-button type="primary" plain :loading="itemSaving" @click="handleUpdateItem">
-              {{ t('salesReturns.detailDialog.buttonUpdateItem') }}
+        <el-form
+          v-if="editable"
+          ref="itemFormRef"
+          :model="newItem"
+          :rules="itemRules"
+          :inline="true"
+          class="add-item-bar"
+        >
+          <el-form-item prop="productId">
+            <el-input
+              v-model="newItem.productId"
+              inputmode="numeric"
+              placeholder="产品ID"
+              :disabled="editingItemId !== null"
+              style="width: 140px"
+            />
+          </el-form-item>
+          <el-form-item prop="quantity">
+            <el-input
+              v-model="newItem.quantity"
+              inputmode="numeric"
+              placeholder="数量"
+              style="width: 120px"
+            />
+          </el-form-item>
+          <el-form-item prop="unitPrice">
+            <el-input
+              v-model="newItem.unitPrice"
+              inputmode="decimal"
+              placeholder="单价"
+              style="width: 130px"
+            />
+          </el-form-item>
+          <el-form-item prop="taxPercent">
+            <el-input
+              v-model="newItem.taxPercent"
+              inputmode="decimal"
+              placeholder="税率%(空=取订单税率)"
+              style="width: 180px"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-input v-model="newItem.reason" style="width: 160px" placeholder="退货原因" />
+          </el-form-item>
+          <el-form-item>
+            <el-button
+              v-if="editingItemId === null"
+              type="primary"
+              plain
+              :loading="itemSaving"
+              @click="handleAddItem"
+            >
+              {{ t('salesReturns.detailDialog.buttonAddItem') }}
             </el-button>
-            <el-button plain @click="cancelEditItem">
-              {{ t('salesReturns.detailDialog.buttonCancelEdit') }}
-            </el-button>
-          </template>
-        </div>
+            <template v-else>
+              <el-button type="primary" plain :loading="itemSaving" @click="handleUpdateItem">
+                {{ t('salesReturns.detailDialog.buttonUpdateItem') }}
+              </el-button>
+              <el-button plain @click="cancelEditItem">
+                {{ t('salesReturns.detailDialog.buttonCancelEdit') }}
+              </el-button>
+            </template>
+          </el-form-item>
+        </el-form>
       </div>
     </template>
   </el-dialog>
@@ -135,8 +157,9 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { numberInputRules, numericView } from '@/utils/number-input';
 import { formatAmount } from '../composables/srFmts';
 import {
   salesReturnStatusLabelKey,
@@ -166,15 +189,31 @@ const emit = defineEmits<{
 const serverItems = ref<SalesReturnItem[]>([]);
 const itemsLoading = ref(false);
 const itemSaving = ref(false);
+// 明细维护栏手写录入文本模型（数字约束收进 numberInputRules 单源校验器，不靠步进按钮）；
+// 提交前显式 Number() 归一为契约数值
 const newItem = reactive({
-  productId: 1,
-  quantity: 1,
-  unitPrice: 0,
-  // 税率留空（undefined）：不传时由后端按关联销售订单同商品明细的权威税率回填，
+  productId: '1',
+  quantity: '1',
+  unitPrice: '0',
+  // 税率留空（空串）：不发送该键，由后端按关联销售订单同商品明细的权威税率回填，
   // 绝不在前端默认成 0 掩盖缺失
-  taxPercent: undefined as number | undefined,
+  taxPercent: '',
   reason: '',
 });
+const itemFormRef = ref<FormInstance>();
+const itemRules = computed<FormRules>(() => ({
+  productId: numberInputRules({ label: '产品ID', required: true, min: 1, integer: true }),
+  quantity: numberInputRules({ label: '退货数量', required: true, min: 1 }),
+  unitPrice: numberInputRules({ label: '退货单价', required: true, min: 0, precision: 2 }),
+  taxPercent: numberInputRules({ label: '税率', min: 0, max: 100, precision: 2 }),
+}));
+const validateItemForm = async (): Promise<boolean> => {
+  let ok = false;
+  await itemFormRef.value?.validate(valid => {
+    ok = valid;
+  });
+  return ok;
+};
 const editingItemId = ref<number | null>(null);
 
 const refreshServerItems = async () => {
@@ -214,15 +253,17 @@ watch(
 
 const handleAddItem = async () => {
   if (!props.currentReturn?.id) return;
+  const valid = await validateItemForm();
+  if (!valid) return;
   itemSaving.value = true;
   try {
     await createSalesReturnItem(props.currentReturn.id, {
       // 按后端 CreateSalesReturnItemRequest 的 snake_case 契约发送；
       // tax_percent 为空时不发送，由后端从关联销售订单取权威税率（不默认 0）
-      product_id: newItem.productId,
-      quantity: newItem.quantity,
-      unit_price: newItem.unitPrice,
-      tax_percent: newItem.taxPercent ?? undefined,
+      product_id: Number(newItem.productId),
+      quantity: Number(newItem.quantity),
+      unit_price: Number(newItem.unitPrice),
+      tax_percent: newItem.taxPercent.trim() === '' ? undefined : Number(newItem.taxPercent),
       reason: newItem.reason || undefined,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -234,25 +275,31 @@ const handleAddItem = async () => {
   }
 };
 
-/** 行编辑：回填添加栏并切换为更新模式 */
+/**
+ * 行编辑：回填添加栏并切换为更新模式
+ * 后端 quantity unit_price tax_percent 是 rust_decimal 出参走线为字符串（形如 "10.0000"）
+ * 先经 Number() 归一再按录入框形态格式化 缺值留空串 由必填与范围规则点名是哪个字段
+ */
 const handleEditItem = (row: SalesReturnItem) => {
   editingItemId.value = row.id ?? null;
-  newItem.productId = row.product_id ?? 1;
-  newItem.quantity = row.quantity ?? 1;
-  newItem.unitPrice = row.unit_price ?? 0;
-  newItem.taxPercent = row.tax_percent;
+  newItem.productId = numericView(row.product_id);
+  newItem.quantity = row.quantity == null ? '' : numericView(Number(row.quantity), 2);
+  newItem.unitPrice = row.unit_price == null ? '' : numericView(Number(row.unit_price), 2);
+  newItem.taxPercent = row.tax_percent == null ? '' : numericView(Number(row.tax_percent), 2);
   newItem.reason = row.notes ?? '';
 };
 
 const handleUpdateItem = async () => {
   if (!props.currentReturn?.id || !editingItemId.value) return;
+  const valid = await validateItemForm();
+  if (!valid) return;
   itemSaving.value = true;
   try {
     // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
     // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
     await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
-      quantity: newItem.quantity,
-      unit_price: newItem.unitPrice,
+      quantity: Number(newItem.quantity),
+      unit_price: Number(newItem.unitPrice),
       reason: newItem.reason || null,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -267,10 +314,10 @@ const handleUpdateItem = async () => {
 
 const cancelEditItem = () => {
   editingItemId.value = null;
-  newItem.productId = 1;
-  newItem.quantity = 1;
-  newItem.unitPrice = 0;
-  newItem.taxPercent = undefined;
+  newItem.productId = '1';
+  newItem.quantity = '1';
+  newItem.unitPrice = '0';
+  newItem.taxPercent = '';
   newItem.reason = '';
 };
 
@@ -313,5 +360,8 @@ const onClose = (val: boolean) => {
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+.add-item-bar .el-form-item {
+  margin-bottom: 0;
 }
 </style>

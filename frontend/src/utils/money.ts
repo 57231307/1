@@ -55,7 +55,7 @@ export function formatDecimalAmount(
  * undefined = 缺值 ⇒ 返回 undefined，由载荷构造处省略键（严禁伪造 0/'' 上送）；
  * 0 是合法业务值，会被如实转成 "0" 与「缺值」可区分。
  * 后端 rust_decimal 的 visit_str 精确接收十进制与科学计数法两种字符串形态。
- * 调用方：表单提交前把 el-input-number 数值转字符串上送（见 api/quotation.ts CreateQuotationDto）。
+ * 调用方：表单提交前把手写录入的数值转字符串上送（见 api/quotation.ts CreateQuotationDto）。
  */
 export function numberToDecimalWire(value: number | undefined): string | undefined {
   return value === undefined ? undefined : String(value);

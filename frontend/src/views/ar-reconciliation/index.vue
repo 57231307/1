@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -10,7 +11,6 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
-  ElInputNumber,
   ElSelect,
   ElOption,
   ElDatePicker,
@@ -68,8 +68,8 @@ const searchForm = ref({
   end_date: '',
 });
 
-// 批次 272：接入 useTableApi，消除手写 pagination/tableData/total/loading + loadData 重复
-// useTableApi 自动管理分页状态、数据加载，自动 watch page/pageSize 变化触发重载
+// 列表的分页与数据与加载状态统一交给 useTableApi 持有，不再逐项手写
+// useTableApi 会随 page 与 pageSize 的变化自动重载
 const {
   data: tableData,
   loading,
@@ -134,8 +134,8 @@ const getStatusClass = (value: string) => {
   return value === 'draft' ? 'status-draft' : 'status-confirmed';
 };
 
-// 批次 272：同步筛选条件到 useTableApi.queryParams 并刷新
-// useTableApi 自动 watch page/pageSize 变化触发重载，无需手动 loadData
+// 把筛选条件同步进 useTableApi 的 queryParams 后刷新列表
+// useTableApi 会随 page 与 pageSize 的变化自动重载，无需再手动触发加载
 const syncQueryParams = () => {
   setQueryParam('customer_id', searchForm.value.customer_id);
   setQueryParam('status', searchForm.value.status || undefined);
@@ -145,8 +145,8 @@ const syncQueryParams = () => {
 
 const loadCustomers = async () => {
   try {
-    // v11 批次 146 P1-4 修复：改用 customer.ts 统一封装的 getCustomerSelectList，
-    // 避免绕过 API 层直接调用 request.get，并正确处理 PaginatedResponse → {label, value}[] 映射
+    // 客户下拉取 customer 模块统一封装的 getCustomerSelectList，不绕过 API 层直接发请求
+    // 封装内部把分页出参映射成下拉所需的 label 与 value 列表
     customerOptions.value = await getCustomerSelectList();
   } catch (error) {
     logger.warn(t('arReconciliationModule.index.loadCustomersFailed'));
@@ -289,7 +289,7 @@ const handleConfirm = async (row: ArReconciliationEntity) => {
   }
 };
 
-// 批次 272：useTableApi 构造时自动初始加载，无需 setup 顶层调用 loadData
+// useTableApi 构造时已自动完成首屏加载，这里只需装载客户下拉候选
 loadCustomers();
 </script>
 
@@ -529,26 +529,26 @@ loadCustomers();
               <!-- 编辑态：PUT 端点仅支持修改期初/发票总额/回款总额/备注（closing_balance 后端自动重算） -->
               <template v-if="form.id">
                 <ElFormItem :label="$t('arReconciliationModule.index.openingBalance')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.opening_balance"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>
                 <ElFormItem :label="$t('arReconciliationModule.index.invoiceAmount')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.total_invoices"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>
                 <ElFormItem :label="$t('arReconciliationModule.index.paymentAmount')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="form.total_collections"
                     :precision="2"
-                    :controls="false"
+                    optional
                     style="width: 100%"
                   />
                 </ElFormItem>

@@ -916,25 +916,14 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
   try {
     await safeGoto(page, '/custom-orders/new');
     await page.waitForTimeout(800);
-    // customer_id / product_id 是 el-input-number（手填数字 ID）
-    const inputs = page.locator('input[type="number"]');
-    const inputCount = await inputs.count();
-    if (inputCount >= 2) {
-      await inputs.nth(0).waitFor({ state: 'visible', timeout: 30000 });
-      await inputs.nth(0).click({ clickCount: 3 });
-      await inputs.nth(0).fill('1');
-      await inputs.nth(1).click({ clickCount: 3 });
-      await inputs.nth(1).fill('1');
-    } else {
-      // 兜底：用 label 定位
-      const customerIdInput = page.locator('.el-form-item:has(:text-is("客户ID")) input').first();
-      const productIdInput = page.locator('.el-form-item:has(:text-is("产品ID")) input').first();
-      await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
-      await customerIdInput.click({ clickCount: 3 });
-      await customerIdInput.fill('1');
-      await productIdInput.click({ clickCount: 3 });
-      await productIdInput.fill('1');
-    }
+    // 客户ID 与 产品ID 是手写数字录入框（纯 el-input 加数字校验）按精确 label 锚定真实 input
+    const customerIdInput = formItemByExactLabel(page, '客户ID').locator('input').first();
+    const productIdInput = formItemByExactLabel(page, '产品ID').locator('input').first();
+    await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
+    await customerIdInput.click({ clickCount: 3 });
+    await customerIdInput.fill('1');
+    await productIdInput.click({ clickCount: 3 });
+    await productIdInput.fill('1');
     const specInput = page
       .locator('.el-form-item:has(:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
@@ -947,9 +936,9 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     await specInput.fill('E2E 定制规格').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
-    // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
-    const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
+    // 数量项的 form-item 内同时有录入框与单位下拉 走源码显式绑定的 input id 定位录入框
+    // 避免按 label 下钻时误选单位下拉的内层 input
+    const quantityInput = page.locator('#co-create-quantity');
     await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
@@ -959,7 +948,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     await quantityInput.fill('100').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
+    // 手写录入在输入事件即提交模型 Tab 只为收起焦点 让显示收敛到规范形态
     await quantityInput.press('Tab').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
@@ -1947,6 +1936,39 @@ export async function pickSelectIn(
 ): Promise<void> {
   const wrapper = formItemByExactLabel(root, labelText).locator('.el-select__wrapper').first();
   await openDropdownAndPick(page, wrapper, opts);
+}
+
+/**
+ * 展开一颗 el-select 并返回「本次可见下拉面板内选项」的 Locator，不做选择。
+ *
+ * 为什么需要本函数，el-select 默认 persistent，页面上每颗下拉的选项节点都会常驻
+ * body 下的 teleport 容器（未展开的面板只是隐藏，选项仍在 DOM 里）。页内下拉数量
+ * 一变，用全局选项类名做计数就会把未展开面板的选项一并计入，计数随页面结构漂移。
+ * 本函数把「点开展开，等面板出现，取面板内选项」收进唯一事实源区块，返回的 Locator
+ * 已限定在本次可见的面板内，配合 toHaveCount 与 toContainText 这类自带重试的断言
+ * 即可稳定判定展开态选项的数量与文本，面板刚出现选项尚未渲染完的暂态由重试吸收。
+ *
+ * 契约同本区块头部三条，trigger 必须由调用方以容器作用域构造（如页内某 form 容器
+ * 内的 el-select），本函数不引入任何新的全局选择器；任一步定位失败直接超时抛错
+ * （无静默，不吞成空集合）。
+ *
+ * @param page    用于等 teleport 到 body 的面板
+ * @param trigger 指向 el-select 外层（或其容器）的 Locator，须为容器作用域
+ * @param timeout 单步超时（默认 15_000ms，CI 并发慢）
+ * @returns 本次可见面板内的选项 Locator（el-select 与 el-select-v2 两种类名都覆盖）
+ */
+export async function openSelectDropdownItems(
+  page: Page,
+  trigger: Locator,
+  timeout = 15_000
+): Promise<Locator> {
+  const wrapper = trigger.locator('.el-select__wrapper').first();
+  const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
+  await clickTarget.waitFor({ state: 'visible', timeout });
+  await clickTarget.click({ timeout });
+  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  await dropdown.waitFor({ state: 'visible', timeout });
+  return dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
 }
 
 /**

@@ -1,9 +1,11 @@
 //! 销售发货-数据导出子模块（delivery_ops/export）
 //!
-//! 批次 488 D10-3 拆分：从原 `so/delivery.rs` L1322-1443 迁移。
-//! 包含 3 个 CSV 导出方法：
-//! - export_orders_to_csv（公开 API）
+//! 从 `so/delivery.rs` 拆出的销售订单导出腿。
+//! 包含 3 个方法：
+//! - export_orders_to_xlsx（公开 API，返回表头、行集与服务端全量总数）
 //! - build_order_csv_headers / order_to_csv_row（私有辅助）
+//!
+//! 取数只走 order_query 子模块的导出专用全量腿，与列表共用同一套筛选条件构造器。
 
 use crate::utils::error::AppError;
 
@@ -12,23 +14,18 @@ use super::super::order::SalesService;
 impl SalesService {
     // ========== 数据导出方法 ==========
 
-    /// T3: 导出销售订单为结构化格式（去除 CSV 中转）
+    /// 导出销售订单为结构化格式（表头、行集与服务端全量总数）
     pub async fn export_orders_to_xlsx(
         &self,
         filter: super::super::order_query::SalesOrderFilter,
-    ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        let page_req = crate::models::dto::PageRequest {
-            page: 1,
-            page_size: 10000,
-        };
-        let orders = self.list_orders(page_req, filter, None).await?;
+    ) -> Result<(Vec<String>, Vec<Vec<String>>, u64), AppError> {
+        // 行级数据权限按无下推取全量，与既有行为逐字一致；该面单独登记为独立缺陷族，
+        // 权限收紧不与行数口径的修复合并，避免一条改动同时污染两条验收。
+        let (orders, server_total) = self.list_all_orders_for_export(filter, None).await?;
 
         let headers = Self::build_order_csv_headers();
-        let rows: Vec<std::collections::HashMap<String, String>> = orders
-            .items
-            .into_iter()
-            .map(Self::order_to_csv_row)
-            .collect();
+        let rows: Vec<std::collections::HashMap<String, String>> =
+            orders.into_iter().map(Self::order_to_csv_row).collect();
 
         // 将 HashMap 转为 Vec<Vec<String>>
         let data: Vec<Vec<String>> = rows
@@ -41,7 +38,7 @@ impl SalesService {
             })
             .collect();
 
-        Ok((headers, data))
+        Ok((headers, data, server_total))
     }
 
     /// 构建销售订单 CSV 导出表头

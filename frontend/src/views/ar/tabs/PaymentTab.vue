@@ -68,7 +68,7 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         <el-form-item :label="t('arModule.payment.customer')" prop="customer_id">
-          <el-input-number v-model="form.customer_id" :min="1" />
+          <el-input v-model="customerField.text" @blur="customerField.normalize()" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.paymentDate')" prop="payment_date">
           <!-- 收款日期落 NOT NULL 列：必填、不可清空（clearable 会制造"可置空"错觉） -->
@@ -88,9 +88,9 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('arModule.payment.amount')" prop="amount">
-          <!-- 收款金额落 NOT NULL 列：必填控件（min 0.01 + precision 2），不提供可清空形态；
+          <!-- 收款金额落 NOT NULL 列：必填手输框，大于零与两位小数由单源数字校验器裁决，
                编辑提交后由后端执行同源金额校验与"新金额≥已核销分配"一致性门 -->
-          <el-input-number v-model="form.amount" :min="0.01" :precision="2" :controls="false" />
+          <el-input v-model="amountField.text" @blur="amountField.normalize()" />
         </el-form-item>
         <el-form-item :label="t('arModule.payment.notes')">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -128,13 +128,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal } from '@/utils/monitor';
+import { useNumberField } from '@/composables/useNumberField';
 import {
   getARPaymentList,
   getARPayment,
@@ -201,24 +202,34 @@ const form = reactive({
   remark: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const customerField = useNumberField(
+  toRef(form, 'customer_id'),
+  {
+    label: t('arModule.payment.customer'),
+    required: true,
+    min: 1,
+    precision: 0,
+    requiredMessage: t('arModule.payment.customerRequired'),
+  },
+  'undefined'
+);
+const amountField = useNumberField(toRef(form, 'amount'), {
+  label: t('arModule.payment.amount'),
+  required: true,
+  min: 0.01,
+  precision: 2,
+  requiredMessage: t('arModule.payment.amountRequired'),
+});
+
 const rules: FormRules = {
-  customer_id: [
-    { required: true, message: t('arModule.payment.customerRequired'), trigger: 'change' },
-  ],
+  customer_id: [customerField.rule],
   payment_date: [
     { required: true, message: t('arModule.payment.dateRequired'), trigger: 'change' },
   ],
   // 金额是 NOT NULL 列：必填 + 必须为大于零的数字，UI 不提供"清空"合法路径（三态里
   // 显式 null 会被后端业务拒绝，前端不制造该分支）
-  amount: [
-    {
-      required: true,
-      type: 'number',
-      min: 0.01,
-      message: t('arModule.payment.amountRequired'),
-      trigger: 'blur',
-    },
-  ],
+  amount: [amountField.rule],
 };
 
 const openCreateDialog = () => {
@@ -236,8 +247,8 @@ const openEditDialog = (row: ARPayment) => {
   form.customer_id = row.customer_id;
   form.payment_date = row.payment_date;
   form.payment_method = row.payment_method;
-  // 后端响应金额为 string（rust_decimal），回填数值供 el-input-number 编辑；
-  // 形态异常（缺键/非数字）时为 NaN，必填规则（type number）当场拒绝，不兜底 0
+  // 后端响应金额为 string（rust_decimal），回填数值供手输框编辑；
+  // 形态异常（缺键/非数字）时为 NaN，必填规则（数值校验器）当场拒绝，不兜底 0
   form.amount = Number(row.amount);
   form.remark = row.remark || '';
   dialogVisible.value = true;

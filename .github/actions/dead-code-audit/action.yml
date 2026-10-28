@@ -11,6 +11,7 @@
 # rustup-/cargo- 缓存（含 backend/target），依赖 crate 不必重编；本 crate 自身必须重编，
 # 因为审计会临时改写 backend/src —— 这一步是审计的定义本身，省不掉。
 name: Dead Code Audit
+description: 剥离 allow(dead_code) 后跑 cargo check 统计死代码并出报告，可选按警告阻塞
 inputs:
   artifact-name:
     description: '上传报告使用的 artifact 名（两个调用方历史上不同名，各自保留）'

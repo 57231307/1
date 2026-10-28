@@ -253,6 +253,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { Edit, RefreshRight, Download, Printer } from '@element-plus/icons-vue';
 import printJS from 'print-js';
+import { printTableOnAndroid } from '@/utils/print';
 import { useRouter } from 'vue-router';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 
@@ -781,36 +782,47 @@ const handlePurchase = (row: StockAlert) => {
   router.push({ name: 'Purchase', query: { product_name: row.product_name || '' } });
 };
 
-const handlePrint = () => {
+const handlePrint = async () => {
+  const rows = stocks.value.map(row => ({
+    product_code: row.product_code ?? '-',
+    product_name: row.product_name ?? '-',
+    warehouse_name: row.warehouse_name ?? '-',
+    batch_no: row.batch_no,
+    color_no: row.color_no,
+    dye_lot_no: row.dye_lot_no ?? '-',
+    grade: row.grade,
+    quantity_on_hand: formatNumber(Number(row.quantity_on_hand)),
+    quantity_available: formatNumber(Number(row.quantity_available)),
+    stock_status: getStockStatusLabel(row.stock_status, t),
+    quality_status: row.quality_status,
+    bin_location: row.bin_location ?? '-',
+  }));
+  const columns = [
+    { field: 'product_code', displayName: t('inventory.stockTab.colProductCode') },
+    { field: 'product_name', displayName: t('inventory.stockTab.colProductName') },
+    { field: 'warehouse_name', displayName: t('inventory.stockTab.colWarehouse') },
+    { field: 'batch_no', displayName: t('inventory.stockTab.colBatchNo') },
+    { field: 'color_no', displayName: t('inventory.stockTab.colColorCode') },
+    { field: 'dye_lot_no', displayName: t('inventory.stockTab.colDyeLot') },
+    { field: 'grade', displayName: t('inventory.stockTab.colGrade') },
+    { field: 'quantity_on_hand', displayName: t('inventory.stockTab.colQuantity') },
+    { field: 'quantity_available', displayName: t('inventory.stockTab.colAvailable') },
+    { field: 'stock_status', displayName: t('inventory.stockTab.colStatus') },
+    { field: 'quality_status', displayName: t('inventory.stockTab.colQualityStatus') },
+    { field: 'bin_location', displayName: t('inventory.stockTab.colLocation') },
+  ];
+  if (
+    await printTableOnAndroid({
+      title: t('inventory.printHeader'),
+      rows,
+      columns,
+      documentKey: 'inventory_stock',
+    })
+  )
+    return;
   printJS({
-    printable: stocks.value.map(row => ({
-      product_code: row.product_code ?? '-',
-      product_name: row.product_name ?? '-',
-      warehouse_name: row.warehouse_name ?? '-',
-      batch_no: row.batch_no,
-      color_no: row.color_no,
-      dye_lot_no: row.dye_lot_no ?? '-',
-      grade: row.grade,
-      quantity_on_hand: formatNumber(Number(row.quantity_on_hand)),
-      quantity_available: formatNumber(Number(row.quantity_available)),
-      stock_status: getStockStatusLabel(row.stock_status, t),
-      quality_status: row.quality_status,
-      bin_location: row.bin_location ?? '-',
-    })),
-    properties: [
-      { field: 'product_code', displayName: t('inventory.stockTab.colProductCode') },
-      { field: 'product_name', displayName: t('inventory.stockTab.colProductName') },
-      { field: 'warehouse_name', displayName: t('inventory.stockTab.colWarehouse') },
-      { field: 'batch_no', displayName: t('inventory.stockTab.colBatchNo') },
-      { field: 'color_no', displayName: t('inventory.stockTab.colColorCode') },
-      { field: 'dye_lot_no', displayName: t('inventory.stockTab.colDyeLot') },
-      { field: 'grade', displayName: t('inventory.stockTab.colGrade') },
-      { field: 'quantity_on_hand', displayName: t('inventory.stockTab.colQuantity') },
-      { field: 'quantity_available', displayName: t('inventory.stockTab.colAvailable') },
-      { field: 'stock_status', displayName: t('inventory.stockTab.colStatus') },
-      { field: 'quality_status', displayName: t('inventory.stockTab.colQualityStatus') },
-      { field: 'bin_location', displayName: t('inventory.stockTab.colLocation') },
-    ],
+    printable: rows,
+    properties: columns,
     type: 'json',
     header: t('inventory.printHeader'),
   });

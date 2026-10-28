@@ -42,30 +42,13 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditScore')" prop="creditScore">
-        <el-input-number
-          v-model="form.creditScore"
-          :min="0"
-          :max="100"
-          :value-on-clear="null"
-          style="width: 100%"
-        />
+        <el-input v-model="form.creditScore" style="width: 100%" inputmode="numeric" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditLimit')" prop="creditLimit">
-        <el-input-number
-          v-model="form.creditLimit"
-          :min="0"
-          :precision="2"
-          :value-on-clear="null"
-          style="width: 100%"
-        />
+        <el-input v-model="form.creditLimit" style="width: 100%" inputmode="decimal" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.creditDays')" prop="creditDays">
-        <el-input-number
-          v-model="form.creditDays"
-          :min="0"
-          :value-on-clear="null"
-          style="width: 100%"
-        />
+        <el-input v-model="form.creditDays" style="width: 100%" inputmode="numeric" />
       </el-form-item>
       <el-form-item :label="t('customerCredit.rating.label.remark')" prop="remark">
         <el-input v-model="form.remark" type="textarea" :rows="3" />
@@ -94,6 +77,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import { setCreditRating, type SetCreditRatingInput } from '@/api/customer-credit';
 import { PERMISSIONS } from '@/constants/permissions';
 import type { Customer } from '@/api/customer';
+import { numberInputRules } from '@/utils/number-input';
 import { logger } from '@/utils/logger';
 import { CREDIT_LEVEL_VALUES } from '@/constants/credit-level';
 
@@ -117,26 +101,29 @@ const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
 /**
- * 未填态一律是 null / undefined，绝不预置 0。
+ * 未填态一律是空串，绝不预置 0。
  *
- * 缘由：async-validator 的 required 对数字 0 判为有效值——若把未填初值设成 0，
- * "用户没填"照样过校验并随请求落库（services/customer_credit_limit.rs 的
- * set_credit_rating 对 Some(v) 一律显式写入，含 Some(0)），表现为信用分 0、
- * 额度 0（可用额度随之 0）、账期 0 天——用户从未输入过的 0 被当成输入。
+ * 缘由：数字录入项换成 el-input 后 v-model 是字符串，空串代表用户没填。
+ * 若把未填初值设成 0，required 认 0 为有效值照样过校验并随请求落库
+ * （services/customer_credit_limit.rs 的 set_credit_rating 对 Some(v) 一律显式写入，含 Some(0)），
+ * 表现为信用分 0、额度 0（可用额度随之 0）、账期 0 天——用户从未输入过的 0 被当成输入。
  *
  * 本表单的口径：
- * - 初值 null = 未填，required 拦得住（null/undefined 视为空），提交不出去；
+ * - 初值空串 = 未填，required 拦得住（空串视为空），提交不出去；
  * - 用户显式输入的 0 是合法业务值（额度清零、现结=0 天账期、信用分 0 分），照原样上送；
- * - value-on-clear 设为 null，让"清空输入框"回到未填态，而不是被 min=0 拍平成 0。
+ * - 范围与精度靠 rules 数字校验器钉住（分数 0 到 100 整数、额度不小于 0 两位小数、账期不小于 0 整数），
+ *   不再靠加减按钮；清空输入框回到空串未填态。
+ * - 提交腿把未填空串显式换算成 null 再上送（绝不用裸 Number——Number('') 会得到 0，
+ *   把"用户没填"伪装成"用户填了 0 分"），让后端按 Option::None 走它自己的兜底。
  * 三个键都不由前端替用户补默认值；后端对 None 的兜底（等级 B / 分数 60 / 账期 30）
  * 是后端的产品口径，前端不预先替它填上，也不假装它不存在。
  */
 const form = reactive({
   customer_id: undefined as number | undefined,
   creditLevel: '',
-  creditScore: null as number | null,
-  creditLimit: null as number | null,
-  creditDays: null as number | null,
+  creditScore: '',
+  creditLimit: '',
+  creditDays: '',
   remark: '',
 });
 
@@ -155,27 +142,28 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-  creditScore: [
-    {
-      required: true,
-      message: t('customerCredit.rating.validation.creditScoreRequired'),
-      trigger: 'blur',
-    },
-  ],
-  creditLimit: [
-    {
-      required: true,
-      message: t('customerCredit.rating.validation.creditLimitRequired'),
-      trigger: 'blur',
-    },
-  ],
-  creditDays: [
-    {
-      required: true,
-      message: t('customerCredit.rating.validation.creditDaysRequired'),
-      trigger: 'blur',
-    },
-  ],
+  creditScore: numberInputRules({
+    label: t('customerCredit.rating.label.creditScore'),
+    required: true,
+    min: 0,
+    max: 100,
+    integer: true,
+    messages: { empty: t('customerCredit.rating.validation.creditScoreRequired') },
+  }),
+  creditLimit: numberInputRules({
+    label: t('customerCredit.rating.label.creditLimit'),
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: t('customerCredit.rating.validation.creditLimitRequired') },
+  }),
+  creditDays: numberInputRules({
+    label: t('customerCredit.rating.label.creditDays'),
+    required: true,
+    min: 0,
+    integer: true,
+    messages: { empty: t('customerCredit.rating.validation.creditDaysRequired') },
+  }),
 };
 
 watch(
@@ -195,33 +183,32 @@ watch(visible, val => {
 const resetForm = () => {
   form.customer_id = undefined;
   form.creditLevel = '';
-  form.creditScore = null;
-  form.creditLimit = null;
-  form.creditDays = null;
+  form.creditScore = '';
+  form.creditLimit = '';
+  form.creditDays = '';
   form.remark = '';
   formRef.value?.clearValidate();
 };
 
 /**
- * 纯函数：把表单态换算成 PUT/POST 载荷，未填时返回 null 而不是补默认值。
- * 存在意义是"校验已过但状态仍不完整"这条不该发生的路径——它必须让提交显式失败，
- * 而不是悄悄把 0/'' 写进库（required 认 0 为有效值，补位即等于替用户输入）。
+ * 纯函数：把表单态换算成 PUT/POST 载荷。
+ * - customer_id 在 DTO 上是必填 number（非可空）、credit_level 属必填身份项，
+ *   二者缺一即视为表单不完整，整单不提交、也不替用户补任何默认值；
+ * - 三个数值项（分数/额度/账期）未填（空串）时显式换算成 null，让后端按 Option::None 走兜底，
+ *   绝不写裸 Number(source.creditX)——Number('') 会得到 0，把"没填"伪装成"填了 0"。
+ * 存在意义是"required 规则已过但状态仍不完整"这条不该发生的路径：它必须让提交
+ * 显式失败（身份项）或如实上送 null（数值项），而不是悄悄把 0/'' 当作用户输入写进库。
  * 入参：表单快照；传给谁：仅 handleSubmit 用于判定与上送；不存储、不打印。
  */
 function buildRatingPayload(source: typeof form): SetCreditRatingInput | null {
-  const unfilled =
-    typeof source.customer_id !== 'number' ||
-    source.creditLevel === '' ||
-    source.creditScore === null ||
-    source.creditLimit === null ||
-    source.creditDays === null;
-  if (unfilled) return null;
+  const incomplete = typeof source.customer_id !== 'number' || source.creditLevel === '';
+  if (incomplete) return null;
   return {
     customer_id: source.customer_id as number,
     credit_level: source.creditLevel,
-    credit_score: source.creditScore as number,
-    credit_limit: source.creditLimit as number,
-    credit_days: source.creditDays as number,
+    credit_score: source.creditScore === '' ? null : Number(source.creditScore),
+    credit_limit: source.creditLimit === '' ? null : Number(source.creditLimit),
+    credit_days: source.creditDays === '' ? null : Number(source.creditDays),
     remark: source.remark,
   };
 }

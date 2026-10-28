@@ -26,6 +26,11 @@ import {
   type SupplierProductColor,
 } from '@/api/supplier-product';
 import type { ProductColor } from '@/api/product';
+import {
+  hasCellText,
+  isMoneyText,
+  isUnsignedIntText,
+} from '@/views/sku-mapping/composables/numericCell';
 
 export interface SkuMappingFormState {
   id?: number;
@@ -39,7 +44,8 @@ export interface SkuMappingFormState {
   supplier_color_no: string;
   supplier_price: string;
   min_order_quantity: string;
-  lead_time: number | null;
+  /** 交期为文本承载的 el-input（本仓禁用带加减按钮的数字输入框），提交前按非负整数判 */
+  lead_time: string;
   is_primary: boolean;
   is_enabled: boolean;
 }
@@ -55,7 +61,7 @@ const defaultForm = (): SkuMappingFormState => ({
   supplier_color_no: '',
   supplier_price: '',
   min_order_quantity: '',
-  lead_time: null,
+  lead_time: '',
   is_primary: false,
   is_enabled: true,
 });
@@ -225,7 +231,9 @@ export function useSkuMappingDialog(onSuccess: () => void) {
     form.supplier_color_no = row.supplier_color_no ?? '';
     form.supplier_price = row.supplier_price ?? '';
     form.min_order_quantity = row.min_order_quantity ?? '';
-    form.lead_time = row.lead_time;
+    // 交期为文本承载：回显时把后端的 number|null 归一成字符串，提交前再判非负整数
+    form.lead_time =
+      row.lead_time === null || row.lead_time === undefined ? '' : String(row.lead_time);
     form.is_primary = row.is_primary;
     form.is_enabled = row.is_enabled;
     supplierProductOptions.value = [];
@@ -268,6 +276,21 @@ export function useSkuMappingDialog(onSuccess: () => void) {
       msg.warning('skuMappingFormRequired');
       return;
     }
+    // 三个数值列都是 el-input 承载的文本（本仓禁用带加减按钮的数字输入框）：
+    // 未填按「该列不写」提交 null，填了就必须落在列的取值域内，
+    // 否则 Number() 会把脏文本转成 NaN、序列化后静默变成 null，等于把用户输入吞掉。
+    if (hasCellText(form.supplier_price) && !isMoneyText(form.supplier_price)) {
+      msg.warning('skuMappingFormPriceInvalid');
+      return;
+    }
+    if (hasCellText(form.min_order_quantity) && !isMoneyText(form.min_order_quantity)) {
+      msg.warning('skuMappingFormMoqInvalid');
+      return;
+    }
+    if (hasCellText(form.lead_time) && !isUnsignedIntText(form.lead_time)) {
+      msg.warning('skuMappingFormLeadTimeInvalid');
+      return;
+    }
     saving.value = true;
     try {
       const payload: CreateSkuMappingPayload = {
@@ -276,9 +299,11 @@ export function useSkuMappingDialog(onSuccess: () => void) {
         supplier_id: form.supplier_id,
         supplier_product_id: form.supplier_product_id,
         supplier_product_color_id: form.supplier_product_color_id,
-        supplier_price: form.supplier_price || null,
-        min_order_quantity: form.min_order_quantity || null,
-        lead_time: form.lead_time,
+        supplier_price: hasCellText(form.supplier_price) ? form.supplier_price.trim() : null,
+        min_order_quantity: hasCellText(form.min_order_quantity)
+          ? form.min_order_quantity.trim()
+          : null,
+        lead_time: hasCellText(form.lead_time) ? Number(form.lead_time.trim()) : null,
         is_primary: form.is_primary,
         is_enabled: form.is_enabled,
       };
