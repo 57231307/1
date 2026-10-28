@@ -79,6 +79,12 @@
 //!   空值即「模板前签约，条款未固化」的判据，域内绝不 UPDATE 或 DELETE 业务数据。
 //!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的域会被台账整体跳过，
 //!   四张表与补列全部缺席。台账名取域名 m_contract_template_schema
+//! - print_template_default_slot: 打印模板默认位库侧唯一门域。给 print_templates 按单据
+//!   类型 doc_type 建"启用且默认至多一行"的部分唯一索引 uq_print_template_active_default，
+//!   谓词三条件与出件解析过滤逐字符同源；存量违例只读探测 fail-visible 中止，不 UPDATE
+//!   不 DELETE 洗数据；并更正 is_default 列注释，如实描述互斥域是 doc_type 而非 module。
+//!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的 print_subsystem 域
+//!   会被台账整体跳过，索引与注释更正永不落地。台账名取域名 m_print_template_default_slot
 
 pub mod system;
 pub mod business;
@@ -116,3 +122,4 @@ pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
+pub mod print_template_default_slot;

@@ -14,7 +14,7 @@
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
-//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema → print_template_default_slot
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -31,6 +31,8 @@
 //!         / m_purchase_greige_read_grant
 //!         / m_customer_credit_name_backfill / m_customer_credit_remark_column
 //!         / m_customer_credit_family_grant
+//!         / m_status_vocab_check / m_wage_energy_vocab_check
+//!         / m_contract_template_schema / m_print_template_default_slot
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -128,6 +130,16 @@
 //!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
 //!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
 //!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
+//! 25. print_template_default_slot: 打印模板默认位库侧唯一门——给 print_templates 按
+//!    单据类型 doc_type 建"启用且默认至多一行"的部分唯一索引
+//!    uq_print_template_active_default，索引谓词 WHERE is_default AND status='active'
+//!    与出件解析 load_active_default_template 的三条件过滤逐字符同源（键 doc_type
+//!    即解析查找键，写入侧建/改/设默认三处竞位清理同口径）；建索引前只读探测存量
+//!    违例，命中即 RAISE EXCEPTION 点名中止，不 UPDATE 不 DELETE 洗数据，人工口径
+//!    与解析同源保留每 doc_type id 最小一行；同支更正 is_default 列注释，如实描述
+//!    互斥域是 doc_type 而非 module。置于链尾为新的顶层条目（并入已应用的
+//!    print_subsystem 域会被台账跳过，索引与注释永不落地），依赖 print_subsystem 的
+//!    m0098 建表，早于本域执行，down 撤索引并还原建表注释原文
 
 pub use sea_orm_migration::prelude::*;
 
@@ -175,6 +187,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
+            Box::new(domain::print_template_default_slot::Migration),
         ]
     }
 }
