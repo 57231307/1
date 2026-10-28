@@ -89,30 +89,33 @@
           <el-input v-model="formData.invoice_no" readonly />
         </el-form-item>
         <el-form-item label="发票金额" prop="amount">
-          <el-input-number
+          <el-input
             v-model="formData.amount"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="税额" prop="tax_amount">
-          <el-input-number
+          <el-input
             v-model="formData.tax_amount"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
         <el-form-item label="价税合计" prop="total_amount">
-          <el-input-number
+          <el-input
             v-model="formData.total_amount"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
             placeholder="必填"
+            :min="0"
+            :precision="2"
           />
         </el-form-item>
       </el-form>
@@ -129,6 +132,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import {
   getFinanceInvoiceList,
@@ -185,21 +189,39 @@ const formRef = ref<FormInstance>();
 
 const formData = reactive<{
   invoice_no: string;
-  amount: number | undefined;
-  tax_amount: number | undefined;
-  total_amount: number | undefined;
+  amount: string;
+  tax_amount: string;
+  total_amount: string;
 }>({
   invoice_no: '',
-  amount: undefined,
-  tax_amount: undefined,
-  total_amount: undefined,
+  amount: '',
+  tax_amount: '',
+  total_amount: '',
 });
 
 const formRules: FormRules = {
   invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
-  amount: [{ required: true, message: '请输入发票金额', trigger: 'blur' }],
-  tax_amount: [{ required: true, message: '请输入税额', trigger: 'blur' }],
-  total_amount: [{ required: true, message: '请输入价税合计', trigger: 'blur' }],
+  amount: numberInputRules({
+    label: '发票金额',
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: '请输入发票金额' },
+  }),
+  tax_amount: numberInputRules({
+    label: '税额',
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: '请输入税额' },
+  }),
+  total_amount: numberInputRules({
+    label: '价税合计',
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: '请输入价税合计' },
+  }),
 };
 
 const formatDate = (value: string | null): string => {
@@ -273,9 +295,9 @@ const handleCreate = async () => {
 
 const resetForm = () => {
   formData.invoice_no = '';
-  formData.amount = undefined;
-  formData.tax_amount = undefined;
-  formData.total_amount = undefined;
+  formData.amount = '';
+  formData.tax_amount = '';
+  formData.total_amount = '';
   formRef.value?.resetFields();
 };
 
@@ -295,20 +317,16 @@ const submitCreate = async () => {
   if (!formRef.value) return;
   await formRef.value.validate(async valid => {
     if (!valid) return;
-    if (
-      formData.amount === undefined ||
-      formData.tax_amount === undefined ||
-      formData.total_amount === undefined
-    ) {
+    if (formData.amount === '' || formData.tax_amount === '' || formData.total_amount === '') {
       return;
     }
     submitLoading.value = true;
     try {
       await createFinanceInvoice({
         invoice_no: formData.invoice_no,
-        amount: formData.amount,
-        tax_amount: formData.tax_amount,
-        total_amount: formData.total_amount,
+        amount: Number(formData.amount),
+        tax_amount: Number(formData.tax_amount),
+        total_amount: Number(formData.total_amount),
       });
       ElMessage.success('发票创建成功');
       createVisible.value = false;

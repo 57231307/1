@@ -72,22 +72,12 @@
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('apiGateway.endpointForm.rateLimit')" prop="rate_limit">
-            <el-input-number
-              :model-value="localForm.rate_limit"
-              :min="0"
-              style="width: 100%"
-              @update:model-value="(v: number) => (localForm.rate_limit = v ?? 0)"
-            />
+            <NumericInput v-model="localForm.rate_limit" style="width: 100%" :min="0" />
           </el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item :label="t('apiGateway.endpointForm.timeout')" prop="timeout">
-            <el-input-number
-              :model-value="localForm.timeout"
-              :min="0"
-              style="width: 100%"
-              @update:model-value="(v: number) => (localForm.timeout = v ?? 0)"
-            />
+            <NumericInput v-model="localForm.timeout" style="width: 100%" :min="0" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -142,6 +132,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ApiEndpoint } from '@/api/api-gateway';

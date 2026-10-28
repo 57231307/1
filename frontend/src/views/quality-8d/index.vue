@@ -42,7 +42,7 @@
     <el-dialog v-model="dialogVisible" title="启动 8D 报告" width="480">
       <el-form :model="form" label-width="110px">
         <el-form-item label="质量问题ID" required>
-          <el-input-number v-model="form.quality_issue_id" :min="1" class="w-full" />
+          <NumericInput v-model="form.quality_issue_id" class="w-full" :min="1" />
         </el-form-item>
         <el-form-item label="D0 计划说明">
           <el-input
@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { logAuxLoadFailure, logger } from '@/utils/logger';
 import {

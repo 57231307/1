@@ -410,7 +410,7 @@
           />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.column.score')">
-          <el-input-number v-model="recordForm.score" :min="0" :max="100" />
+          <NumericInput v-model="recordForm.score" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.dialog.label.remark')" prop="remark">
           <el-input v-model="recordForm.remark" type="textarea" :rows="3" />
@@ -491,10 +491,10 @@
           <el-input v-model="indicatorForm.category" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.weight')">
-          <el-input-number v-model="indicatorForm.weight" :min="0" :max="100" />
+          <NumericInput v-model="indicatorForm.weight" :min="0" :max="100" />
         </el-form-item>
         <el-form-item :label="t('supplierEvaluation.index.indicators.label.maxScore')">
-          <el-input-number v-model="indicatorForm.max_score" :min="0" :max="100" />
+          <NumericInput v-model="indicatorForm.max_score" :min="0" :max="100" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -511,6 +511,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';
 import { ElMessage, ElMessageBox } from 'element-plus';

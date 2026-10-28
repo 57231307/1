@@ -25,7 +25,7 @@ export interface Bom {
  * 类型如实：quantity/scrap_rate 后端为 rust_decimal Decimal（bom_handler.rs:91,95），
  * Cargo.toml:60 仅启 serde、未启 serde-float ⇒ JSON 线上是**字符串**（"10.00"），
  * 非 number。声明 number 会让 .toFixed/算术在运行期崩或得 NaN，属类型谎言。
- * 表单 el-input-number 需 number，归一只发生在「回显灌入控件」边界（见
+ * 表单数值录入需 number，归一只发生在「回显灌入录入控件」边界（见
  * BillOfMaterialsForm.vue），不在数据层伪造类型。
  * 入参侧（POST/PUT items）同名字段 rust_decimal 反序列化同时接受 number/string，
  * 表单层以 number 提交，与出参 string 的不对称是序列化/反序列化口径差异，非谎报。

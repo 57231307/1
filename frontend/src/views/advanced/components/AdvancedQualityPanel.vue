@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // 合格率单元格统一转数字格式化（后端 Decimal 序列化为字符串，直接 toFixed 会崩溃）
+import NumericInput from '@/components/NumericInput.vue';
 const fmtRate = (v: unknown): string => `${Number(v ?? 0).toFixed(2)}%`;
 
 /**
@@ -92,12 +93,11 @@ watch(
           :aria-label="t('advancedModule.quality.ariaConditions')"
         >
           <el-form-item :label="t('advancedModule.quality.productId')">
-            <el-input-number
+            <NumericInput
               v-model="localForm.product_id"
-              :min="0"
-              :step="1"
               :placeholder="t('advancedModule.quality.productIdPlaceholder')"
               style="width: 100%"
+              :min="0"
             />
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.inspectionType')">
@@ -117,13 +117,7 @@ watch(
             </el-select>
           </el-form-item>
           <el-form-item :label="t('advancedModule.quality.timeWindow')">
-            <el-input-number
-              v-model="localForm.window_days"
-              :min="1"
-              :max="365"
-              :step="1"
-              style="width: 100%"
-            />
+            <NumericInput v-model="localForm.window_days" style="width: 100%" :min="1" :max="365" />
             <span class="form-hint">{{ t('advancedModule.quality.timeWindowHint') }}</span>
           </el-form-item>
           <el-form-item>
