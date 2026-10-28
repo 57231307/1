@@ -2077,6 +2077,36 @@ export async function fillFieldByLabel(
   await page.waitForTimeout(100);
 }
 
+/**
+ * 手写数值录入并读回归一后的真值（按精确 label 锚定表单项内的真 input）。
+ *
+ * 功能 数值录入项换成纯 el-input 加数字校验后 控件无步进角色也不再有加减按钮 输入即写草稿
+ * 失焦才由单源绑定器把文本归一成数值并回显 故必须 blur 之后再读回 且读回的是归一形态
+ * 断言按数值真值比对而非字符串全等 避开小数位补零这类显示格式化造成的伪红
+ * 调用方 验布建单与定级 报价明细 仓库库位 采购收货 库存与调整 审批发起等对话框的行内数值录入用例
+ * 入参 root 对话框或表单容器作用域 labelText 表单项 label 全文 value 键入文本 expected 期望数值
+ * 传给谁 失败直接抛断言错 消息带 label 与期望值和实际显示值 供判红定位是录入还是格式化漂移
+ * 存什么 不存储 仅录入与读回断言
+ */
+export async function fillNumberByLabelAndReadBack(
+  root: Locator,
+  labelText: string,
+  value: string,
+  expected = Number(value),
+  timeout = 30_000
+): Promise<void> {
+  const input = formItemByExactLabel(root, labelText).locator('input').first();
+  await input.waitFor({ state: 'visible', timeout });
+  await input.click({ clickCount: 3, timeout });
+  await input.fill(value);
+  await input.blur();
+  const shown = await input.inputValue({ timeout });
+  expect(
+    Number(shown),
+    `表单项 ${labelText} 失焦归一后的录入值应为 ${expected}，实际显示 ${JSON.stringify(shown)}`
+  ).toBe(expected);
+}
+
 // ---------------------------------------------------------------------------
 // 语义化等待（替代硬编码 waitForTimeout）
 // ---------------------------------------------------------------------------
