@@ -19,7 +19,9 @@
  * PRODUCT_TYPE 对象的键与值，运行时解析该文件得到成员集合（按中文字面量 grep 是假绿盲区）。
  *
  * 输出：stdout 逐站点行「HIT|MISS|BLIND|PASSTHRU 文件:行 类别 说明」与计数汇总；
- * 存在判红（缺键/字面串散落/未知常量成员/非成员表达式）或盲区即 exit 1；
+ * 存在判红（缺键/字面串散落/未知常量成员/非成员表达式/透传构造器注入缺省值）或盲区即 exit 1；
+ * 透传构造器判据为「对 product_type 完全无感」：builder 内出现键注入或赋值注入（含成员默认值）判红，
+ * 取值经展开原样透传不算注入，API 层不得代发类型缺省值。
  * 命中数为 0 也判红（扫描对象消失属判定器空操作，不是通过）。exit 0 需同时满足
  * 判红 0、散落 0、盲区 0 且命中数大于 0。
  */
@@ -306,11 +308,17 @@ function scanFile(filePath, strip, members, opts) {
     const after = strip.slice(m.index + m[0].length);
     const head = after.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
     if (head) {
-      // 构造器透传（如 toProductPayload(data)）：builder 体内不得出现硬编码 product_type 字面量
+      // 构造器透传（如 toProductPayload(data)）的判据是「类型无感」：builder 体内
+      // 不得出现任何 product_type 注入。字面面值注入判散落红；成员默认值注入
+      // （product_type: PRODUCT_TYPE.x、payload.product_type ??= ...、赋值式）判注入红。
+      // 口子必须封死：#1084 的修复语义是「新建必须显式提交类型、不允许缺省」，
+      // API 层一旦代发缺省值，所有不透类型的调用方都被静默补默认，后端必填门形同虚设。
+      // 取值经 ...rest 原样透传不算注入（键的产生仍在调用方）。
       const builderName = head[1];
       const bRe = new RegExp(`function\\s+${builderName}\\b[^{]*\\{`, 'g');
       let bm;
       let literalInBuilder = null;
+      let injectionInBuilder = null;
       while ((bm = bRe.exec(strip))) {
         const open = strip.indexOf('{', bm.index);
         const close = matchBrace(strip, open);
@@ -318,6 +326,10 @@ function scanFile(filePath, strip, members, opts) {
           const bodyText = strip.slice(open, close);
           const lit = bodyText.match(/product_type\s*:\s*(['"`])([^'"`]*)\1/);
           if (lit) literalInBuilder = lit[0];
+          const inj = bodyText.match(
+            /product_type\s*:|(?:\.product_type\s*(?:\?\?\??|\|\|)?=[^=])/
+          );
+          if (inj && !injectionInBuilder) injectionInBuilder = inj[0];
         }
       }
       if (literalInBuilder) {
@@ -327,11 +339,18 @@ function scanFile(filePath, strip, members, opts) {
           line: lineOf(strip, m.index),
           note: `透传构造器 ${builderName} 内硬编码了 product_type 取值：${literalInBuilder}`,
         });
+      } else if (injectionInBuilder) {
+        findings.push({
+          cat: 'injection',
+          file: filePath,
+          line: lineOf(strip, m.index),
+          note: `透传构造器 ${builderName} 注入了 product_type 键（形态「${injectionInBuilder}」），API 层不得代发类型缺省值，取值必须由调用方显式传入`,
+        });
       } else {
         passThru.push({
           file: filePath,
           line: lineOf(strip, m.index),
-          note: `透传构造器 ${builderName} 不注入 product_type 取值，由调用方经单源常量传入`,
+          note: `透传构造器 ${builderName} 对 product_type 完全无感（无注入形态命中），取值由调用方经单源常量传入`,
         });
       }
       continue;
@@ -427,7 +446,7 @@ function scanRoots(root, extraPaths) {
 // 报告与出口
 // ---------------------------------------------------------------------------
 
-const RED_CATS = new Set(['missing', 'literal', 'unknown-member', 'non-member', 'blind']);
+const RED_CATS = new Set(['missing', 'literal', 'unknown-member', 'non-member', 'blind', 'injection']);
 
 function report(result, root) {
   const rel = f => path.relative(root, f).split(path.sep).join('/');
@@ -438,6 +457,7 @@ function report(result, root) {
     散落字面串: 0,
     未知常量成员: 0,
     非成员表达式: 0,
+    注入缺省值: 0,
     盲区: 0,
     透传构造器: 0,
   };
@@ -448,6 +468,7 @@ function report(result, root) {
     else if (s.cat === 'literal') counts.散落字面串++;
     else if (s.cat === 'unknown-member') counts.未知常量成员++;
     else if (s.cat === 'non-member') counts.非成员表达式++;
+    else if (s.cat === 'injection') counts.注入缺省值++;
     else if (s.cat === 'blind') counts.盲区++;
   }
   counts.透传构造器 = result.passThru.length;
@@ -460,18 +481,20 @@ function report(result, root) {
   }
   console.log(
     `计数汇总 命中=${counts.命中} 合格=${counts.合格} 缺键=${counts.缺键} 散落字面串=${counts.散落字面串} ` +
-      `未知常量成员=${counts.未知常量成员} 非成员表达式=${counts.非成员表达式} 盲区=${counts.盲区} 透传构造器=${counts.透传构造器}`
+      `未知常量成员=${counts.未知常量成员} 非成员表达式=${counts.非成员表达式} 注入缺省值=${counts.注入缺省值} ` +
+      `盲区=${counts.盲区} 透传构造器=${counts.透传构造器}`
   );
   console.log(
     `单源词表文件: ${rel(result.constantsPath)} 已知键=${result.members.keys.join(',')}`
   );
-  const redTotal = counts.缺键 + counts.散落字面串 + counts.未知常量成员 + counts.非成员表达式 + counts.盲区;
+  const redTotal =
+    counts.缺键 + counts.散落字面串 + counts.未知常量成员 + counts.非成员表达式 + counts.注入缺省值 + counts.盲区;
   if (counts.命中 === 0) {
     console.error('判红：命中数为 0。扫描范围内没有任何直连建品请求体属判定器空操作，不允许当通过。');
     return 1;
   }
   if (redTotal > 0) {
-    console.error(`判红：存在 ${redTotal} 条不合格站点（缺键+散落+未知成员+非成员+盲区）。`);
+    console.error(`判红：存在 ${redTotal} 条不合格站点（缺键+散落+未知成员+非成员+注入缺省值+盲区）。`);
     return 1;
   }
   return 0;
@@ -658,6 +681,38 @@ function runSelfTest() {
       const r = scanRoots(root, []);
       const code = report(r, root);
       if (code !== 1) throw new Error('命中 0 却未判红');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // 24 builder 注入成员默认值判注入红（透传口子封死：API 层不得代发类型缺省）
+  t('24 builder 注入成员默认值判红', () => {
+    const root = makeSelfTestRoot();
+    try {
+      writeCase(
+        root,
+        'src/api/x.ts',
+        `function toProductPayload(data: any) { return { product_type: PRODUCT_TYPE.auxiliary, ...data }; }\nexport const createProduct = (data: any) => request.post('/products', toProductPayload(data));`
+      );
+      const r = scanRoots(root, []);
+      if (!r.findings.some(f => f.cat === 'injection')) throw new Error(`成员默认值注入未判红 findings=${JSON.stringify(r.findings.map(f => f.cat))}`);
+      if (r.passThru.length !== 0) throw new Error('注入站点仍被记成透传合格');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+  // 25 builder 赋值式注入判注入红
+  t('25 builder 赋值式注入判红', () => {
+    const root = makeSelfTestRoot();
+    try {
+      writeCase(
+        root,
+        'src/api/x.ts',
+        `function toProductPayload(data: any) { const p: any = { ...data }; p.product_type ??= PRODUCT_TYPE.greige; return p; }\nexport const createProduct = (data: any) => request.post('/products', toProductPayload(data));`
+      );
+      const r = scanRoots(root, []);
+      if (!r.findings.some(f => f.cat === 'injection')) throw new Error(`赋值式注入未判红 findings=${JSON.stringify(r.findings.map(f => f.cat))}`);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
