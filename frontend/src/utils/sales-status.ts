@@ -53,6 +53,19 @@ export const SALES_STATUS_TAG_TYPES: Record<SalesOrderStatus, SalesTagType> = {
 };
 
 /**
+ * 销售订单「可转销售合同」的活跃态集合，前端单源。
+ * 与后端 sales_contract_convert_service::ensure_convertible_status 的放行集逐态一致
+ * （approved/partial_shipped/shipped/completed；draft/pending 未审核、cancelled/rejected
+ * 失效均不放行）。列表行操作与详情页入口都只引用本常量，不得各自再抄一份字面量。
+ */
+export const SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES: readonly SalesOrderStatus[] = [
+  'approved',
+  'partial_shipped',
+  'shipped',
+  'completed',
+];
+
+/**
  * 把后端返回的状态归一到已知枚举。
  * 状态缺失（订单尚未加载）返回 undefined，由调用方渲染空标签；
  * 取值在词表外（拼错的大小写、已废弃的状态）不再被静默当作合法状态：

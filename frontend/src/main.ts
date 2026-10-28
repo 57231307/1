@@ -18,6 +18,9 @@ import './styles/theme.css';
 import './styles/mobile-list.css';
 // 内容层移动端补丁：弹窗、表单、确认框、描述列表等原语在窄屏下的排版，桌面不触发。
 import './styles/mobile-content.css';
+// 缺口带补丁：769 到 991 视口内已按 isMobile 走移动布局，但上面三层只覆盖到 768px，
+// 本层补该段的弹窗与容器宽度上限，使 CSS 兜底边界与 useBreakpoint 的 992 判定同口径。
+import './styles/mobile-gap-zone.css';
 // V15 P1-20-10 前端错误监控 SDK（自研轻量方案，监听 error + unhandledrejection + 5min 去重）
 import { initMonitor, isDialogDismissal } from './utils/monitor';
 

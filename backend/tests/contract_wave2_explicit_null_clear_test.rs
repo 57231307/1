@@ -612,6 +612,8 @@ async fn live_sales_update_null_clears_nullable_and_absent_keeps() {
                 contract_no: Some(format!("SC-XNULL-{suffix}")),
                 contract_name: "三态清空销售合同".to_string(),
                 customer_id: cust.id,
+                // 手工建档链路，无来源销售订单，溯源列置 None
+                source_order_id: None,
                 total_amount: Decimal::from(800),
                 contract_type: None,
                 payment_terms: Some("货到付款".to_string()),

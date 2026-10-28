@@ -16,6 +16,7 @@
 //!   → customers_nullable_columns_norm
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
 //!   → m0104_add_document_no_partial_unique_four_tables
+//!   → sales_contract_source_order
 //!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
@@ -195,6 +196,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
             Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
+            Box::new(domain::sales_contract_source_order::Migration),
             // 产品主档规格扩展列，链尾独立域（products 与 product_colors 由 business 域先建）
             Box::new(domain::product_spec_extension_columns::Migration),
             // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）
