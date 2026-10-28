@@ -42,13 +42,14 @@
 // 诚实标注：AR 收款**不含核销端点联动**（received 累加发生在 create_payment 的 invoice_ids 分摊，
 //   非 confirm 时），测试按该真实时序断言；发货走 API 动作端点（UI DeliveryDialog 已由
 //   sales/04、sales/13 覆盖），本文件不重复脆弱 UI，专注权威状态回读。
-// 清理腿事实（看板 #138 S1 逐处取证，词表只取写入方原文、不做大小写转换）：
-//   报价族**未注册** DELETE /quotations/{id}（backend/src/routes/quotations.rs:20-49 只挂
+// 清理腿事实（本波清理位点改造 S1 片逐处取证，词表只取写入方原文、不做大小写转换）：
+//   报价族**未注册** DELETE /quotations/{id}（backend/src/routes/quotations.rs::routes 只挂
 //   GET/PUT 加动作 POST），登记它等于每次 afterEach 打空一发 404/405 并被 tryCleanup 吞成告警。
 //   该族在册的终止腿只有 POST /quotations/{id}/cancel：写 quotation_status::CANCELLED，
 //   字面量 "cancelled"（models/status/sales.rs:114-126 quotation 模组，四值全小写；
-//   写入点 services/quotation_ops/lifecycle.rs:38），且对 "converted" 明确拒绝
-//   （lifecycle.rs:27-32 business_displayable，归 BUSINESS 族）、对已 cancelled 幂等直返。
+//   写入点 services/quotation_ops/lifecycle.rs::QuotationService::cancel），且对 "converted"
+//   明确拒绝（同一 cancel 方法开头的状态门 business_displayable，归 BUSINESS 族）、
+//   对已 cancelled 幂等直返。
 //   据此本文件两处各按其真实终态处置：
 //     · seedApprovedQuotation（21-01 主链唯一调用方）：报价必然被主链 convert 推进到 converted
 //       终态（该终态本身就是被断言的业务结论），无腿可用也无需清理 ⇒ 撤除登记，
@@ -118,16 +119,17 @@ function requireNum(v: unknown, label: string): number {
  * 报价行 unit 必须逐字符等于产品交易单位（后端 validate_item_units_against_products），
  * 故一律引用 ctx.quotationProductId/quotationProductUnit。
  *
- * 清理口径（看板 #138 S1）：本夹具**不登记**清理位点。判据逐条如下，不靠"应该不用清"：
- *   1) 报价族无 DELETE /quotations/{id}（routes/quotations.rs:20-49），登记即打空；
+ * 清理口径（本波清理位点改造 S1 片）：本夹具**不登记**清理位点。判据逐条如下，不靠"应该不用清"：
+ *   1) 报价族无 DELETE /quotations/{id}（backend/src/routes/quotations.rs::routes），登记即打空；
  *   2) 唯一在册终止腿 cancel 对本夹具的产物不可用——调用方（当前仅 21-01 主链）必然把
  *      该报价 POST /quotations/{id}/convert 推进到 converted，而 cancel 对 converted
- *      明确拒绝（quotation_ops/lifecycle.rs:27-32）；
+ *      明确拒绝（services/quotation_ops/lifecycle.rs::QuotationService::cancel 开头的状态门）；
  *   3) converted 是转单后的权威终态，且该终态正是 21-01 的被断言结论（GET 回读逐字相等
  *      + "converted 再 cancel 必被拒且零漂移"负例复证），不进入任何可操作态列表的筛选桶；
  *   4) 本夹具自带唯一 notes 标记 E2E-F21-<genCode>，中途失败残留在库时按该标记可精确点名，
- *      全库对 /quotations 列表口的读取只有"取首行/为空才建"形态（flow/helpers.ts:704-710、
- *      global-setup.ts:1787-1791），无一处按 total 做精确计数断言 ⇒ 残留不会改红别的用例。
+ *      全库对 /quotations 列表口的读取只有"取首行/为空才建"形态（flow/helpers.ts::ensureTestEntities
+ *      的报价段、global-setup.ts::ensureGlobalBusinessSeed 的报价段），
+ *      无一处按 total 做精确计数断言 ⇒ 残留不会改红别的用例。
  *   ⇒ 新增调用方若不把该报价推进到终态，请显式改走 cancel 腿并回读 "cancelled"，勿回加 DELETE 登记。
  */
 async function seedApprovedQuotation(page: Page): Promise<{ id: number; quotation_no: string }> {
@@ -227,8 +229,9 @@ test.describe('21 销售到收款全流程契约链', () => {
 
     // 终态复证（本例报价不登记清理位点的判据在此钉死，非"应该不用清"的口头声明）：
     // converted 是转单后的权威终态，本族唯一在册终止腿 cancel 对它必须明确拒绝
-    // （services/quotation_ops/lifecycle.rs:27-32 business_displayable → 400 + BUSINESS_ERROR，
-    // utils/error.rs:384/:825）。两种红法各有各的因：腿被撤/改挂别处 → 这里 404/405 或 apiCall
+    // （services/quotation_ops/lifecycle.rs::QuotationService::cancel 对 converted 走
+    // business_displayable → 400 + BUSINESS_ERROR，映射见 crate::utils::error::AppError 的
+    // BusinessErrorDisplayable 分支）。两种红法各有各的因：腿被撤/改挂别处 → 这里 404/405 或 apiCall
     // 抛非 200 码；门被放开 → 状态从 converted 漂到 cancelled，下一条回读与既有 converted 断言双红，
     // 而"已转单的报价可被取消"本身就是报价-订单关联漂移级的真缺陷。
     const fConvCancel = await apiCallExpectFail(page, 'POST', `/quotations/${q.id}/cancel`);
@@ -552,13 +555,14 @@ test.describe('21 销售到收款全流程契约链', () => {
     const qStill = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/quotations/${qId}`);
     expectKeyValue(qStill, 'status', 'draft', '转单被拒后报价状态应无痕');
 
-    // A) 收尾：用本族唯一在册终止腿把这张草稿报价真实收到终态（看板 #138 S1 改造点）。
+    // A) 收尾：用本族唯一在册终止腿把这张草稿报价真实收到终态（本波清理位点改造 S1 片的改造点）。
     // 为什么放在负例断言之后：cancel 前必须先证"转单被拒无痕（仍 draft）"，先取消就没这个前提了。
-    // 词表逐字取写入方 services/quotation_ops/lifecycle.rs:38 → quotation_status::CANCELLED
-    // = "cancelled"（models/status/sales.rs:114-126 全小写），不做任何大小写转换。
+    // 词表逐字取写入方 services/quotation_ops/lifecycle.rs::QuotationService::cancel 的 status
+    // 写入行 → quotation_status::CANCELLED = "cancelled"（models/status/sales.rs:114-126 全小写），
+    // 不做任何大小写转换。
     // 检测力：cancel 腿被撤/改挂 → apiCall 见非 200 码即抛、用例当场红；腿在但状态写错
     // （写成大写 CANCELLED、或漏写仍 draft）→ 下面逐字回读红；重复 cancel 应幂等直返
-    // （lifecycle.rs:33-35），故第二次 cancel 后状态仍 cancelled，腿的幂等语义一并钉住。
+    // （同一 cancel 方法对已 cancelled 的提前返回分支），腿的幂等语义一并钉住。
     await apiCall(page, 'POST', `/quotations/${qId}/cancel`);
     const qCancelled = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/quotations/${qId}`);
     expectKeyValue(qCancelled, 'status', 'cancelled', 'cancel 后报价终止态逐字回读');

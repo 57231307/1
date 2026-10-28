@@ -37,8 +37,8 @@
 //   收货，并断言由此产生的库存行四维默认口径（color/lot 空串、grade 一等品，
 //   purchase_receipt_private.rs receipt_item_stock_key）。辅量已接入真实采集：
 //   20-01 逐批录入非零辅量并回读 received_quantity_alt 累加，20-02 录显式 0（合法实收值）。
-// 清理腿事实（看板 #138 S1 逐处取证）：**ap/payments 族后端无终止腿**——
-//   backend/src/routes/finance.rs:687-705 只注册 GET/POST 集合口、GET/PUT 单体口与
+// 清理腿事实（本波清理位点改造 S1 片逐处取证）：**ap/payments 族后端无终止腿**——
+//   backend/src/routes/finance.rs::ap_payment_routes 只注册 GET/POST 集合口、GET/PUT 单体口与
 //   /confirm、/print、/schedule 三个动作口，既无 DELETE /ap/payments/{id}，也无 cancel/reject。
 //   该族唯一的状态推进腿 confirm 不可当清理用：它不是纯状态写，而是
 //   services/ap_payment_service.rs:208-226 的复合副作用面——同事务回写应付发票
@@ -48,7 +48,7 @@
 //   一并造出来，污染同一供应商/发票上的别的断言，属"用副作用换 housekeeping"的假清理。
 //   ⇒ 本文件对付款单取处置 A：不登记清理位点，按用例自带的唯一标记（notes 与
 //   transaction_no 均由后端生成的唯一 order_no 派生，形如 E2E-F20-PAY-<order_no>）
-//   残留可精确点名；列表隔离口径见 handlers/ap_payment_handler.rs:25-33
+//   残留可精确点名；列表隔离口径见 handlers/ap_payment_handler.rs::ApPaymentQueryParams
 //   （可筛 supplier_id/payment_status/payment_method/日期区间，无 notes 口），
 //   本文件全部回读走 GET /ap/payments/{id} 精确锚定，不依赖列表计数。
 //   **给该族补 DELETE 或 cancel 端点属对外可见 API 新增，留用户终审，本支不动 backend/。**
@@ -512,7 +512,7 @@ test.describe('20 采购到付款全流程契约链', () => {
       notes: `E2E-F20-PAY-${orderNo}`,
     });
     const payId = requireNum(pay.id, '建付款单');
-    // 不登记清理位点：ap/payments 族无 DELETE 也无 cancel（routes/finance.rs:687-705），
+    // 不登记清理位点：ap/payments 族无 DELETE 也无 cancel（backend/src/routes/finance.rs::ap_payment_routes），
     // 原 DELETE 登记每次 afterEach 恒打空并被 tryCleanup 吞成告警；confirm 是带发票回写、
     // 凭证与预算核销的复合副作用腿，不可当清理用（判据全文见文件头「清理腿事实」）。
     // 残留按本例唯一标记点名，人工/后续批量清理可用它精确定位。
