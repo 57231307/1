@@ -70,7 +70,12 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')">
-        <el-input-number v-model="localForm.adjustment_quantity" :min="1" style="width: 100%" />
+        <NumericInput
+          v-model="localForm.adjustment_quantity"
+          :min="1"
+          integer
+          style="width: 100%"
+        />
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.reason')">
         <el-input
@@ -96,6 +101,7 @@ import { deepClone } from '@/utils';
 import { reactive, watch } from 'vue';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
+import NumericInput from '@/components/NumericInput.vue';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });

@@ -114,7 +114,12 @@
           class="stock-edit-hint"
         />
         <el-form-item :label="t('inventory.stockTab.colProductCode')">
-          <el-input-number v-model="stockForm.product_id" :min="1" :disabled="!!stockEditingId" />
+          <NumericInput
+            v-model="stockForm.product_id"
+            :min="1"
+            integer
+            :disabled="!!stockEditingId"
+          />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colWarehouse')">
           <el-select v-model="stockForm.warehouse_id" filterable :disabled="!!stockEditingId">
@@ -148,7 +153,7 @@
           <el-input v-model="stockForm.location" :disabled="!stockEditingId" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colQuantity')">
-          <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
+          <NumericInput v-model="stockForm.quantity" :min="0" :precision="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -189,6 +194,7 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { STOCK_GRADE, STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';
+import NumericInput from '@/components/NumericInput.vue';
 
 const hasLoaded = createLazyLoader();
 const router = useRouter();

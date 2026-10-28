@@ -236,7 +236,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('warehouse.index.labelCapacityM3')" prop="capacity">
-              <el-input-number v-model="formData.capacity" :min="0" style="width: 100%" />
+              <NumericInput v-model="formData.capacity" :min="0" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -379,10 +379,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="最大承重 kg">
-          <el-input-number v-model="locForm.max_weight" :min="0" :precision="1" class="w-full" />
+          <NumericInput v-model="locForm.max_weight" :min="0" :precision="1" class="w-full" />
         </el-form-item>
         <el-form-item label="最大高度 m">
-          <el-input-number v-model="locForm.max_height" :min="0" :precision="1" class="w-full" />
+          <NumericInput v-model="locForm.max_height" :min="0" :precision="1" class="w-full" />
         </el-form-item>
         <el-form-item label="批次管理">
           <el-switch v-model="locForm.is_batch_managed" />
@@ -432,6 +432,7 @@ import { useTableApi } from '@/composables/useTableApi';
 // Batch 462 P0-S24：引入权限码常量，与后端 warehouses 资源对齐
 import { PERMISSIONS } from '@/constants/permissions';
 import { logger } from '@/utils/logger';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
