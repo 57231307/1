@@ -25,8 +25,8 @@ use bingxi_backend::services::customer_service::{CreateCustomerArgs, CustomerSer
 use chrono::Utc;
 use rust_decimal::Decimal;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, Statement, TransactionTrait,
+    ConnectionTrait, Database, DatabaseConnection, DbBackend, EntityTrait, Statement,
+    TransactionTrait,
 };
 use std::sync::Arc;
 use test_common::setup_test_db;
