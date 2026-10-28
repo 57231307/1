@@ -114,7 +114,12 @@
           class="stock-edit-hint"
         />
         <el-form-item :label="t('inventory.stockTab.colProductCode')">
-          <el-input-number v-model="stockForm.product_id" :min="1" :disabled="!!stockEditingId" />
+          <NumericInput
+            v-model="stockForm.product_id"
+            :min="1"
+            :integer="true"
+            :disabled="!!stockEditingId"
+          />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colWarehouse')">
           <el-select v-model="stockForm.warehouse_id" filterable :disabled="!!stockEditingId">
@@ -148,7 +153,8 @@
           <el-input v-model="stockForm.location" :disabled="!stockEditingId" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colQuantity')">
-          <el-input-number v-model="stockForm.quantity" :min="0" :precision="2" />
+          <!-- 新建按 POST 契约进 quantity_meters 编辑按 PUT 口径写 quantity_on_hand 两列互不换算 -->
+          <NumericInput v-model="stockForm.quantity" :min="0" :precision="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -186,6 +192,8 @@ import FabricStockTab from './tabs/FabricStockTab.vue';
 import StatCards from './components/StatCards.vue';
 import AdjustmentDialog, { type AdjustmentForm } from './components/AdjustmentDialog.vue';
 import { PERMISSIONS } from '@/constants/permissions';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 import { STOCK_GRADE, STOCK_GRADE_VALUES, STOCK_GRADE_LABEL_KEY } from '@/constants/stock-grade';
 import { formatNumber, getStockStatusLabel } from './composables/invFmts';
 import { logger } from '@/utils/logger';

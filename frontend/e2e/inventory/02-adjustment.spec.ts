@@ -88,7 +88,8 @@ test.describe('库存管理 - 02 库存调整', () => {
     // 调整类型是 radio（AdjustmentDialog.vue），标签为「增加」/「减少」（i18n typeIncrease/typeDecrease）
     await expect(dialog.getByText('增加', { exact: true })).toBeVisible();
     await pickAdjustType(dialog, '增加');
-    // el-input-number fill 后按 Tab 失焦提交 v-model，否则 modelValue 不更新 → 提交被本地校验拦下
+    // 调整数量是纯手写 el-input 加数字校验 填完需失焦才由绑定器归一写回模型
+    // 否则模型仍是旧值 提交会被本地必填守门拦下
     await fillFieldByLabel(dialog, page, '调整数量', '50');
     await page.keyboard.press('Tab');
     // 调整原因为 el-input type=textarea（真 <textarea>，非 <input>），fillFieldByLabel 只命中

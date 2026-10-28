@@ -70,7 +70,13 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.adjustQty')">
-        <el-input-number v-model="localForm.adjustment_quantity" :min="1" style="width: 100%" />
+        <!-- 调整数量手写录入 下界 1 与两位小数按 inventory_adjustment_items.quantity 列标度归一 -->
+        <NumericInput
+          v-model="localForm.adjustment_quantity"
+          :min="1"
+          :precision="2"
+          style="width: 100%"
+        />
       </el-form-item>
       <el-form-item :label="t('inventory.adjustmentDialog.reason')">
         <el-input
@@ -96,6 +102,8 @@ import { deepClone } from '@/utils';
 import { reactive, watch } from 'vue';
 import type { Warehouse } from '@/api/warehouse';
 import type { Product } from '@/api/product';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 // 接入 i18n，替换硬编码中文文案
 const { t } = useI18n({ useScope: 'global' });

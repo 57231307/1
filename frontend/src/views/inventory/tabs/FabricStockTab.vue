@@ -49,7 +49,7 @@
     <el-dialog v-model="dialogVisible" :title="t('inventory.fabricStock.create')" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         <el-form-item :label="t('inventory.reservation.product')" prop="product_id">
-          <el-input-number v-model="form.product_id" :min="1" />
+          <NumericInput v-model="form.product_id" :min="1" :integer="true" />
         </el-form-item>
         <el-form-item :label="t('inventory.stockTab.colWarehouse')" prop="warehouse_id">
           <el-select v-model="form.warehouse_id" filterable>
@@ -74,11 +74,13 @@
             <el-option label="合格品" value="合格品" />
           </el-select>
         </el-form-item>
+        <!-- 米数与公斤数是两次独立实测录入 各自直送 createStockFabric 的 quantity_meters 与 quantity_kg
+             前端不做米公斤互算 换算单源在 backend utils/dual_unit_converter -->
         <el-form-item :label="t('inventory.fabricStock.meters')" prop="quantity_meters">
-          <el-input-number v-model="form.quantity_meters" :min="0" :precision="2" />
+          <NumericInput v-model="form.quantity_meters" :min="0" :precision="2" />
         </el-form-item>
         <el-form-item :label="t('inventory.fabricStock.kg')" prop="quantity_kg">
-          <el-input-number v-model="form.quantity_kg" :min="0" :precision="2" />
+          <NumericInput v-model="form.quantity_kg" :min="0" :precision="2" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -99,6 +101,8 @@ import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { getStockFabricList, createStockFabric } from '@/api/inventory';
 import { getWarehouseList, type Warehouse } from '@/api/warehouse';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

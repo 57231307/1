@@ -152,12 +152,12 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
       timeout: 30_000,
     });
 
-    // 数量：明细行第一个 el-input-number 的内层 <input>，placeholder 直传原生 input
-    // （EP input-number → el-input → input[placeholder]，本地 node_modules 源码核实）。
-    // 注意：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
-    // （role 由 EP onMounted setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
-    // 正解为按 DOM 属性直查并以 :visible 过滤到可见项——找不到即自然超时抛真实红，
-    // 绝不改成「填不进就跳过」。
+    // 数量取明细行第一个手写数值录入框的内层 input，placeholder 直传到原生 input
+    // （录入件底层即 el-input，属性透传链已在本地 node_modules 源码核实）。
+    // 注意 控件没有步进角色 按可及名查 spinbutton 必然 0 命中 不可用作锚点
+    // （role 由组件挂载时 setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
+    // 正解为按 DOM 属性直查并用 visible 过滤到可见项，找不到即自然超时抛真实红，
+    // 绝不改成填不进就跳过的软处理。
     const qtyInput = dialog.locator('input[placeholder="数量"]:visible').first();
     await expect(qtyInput, '明细数量输入应可见且可填').toBeVisible({ timeout: 10000 });
     await qtyInput.click({ clickCount: 3 });
