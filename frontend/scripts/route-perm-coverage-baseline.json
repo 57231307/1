@@ -1,0 +1,639 @@
+{
+  "total": 119,
+  "entries": [
+    {
+      "id": "account-subject",
+      "route": "/account-subject",
+      "perm": "finance:read"
+    },
+    {
+      "id": "accounting-period",
+      "route": "/accounting-period",
+      "perm": "finance:read"
+    },
+    {
+      "id": "admin-failover",
+      "route": "/admin/failover",
+      "perm": "users:read"
+    },
+    {
+      "id": "advanced",
+      "route": "/advanced",
+      "perm": "users:read"
+    },
+    {
+      "id": "ai-extend",
+      "route": "/ai-extend",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "ai-extend-process-detail-:id",
+      "route": "/ai-extend/process-detail/:id",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "ai-extend-process-opt",
+      "route": "/ai-extend/process-optimization",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "ai-extend-quality-pred",
+      "route": "/ai-extend/quality-prediction",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "api-gateway",
+      "route": "/api-gateway",
+      "perm": "users:read"
+    },
+    {
+      "id": "ar-reconciliation",
+      "route": "/ar-reconciliation",
+      "perm": "finance:read"
+    },
+    {
+      "id": "ar-reconciliation-enhanced",
+      "route": "/ar-reconciliation/enhanced",
+      "perm": "finance:read"
+    },
+    {
+      "id": "assist-accounting",
+      "route": "/assist-accounting",
+      "perm": "finance:read"
+    },
+    {
+      "id": "bad-debts",
+      "route": "/bad-debts",
+      "perm": "finance:read"
+    },
+    {
+      "id": "barcode-scanner",
+      "route": "/barcode-scanner",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "bi-sales-analysis",
+      "route": "/bi/sales-analysis",
+      "perm": "sales:read"
+    },
+    {
+      "id": "bom",
+      "route": "/bom",
+      "perm": [
+        "boms:read"
+      ]
+    },
+    {
+      "id": "budget",
+      "route": "/budget",
+      "perm": "finance:read"
+    },
+    {
+      "id": "budgets",
+      "route": "/budgets",
+      "perm": "finance:read"
+    },
+    {
+      "id": "bulk-color-approval",
+      "route": "/bulk-color-approval",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "business-trace",
+      "route": "/business-trace",
+      "perm": "audit-logs:read"
+    },
+    {
+      "id": "capacity",
+      "route": "/capacity",
+      "perm": [
+        "capacity:read"
+      ]
+    },
+    {
+      "id": "chemicals",
+      "route": "/chemicals",
+      "perm": [
+        "chemicals:read"
+      ]
+    },
+    {
+      "id": "color-cards-create",
+      "route": "/color-cards/create",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-cards-detail-:id",
+      "route": "/color-cards/detail/:id",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-cards-issues",
+      "route": "/color-cards/issues",
+      "perm": "color_card_issue:read"
+    },
+    {
+      "id": "color-cards-list",
+      "route": "/color-cards/list",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-prices-batch",
+      "route": "/color-prices/batch-adjust",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-prices-create",
+      "route": "/color-prices/create",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-prices-detail-:id",
+      "route": "/color-prices/detail/:id",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "color-prices-list",
+      "route": "/color-prices/list",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "components-demo",
+      "route": "/components-demo",
+      "perm": "users:read"
+    },
+    {
+      "id": "cost",
+      "route": "/cost",
+      "perm": "finance:read"
+    },
+    {
+      "id": "crm",
+      "route": "/crm",
+      "perm": "customers:read"
+    },
+    {
+      "id": "crm-assignment",
+      "route": "/crm/assignment",
+      "perm": "customers:read"
+    },
+    {
+      "id": "crm-detail-:id",
+      "route": "/crm/detail/:id",
+      "perm": "customers:read"
+    },
+    {
+      "id": "crm-leads",
+      "route": "/crm/leads",
+      "perm": "customers:read"
+    },
+    {
+      "id": "crm-opportunities",
+      "route": "/crm/opportunities",
+      "perm": "customers:read"
+    },
+    {
+      "id": "crm-pool",
+      "route": "/crm/pool",
+      "perm": "customers:read"
+    },
+    {
+      "id": "currency",
+      "route": "/currency",
+      "perm": "finance:read"
+    },
+    {
+      "id": "custom-orders",
+      "route": "/custom-orders",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "custom-orders-:id",
+      "route": "/custom-orders/:id",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "custom-orders-:id-edit",
+      "route": "/custom-orders/:id/edit",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "custom-orders-:id-track",
+      "route": "/custom-orders/:id/track",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "custom-orders-new",
+      "route": "/custom-orders/new",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "customer-collab",
+      "route": "/customer-collab",
+      "perm": "customers:read"
+    },
+    {
+      "id": "data-import",
+      "route": "/data-import",
+      "perm": "users:read"
+    },
+    {
+      "id": "data-permission",
+      "route": "/data-permission",
+      "perm": "users:read"
+    },
+    {
+      "id": "departments",
+      "route": "/departments",
+      "perm": "users:read"
+    },
+    {
+      "id": "dye-batch",
+      "route": "/dye-batch",
+      "perm": [
+        "dye-batches:read"
+      ]
+    },
+    {
+      "id": "dye-recipe",
+      "route": "/dye-recipe",
+      "perm": [
+        "dye-recipes:read"
+      ]
+    },
+    {
+      "id": "email",
+      "route": "/email",
+      "perm": "users:read"
+    },
+    {
+      "id": "environmental-compliance",
+      "route": "/environmental-compliance",
+      "perm": "users:read"
+    },
+    {
+      "id": "export-compliance",
+      "route": "/export-compliance",
+      "perm": "sales:read"
+    },
+    {
+      "id": "fabric",
+      "route": "/fabric",
+      "perm": [
+        "greige-fabrics:read"
+      ]
+    },
+    {
+      "id": "fabric-greige",
+      "route": "/fabric/greige",
+      "perm": [
+        "greige-fabrics:read"
+      ]
+    },
+    {
+      "id": "fabric-inspections",
+      "route": "/fabric-inspections",
+      "perm": [
+        "fabric-inspections:read"
+      ]
+    },
+    {
+      "id": "finance-report",
+      "route": "/finance-report",
+      "perm": "finance:read"
+    },
+    {
+      "id": "financial-analysis",
+      "route": "/financial-analysis",
+      "perm": "finance:read"
+    },
+    {
+      "id": "five-dimension",
+      "route": "/five-dimension",
+      "perm": "users:read"
+    },
+    {
+      "id": "fixed-assets",
+      "route": "/fixed-assets",
+      "perm": "finance:read"
+    },
+    {
+      "id": "flow-cards",
+      "route": "/flow-cards",
+      "perm": [
+        "flow-cards:read"
+      ]
+    },
+    {
+      "id": "fund",
+      "route": "/fund",
+      "perm": "finance:read"
+    },
+    {
+      "id": "greige-fabrics",
+      "route": "/greige-fabrics",
+      "perm": [
+        "greige-fabrics:read"
+      ]
+    },
+    {
+      "id": "index",
+      "route": "/",
+      "perm": "dashboard:read"
+    },
+    {
+      "id": "inventory-adjustment",
+      "route": "/inventory-adjustment",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "inventory-batch",
+      "route": "/inventory-batch",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "inventory-count",
+      "route": "/inventory-count",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "inventory-transfer",
+      "route": "/inventory-transfer",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "invoice-details",
+      "route": "/invoice-details",
+      "perm": "finance:read"
+    },
+    {
+      "id": "lab-dip",
+      "route": "/lab-dip",
+      "perm": [
+        "lab-dip:read"
+      ]
+    },
+    {
+      "id": "labor-contracts",
+      "route": "/labor-contracts",
+      "perm": "users:read"
+    },
+    {
+      "id": "logistics",
+      "route": "/logistics",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "material-shortage",
+      "route": "/material-shortage",
+      "perm": [
+        "material-shortage:read"
+      ]
+    },
+    {
+      "id": "mrp",
+      "route": "/mrp",
+      "perm": [
+        "mrp:read"
+      ]
+    },
+    {
+      "id": "mrp-history",
+      "route": "/mrp/history",
+      "perm": [
+        "mrp:read"
+      ]
+    },
+    {
+      "id": "notification",
+      "route": "/notification",
+      "perm": "users:read"
+    },
+    {
+      "id": "occupational-health",
+      "route": "/occupational-health",
+      "perm": "users:read"
+    },
+    {
+      "id": "omni-audit",
+      "route": "/omni-audit",
+      "perm": "audit-logs:read"
+    },
+    {
+      "id": "outsourcing",
+      "route": "/outsourcing",
+      "perm": [
+        "outsourcing-orders:read",
+        "outsourcing-receipts:read"
+      ]
+    },
+    {
+      "id": "period-adjustments",
+      "route": "/period-adjustments",
+      "perm": "finance:read"
+    },
+    {
+      "id": "periods",
+      "route": "/periods",
+      "perm": "finance:read"
+    },
+    {
+      "id": "print-targets",
+      "route": "/print-targets",
+      "perm": "users:read"
+    },
+    {
+      "id": "print-templates",
+      "route": "/print-templates",
+      "perm": "users:read"
+    },
+    {
+      "id": "production-recipes",
+      "route": "/production-recipes",
+      "perm": [
+        "production-recipes:read"
+      ]
+    },
+    {
+      "id": "purchase-contract",
+      "route": "/purchase-contract",
+      "perm": "purchases:read"
+    },
+    {
+      "id": "purchase-inspection",
+      "route": "/purchase-inspection",
+      "perm": "purchases:read"
+    },
+    {
+      "id": "purchase-price",
+      "route": "/purchase-price",
+      "perm": "purchases:read"
+    },
+    {
+      "id": "purchase-receipt",
+      "route": "/purchase-receipt",
+      "perm": "purchases:read"
+    },
+    {
+      "id": "purchase-return",
+      "route": "/purchase-return",
+      "perm": "purchases:read"
+    },
+    {
+      "id": "purchase-sku-mapping",
+      "route": "/purchase/sku-mapping",
+      "perm": "sku-mappings:read"
+    },
+    {
+      "id": "purchase-supplier-product",
+      "route": "/purchase/supplier-product",
+      "perm": "supplier-products:read"
+    },
+    {
+      "id": "quality-8d",
+      "route": "/quality-8d",
+      "perm": "inventory:read"
+    },
+    {
+      "id": "quality-standards",
+      "route": "/quality-standards",
+      "perm": [
+        "quality-standards:read"
+      ]
+    },
+    {
+      "id": "quotations",
+      "route": "/quotations",
+      "perm": "sales:read"
+    },
+    {
+      "id": "quotations-:id",
+      "route": "/quotations/:id",
+      "perm": "sales:read"
+    },
+    {
+      "id": "quotations-:id-approval",
+      "route": "/quotations/:id/approval",
+      "perm": "sales:read"
+    },
+    {
+      "id": "quotations-:id-edit",
+      "route": "/quotations/:id/edit",
+      "perm": "sales:read"
+    },
+    {
+      "id": "quotations-new",
+      "route": "/quotations/new",
+      "perm": "sales:read"
+    },
+    {
+      "id": "report-templates",
+      "route": "/report-templates",
+      "perm": "audit-logs:read"
+    },
+    {
+      "id": "sales-contract",
+      "route": "/sales-contract",
+      "perm": "sales:read"
+    },
+    {
+      "id": "sales-orders-:id",
+      "route": "/sales/orders/:id",
+      "perm": "sales:read"
+    },
+    {
+      "id": "sales-price",
+      "route": "/sales-price",
+      "perm": "sales:read"
+    },
+    {
+      "id": "sales-returns",
+      "route": "/sales-returns",
+      "perm": "sales:read"
+    },
+    {
+      "id": "scheduling",
+      "route": "/scheduling",
+      "perm": [
+        "scheduling:read"
+      ]
+    },
+    {
+      "id": "scheduling-gantt",
+      "route": "/scheduling/gantt",
+      "perm": [
+        "scheduling:read"
+      ]
+    },
+    {
+      "id": "security",
+      "route": "/security",
+      "perm": "users:read"
+    },
+    {
+      "id": "security-change-password",
+      "route": "/security/change-password",
+      "perm": "users:read"
+    },
+    {
+      "id": "security-two-factor",
+      "route": "/security/two-factor-setup",
+      "perm": "users:read"
+    },
+    {
+      "id": "social-insurance",
+      "route": "/social-insurance",
+      "perm": "users:read"
+    },
+    {
+      "id": "supplier-enhanced",
+      "route": "/supplier-enhanced",
+      "perm": "suppliers:read"
+    },
+    {
+      "id": "supplier-evaluation",
+      "route": "/supplier-evaluation",
+      "perm": "suppliers:read"
+    },
+    {
+      "id": "system",
+      "route": "/system",
+      "perm": "users:read"
+    },
+    {
+      "id": "system-governance",
+      "route": "/system-governance",
+      "perm": "admin:read"
+    },
+    {
+      "id": "system-oa-announcements",
+      "route": "/system/oa-announcements",
+      "perm": "oa-announcements:read"
+    },
+    {
+      "id": "system-profile",
+      "route": "/system/profile",
+      "perm": "users:read"
+    },
+    {
+      "id": "system-update",
+      "route": "/system-update",
+      "perm": "system-update-check:read"
+    },
+    {
+      "id": "voucher",
+      "route": "/voucher",
+      "perm": "finance:read"
+    },
+    {
+      "id": "wage",
+      "route": "/wage",
+      "perm": "production:read"
+    },
+    {
+      "id": "warehouse",
+      "route": "/warehouse",
+      "perm": "warehouses:read"
+    }
+  ]
+}
