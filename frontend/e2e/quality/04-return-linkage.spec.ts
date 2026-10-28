@@ -20,28 +20,10 @@ interface InspectionItemRow {
   remark: string | null;
 }
 
-// 采购质检单终止腿与回读断言。质检单没有根记录删除端点，整单的唯一合法终止是
-// 待检状态经 complete 跃迁为已完成（后端 purchase_inspection_service 完成前置为 pending）。
-// 调用方为本文件三个用例各自自建的质检单。入参为页面对象、质检单 id、合格合计与不合格合计。
-// 传给后端 pass_quantity、reject_quantity、inspection_result，结论取值域为权威表
-// purchase_inspection_result 的小写码 pass、fail、partial，此处按合格与不合格并存的语义取 partial。
-// 跃迁后回读 GET 库里 inspection_status 落库值等于 completed，证明终止腿真实生效而非只回状态码。
-async function completeInspectionAndVerify(
-  page: import('@playwright/test').Page,
-  inspectionId: number,
-  passQuantity: number,
-  rejectQuantity: number
-): Promise<void> {
-  await apiCall(page, 'POST', `/purchase/inspections/${inspectionId}/complete`, {
-    pass_quantity: passQuantity,
-    reject_quantity: rejectQuantity,
-    inspection_result: 'partial',
-  });
-  const closed = await apiCallRaw<{ inspection_status: string }>(
-    page,
-    'GET',
-    `/purchase/inspections/${inspectionId}`
-  );
+// 质检单终止腿的落库回读断言。入参为 GET 单读返回的载荷，存什么：断 inspection_status
+// 库里落值等于 completed（后端 purchase_inspection 表状态列，权威词表 pending 与 completed）。
+// 请求本身留在各调用点以字面量出现，本函数不携带 URL，只服务三处终止腿后的状态判定。
+function expectInspectionClosed(closed: { inspection_status: string }): void {
   expect(
     closed.inspection_status,
     `complete 终止腿生效后质检单状态应回读为 completed，实际值 ${closed.inspection_status}`
@@ -102,8 +84,21 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     ).toBe(20);
     expect(Number(found!.qualified_quantity), `回读 qualified_quantity 应为 80`).toBe(80);
 
-    // 用例断言全部达成后，走整单终止腿把本轮质检单跃迁为已完成并回读落库状态
-    await completeInspectionAndVerify(page, inspection.id, 80, Number(unqualifiedQty));
+    // 用例断言全部达成后走整单终止腿。质检单没有根记录删除端点，整单唯一合法终止是
+    // 待检状态经 complete 跃迁为已完成（后端完成前置为 pending）。传给后端 pass_quantity、
+    // reject_quantity、inspection_result，结论取值域为权威表 purchase_inspection_result
+    // 的小写码 pass、fail、partial，按合格与不合格并存的语义取 partial。跃迁后 GET 回读落库状态。
+    await apiCall(page, 'POST', `/purchase/inspections/${inspection.id}/complete`, {
+      pass_quantity: 80,
+      reject_quantity: Number(unqualifiedQty),
+      inspection_result: 'partial',
+    });
+    const closed01 = await apiCallRaw<{ inspection_status: string }>(
+      page,
+      'GET',
+      `/purchase/inspections/${inspection.id}`
+    );
+    expectInspectionClosed(closed01);
   });
 
   test('04-02 退货明细 quantity_returned 按质检不合格数预填并回读正确', async ({ page }) => {
@@ -192,8 +187,18 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
       `退货 quantity_returned(${rItem!.quantity_returned}) 应精确等于质检 unqualified_quantity(${unqualifiedQty})`
     ).toBe(unqualifiedQty);
 
-    // 用例断言全部达成后，走整单终止腿把本轮质检单跃迁为已完成并回读落库状态
-    await completeInspectionAndVerify(page, inspection.id, 85, unqualifiedQty);
+    // 用例断言全部达成后走整单终止腿，跃迁后 GET 回读落库状态
+    await apiCall(page, 'POST', `/purchase/inspections/${inspection.id}/complete`, {
+      pass_quantity: 85,
+      reject_quantity: unqualifiedQty,
+      inspection_result: 'partial',
+    });
+    const closed02 = await apiCallRaw<{ inspection_status: string }>(
+      page,
+      'GET',
+      `/purchase/inspections/${inspection.id}`
+    );
+    expectInspectionClosed(closed02);
   });
 
   test('04-03 多条不合格明细 → 退货预填各行数量独立正确', async ({ page }) => {
@@ -270,7 +275,17 @@ test.describe('04 不合格质检 → 退货明细回读', () => {
     expect(Number(row1!.quantity_returned), `第1行退货数量应为 ${qty1}`).toBe(qty1);
     expect(Number(row2!.quantity_returned), `第2行退货数量应为 ${qty2}`).toBe(qty2);
 
-    // 用例断言全部达成后走整单终止腿，合格与不合格各取两条明细合计并回读落库状态
-    await completeInspectionAndVerify(page, inspection.id, 90 + 75, qty1 + qty2);
+    // 用例断言全部达成后走整单终止腿，合格与不合格各取两条明细合计，跃迁后 GET 回读落库状态
+    await apiCall(page, 'POST', `/purchase/inspections/${inspection.id}/complete`, {
+      pass_quantity: 90 + 75,
+      reject_quantity: qty1 + qty2,
+      inspection_result: 'partial',
+    });
+    const closed03 = await apiCallRaw<{ inspection_status: string }>(
+      page,
+      'GET',
+      `/purchase/inspections/${inspection.id}`
+    );
+    expectInspectionClosed(closed03);
   });
 });
