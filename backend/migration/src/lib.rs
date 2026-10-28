@@ -14,7 +14,8 @@
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
-//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema → print_template_default_slot
+//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   print_template_default_slot 接在 contract_template_schema 之后（打印模板默认位库侧唯一门）
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -31,8 +32,8 @@
 //!         / m_purchase_greige_read_grant
 //!         / m_customer_credit_name_backfill / m_customer_credit_remark_column
 //!         / m_customer_credit_family_grant
-//!         / m_status_vocab_check / m_wage_energy_vocab_check
-//!         / m_contract_template_schema / m_print_template_default_slot
+//!         其后四枚链尾登记为 m_status_vocab_check 与 m_wage_energy_vocab_check
+//!         与 m_contract_template_schema 与 m_print_template_default_slot
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
