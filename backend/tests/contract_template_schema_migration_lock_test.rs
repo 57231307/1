@@ -339,7 +339,7 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
         .find(tail)
         .unwrap_or_else(|| panic!("迁移链里找不到 {tail}（域未注册进 lib.rs，活库上四表必缺席）"));
     // 只要求注册在依赖域之后，不要求绝对末位。本仓迁移规矩是新域一律追加到链尾，
-    // 钉死末位会让下一条按规矩并基的车道必红（#1079 与 #1081 实测同红于此断言）。
+    // 钉死末位会让下一条按规矩并基的车道必红，锁就变成阻止仓库正常演进的东西。
     for dep in [
         "domain::system::Migration",
         "domain::business::Migration",
