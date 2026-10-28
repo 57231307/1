@@ -142,15 +142,19 @@ async fn finish_import_validation_failure(
     )?)))
 }
 
-/// GET /api/v1/erp/import/templates/:import_type - 下载导入模板
+/// GET "templates/download/ 加 import_type" 下载导入模板
+/// 调用方 前端各域导入对话框的下载模板入口。入参 路径参数 import_type，取值见
+/// ImportExportService::get_import_template 的登记表。返回 真实 xlsx 文件流（表头行加一行示例值），
+/// 不再返回 base64 文本，前端直接落盘，用户打开即是可填的模板文件。
+/// 不支持的 import_type 由 service 点名后判 400。
 pub async fn download_template(
     State(_state): State<AppState>,
     _auth: AuthContext,
     Path(import_type): Path<String>,
-) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+) -> Result<axum::response::Response, AppError> {
     let template = ImportExportService::get_import_template(&import_type)?;
 
-    // 生成模板表头与示例行
+    // 表头与示例行都由模板结构生成，与对应导入器实际解析的列同源
     let headers: Vec<String> = template.columns.iter().map(|c| c.title.clone()).collect();
     let example_row: Vec<String> = template
         .columns
@@ -159,14 +163,28 @@ pub async fn download_template(
         .collect();
 
     // 规则 3：模板导出统一使用 xlsx 格式
-    let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &[example_row])?;
-    use base64::Engine;
-    let content = base64::engine::general_purpose::STANDARD.encode(&xlsx_bytes);
+    let table = crate::utils::xlsx_export::XlsxTable {
+        sheet_name: "导入模板".to_string(),
+        headers,
+        rows: vec![example_row],
+    };
+    crate::utils::xlsx_export::build_xlsx_response(&table, &format!("{}_template", import_type))
+}
 
+/// GET "templates/meta/ 加 import_type" 取导入模板的列清单
+/// 调用方 前端各域导入对话框的列说明面板。入参 路径参数 import_type，取值与下载端点一致。
+/// 传给谁 返回 ApiResponse 信封，界面按 columns 渲染列名与必填标记，不在前端另抄一份列清单。
+/// 存哪里 不写库，数据源为 ImportExportService 的模板登记表。
+pub async fn describe_import_template(
+    State(_state): State<AppState>,
+    _auth: AuthContext,
+    Path(import_type): Path<String>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let template = ImportExportService::get_import_template(&import_type)?;
     Ok(Json(ApiResponse::success(serde_json::json!({
-        "filename": format!("{}_template.xlsx", import_type),
-        "content": content,
-        "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "import_type": template.import_type,
+        "name": template.name,
+        "description": template.description,
         "columns": template.columns,
     }))))
 }

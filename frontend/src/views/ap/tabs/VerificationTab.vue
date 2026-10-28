@@ -137,12 +137,11 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('apModule.verification.verificationAmount')" prop="amount">
-          <el-input-number
-            v-model="verificationForm.amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="verificationAmountField.text"
             :disabled="!verificationForm.supplier_id"
             style="width: 100%"
+            @blur="verificationAmountField.normalize()"
           />
         </el-form-item>
       </el-form>
@@ -195,7 +194,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
+import { useNumberField } from '@/composables/useNumberField';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
@@ -270,6 +270,14 @@ const verificationForm = reactive({
   amount: 0,
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const verificationAmountField = useNumberField(toRef(verificationForm, 'amount'), {
+  label: t('apModule.verification.verificationAmount'),
+  required: true,
+  min: 0,
+  precision: 2,
+});
+
 // supplier_id 为后端 ManualVerifyRequest 必填项（非 Option，直接落库），核销金额须 > 0
 const verificationRules: FormRules = {
   supplier_id: [
@@ -282,8 +290,9 @@ const verificationRules: FormRules = {
     { required: true, message: t('apModule.verification.paymentRequired'), trigger: 'change' },
   ],
   amount: [
+    verificationAmountField.rule,
     {
-      required: true,
+      // 核销金额须大于 0（后端 ManualVerifyRequest 同口径 必填且正数）
       validator: (_rule, value, callback) => {
         if (typeof value === 'number' && value > 0) callback();
         else callback(new Error(t('apModule.verification.amountRequired')));

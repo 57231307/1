@@ -130,11 +130,11 @@
         </el-form-item>
         <el-form-item label="模板 ID" required>
           <!-- 后端 UpdateSubscriptionRequest 无 template_id：编辑态模板不可改 -->
-          <el-input-number
+          <NumericInput
             v-model="subForm.template_id"
-            :min="1"
             :disabled="!!editingId"
             class="w-full"
+            :min="1"
           />
         </el-form-item>
         <el-form-item label="发送周期" required>
@@ -173,6 +173,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';

@@ -202,15 +202,17 @@ test.describe('02 染色批次', () => {
     await completeBtn.click();
     const completeDialog = page.locator('.el-dialog:visible').last();
     await expect(completeDialog, '完工登记对话框应渲染').toBeVisible({ timeout: 15000 });
-    // 三值输入 = 对话框内仅有的三个 el-input-number（DOM 序与实际落布重量/长度/坯布投料一致）；
-    // fill 后 Tab 触发 blur 同步 v-model（el-input-number 不在 input 事件即提交模型）
+    // 三值输入 = 对话框内仅有的三个手写数字录入（inputmode decimal，DOM 序与实际落布重量/长度/坯布投料一致）；
+    // fill 后 Tab 触发 blur 同步模型（录入框在 change 提交，不在逐键写模型）
     const spin = completeDialog.getByRole('spinbutton');
-    await expect(spin, '完工对话框应采集实际产出三值').toHaveCount(3);
-    await spin.nth(0).fill('100');
+    await expect(spin, '数值录入应为手写输入框，不应存在步进角色').toHaveCount(0);
+    const inputs = completeDialog.locator('input[inputmode="decimal"]');
+    await expect(inputs, '完工对话框应采集实际产出三值').toHaveCount(3);
+    await inputs.nth(0).fill('100');
     await page.keyboard.press('Tab');
-    await spin.nth(1).fill('5000');
+    await inputs.nth(1).fill('5000');
     await page.keyboard.press('Tab');
-    await spin.nth(2).fill('120');
+    await inputs.nth(2).fill('120');
     await page.keyboard.press('Tab');
     await completeDialog.getByRole('button', { name: '确认完工', exact: true }).click();
     await expect(page.getByText('完工登记成功')).toBeVisible({ timeout: 30000 });

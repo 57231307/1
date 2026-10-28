@@ -9,13 +9,22 @@
       </template>
       <el-form inline class="mb">
         <el-form-item label="年度"
-          ><el-input-number v-model="query.year" :min="2020" :max="2100" @change="load"
+          ><el-input
+            v-model="queryYearField.text"
+            @change="onQueryYearChange"
+            @blur="queryYearField.normalize()"
         /></el-form-item>
         <el-form-item label="月份"
-          ><el-input-number v-model="query.month" :min="1" :max="12" @change="load"
+          ><el-input
+            v-model="queryMonthField.text"
+            @change="onQueryMonthChange"
+            @blur="queryMonthField.normalize()"
         /></el-form-item>
         <el-form-item label="员工ID"
-          ><el-input-number v-model="query.worker_id" :min="1" @change="load"
+          ><el-input
+            v-model="queryWorkerField.text"
+            @change="onQueryWorkerChange"
+            @blur="queryWorkerField.normalize()"
         /></el-form-item>
       </el-form>
       <el-table v-loading="loading" :data="records" border>
@@ -61,16 +70,22 @@
     <el-dialog v-model="dialogVisible" title="新建参保记录" width="480">
       <el-form :model="form" label-width="100px">
         <el-form-item label="员工ID" required
-          ><el-input-number v-model="form.worker_id" :min="1" class="w-full"
+          ><el-input
+            v-model="formWorkerField.text"
+            class="w-full"
+            @blur="formWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="年度" required
-          ><el-input-number v-model="form.period_year" :min="2020" :max="2100" class="w-full"
+          ><el-input v-model="formYearField.text" class="w-full" @blur="formYearField.normalize()"
         /></el-form-item>
         <el-form-item label="月份" required
-          ><el-input-number v-model="form.period_month" :min="1" :max="12" class="w-full"
+          ><el-input
+            v-model="formMonthField.text"
+            class="w-full"
+            @blur="formMonthField.normalize()"
         /></el-form-item>
         <el-form-item label="缴费基数" required
-          ><el-input-number v-model="form.base_amount" :min="0" :precision="2" class="w-full"
+          ><el-input v-model="formBaseField.text" class="w-full" @blur="formBaseField.normalize()"
         /></el-form-item>
         <el-form-item label="缴费日期"
           ><el-date-picker
@@ -92,9 +107,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { logAuxLoadFailure } from '@/utils/logger';
+import {
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import {
   cancelInsurance,
   createSocialInsurance,
@@ -122,6 +142,54 @@ const form = reactive({
   remarks: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const queryYearField = useNumberField(
+  toRef(query, 'year'),
+  { label: '年度', min: 2020, max: 2100, precision: 0 },
+  'undefined'
+);
+const queryMonthField = useNumberField(
+  toRef(query, 'month'),
+  { label: '月份', min: 1, max: 12, precision: 0 },
+  'undefined'
+);
+const queryWorkerField = useNumberField(
+  toRef(query, 'worker_id'),
+  { label: '员工ID', min: 1, precision: 0 },
+  'undefined'
+);
+const formWorkerSpec: NumberFieldSpec = {
+  label: '员工ID',
+  required: true,
+  min: 1,
+  precision: 0,
+};
+const formYearSpec: NumberFieldSpec = { label: '年度', min: 2020, max: 2100, precision: 0 };
+const formMonthSpec: NumberFieldSpec = { label: '月份', min: 1, max: 12, precision: 0 };
+const formBaseSpec: NumberFieldSpec = {
+  label: '缴费基数',
+  required: true,
+  min: 0,
+  precision: 2,
+};
+const formWorkerField = useNumberField(toRef(form, 'worker_id'), formWorkerSpec, 'undefined');
+const formYearField = useNumberField(toRef(form, 'period_year'), formYearSpec);
+const formMonthField = useNumberField(toRef(form, 'period_month'), formMonthSpec);
+const formBaseField = useNumberField(toRef(form, 'base_amount'), formBaseSpec, 'undefined');
+
+const onQueryYearChange = () => {
+  queryYearField.normalize();
+  load();
+};
+const onQueryMonthChange = () => {
+  queryMonthField.normalize();
+  load();
+};
+const onQueryWorkerChange = () => {
+  queryWorkerField.normalize();
+  load();
+};
+
 const unwrapList = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
 
 async function load() {
@@ -144,6 +212,15 @@ async function load() {
 async function onCreate() {
   if (!form.worker_id || !form.base_amount) {
     ElMessage.warning('请填写员工ID与缴费基数');
+    return;
+  }
+  const invalid =
+    validateNumberValue(form.worker_id, formWorkerSpec) ??
+    validateNumberValue(form.period_year, formYearSpec) ??
+    validateNumberValue(form.period_month, formMonthSpec) ??
+    validateNumberValue(form.base_amount, formBaseSpec);
+  if (invalid) {
+    ElMessage.warning(invalid);
     return;
   }
   saving.value = true;

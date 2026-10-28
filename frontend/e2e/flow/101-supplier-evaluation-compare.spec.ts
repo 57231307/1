@@ -208,10 +208,13 @@ test.describe('供应商对比页签端到端', () => {
     const picker = comparePickerShell(page);
     await expect(picker, '对比页签应存在按名称搜索的多选下拉').toBeVisible();
     await assertPickerPlaceholder(page, PLACEHOLDER_COMPARE_PICKER);
-    // 对比工具区里不应再有手填数字主键的输入项（按承载搜索框的那一条工具行作用域判）
+    // 对比工具区里不应再有手填数字主键的步进输入项（按承载搜索框的那一条工具行作用域判）
     await expect(
-      page.locator('.toolbar').filter({ has: picker }).locator('.el-input-number'),
-      '对比工具区不应有手填数字主键的输入项'
+      page
+        .locator('.toolbar')
+        .filter({ has: picker })
+        .locator('[role="spinbutton"], input[type="number"]'),
+      '对比工具区不应有手填数字主键的步进输入项'
     ).toHaveCount(0);
 
     // 5) 按唯一名称的部分字符分别搜出并选中两个供应商

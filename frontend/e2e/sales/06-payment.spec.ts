@@ -38,15 +38,23 @@ async function createCollectionViaDialog(
   const dialog = page.getByRole('dialog', { name: '新建收款' });
   await expect(dialog).toBeVisible();
 
-  // customer_id: el-input-number → role=spinbutton（PaymentTab.vue:71）
-  const spins = dialog.getByRole('spinbutton');
-  await spins.first().fill(String(customerId));
+  // customer_id 手写输入框（label '客户'，PaymentTab.vue 建单表单）
+  const customerInput = dialog
+    .locator('.el-form-item', { hasText: '客户' })
+    .locator('input')
+    .first();
+  await customerInput.fill(String(customerId));
 
   // payment_method: 对话框唯一 el-select（label '收款方式'，避开 date-picker combobox）
   await pickSelectIn(dialog, page, '收款方式', { optionText: method });
 
-  // amount: el-input-number → role=spinbutton（PaymentTab.vue:85, 第二个 spinbutton）
-  await spins.nth(1).fill(amount);
+  // amount 手写输入框（label '收款金额'） 真值断言 写后读回
+  const amountInput = dialog
+    .locator('.el-form-item', { hasText: '收款金额' })
+    .locator('input')
+    .first();
+  await amountInput.fill(amount);
+  await expect(amountInput, '手写金额应可原样读回').toHaveValue(amount);
 
   // 点击"保存"按钮（PaymentTab.vue:93, common.save='保存'）
   await dialog.getByRole('button', { name: '保存' }).click();
@@ -142,11 +150,19 @@ test.describe('06 销售收款', () => {
     // 验证仅 4 种（无多余选项）
     await expect(options).toHaveCount(4);
 
-    // 选择"现金"提交，验证后端存储为 cash
+    // 选择"现金"提交，验证后端存储为 cash（客户与金额均为手写输入框）
     await options.filter({ hasText: '现金' }).click();
-    const spins = dialog.getByRole('spinbutton');
-    await spins.first().fill(String(customerId));
-    await spins.nth(1).fill('9999.99');
+    const customerInput = dialog
+      .locator('.el-form-item', { hasText: '客户' })
+      .locator('input')
+      .first();
+    await customerInput.fill(String(customerId));
+    const amountInput = dialog
+      .locator('.el-form-item', { hasText: '收款金额' })
+      .locator('input')
+      .first();
+    await amountInput.fill('9999.99');
+    await expect(amountInput, '手写金额应可原样读回').toHaveValue('9999.99');
     await dialog.getByRole('button', { name: '保存' }).click();
     await expect(page.getByText('操作成功')).toBeVisible({ timeout: 15_000 });
 

@@ -183,7 +183,7 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
     await fillFieldByLabel(dialog, page, '发证日期', ymd(-10));
     await fillFieldByLabel(dialog, page, '到期日期', ymd(3650));
     await fillFieldByLabel(dialog, page, '发证机关', 'E2E生态环境局');
-    await formItemByExactLabel(dialog, '许可量').locator('.el-input-number input').fill('5000');
+    await formItemByExactLabel(dialog, '许可量').locator('input').fill('5000');
     await fillFieldByLabel(dialog, page, '许可量单位', 't/a');
     await dialog.getByRole('button', { name: '保存' }).click();
 
@@ -311,8 +311,8 @@ test.describe.serial('60 环保合规：排污许可证 + 污染物监测 + 固�
     ).toHaveText('废水');
     await fillFieldByLabel(dialog, page, '监测点', point);
     await fillFieldByLabel(dialog, page, '污染物', 'COD');
-    await formItemByExactLabel(dialog, '实测值').locator('.el-input-number input').fill('120');
-    await formItemByExactLabel(dialog, '限值').locator('.el-input-number input').fill('80');
+    await formItemByExactLabel(dialog, '实测值').locator('input').fill('120');
+    await formItemByExactLabel(dialog, '限值').locator('input').fill('80');
     await fillFieldByLabel(dialog, page, '监测时间', monitoringTime);
     await dialog.getByRole('button', { name: '保存' }).click();
     await expect(page.getByText('监测记录已创建')).toBeVisible({ timeout: 15_000 });

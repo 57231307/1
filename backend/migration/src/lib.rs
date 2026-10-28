@@ -14,6 +14,8 @@
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
+//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   → sales_contract_source_order
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -116,6 +118,17 @@
 //!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
 //!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
 //!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
+//! 23. status_vocab_check 与 wage_energy_vocab_check: 状态与取值域词表的 DB CHECK 收口两支
+//! 24. contract_template_schema: 合同模板体系数据地基——contract_templates 模板主表（版本与
+//!    同一类别同一立场只允许一版启用的部分唯一 ACTIVE 门）、clause_library 条款库（一枚条款码
+//!    一枚可复用正文）、contract_template_clauses 模板条款项（条款库引用与模板内正文二选一，
+//!    带顺序与必填标记与条件出条款标记与逐条法务复核位）、contract_clauses 签约条款快照
+//!    （存固化当时的正文原文与模板版本号，模板改版不回溯改写已签合同），并给
+//!    sales_contracts 与 purchase_contracts 补齐条款与签署与印花税与内外销与含税列，
+//!    新增列一律可空且无默认，历史合同保持空值即「模板前签约，条款未固化」判据；
+//!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
+//!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
+//!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
 
 pub use sea_orm_migration::prelude::*;
 
@@ -162,6 +175,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customers_nullable_columns_norm::Migration),
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
+            Box::new(domain::contract_template_schema::Migration),
             Box::new(domain::sales_contract_source_order::Migration),
         ]
     }

@@ -57,6 +57,10 @@ pub struct Model {
     /// 非空表示由该销售订单转单生成。写入方是 sales_contract_service 的转单路径，
     /// 读取方是合同列表按来源订单筛选与转合同入口的重复判定
     pub source_order_id: Option<i32>,
+    /// 内外销标记，可空，取值见 models::status::contract_template::contract_market。空值表示模板前签约未采集
+    pub contract_market: Option<String>,
+    /// 含税标记，可空三态。真为含税，假为不含税，空为未采集
+    pub tax_inclusive: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

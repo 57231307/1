@@ -126,11 +126,9 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('fund.transferTab.fieldAmount')" prop="amount">
-          <el-input-number
+          <el-input
             v-model="transferForm.amount"
-            :min="0.01"
-            :max="availableBalance"
-            :precision="2"
+            inputmode="decimal"
             style="width: 100%"
             :placeholder="t('fund.transferTab.placeholderAmount')"
           />
@@ -210,7 +208,7 @@ const {
 const transferForm = reactive({
   from_account_id: undefined as number | undefined,
   to_account_id: undefined as number | undefined,
-  amount: 0,
+  amount: '',
   remark: '',
 });
 
@@ -225,9 +223,11 @@ const transferRules: FormRules = {
     { required: true, message: t('fund.transferTab.validateAmount'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
-        if (value <= 0) {
+        const num = Number(value);
+        const fractionDigits = (String(value ?? '').split('.')[1] || '').length;
+        if (value === '' || !Number.isFinite(num) || num < 0.01 || fractionDigits > 2) {
           callback(new Error(t('fund.transferTab.validateAmountPositive')));
-        } else if (value > availableBalance.value) {
+        } else if (num > availableBalance.value) {
           callback(new Error(t('fund.transferTab.validateAmountExceed')));
         } else {
           callback();
@@ -282,7 +282,7 @@ const fetchAccounts = async () => {
 const openTransferDialog = () => {
   transferForm.from_account_id = undefined;
   transferForm.to_account_id = undefined;
-  transferForm.amount = 0;
+  transferForm.amount = '';
   transferForm.remark = '';
   transferVisible.value = true;
 };
@@ -298,12 +298,13 @@ const handleTransferSubmit = async () => {
   await transferFormRef.value.validate(async valid => {
     if (!valid) return;
     // 大额调拨先走显式二次确认；取消或关闭弹窗属用户放弃，不是错误，静默返回
-    const isLarge = transferForm.amount > LARGE_TRANSFER_THRESHOLD;
+    const amountNum = Number(transferForm.amount);
+    const isLarge = amountNum > LARGE_TRANSFER_THRESHOLD;
     if (isLarge) {
       try {
         await ElMessageBox.confirm(
           t('fund.transferTab.largeConfirmMessage', {
-            amount: transferForm.amount.toFixed(2),
+            amount: amountNum.toFixed(2),
             threshold: LARGE_TRANSFER_THRESHOLD.toFixed(2),
           }),
           t('fund.transferTab.largeConfirmTitle'),
@@ -329,7 +330,7 @@ const handleTransferSubmit = async () => {
       await transferFund({
         from_account_id: transferForm.from_account_id!,
         to_account_id: transferForm.to_account_id!,
-        amount: transferForm.amount,
+        amount: amountNum,
         reason: transferForm.remark || undefined,
         ...(isLarge ? { confirm_large: true } : {}),
       });
