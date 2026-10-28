@@ -1,10 +1,14 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_contract;
+use crate::services::sales_contract_convert_service::{
+    ContractPreview, ConvertFromOrderRequest, ConvertOrderItemInput, SalesContractConvertService,
+};
 use crate::services::sales_contract_service::{
     CreateContractItemRequest, CreateSalesContractRequest, ExecuteSalesContractRequest,
     SalesContractService,
 };
+use crate::services::so::order::SalesService;
 use crate::utils::ApiResponse;
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
@@ -183,6 +187,85 @@ fn map_item_d_tos(
     })
 }
 
+/// 销售订单转合同 单行可编辑入参 DTO。
+///
+/// 可编辑字段白名单：仅 order_item_id、quantity、unit_price、delivery_date、color_no、
+/// quantity_tolerance_pct、remarks 可由客户端送。折扣率、税率与任何金额列都不在本 DTO 内
+/// （无对应反序列化字段），由服务端回读来源订单行原值经 so/amounts 重算，客户端即便构造这些
+/// JSON 键也因无字段而 serde 忽略，绝无采信前端算值入库的通道。
+#[derive(Debug, Deserialize, Validate)]
+pub struct ConvertItemDto {
+    /// 来源订单明细行 ID（sales_order_items.id），须属于本订单且全量覆盖（归属与覆盖由
+    /// 转换服务在事务内校验，非本 DTO 职责）
+    pub order_item_id: i32,
+    pub quantity: rust_decimal::Decimal,
+    pub unit_price: rust_decimal::Decimal,
+    /// 行交期：缺席或 null = 沿用来源订单表头要求交期（转换服务以 or 默认兜出）
+    pub delivery_date: Option<chrono::NaiveDate>,
+    /// 色号覆盖：缺席或 null = 保持订单行色号原值；长度上限与订单入参同口径 50
+    #[validate(length(max = 50, message = "色号长度不能超过50字符"))]
+    pub color_no: Option<String>,
+    /// 交货数量允差百分比覆盖：None 合法（保持订单行值），Some 须落在 [0,100]（复用同域校验器）
+    #[validate(custom(function = "validate_quantity_tolerance_pct"))]
+    pub quantity_tolerance_pct: Option<rust_decimal::Decimal>,
+    /// 行备注三态：键缺席 = 沿用订单行备注，显式 null = 清空，有值 = 覆盖
+    #[serde(default, deserialize_with = "double_option")]
+    pub remarks: Option<Option<String>>,
+}
+
+/// 销售订单转合同 表头可编辑入参 DTO。
+///
+/// 客户不在入参内：合同签约主体必须与来源订单一致，服务端直取订单 customer_id，客户端无法改派。
+#[derive(Debug, Deserialize, Validate)]
+pub struct ConvertFromOrderDto {
+    #[validate(length(min = 1, max = 200, message = "合同名称不能为空且不能超过200字符"))]
+    pub contract_name: String,
+    pub contract_type: Option<String>,
+    pub payment_terms: Option<String>,
+    pub payment_method: Option<String>,
+    pub signed_date: Option<chrono::NaiveDate>,
+    pub effective_date: Option<chrono::NaiveDate>,
+    pub expiry_date: Option<chrono::NaiveDate>,
+    pub delivery_date: Option<chrono::NaiveDate>,
+    #[validate(length(max = 200, message = "交货地点长度不能超过200字符"))]
+    pub delivery_location: Option<String>,
+    pub remark: Option<String>,
+    /// 明细行：转换服务在事务内校验须与订单行全量一一对应（缺行/多行/重复均拒绝）
+    #[validate(nested)]
+    pub items: Vec<ConvertItemDto>,
+}
+
+impl ConvertFromOrderDto {
+    /// 映射为转换服务入参，字段逐一搬运；白名单之外无任何金额、折扣、税率通道。
+    fn into_request(self) -> ConvertFromOrderRequest {
+        ConvertFromOrderRequest {
+            contract_name: self.contract_name,
+            contract_type: self.contract_type,
+            payment_terms: self.payment_terms,
+            payment_method: self.payment_method,
+            signed_date: self.signed_date,
+            effective_date: self.effective_date,
+            expiry_date: self.expiry_date,
+            delivery_date: self.delivery_date,
+            delivery_location: self.delivery_location,
+            remark: self.remark,
+            items: self
+                .items
+                .into_iter()
+                .map(|it| ConvertOrderItemInput {
+                    order_item_id: it.order_item_id,
+                    quantity: it.quantity,
+                    unit_price: it.unit_price,
+                    delivery_date: it.delivery_date,
+                    color_no: it.color_no,
+                    quantity_tolerance_pct: it.quantity_tolerance_pct,
+                    remarks: it.remarks,
+                })
+                .collect(),
+        }
+    }
+}
+
 /// 合同执行请求 DTO
 #[allow(dead_code, reason = "反序列化输入字段")]
 #[derive(Debug, Deserialize)]
@@ -230,6 +313,9 @@ pub async fn list_contracts(
         keyword: params.keyword,
         status: params.status,
         customer_id: params.customer_id,
+        // 列表入口暂不按来源订单筛选：查询 DTO 无该入参，转合同的重复判定走
+        // preview 端点的 existing_contract，不经本列表参数通道。
+        source_order_id: None,
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
@@ -336,6 +422,9 @@ pub async fn create_contract(
         payment_method: req.payment_method,
         delivery_location: req.delivery_location,
         remark: req.remark,
+        // 手工建档链路无来源销售订单，溯源列恒置 NULL（区分于转单链路写入真实订单 ID）。
+        // 转单走 sales_contract_convert_service，不经本 handler。
+        source_order_id: None,
         items: map_item_d_tos(req.items),
     };
 
@@ -343,6 +432,77 @@ pub async fn create_contract(
     info!("销售合同创建成功：{}", contract.contract_no);
 
     Ok(Json(ApiResponse::success(contract)))
+}
+
+/// 预填读取：销售订单转合同的带出数据。
+///
+/// GET /api/v1/erp/sales/sales-contracts/preview-from-order/{order_id}
+///
+/// 回读来源订单表头、全部明细行（金额列为订单建单链经 so/amounts 产出的存量值）与产品主档
+/// 补充列，并附带该订单既有非终态转换合同指针（前端据此给跳转提示、不再重复转换）。只读，
+/// 不加锁（真正的重复互斥在 convert 事务内对订单行加排他锁后判定）。
+/// 行级归属门：预填回读订单的客户、单价、明细，属对订单的读操作，须先证该订单在本用户数据
+/// 范围内可见，否则同 RBAC 键的他人可凭任意 order_id 预读他人订单口径。
+pub async fn preview_convert_from_order(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(order_id): Path<i32>,
+) -> Result<Json<ApiResponse<ContractPreview>>, AppError> {
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .assert_order_ownership(order_id, Some(&data_scope_ctx))
+        .await?;
+
+    let service = SalesContractConvertService::from_state(&state);
+    let preview = service.preview(order_id).await?;
+    Ok(Json(ApiResponse::success(preview)))
+}
+
+/// 事务化转换：销售订单 → 销售合同（新建草稿合同 + 逐行落明细）。
+///
+/// POST /api/v1/erp/sales/sales-contracts/from-order/{order_id}
+///
+/// 入参仅携带可编辑白名单字段（数量、单价、交期、色号覆盖、允差、备注、表头口径字段）。
+/// 折扣率、税率与金额一律由转换服务回读来源订单行原值经 so/amounts 重算，客户端送值不采信。
+/// 行级归属门（写口）：转换在 sales_contracts 与 sales_contract_items 落新行，须先证来源订单
+/// 归属，否则同键他人可凭 order_id 把别人的订单转成自己名下的合同。可转状态门、重复转换门、
+/// 明细全量覆盖门均在转换服务同一事务内判定（见 sales_contract_convert_service）。
+pub async fn convert_from_order(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Path(order_id): Path<i32>,
+    Json(req): Json<ConvertFromOrderDto>,
+) -> Result<Json<ApiResponse<sales_contract::Model>>, AppError> {
+    req.validate()
+        .map_err(|e| AppError::validation(e.to_string()))?;
+
+    info!(
+        "用户 {} 正在把销售订单 {} 转为销售合同（{} 行）",
+        auth.user_id,
+        order_id,
+        req.items.len()
+    );
+
+    let sales_service = SalesService::new(state.db.clone(), state.search_client.clone());
+    let data_scope_ctx = auth.to_data_scope_context();
+    sales_service
+        .assert_order_ownership(order_id, Some(&data_scope_ctx))
+        .await?;
+
+    let service = SalesContractConvertService::from_state(&state);
+    let result = service
+        .convert(order_id, req.into_request(), auth.user_id)
+        .await?;
+    info!(
+        "销售订单 {} 已转为销售合同草稿 {}",
+        order_id, result.contract.contract_no
+    );
+
+    Ok(Json(ApiResponse::success_with_message(
+        result.contract,
+        "已按销售订单生成销售合同草稿，请审阅后再提交审批",
+    )))
 }
 
 /// 审核销售合同（通过动作）
@@ -642,6 +802,8 @@ pub async fn export_contracts(
         keyword: query.keyword,
         status: query.status,
         customer_id: query.customer_id,
+        // 与列表入口同口径：查询 DTO 无来源订单入参，导出不过滤该维。
+        source_order_id: None,
         page: 1,
         page_size: 10000,
     };

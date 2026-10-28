@@ -2038,7 +2038,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-test-report
-          path: reports/
+          # vitest 报告由本 job 各步在 working-directory: frontend 下写进 frontend/reports/，
+          # upload-artifact 不认 working-directory，原先只写仓库根的 reports/ 等于每次传空，
+          # 前端测试一红就取不到断言原文
+          path: |
+            reports/
+            frontend/reports/
           retention-days: 90
 
 # ==============================================================================
@@ -2278,7 +2283,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backend-build-log
-          path: reports/
+          # cargo-build.log 由「构建后端 (Release)」在 working-directory: backend 下写进
+          # backend/reports/；仓库根的 reports/ 只在后续验证步才创建，构建一失败那步就被跳过，
+          # 原先只写 reports/ 时构建成功收不到日志、构建失败整枚产物直接消失
+          path: |
+            reports/
+            backend/reports/
           retention-days: 90
 
       - name: 上传后端产物
