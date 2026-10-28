@@ -15,6 +15,8 @@
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   → m0104_add_document_no_partial_unique_four_tables
+//!   → sales_contract_source_order
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -128,12 +130,19 @@
 //!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
 //!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
 //!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
-//! 25. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
+//! 25. m0104_add_document_no_partial_unique_four_tables: 单据号四列活跃行部分唯一索引
+//!    （production_recipe.recipe_no / production_recipe_addition.addition_no /
+//!    process_wage_rate.rate_no / wage_record.record_no，形态照 m0068 部分唯一 +
+//!    fail-visible 存量重复探测，谓词与读路径判重同源 is_deleted = false）——服务侧
+//!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
+//!    建表（四表表定义见 v15 域），置于链尾为新的顶层条目：链尾晚于 v15 执行，
+//!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
+//! 26. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
 //!    CHECK 收口、m0112 GB 18401 与 GB 31701 限值矩阵与出口市场要求播种，建表、CHECK、
 //!    播种次序固定于域 mod.rs）。新建顶层域，与既有七张检验表零交集，送检单仅以
 //!    product_id 外键只读关联 system 建的 products；置于链尾为新的顶层条目，复用库上
 //!    属 pending 必然执行
-//! 26. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
+//! 27. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
 //!    两支同域迁移（m0113a 严格只读逐值点名先于 m0113b 守卫施加 CHECK，口径照
 //!    wage_energy_vocab_check 的 m0102 与 m0103 两段式），权威词表 models::status::
 //!    purchase_inventory::purchase_inspection_result，NULL 为完成质检前合法初值，
@@ -185,6 +194,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
+            Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
+            Box::new(domain::sales_contract_source_order::Migration),
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
         ]

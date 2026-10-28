@@ -1,0 +1,52 @@
+/*
+ * 移动端缺口带（769px 到 991px）响应式补丁层。
+ *
+ * 调用方：main.ts 在 mobile-content.css 之后全局引入，与另两层同属移动端补丁族。
+ * 入参：无，纯 CSS 层，作用对象是 Element Plus 原语与各列表页共享的 class 约定。
+ * 传给谁：浏览器按视口宽自行选择媒体查询；桌面（不小于 992px）不触发本层，回归面为零。
+ * 存什么：只在缺口带内生效的宽度上限与容器跟随规则。
+ * 存哪里：frontend/src/styles/mobile-gap-zone.css，随构建打进全局样式。
+ *
+ * 为什么要单独一层。断点口径两侧本来不同源，frontend/src/composables/useBreakpoint.ts 的
+ * BREAKPOINTS.md 是 992，MainLayout 依 isMobile（视口宽小于 992）把侧栏换成抽屉并隐藏全局搜索；
+ * 而 theme.css 与 mobile-list.css 与 mobile-content.css 三处移动适配一律只写到 max-width 768px。
+ * 于是 769 到 991 这一段（手机横屏，例如 844 乘 390，以及窄平板）既已走移动布局，
+ * 又没有移动宽度兜底：仓库内声明 width 为 800px 的弹窗有 30 处、700px 有 17 处，
+ * 在该视口下直接顶破可视区右缘，表单标签与输入区被挤成半截，页面还会横向溢出。
+ *
+ * 本层只加宽度上限，不改各页面自己声明的弹窗宽度：视口够宽时保持原样，
+ * 视口不够时收进可视区，避免把平板一律拉成满屏宽造成观感回退。
+ */
+
+@media (min-width: 769px) and (max-width: 991.98px) {
+  /* 症状一，弹窗与确认框顶破右缘，保留声明宽但不许超出可视区 */
+  .el-dialog {
+    max-width: calc(100vw - 24px);
+  }
+
+  .el-message-box {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* 症状二，内容容器横向溢出，容器跟随父宽，表格保留自身横向滚动 */
+  .filter-card,
+  .filter-container,
+  .page-header {
+    width: 100%;
+  }
+
+  .el-table {
+    max-width: 100%;
+  }
+
+  /* 症状三，行内表单在窄带内不换行，过滤器与工具条按列堆叠，右侧不留被挤出的空白 */
+  .el-form--inline .el-form-item {
+    display: flex;
+    width: 100%;
+  }
+
+  .filter-card .el-form--inline .el-form-item__content {
+    flex: 1;
+    min-width: 0;
+  }
+}

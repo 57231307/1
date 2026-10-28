@@ -284,15 +284,12 @@ pub async fn create_customer(
     let customer_type =
         crate::constants::customer_type::validate(payload.customer_type.as_deref())?;
 
-    // 自动生成客户编码
-    let customer_code = match payload.customer_code {
-        Some(code) if !code.is_empty() => code,
-        _ => customer_service.generate_customer_code().await?,
-    };
-
+    // 客户编码：手工/自动的判定与自动取号一律收口到 service 的写入事务内
+    //（取号与 INSERT 同一临界区，见 customer_ops/crud.rs::create_customer）。
+    // 不在事务外预生成，避免自开取号事务提交放锁后与本 INSERT 之间出现并发撞号窗口。
     let customer = customer_service
         .create_customer(CreateCustomerArgs {
-            customer_code,
+            customer_code: payload.customer_code,
             customer_name: payload.customer_name,
             contact_person: payload.contact_person,
             contact_phone: payload.contact_phone,
