@@ -124,4 +124,3 @@ pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
 pub mod textile_safety;
 pub mod purchase_inspection_result_check;
-
