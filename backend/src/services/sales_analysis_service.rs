@@ -648,6 +648,10 @@ impl SalesAnalysisService {
     /// 实际成交额来自 `fetch_actual_amounts` 现算 `sales_orders`（历史缺陷形态
     /// "actual 取 total_amount 自身导致完成率恒 100、差额恒 0" 已摘除，
     /// 契约锁测试对退化形态反向自证）。
+    /// remarks 处置：目标表无备注存储列，非空白 remarks 入参 400 显式拒绝（文案只说
+    /// 用户该做什么）；纯空白等同未提交，放行。前端编辑弹窗不下发 remarks，
+    /// 正常用户路径不触发该拒绝。dimension_name 列只保留 create 侧写入的起止日期语义，
+    /// PUT 两处不再挪用该列存备注。
     pub async fn update_target(
         &self,
         period: &str,
@@ -656,6 +660,14 @@ impl SalesAnalysisService {
         cache: Arc<AppCache>,
     ) -> Result<SalesTargetDto, AppError> {
         info!("更新销售目标，周期：{}", period);
+
+        if let Some(remarks) = &req.remarks {
+            if !remarks.trim().is_empty() {
+                return Err(AppError::validation_displayable(
+                    "目标备注暂不支持保存，请清空备注后重新提交",
+                ));
+            }
+        }
 
         let existing = sales_analysis::Entity::find()
             .filter(sales_analysis::Column::Period.eq(period))
@@ -669,9 +681,9 @@ impl SalesAnalysisService {
             .unwrap_or_else(|| master_data::ACTIVE.to_string());
 
         let updated = if let Some(existing_model) = existing {
-            let mut active: sales_analysis::ActiveModel = existing_model.clone().into();
+            let mut active: sales_analysis::ActiveModel = existing_model.into();
             active.total_amount = Set(target_amount);
-            active.dimension_name = Set(req.remarks.clone().or(existing_model.dimension_name));
+            // dimension_name 不触碰：保留 create 侧写入的既有值，备注挪用已摘除
             active.update(&*self.db).await?
         } else {
             let active = sales_analysis::ActiveModel {
@@ -679,7 +691,6 @@ impl SalesAnalysisService {
                 period: Set(period.to_string()),
                 dimension_type: Set("overall".to_string()),
                 dimension_id: Set(None),
-                dimension_name: Set(req.remarks),
                 total_amount: Set(target_amount),
                 ..Default::default()
             };
