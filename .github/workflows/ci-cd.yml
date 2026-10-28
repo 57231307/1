@@ -566,6 +566,25 @@ jobs:
         working-directory: frontend
         run: node scripts/check-e2e-worker-account.mjs
 
+      # 禁步进数字控件门（用户 2026-10-25 硬口径 全项目禁止带加减按钮的数字输入框 数量
+      # 单价 税率 金额一律纯手写 el-input 加校验器）。判据 frontend/src 与 frontend/e2e
+      # 以及存在时的 mobile-app 内 步进控件名字面量零出现 注释 CSS 选择器 动态组件名
+      # e2e 定位器与 i18n 全算残留 自造点击加减步进交互同判红。判负口径 两类计数之和
+      # 非零或判定器自证失败即退码 1 阻断合并（本 job 在收尾门与打包门的 needs 链内）
+      # 判绿时打印 全库 0 出现 锁绿 一行 违规时逐条点名 文件 行号 命中行行首。
+      # 两步次序 先 --self-test 双向自证（正例必抓 反例必不报 判定器退化空转当场判红
+      # 防主门的 问题 0 是假绿）再跑主门。脚本按自身文件位置解析扫描根 任意 cwd 均可跑
+      # 这里与其它 node 族步骤一致 working-directory frontend。
+      - name: 禁步进判定器自证（内联夹具正例必抓 反例必不报）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-no-stepper-control.mjs --self-test
+
+      - name: 禁步进数字控件零出现门（主门 目标全库零出现 判绿）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-no-stepper-control.mjs
+
       - name: 上传报告
         if: always()
         uses: actions/upload-artifact@v4
