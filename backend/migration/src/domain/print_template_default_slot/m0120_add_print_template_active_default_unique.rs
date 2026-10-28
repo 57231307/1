@@ -1,7 +1,7 @@
 //! print_templates 默认位库侧唯一门与列注释更正（单支顶层域内迁移）
 //!
 //! ## 六要素
-//! - 功能：给「同一单据类型至多一行启用且默认」的打印模板不变量加数据库侧兜底，
+//! - 功能：给"同一单据类型至多一行启用且默认"的打印模板不变量加数据库侧兜底，
 //!   并更正 is_default 列注释，使注释如实描述互斥域是单据类型 doc_type 而非 module。
 //! - 调用方：SeaORM migrator 链，经 domain/print_template_default_slot 域注册为
 //!   lib.rs 与 domain/mod.rs 链尾的顶层台账条目。print_templates 表由 print_subsystem
@@ -35,10 +35,10 @@
 //! 由业务侧显式降位或停用，处置完成后重跑本迁移。
 //!
 //! ## 幂等与回退
-//! up 为「只读探测 → CREATE UNIQUE INDEX IF NOT EXISTS → COMMENT」，重跑等价；
+//! up 为先只读探测、再 CREATE UNIQUE INDEX IF NOT EXISTS、后 COMMENT 更新，重跑等价；
 //! 探测命中违例即中止且幂等性不受影响（有索引在场时探测必然零命中，重跑安全）。
 //! down 对称：DROP INDEX IF EXISTS 并还原 m0098 的列注释原文，不触碰任何数据行，
-//! 回滚后回到「仅应用层竞位清理」的现状。
+//! 回滚后回到"仅应用层竞位清理"的现状。
 
 use sea_orm_migration::prelude::*;
 
