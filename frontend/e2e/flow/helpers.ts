@@ -25,6 +25,9 @@ import {
   readFirstEntityId,
   readEntityIds,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 models/status/general.rs::product_type 同源）：
+// 补建产品的 product_type 取值必须经 PRODUCT_TYPE.<键> 引用，禁止散落中文面值。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 export const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 export const API_PREFIX = '/api/v1/erp';
@@ -381,6 +384,10 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
           name: `E2E产品${Date.now().toString().slice(-6)}${seq}`,
           unit: '米',
           category_id: catId,
+          // 带克重与幅宽做米↔公斤换算的必须是面料类（后端面料必录门还要求面料成分），
+          // 取值经单源常量引用；漏任一键建单即被 validate_product_create_fields 拒 400。
+          product_type: PRODUCT_TYPE.finished,
+          fabric_composition: '100%涤纶',
           gram_weight: 180,
           width: 150,
           meters_per_piece: 50,
@@ -642,7 +649,10 @@ async function ensureTestEntitiesInner(page: Page): Promise<void> {
       unit: '米',
       category_id: ctx.productCategoryIds[0],
       // Q1 报价转订单换算要求产品有克重/幅宽；缺则拒绝（源码正确行为），
-      // 转订单用例 flow02/quotations02 依赖此产品可转换
+      // 转订单用例 flow02/quotations02 依赖此产品可转换；面料类必录门还要求
+      // 面料成分同全，类型取值经单源常量引用。
+      product_type: PRODUCT_TYPE.finished,
+      fabric_composition: '100%涤纶',
       gram_weight: 180,
       width: 150,
       meters_per_piece: 50,

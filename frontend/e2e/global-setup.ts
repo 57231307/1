@@ -5,6 +5,9 @@ import { WORKER_SESSIONS_MANIFEST_PATH, buildWorkerSessions } from './worker-aut
 // 镜像岗位花名册（唯一名源）：本文件补建角色时用它点名权限码来源，
 // 与角色权限矩阵基线轨的 provenance 判据同源，禁止在本文件另列一份岗位名单。
 import { CI_MIRRORED_ROLES } from './traversal/permission-model';
+// 产品类型单源常量（src/constants/product-type.ts 与后端词表同源）：建品种子的
+// product_type 取值必须经它引用，禁止在本文件散落中文面值（面值漂移即静默失真）。
+import { PRODUCT_TYPE } from '../src/constants/product-type';
 
 /**
  * 取 e2e 建号与登录使用的口令，只读环境变量 TEST_PASSWORD，缺失即抛错点名该变量与后果，不提供默认值。
@@ -1644,6 +1647,10 @@ async function ensureGlobalBusinessSeed(
         name: `E2E全局产品${ts}`,
         unit: '米',
         category_id: fabricCategoryId,
+        // 报价/验布/库存链路按克重×幅宽做米↔公斤换算，种子必须是面料类；
+        // 后端面料必录门要求幅宽/克重/面料成分三键同全，取值经单源常量引用。
+        product_type: PRODUCT_TYPE.finished,
+        fabric_composition: '100%涤纶',
         gram_weight: 180,
         width: 150,
         meters_per_piece: 50,
