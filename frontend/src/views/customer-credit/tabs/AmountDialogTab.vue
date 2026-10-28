@@ -22,7 +22,7 @@
       :aria-label="t('customerCredit.amount.formAriaLabel')"
     >
       <el-form-item :label="t('customerCredit.amount.label.amount')" prop="amount">
-        <el-input-number v-model="form.amount" :min="0" style="width: 100%" />
+        <el-input v-model="form.amount" style="width: 100%" inputmode="numeric" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -48,6 +48,7 @@ import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { occupyCredit, releaseCredit } from '@/api/customer-credit';
 import { PERMISSIONS } from '@/constants/permissions';
+import { numberInputRules } from '@/utils/number-input';
 import { logger } from '@/utils/logger';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -71,30 +72,22 @@ const submitLoading = ref(false);
 const formRef = ref<FormInstance>();
 
 const form = reactive({
-  amount: 0,
+  amount: '',
 });
 
 const rules: FormRules = {
-  amount: [
-    {
-      required: true,
-      message: t('customerCredit.amount.validation.amountRequired'),
-      trigger: 'blur',
+  amount: numberInputRules({
+    label: t('customerCredit.amount.label.amount'),
+    required: true,
+    positive: true,
+    integer: true,
+    // 后端 occupy/release 共用 CreditAmountRequest，绑定 validate_amount_range 强制 amount>0
+    // （backend/src/handlers/customer_credit_handler.rs:82-84 + utils/validator.rs:14）；
+    messages: {
+      empty: t('customerCredit.amount.validation.amountRequired'),
+      mustPositive: t('customerCredit.amount.validation.amountMustPositive'),
     },
-    {
-      // 后端 occupy/release 共用 CreditAmountRequest，绑定 validate_amount_range 强制 amount>0
-      // （backend/src/handlers/customer_credit_handler.rs:82-84 + utils/validator.rs:14）；
-      // async-validator 的 required 对数字 0 视为有效值，拦不住表单默认的 0。
-      validator: (_rule, value, callback) => {
-        if (value !== undefined && value !== null && Number(value) <= 0) {
-          callback(new Error(t('customerCredit.amount.validation.amountMustPositive')));
-        } else {
-          callback();
-        }
-      },
-      trigger: 'blur',
-    },
-  ],
+  }),
 };
 
 watch(
@@ -102,7 +95,7 @@ watch(
   val => {
     visible.value = val;
     if (val) {
-      form.amount = 0;
+      form.amount = '';
     }
   }
 );
@@ -117,11 +110,11 @@ const handleSubmit = async () => {
     await formRef.value.validate();
     submitLoading.value = true;
     if (props.operationType === 'occupy') {
-      await occupyCredit(props.customerId, { amount: form.amount });
+      await occupyCredit(props.customerId, { amount: Number(form.amount) });
     } else {
       // 后端 release_credit 只认 amount（见 api/customer-credit.ts 注释），
       // 这里必须提交表单真实金额，不能再传占位 0。
-      await releaseCredit(props.customerId, { amount: form.amount });
+      await releaseCredit(props.customerId, { amount: Number(form.amount) });
     }
     ElMessage.success(t('customerCredit.amount.message.success'));
     visible.value = false;

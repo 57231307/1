@@ -1,4 +1,4 @@
-# layers=8 endpoints=1801
+# layers=8 endpoints=1802
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -945,6 +945,7 @@ GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_st
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
+GET	/api/v1/erp/templates/meta/*	import_export_handler::describe_import_template	analytics
 GET	/api/v1/erp/textile-export-requirements	textile_safety_master_handler::list_export_requirements	textile_safety
 GET	/api/v1/erp/textile-limit-rules	textile_safety_master_handler::list_limit_rules	textile_safety
 GET	/api/v1/erp/textile-reports	textile_safety_report_handler::list_reports	textile_safety

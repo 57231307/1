@@ -916,25 +916,14 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
   try {
     await safeGoto(page, '/custom-orders/new');
     await page.waitForTimeout(800);
-    // customer_id / product_id 是 el-input-number（手填数字 ID）
-    const inputs = page.locator('input[type="number"]');
-    const inputCount = await inputs.count();
-    if (inputCount >= 2) {
-      await inputs.nth(0).waitFor({ state: 'visible', timeout: 30000 });
-      await inputs.nth(0).click({ clickCount: 3 });
-      await inputs.nth(0).fill('1');
-      await inputs.nth(1).click({ clickCount: 3 });
-      await inputs.nth(1).fill('1');
-    } else {
-      // 兜底：用 label 定位
-      const customerIdInput = page.locator('.el-form-item:has(:text-is("客户ID")) input').first();
-      const productIdInput = page.locator('.el-form-item:has(:text-is("产品ID")) input').first();
-      await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
-      await customerIdInput.click({ clickCount: 3 });
-      await customerIdInput.fill('1');
-      await productIdInput.click({ clickCount: 3 });
-      await productIdInput.fill('1');
-    }
+    // 客户ID 与 产品ID 是手写数字录入框（纯 el-input 加数字校验）按精确 label 锚定真实 input
+    const customerIdInput = formItemByExactLabel(page, '客户ID').locator('input').first();
+    const productIdInput = formItemByExactLabel(page, '产品ID').locator('input').first();
+    await customerIdInput.waitFor({ state: 'visible', timeout: 30000 });
+    await customerIdInput.click({ clickCount: 3 });
+    await customerIdInput.fill('1');
+    await productIdInput.click({ clickCount: 3 });
+    await productIdInput.fill('1');
     const specInput = page
       .locator('.el-form-item:has(:text-is("规格")) input, input[placeholder*="规格"]')
       .first();
@@ -947,9 +936,9 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     await specInput.fill('E2E 定制规格').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    // 数量定位须限定"数量"label 的 form-item：页面另有 total_amount 等
-    // el-input-number，.last() 会误选 total_amount 导致 quantity 空校验失败
-    const quantityInput = page.locator('.el-form-item:has(:text-is("数量")) input').first();
+    // 数量项的 form-item 内同时有录入框与单位下拉 走源码显式绑定的 input id 定位录入框
+    // 避免按 label 下钻时误选单位下拉的内层 input
+    const quantityInput = page.locator('#co-create-quantity');
     await quantityInput.waitFor({ state: 'visible', timeout: 20000 }).catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
@@ -959,7 +948,7 @@ export async function createCustomOrderUI(page: Page): Promise<number | undefine
     await quantityInput.fill('100').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    // el-input-number 需 blur/Enter 同步 v-model，fill 后触发 blur
+    // 手写录入在输入事件即提交模型 Tab 只为收起焦点 让显示收敛到规范形态
     await quantityInput.press('Tab').catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });

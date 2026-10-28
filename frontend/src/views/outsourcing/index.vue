@@ -227,7 +227,7 @@
       "
       width="560"
     >
-      <el-form :model="form" label-width="110px">
+      <el-form ref="orderFormRef" :model="form" :rules="orderRules" label-width="110px">
         <el-form-item v-if="!editingId" :label="$t('outsourcing.columns.orderNo')" required>
           <el-input v-model="form.order_no" readonly />
         </el-form-item>
@@ -270,51 +270,50 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.issueQuantity')" required>
-          <el-input-number
-            v-model="form.issue_quantity"
-            :min="0.01"
-            :precision="2"
-            class="w-full"
-          />
+        <el-form-item
+          :label="$t('outsourcing.columns.issueQuantity')"
+          prop="issue_quantity"
+          required
+        >
+          <el-input v-model="form.issue_quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.unit')">
           <el-input v-model="form.issue_unit" placeholder="kg / m" />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.form.materialCost')" required>
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.form.materialCost')" prop="material_cost" required>
+          <el-input
             v-model="form.material_cost"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.formPlaceholders.materialCost')"
             class="w-full"
           />
         </el-form-item>
         <!-- 三费录入（缺陷②修复）：outsourcing_order NOT NULL 列（后端 v15:3247-3249），
              建单必填可填 0；结算 FEE 凭证金额=加工费+运费，不录入成本链恒 0 -->
-        <el-form-item :label="$t('outsourcing.columns.processingFee')" required>
-          <el-input-number
+        <el-form-item
+          :label="$t('outsourcing.columns.processingFee')"
+          prop="processing_fee"
+          required
+        >
+          <el-input
             v-model="form.processing_fee"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.formPlaceholders.processingFee')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.freightFee')" required>
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.columns.freightFee')" prop="freight_fee" required>
+          <el-input
             v-model="form.freight_fee"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.formPlaceholders.freightFee')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.taxAmount')" required>
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.columns.taxAmount')" prop="tax_amount" required>
+          <el-input
             v-model="form.tax_amount"
-            :min="0"
-            :precision="2"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.formPlaceholders.taxAmount')"
             class="w-full"
           />
@@ -430,9 +429,9 @@
       :title="$t('outsourcing.dialog.addItemTitle')"
       width="520"
     >
-      <el-form :model="itemForm" label-width="110px">
-        <el-form-item :label="$t('outsourcing.columns.productId')" required>
-          <el-input-number v-model="itemForm.product_id" :min="1" class="w-full" />
+      <el-form ref="itemFormRef" :model="itemForm" :rules="itemRules" label-width="110px">
+        <el-form-item :label="$t('outsourcing.columns.productId')" prop="product_id" required>
+          <el-input v-model="itemForm.product_id" inputmode="numeric" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.colorNo')"
           ><el-input v-model="itemForm.color_no"
@@ -458,25 +457,20 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.quantity')" required>
-          <el-input-number v-model="itemForm.quantity" :min="0.01" :precision="2" class="w-full" />
+        <el-form-item :label="$t('outsourcing.columns.quantity')" prop="quantity" required>
+          <el-input v-model="itemForm.quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.unit')"
           ><el-input v-model="itemForm.unit" placeholder="kg / m"
         /></el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.unitCost')" required>
-          <el-input-number v-model="itemForm.unit_cost" :min="0" :precision="2" class="w-full" />
+        <el-form-item :label="$t('outsourcing.columns.unitCost')" prop="unit_cost" required>
+          <el-input v-model="itemForm.unit_cost" inputmode="decimal" class="w-full" />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.processingFee')">
-          <el-input-number
-            v-model="itemForm.processing_fee"
-            :min="0"
-            :precision="2"
-            class="w-full"
-          />
+        <el-form-item :label="$t('outsourcing.columns.processingFee')" prop="processing_fee">
+          <el-input v-model="itemForm.processing_fee" inputmode="decimal" class="w-full" />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.freightFee')">
-          <el-input-number v-model="itemForm.freight_fee" :min="0" :precision="2" class="w-full" />
+        <el-form-item :label="$t('outsourcing.columns.freightFee')" prop="freight_fee">
+          <el-input v-model="itemForm.freight_fee" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.remarks')"
           ><el-input v-model="itemForm.remarks" type="textarea" :rows="2"
@@ -495,12 +489,16 @@
       :title="$t('outsourcing.actions.createReceipt')"
       width="560"
     >
-      <el-form :model="receiptForm" label-width="110px">
+      <el-form ref="receiptFormRef" :model="receiptForm" :rules="receiptRules" label-width="110px">
         <el-form-item :label="$t('outsourcing.columns.receiptNo')" required>
           <el-input v-model="receiptForm.receipt_no" readonly />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.outsourcingOrderId')" required>
-          <el-input-number v-model="receiptForm.outsourcing_order_id" :min="1" class="w-full" />
+        <el-form-item
+          :label="$t('outsourcing.columns.outsourcingOrderId')"
+          prop="outsourcing_order_id"
+          required
+        >
+          <el-input v-model="receiptForm.outsourcing_order_id" inputmode="numeric" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.receiptDate')" required>
           <el-date-picker
@@ -510,8 +508,8 @@
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.productId')" required>
-          <el-input-number v-model="receiptForm.product_id" :min="1" class="w-full" />
+        <el-form-item :label="$t('outsourcing.columns.productId')" prop="product_id" required>
+          <el-input v-model="receiptForm.product_id" inputmode="numeric" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.colorNo')"
           ><el-input v-model="receiptForm.color_no"
@@ -519,21 +517,15 @@
         <el-form-item :label="$t('outsourcing.columns.dyeLotNo')"
           ><el-input v-model="receiptForm.dye_lot_no"
         /></el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.returnQuantity')" required>
-          <el-input-number
-            v-model="receiptForm.return_quantity"
-            :min="0.01"
-            :precision="2"
-            class="w-full"
-          />
+        <el-form-item
+          :label="$t('outsourcing.columns.returnQuantity')"
+          prop="return_quantity"
+          required
+        >
+          <el-input v-model="receiptForm.return_quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.columns.lossQuantity')">
-          <el-input-number
-            v-model="receiptForm.loss_quantity"
-            :min="0"
-            :precision="2"
-            class="w-full"
-          />
+        <el-form-item :label="$t('outsourcing.columns.lossQuantity')" prop="loss_quantity">
+          <el-input v-model="receiptForm.loss_quantity" inputmode="decimal" class="w-full" />
         </el-form-item>
         <el-form-item :label="$t('outsourcing.columns.qualityStatus')">
           <el-select v-model="receiptForm.quality_status" class="w-full">
@@ -554,29 +546,26 @@
         <el-divider content-position="left">{{
           $t('outsourcing.receipt.measuredTitle')
         }}</el-divider>
-        <el-form-item :label="$t('outsourcing.receipt.measured.weight')">
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.receipt.measured.weight')" prop="weight">
+          <el-input
             v-model="receiptForm.weight"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.weightRequired')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.receipt.measured.width')">
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.receipt.measured.width')" prop="width">
+          <el-input
             v-model="receiptForm.width"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.widthRequired')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')">
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')" prop="gram_weight">
+          <el-input
             v-model="receiptForm.gram_weight"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.gramWeightRequired')"
             class="w-full"
           />
@@ -601,30 +590,32 @@
       :title="$t('outsourcing.receipt.measured.editTitle')"
       width="560"
     >
-      <el-form label-width="110px">
-        <el-form-item :label="$t('outsourcing.receipt.measured.weight')">
-          <el-input-number
+      <el-form
+        ref="measuredFormRef"
+        :model="measuredForm"
+        :rules="measuredRules"
+        label-width="110px"
+      >
+        <el-form-item :label="$t('outsourcing.receipt.measured.weight')" prop="weight">
+          <el-input
             v-model="measuredForm.weight"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.weightRequired')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.receipt.measured.width')">
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.receipt.measured.width')" prop="width">
+          <el-input
             v-model="measuredForm.width"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.widthRequired')"
             class="w-full"
           />
         </el-form-item>
-        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')">
-          <el-input-number
+        <el-form-item :label="$t('outsourcing.receipt.measured.gramWeight')" prop="gram_weight">
+          <el-input
             v-model="measuredForm.gram_weight"
-            :min="0"
-            :precision="4"
+            inputmode="decimal"
             :placeholder="$t('outsourcing.receipt.measured.gramWeightRequired')"
             class="w-full"
           />
@@ -644,9 +635,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { logAuxLoadFailure, logger } from '@/utils/logger';
+import { numberInputRules, numericView } from '@/utils/number-input';
 import { msg } from '@/utils/message';
 import { isDialogDismissal } from '@/utils/monitor';
 import {
@@ -721,32 +713,84 @@ const saving = ref(false);
 const dialogVisible = ref(false);
 const editingId = ref<number | null>(null);
 
-/** 打开新建委外单：自动预生成单据号（查重唯一后只读展示，防手动输入重复） */
-const openCreate = async () => {
-  editingId.value = null;
-  // 三费回到未填态（NOT NULL 列 0 为合法值，须显式填写而非沿用上次编辑回显值）
-  form.processing_fee = undefined;
-  form.freight_fee = undefined;
-  form.tax_amount = undefined;
-  form.order_no = await generateUniqueDocNo('OUT', 'outsourcing_order');
-  dialogVisible.value = true;
-};
-
 const form = reactive({
   order_no: '',
   order_type: 'dyeing',
   supplier_id: undefined as number | undefined,
   issue_date: '',
   expected_return_date: '',
-  issue_quantity: undefined as number | undefined,
+  // 数值录入项统一为手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
+  issue_quantity: '',
   issue_unit: '',
-  material_cost: undefined as number | undefined,
+  material_cost: '',
   // 三费：outsourcing_order NOT NULL 列（后端 v15:3247-3249），建单必填（0 为合法值，
-  // 判空用 ==null，不得用 !value 误判 0）；编辑回显经 Number() 归一（Decimal 出参是字符串）
-  processing_fee: undefined as number | undefined,
-  freight_fee: undefined as number | undefined,
-  tax_amount: undefined as number | undefined,
+  // 判空用 ===''，不得用 !value 误判 0）；编辑回显按 Decimal 出参经 numericView 归一
+  processing_fee: '',
+  freight_fee: '',
+  tax_amount: '',
 });
+
+// 建单/编辑对话框数值录入校验（范围与精度靠校验器，不靠步进按钮）
+const orderFormRef = ref<FormInstance>();
+const orderRules = computed<FormRules>(() => ({
+  issue_quantity: numberInputRules({
+    label: t('outsourcing.columns.issueQuantity'),
+    required: true,
+    min: 0.01,
+    precision: 2,
+  }),
+  material_cost: numberInputRules({
+    label: t('outsourcing.form.materialCost'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  processing_fee: numberInputRules({
+    label: t('outsourcing.columns.processingFee'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  freight_fee: numberInputRules({
+    label: t('outsourcing.columns.freightFee'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  tax_amount: numberInputRules({
+    label: t('outsourcing.columns.taxAmount'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+}));
+
+/** 手写文本模型转数值：空串回 fallback（仅用于允许缺省的数值提交点） */
+const numOr = (text: string, fallback: number): number =>
+  text.trim() === '' ? fallback : Number(text);
+
+/** 表单级校验（数字格式/范围/精度由 numberInputRules 单源判定），失败即拦截提交 */
+const validateFormRef = async (formRef?: FormInstance): Promise<boolean> => {
+  if (!formRef) return true;
+  let ok = false;
+  await formRef.validate(valid => {
+    ok = valid;
+  });
+  return ok;
+};
+
+const validateOrderForm = () => validateFormRef(orderFormRef.value);
+
+/** 打开新建委外单：自动预生成单据号（查重唯一后只读展示，防手动输入重复） */
+const openCreate = async () => {
+  editingId.value = null;
+  // 三费回到未填态（NOT NULL 列 0 为合法值，须显式填写而非沿用上次编辑回显值）
+  form.processing_fee = '';
+  form.freight_fee = '';
+  form.tax_amount = '';
+  form.order_no = await generateUniqueDocNo('OUT', 'outsourcing_order');
+  dialogVisible.value = true;
+};
 
 // 供应商/加工商候选：新建与编辑共用同一表单，选中项按 supplier_id 落库；
 // 输入名称或编码即时筛选，避免只能手填数字主键。
@@ -801,15 +845,17 @@ async function onCreate() {
     !form.order_no ||
     !form.supplier_id ||
     !form.issue_date ||
-    !form.issue_quantity ||
-    form.material_cost == null ||
-    form.processing_fee == null ||
-    form.freight_fee == null ||
-    form.tax_amount == null
+    form.issue_quantity.trim() === '' ||
+    form.material_cost.trim() === '' ||
+    form.processing_fee.trim() === '' ||
+    form.freight_fee.trim() === '' ||
+    form.tax_amount.trim() === ''
   ) {
     ElMessage.warning(t('outsourcing.message.requiredOrderFields'));
     return;
   }
+  const valid = await validateOrderForm();
+  if (!valid) return;
   saving.value = true;
   try {
     await createOutsourcingOrder({
@@ -818,21 +864,21 @@ async function onCreate() {
       supplier_id: form.supplier_id,
       issue_date: form.issue_date,
       expected_return_date: form.expected_return_date || undefined,
-      issue_quantity: form.issue_quantity,
+      issue_quantity: Number(form.issue_quantity),
       issue_unit: form.issue_unit || undefined,
-      material_cost: form.material_cost,
-      processing_fee: form.processing_fee,
-      freight_fee: form.freight_fee,
-      tax_amount: form.tax_amount,
+      material_cost: Number(form.material_cost),
+      processing_fee: Number(form.processing_fee),
+      freight_fee: Number(form.freight_fee),
+      tax_amount: Number(form.tax_amount),
     });
     ElMessage.success(t('outsourcing.message.orderCreated'));
     dialogVisible.value = false;
     form.order_no = '';
-    form.issue_quantity = undefined;
-    form.material_cost = undefined;
-    form.processing_fee = undefined;
-    form.freight_fee = undefined;
-    form.tax_amount = undefined;
+    form.issue_quantity = '';
+    form.material_cost = '';
+    form.processing_fee = '';
+    form.freight_fee = '';
+    form.tax_amount = '';
     await load();
   } finally {
     saving.value = false;
@@ -848,24 +894,26 @@ const openEdit = (row: OutsourcingOrder) => {
     supplier_id: row.supplier_id,
     issue_date: row.issue_date || '',
     expected_return_date: row.expected_return_date || '',
-    // 后端 Decimal 列出参为字符串（如 "100.0000"），el-input-number 绑定必须 Number() 归一
-    // （NOT NULL 列键恒在，无需 ?? 兜底缺键）
-    issue_quantity: Number(row.issue_quantity),
+    // 回显：后端 Decimal 列出参为字符串（如 "100.0000"），经 Number() 归一后按
+    // 两位小数格式化灌入手写录入框（NOT NULL 列键恒在，无需 ?? 兜底缺键）
+    issue_quantity: numericView(Number(row.issue_quantity), 2),
     issue_unit: row.issue_unit || '',
-    material_cost: Number(row.material_cost),
-    processing_fee: Number(row.processing_fee),
-    freight_fee: Number(row.freight_fee),
-    tax_amount: Number(row.tax_amount),
+    material_cost: numericView(Number(row.material_cost), 2),
+    processing_fee: numericView(Number(row.processing_fee), 2),
+    freight_fee: numericView(Number(row.freight_fee), 2),
+    tax_amount: numericView(Number(row.tax_amount), 2),
   });
   dialogVisible.value = true;
 };
 
 const onSave = async () => {
   if (editingId.value) {
-    if (!form.supplier_id || !form.issue_date || !form.issue_quantity) {
+    if (!form.supplier_id || !form.issue_date || form.issue_quantity.trim() === '') {
       ElMessage.warning(t('outsourcing.message.requiredEditFields'));
       return;
     }
+    const valid = await validateOrderForm();
+    if (!valid) return;
     saving.value = true;
     try {
       await updateOutsourcingOrder(editingId.value, {
@@ -875,15 +923,15 @@ const onSave = async () => {
         // expected_return_date 为 DB 可空列（三态）：对话框已回显原值，
         // UI 清空 ⇒ 送显式 null（=清空），未改动 ⇒ 原值回传；其余未采集键省略=保持原值
         expected_return_date: form.expected_return_date || null,
-        issue_quantity: form.issue_quantity,
+        issue_quantity: Number(form.issue_quantity),
         issue_unit: form.issue_unit || undefined,
-        material_cost: form.material_cost,
+        material_cost: numOr(form.material_cost, 0),
         // 三费 NOT NULL 列：编辑框已回显库中原值，UI 清空归一为 0 显式覆盖
         //（0 为合法值；显式 null 会被后端拒"不能清空"，键缺席=保持原值，
         // 两种写法都不如把用户看到的空如实写成 0——不留静默歧义）
-        processing_fee: form.processing_fee ?? 0,
-        freight_fee: form.freight_fee ?? 0,
-        tax_amount: form.tax_amount ?? 0,
+        processing_fee: numOr(form.processing_fee, 0),
+        freight_fee: numOr(form.freight_fee, 0),
+        tax_amount: numOr(form.tax_amount, 0),
       });
       ElMessage.success(t('outsourcing.message.orderUpdated'));
       dialogVisible.value = false;
@@ -930,20 +978,53 @@ const orderItems = ref<OutsourcingOrderItem[]>([]);
 const itemLoading = ref(false);
 const itemDialogVisible = ref(false);
 const itemSaving = ref(false);
+const itemFormRef = ref<FormInstance>();
 const itemForm = reactive({
-  product_id: undefined as number | undefined,
+  product_id: '',
   color_no: '',
   dye_lot_no: '',
   // 生产匹号：委外发料逐条必须引用真实可用生产匹（后端发料门精确到匹），
   // 取值仅允许来自 loadProductionPieces 经 GET /inventory/pieces 下推查回的生产匹
   piece_no: '',
-  quantity: undefined as number | undefined,
+  quantity: '',
   unit: '',
-  unit_cost: 0,
-  processing_fee: 0,
-  freight_fee: 0,
+  unit_cost: '0',
+  processing_fee: '0',
+  freight_fee: '0',
   remarks: '',
 });
+
+// 明细登记数值录入校验（范围与精度靠校验器，不靠步进按钮）
+const itemRules = computed<FormRules>(() => ({
+  product_id: numberInputRules({
+    label: t('outsourcing.columns.productId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  quantity: numberInputRules({
+    label: t('outsourcing.columns.quantity'),
+    required: true,
+    min: 0.01,
+    precision: 2,
+  }),
+  unit_cost: numberInputRules({
+    label: t('outsourcing.columns.unitCost'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  processing_fee: numberInputRules({
+    label: t('outsourcing.columns.processingFee'),
+    min: 0,
+    precision: 2,
+  }),
+  freight_fee: numberInputRules({
+    label: t('outsourcing.columns.freightFee'),
+    min: 0,
+    precision: 2,
+  }),
+}));
 
 // 生产匹候选按产品 ID 缓存（产品→该产品的可用生产匹列表），与调拨/发货出库第四维
 // 同源取数（GET /inventory/pieces，piece_type=greige + status=AVAILABLE）
@@ -951,14 +1032,18 @@ const productionPiecesMap = ref<Record<number, InventoryPieceRow[]>>({});
 
 // 当前明细行的匹号候选：已填产品则读其缓存（未加载时为空数组，由下拉展开时按需取回），
 // 未填产品无候选可选
-const pieceOptions = computed(() =>
-  itemForm.product_id ? (productionPiecesMap.value[itemForm.product_id] ?? []) : []
-);
+const pieceOptions = computed(() => {
+  const productId = numOr(itemForm.product_id, NaN);
+  return Number.isInteger(productId) && productId > 0
+    ? (productionPiecesMap.value[productId] ?? [])
+    : [];
+});
 
 /** 下拉展开时按当前产品拉取可用生产匹（生产匹 + 可用），命中缓存则不重复请求 */
 const loadProductionPieces = async () => {
-  const productId = itemForm.product_id;
-  if (!productId || productionPiecesMap.value[productId]) return;
+  const productId = numOr(itemForm.product_id, NaN);
+  if (!Number.isInteger(productId) || productId <= 0 || productionPiecesMap.value[productId])
+    return;
   try {
     // 出参 PaginatedResponse{items,total,page,page_size} 单一形状，固定读 res.data.items，
     // 不做 items/data 双形状探测、不做 ?? [] 兜底掩盖缺键
@@ -1009,10 +1094,12 @@ const openDetail = async (row: OutsourcingOrder) => {
 };
 
 const onSaveItem = async () => {
-  if (!detailOrder.value || !itemForm.product_id || !itemForm.quantity) {
+  if (!detailOrder.value || !itemForm.product_id || itemForm.quantity.trim() === '') {
     ElMessage.warning(t('outsourcing.message.requiredItemFields'));
     return;
   }
+  const valid = await validateFormRef(itemFormRef.value);
+  if (!valid) return;
   // 委外发料精确到匹：无匹号的明细无法通过后端发料门，登记时必须已选定真实可用生产匹
   if (!itemForm.piece_no) {
     ElMessage.warning(t('outsourcing.message.pieceNoRequired'));
@@ -1022,15 +1109,16 @@ const onSaveItem = async () => {
   try {
     await createOutsourcingItem(detailOrder.value.id, {
       outsourcing_order_id: detailOrder.value.id,
-      product_id: itemForm.product_id,
+      product_id: Number(itemForm.product_id),
       color_no: itemForm.color_no || null,
       dye_lot_no: itemForm.dye_lot_no || null,
       piece_no: itemForm.piece_no,
-      quantity: itemForm.quantity,
+      quantity: Number(itemForm.quantity),
       unit: itemForm.unit || null,
-      unit_cost: itemForm.unit_cost,
-      processing_fee: itemForm.processing_fee || null,
-      freight_fee: itemForm.freight_fee || null,
+      unit_cost: numOr(itemForm.unit_cost, 0),
+      // 附加费为可空列：空或 0 如实提交 null（原控件默认 0 即"未发生"）
+      processing_fee: numOr(itemForm.processing_fee, 0) || null,
+      freight_fee: numOr(itemForm.freight_fee, 0) || null,
       remarks: itemForm.remarks || null,
     });
     ElMessage.success(t('outsourcing.message.itemAdded'));
@@ -1047,23 +1135,66 @@ const receipts = ref<OutsourcingReceipt[]>([]);
 const receiptLoading = ref(false);
 const receiptDialogVisible = ref(false);
 const receiptSaving = ref(false);
+const receiptFormRef = ref<FormInstance>();
 const receiptForm = reactive({
   receipt_no: '',
-  outsourcing_order_id: undefined as number | undefined,
+  outsourcing_order_id: '',
   receipt_date: '',
-  product_id: undefined as number | undefined,
+  product_id: '',
   color_no: '',
   dye_lot_no: '',
-  return_quantity: undefined as number | undefined,
-  loss_quantity: 0,
+  return_quantity: '',
+  loss_quantity: '0',
   quality_status: OUTSOURCING_QUALITY_STATUS.qualified,
   grade: '',
   remarks: '',
-  // 打卷实测值（DB 可空列，可留空=未补录；0 非合法实测值，判空一律 == null）
-  weight: undefined as number | undefined,
-  width: undefined as number | undefined,
-  gram_weight: undefined as number | undefined,
+  // 打卷实测值（DB 可空列，空串=未填即未补录；0 非合法实测值，判空一律 ===''，>0 由校验器拦）
+  weight: '',
+  width: '',
+  gram_weight: '',
 });
+
+// 收回单数值录入校验（范围与精度靠校验器，不靠步进按钮；实测三列留空合法）
+const receiptRules = computed<FormRules>(() => ({
+  outsourcing_order_id: numberInputRules({
+    label: t('outsourcing.columns.outsourcingOrderId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  product_id: numberInputRules({
+    label: t('outsourcing.columns.productId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  return_quantity: numberInputRules({
+    label: t('outsourcing.columns.returnQuantity'),
+    required: true,
+    min: 0.01,
+    precision: 2,
+  }),
+  loss_quantity: numberInputRules({
+    label: t('outsourcing.columns.lossQuantity'),
+    min: 0,
+    precision: 2,
+  }),
+  weight: numberInputRules({
+    label: t('outsourcing.receipt.measured.weight'),
+    min: 0,
+    precision: 4,
+  }),
+  width: numberInputRules({
+    label: t('outsourcing.receipt.measured.width'),
+    min: 0,
+    precision: 4,
+  }),
+  gram_weight: numberInputRules({
+    label: t('outsourcing.receipt.measured.gramWeight'),
+    min: 0,
+    precision: 4,
+  }),
+}));
 
 async function loadReceipts() {
   receiptLoading.value = true;
@@ -1081,10 +1212,10 @@ async function loadReceipts() {
 }
 
 const openCreateReceipt = async () => {
-  // 实测值回到未填态（可空列，NULL=未补录），不沿用上一单的编辑残留
-  receiptForm.weight = undefined;
-  receiptForm.width = undefined;
-  receiptForm.gram_weight = undefined;
+  // 实测值回到未填态（可空列，空串=未补录），不沿用上一单的编辑残留
+  receiptForm.weight = '';
+  receiptForm.width = '';
+  receiptForm.gram_weight = '';
   receiptForm.receipt_no = await generateUniqueDocNo('ORC', 'outsourcing_receipt');
   receiptDialogVisible.value = true;
 };
@@ -1094,19 +1225,24 @@ const openCreateReceipt = async () => {
  * 留空放行（DB 可空=未补录）；0/负数按列点名拒绝并给出留空指引，不放行到后端吃 400。
  */
 function checkMeasuredPositive(form: {
-  weight?: number | null;
-  width?: number | null;
-  gram_weight?: number | null;
+  weight: string;
+  width: string;
+  gram_weight: string;
 }): boolean {
-  if (form.weight != null && form.weight <= 0) {
+  const isNonPositive = (text: string) => {
+    if (text.trim() === '') return false;
+    const num = Number(text);
+    return !Number.isFinite(num) || num <= 0;
+  };
+  if (isNonPositive(form.weight)) {
     ElMessage.warning(t('outsourcing.receipt.measured.weightPositive'));
     return false;
   }
-  if (form.width != null && form.width <= 0) {
+  if (isNonPositive(form.width)) {
     ElMessage.warning(t('outsourcing.receipt.measured.widthPositive'));
     return false;
   }
-  if (form.gram_weight != null && form.gram_weight <= 0) {
+  if (isNonPositive(form.gram_weight)) {
     ElMessage.warning(t('outsourcing.receipt.measured.gramWeightPositive'));
     return false;
   }
@@ -1124,11 +1260,13 @@ const onSaveReceipt = async () => {
     !receiptForm.outsourcing_order_id ||
     !receiptForm.receipt_date ||
     !receiptForm.product_id ||
-    !receiptForm.return_quantity
+    receiptForm.return_quantity.trim() === ''
   ) {
     ElMessage.warning(t('outsourcing.message.requiredReceiptFields'));
     return;
   }
+  const valid = await validateFormRef(receiptFormRef.value);
+  if (!valid) return;
   if (!checkMeasuredPositive(receiptForm)) {
     return;
   }
@@ -1136,22 +1274,22 @@ const onSaveReceipt = async () => {
   try {
     await createOutsourcingReceipt({
       receipt_no: receiptForm.receipt_no,
-      outsourcing_order_id: receiptForm.outsourcing_order_id,
+      outsourcing_order_id: Number(receiptForm.outsourcing_order_id),
       receipt_date: receiptForm.receipt_date,
-      product_id: receiptForm.product_id,
+      product_id: Number(receiptForm.product_id),
       color_no: receiptForm.color_no || null,
       dye_lot_no: receiptForm.dye_lot_no || null,
-      return_quantity: receiptForm.return_quantity,
-      loss_quantity: receiptForm.loss_quantity || null,
+      return_quantity: Number(receiptForm.return_quantity),
+      loss_quantity: numOr(receiptForm.loss_quantity, 0) || null,
       quality_status: receiptForm.quality_status || null,
       grade: receiptForm.grade || null,
       remarks: receiptForm.remarks || null,
-      // 建单直写口径（CreateOutsourcingReceiptRequest.weight/width/gram_weight
-      // types.rs:230-234 Option<Decimal>）：留空=??null 如实落 NULL（未补录），
+      // 建单直写口径（CreateOutsourcingReceiptRequest 的 weight width gram_weight 为
+      // Option<Decimal>）：留空=空串=如实落 NULL（未补录），
       // 建单无"保持原值"态故不涉及键缺席；>0 已由 checkMeasuredPositive 前置拦截
-      weight: receiptForm.weight ?? null,
-      width: receiptForm.width ?? null,
-      gram_weight: receiptForm.gram_weight ?? null,
+      weight: receiptForm.weight.trim() === '' ? null : Number(receiptForm.weight),
+      width: receiptForm.width.trim() === '' ? null : Number(receiptForm.width),
+      gram_weight: receiptForm.gram_weight.trim() === '' ? null : Number(receiptForm.gram_weight),
     });
     ElMessage.success(t('outsourcing.message.receiptCreated'));
     receiptDialogVisible.value = false;
@@ -1164,6 +1302,7 @@ const onSaveReceipt = async () => {
 // ========== 补录打卷实测值（PUT /production/outsourcing-receipts/{id}，仅 draft） ==========
 const measuredDialogVisible = ref(false);
 const measuredSaving = ref(false);
+const measuredFormRef = ref<FormInstance>();
 const measuredReceiptId = ref<number | null>(null);
 /** 打开对话框时的库中原值（后端出参 string|null），三态 diff 的基准，保存前不被改写 */
 const measuredOriginal = reactive<{
@@ -1172,20 +1311,41 @@ const measuredOriginal = reactive<{
   gram_weight: string | null;
 }>({ weight: null, width: null, gram_weight: null });
 const measuredForm = reactive({
-  weight: undefined as number | undefined,
-  width: undefined as number | undefined,
-  gram_weight: undefined as number | undefined,
+  weight: '',
+  width: '',
+  gram_weight: '',
 });
+
+// 补录实测值校验：DB 可空列留空合法（三态由 measuredTriState 判定），
+// 填了就必须是 ≤4 位小数的非负数；>0 由 checkMeasuredPositive 点名拦截
+const measuredRules = computed<FormRules>(() => ({
+  weight: numberInputRules({
+    label: t('outsourcing.receipt.measured.weight'),
+    min: 0,
+    precision: 4,
+  }),
+  width: numberInputRules({
+    label: t('outsourcing.receipt.measured.width'),
+    min: 0,
+    precision: 4,
+  }),
+  gram_weight: numberInputRules({
+    label: t('outsourcing.receipt.measured.gramWeight'),
+    min: 0,
+    precision: 4,
+  }),
+}));
 
 const openMeasuredDialog = (row: OutsourcingReceipt) => {
   measuredReceiptId.value = row.id;
   measuredOriginal.weight = row.weight;
   measuredOriginal.width = row.width;
   measuredOriginal.gram_weight = row.gram_weight;
-  // 回显：Decimal 出参为字符串，el-input-number 绑定须 Number() 归一；null=未补录=留空
-  measuredForm.weight = row.weight == null ? undefined : Number(row.weight);
-  measuredForm.width = row.width == null ? undefined : Number(row.width);
-  measuredForm.gram_weight = row.gram_weight == null ? undefined : Number(row.gram_weight);
+  // 回显：Decimal 出参为字符串（如 "12.5000"），经 Number() 归一后按 4 位小数格式化
+  // 灌入手写录入框；null=未补录=留空
+  measuredForm.weight = row.weight == null ? '' : numericView(Number(row.weight), 4);
+  measuredForm.width = row.width == null ? '' : numericView(Number(row.width), 4);
+  measuredForm.gram_weight = row.gram_weight == null ? '' : numericView(Number(row.gram_weight), 4);
   measuredDialogVisible.value = true;
 };
 
@@ -1196,17 +1356,19 @@ const openMeasuredDialog = (row: OutsourcingReceipt) => {
  * 留空且原值有 ⇒ null（显式清空回"未补录"）；
  * 有值 ⇒ 覆盖写入。
  */
-function measuredTriState(cur: number | undefined, orig: string | null): number | null | undefined {
-  if (cur == null) {
+function measuredTriState(cur: string, orig: string | null): number | null | undefined {
+  if (cur.trim() === '') {
     return orig == null ? undefined : null;
   }
-  return cur;
+  return Number(cur);
 }
 
 const onSaveMeasured = async () => {
   if (measuredReceiptId.value == null) {
     return;
   }
+  const valid = await validateFormRef(measuredFormRef.value);
+  if (!valid) return;
   if (!checkMeasuredPositive(measuredForm)) {
     return;
   }

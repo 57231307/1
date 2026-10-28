@@ -978,6 +978,14 @@ impl InitService {
                     ("stock", "read"),
                     ("suppliers", "read"),
                     ("purchase-orders", "read"),
+                    // 坯布建档与入库要选来源单据与坯布对应产品：`POST /production/greige-fabrics`
+                    // 与 `POST /production/greige-fabrics/{id}/stock-in` 收 product_id 与
+                    // purchase_receipt_id，二者的选择器分别打 `GET /products`（派生
+                    // products:read）与 `GET /purchase/receipts`（派生 purchase-receipts:read）。
+                    // 本岗位此前只有 purchase-orders:read，两个候选面恒 403，等于后端已支持的
+                    // 关联单据字段在界面上是假入口。只授读，收货与改单仍归采购两岗。
+                    ("purchase-receipts", "read"),
+                    ("products", "read"),
                 ],
             ),
             (

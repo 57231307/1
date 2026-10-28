@@ -214,16 +214,17 @@ test.describe('01 凭证管理', () => {
     await pickSubjectInTreeSelect(rows.nth(0), page, debitSubjectName);
     await pickSubjectInTreeSelect(rows.nth(1), page, creditSubjectName);
 
-    // 借方行：借方金额（本行第 1 个 el-input-number）填 100，并填摘要
-    const debitInput = rows.nth(0).locator('.el-input-number input').first();
+    // 借方行：借方金额（本行第 1 个手写数字录入框 inputmode decimal）填 100，并填摘要
+    await expect(rows.nth(0).getByRole('spinbutton'), '分录金额不应是步进角色').toHaveCount(0);
+    const debitInput = rows.nth(0).locator('input[inputmode="decimal"]').first();
     await debitInput.fill('100');
-    await debitInput.press('Enter');
+    await debitInput.press('Tab');
     await rows.nth(0).locator('input[placeholder="摘要"]').fill('E2E 借方分录');
 
-    // 贷方行：贷方金额（本行第 2 个 el-input-number）填 100，并填摘要
-    const creditInput = rows.nth(1).locator('.el-input-number input').nth(1);
+    // 贷方行：贷方金额（本行第 2 个手写数字录入框 inputmode decimal）填 100，并填摘要
+    const creditInput = rows.nth(1).locator('input[inputmode="decimal"]').nth(1);
     await creditInput.fill('100');
-    await creditInput.press('Enter');
+    await creditInput.press('Tab');
     await rows.nth(1).locator('input[placeholder="摘要"]').fill('E2E 贷方分录');
 
     // 真实平衡态呈现（finance.voucherForm.textBalanced='已平衡'），证明校验被真实满足而非空单。

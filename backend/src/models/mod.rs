@@ -473,3 +473,11 @@ pub mod textile_third_party_report;
 pub mod textile_report_item_result;
 pub mod textile_child_safety_check;
 pub mod textile_export_market_requirement;
+// 合同模板体系四张表的 Model。contract_template 是模板主数据（含版本与启用位），
+// clause_library 是条款库正文，contract_template_clause 是模板下的条款项，
+// contract_clause 是签约时固化到合同实例的条款快照。
+// 表由 migration/src/domain/contract_template_schema 域建立，词表在 models/status/contract_template。
+pub mod contract_template;
+pub mod clause_library;
+pub mod contract_template_clause;
+pub mod contract_clause;

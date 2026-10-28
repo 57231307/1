@@ -66,12 +66,12 @@ async function seedApprovedPaymentRequest(
  *   采购订单查看对话框 PurchaseViewDialog 无“内嵌应付单 tab”，原 05-01/05-02 系按不存在的 UI 编写。
  * - InvoiceTab：页标题 '应付发票'、按钮 '新建发票'、列表列 发票编号/供应商/发票金额/税额/已付/未付/到期日期/状态、
  *   行内 '详情' / DRAFT 行 '审核' / '取消'。新建应付发票对话框（createAria '新建应付发票对话框'）
- *   字段：供应商 select / 应付类型 select / 发票日期 / 到期日期 / 发票金额 spinbutton /
- *   税额 spinbutton，其中 应付类型 到期日期 税额 为必填；底部 '取消' / '确认'。
+ *   字段：供应商 select / 应付类型 select / 发票日期 / 到期日期 / 发票金额 手写输入框 /
+ *   税额 手写输入框，其中 应付类型 到期日期 税额 为必填；底部 '取消' / '确认'。
  *   发票编号由后端 generate_invoice_no 自生成（CreateAPInvoiceRequest 无 invoice_no 字段，见 ddcf51ca），
  *   新建对话框不采集发票编号；提交成功 '操作成功'(common.success)。
  * - PaymentTab：'新建付款' → 对话框(createAria '新建付款对话框') 供应商 select / 付款日期 /
- *   付款金额 spinbutton / 付款方式 select(默认银行转账) / 银行账号 / 备注；底部 '确认'。
+ *   付款方式 select(默认银行转账) / 银行账号 / 备注；底部 '确认'。付款金额无输入项（由所选申请派生）。
  *   成功 ElMessage.success(common.success)='操作成功'。AP 付款金额列以 toLocaleString 两位小数展示。
  */
 test.describe('05 AP 应付发票与付款', () => {
@@ -109,10 +109,20 @@ test.describe('05 AP 应付发票与付款', () => {
     await dueInput.click();
     await dueInput.fill('2026-08-31');
     await page.keyboard.press('Enter');
-    // 发票金额是对话框内第 0 个 spinbutton，税额是第 1 个（税额必填且初值不预置，
-    // 显式提交 0 代表本票无进项税这条声明）
-    await dialog.getByRole('spinbutton').first().fill('8000');
-    await dialog.getByRole('spinbutton').nth(1).fill('0');
+    // 发票金额与税额均为手写输入框（步进控件已全项目禁用），按表单 label 定位；
+    // 税额必填且初值不预置，显式提交 0 代表本票无进项税这条声明
+    const invoiceAmountInput = dialog
+      .locator('.el-form-item', { hasText: '发票金额' })
+      .locator('input')
+      .first();
+    const taxAmountInput = dialog
+      .locator('.el-form-item', { hasText: '税额' })
+      .locator('input')
+      .first();
+    await invoiceAmountInput.fill('8000');
+    await taxAmountInput.fill('0');
+    await expect(invoiceAmountInput, '手写金额应可原样读回').toHaveValue('8000');
+    await expect(taxAmountInput, '手写税额应可原样读回').toHaveValue('0');
     await dialog.getByRole('button', { name: '确认', exact: true }).click();
     // 建单成功真断：① 成功 toast 锚定 ElMessage teleport 容器（不放宽为裸 getByText）
     await expect(page.locator('.el-message').filter({ hasText: '操作成功' })).toBeVisible({
