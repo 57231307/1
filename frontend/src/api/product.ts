@@ -20,8 +20,6 @@ export interface Product {
    * 词表与后端 models/status/general.rs::product_type 同源，前端经 constants/product-type.ts 消费。
    */
   product_type?: string | null;
-  /** 面料成分（fabric_composition，可空文本主档列） */
-  fabric_composition?: string | null;
   /** 纱支（yarn_count，可空文本主档列） */
   yarn_count?: string | null;
   /** 密度（density，可空文本主档列） */
