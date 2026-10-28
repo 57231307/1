@@ -25,6 +25,7 @@ use crate::models::textile_safety_submission_item::Entity as SubmissionItem;
 use crate::models::textile_test_item::{
     ActiveModel as ItemActiveModel, Column as ItemColumn, Entity as TestItem, Model as ItemModel,
 };
+use crate::services::textile_safety_limit_judge::build_limit_active;
 use crate::utils::error::AppError;
 use rust_decimal::Decimal;
 use sea_orm::{
@@ -226,21 +227,17 @@ impl TextileSafetyMasterService {
                 req.item_code
             )));
         }
-        let now = chrono::Utc::now();
-        let active = LimitActiveModel {
-            item_id: ActiveValue::Set(item.id),
-            safety_category: ActiveValue::Set(req.safety_category),
-            product_form: ActiveValue::Set(req.product_form),
-            condition_tag: ActiveValue::Set(req.condition_tag),
-            comparator: ActiveValue::Set(req.comparator),
-            limit_low: ActiveValue::Set(req.limit_low),
-            limit_high: ActiveValue::Set(req.limit_high),
-            clause_ref: ActiveValue::Set(req.clause_ref),
-            remark: ActiveValue::Set(req.remark),
-            created_at: ActiveValue::Set(now),
-            updated_at: ActiveValue::Set(now),
-            ..Default::default()
-        };
+        let active = build_limit_active(
+            item.id,
+            &req.safety_category,
+            &req.product_form,
+            &req.condition_tag,
+            &req.comparator,
+            req.limit_low,
+            req.limit_high,
+            &req.clause_ref,
+            &req.remark,
+        );
         Ok(active.insert(self.db.as_ref()).await?)
     }
 
