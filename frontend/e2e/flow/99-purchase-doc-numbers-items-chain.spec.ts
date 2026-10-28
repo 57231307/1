@@ -10,16 +10,18 @@ import {
 } from './helpers';
 
 /**
- * 99 采购单据族首个真契约覆盖（两取号口 明细删口带总额重算 对照表对象口 质检统计口 黑名单清单口）
+ * 99 采购单据族首个真契约覆盖（orders 取号探针与收货建单回读 明细删口带总额重算 对照表对象口 质检统计口 黑名单清单口）
  *
  * 与既有覆盖的分工。既有全局种子与 20 号等片对采购族做过建单与收货链，
- * 但两枚取号口、明细删口、对照表对象读口、质检统计口、黑名单清单口在判定器
+ * 但 orders 探针、收货建单回读、明细删口、对照表对象读口、质检统计口、黑名单清单口在判定器
  * 口径下均为零覆盖。本 spec 把五口钉成一条自建自流转的真业务链。
  *
  * 契约真相（逐段读后端源，非推测）：
- * 取号口（handlers/purchase_order_handler 与 handlers/purchase_receipt_handler）：
- * orders 取号出参两键 prefix 固定 PO 与 order_no；receipts 取号出参单键 receipt_no，
- * 前缀 PR；两号均为日期段加流水，不入库，只读探针可重复调。
+ * orders 取号口（handlers/purchase_order_handler）：出参两键 prefix 固定 PO 与 order_no，
+ * 不入库只读探针可重复调；receipts 展示端 generate-no 已按 20261028 裁定废除
+ * （handlers/purchase_receipt_handler 无取号函数、路由无该端点），收货单号一律从
+ * POST /purchase/receipts 建单响应回读（crud.rs 建单事务内取号，handler 整模型序列化
+ * 含 receipt_no），并 GET /purchase/receipts/:id 复核与落库一致。
  * 建单门（services/po 建单校验链）：warehouse_id 强校验非空，供应商与明细必填，
  * 明细行 material_id、quantity_ordered、unit_price 逐行提交；建单初态大写词表 DRAFT。
  * 明细删口（services/po/receipt.rs 的 delete_order_item）：事务内删行并重算总额，
@@ -52,10 +54,13 @@ test.describe.serial('99 采购单据族链', () => {
     await loginViaUI(page);
   });
 
-  test('T1 两取号口形状 建单两行 明细删口与总额重算 非草稿删行被拒', async ({ page }) => {
+  test('T1 orders探针形状与收货建单回读 建单两行 明细删口与总额重算 非草稿删行被拒', async ({
+    page,
+  }) => {
     const tag = genCode('PO99');
 
-    // 1) 取号探针（A 档两枚）：形状与键集，不入库所以可反复取同段号，只断形态
+    // 1) orders 取号探针（B1 后批死端点，本支未动路由）：形状与键集，不入库所以可
+    // 反复取同段号，只断形态；收货无展示端取号口，单号回读契约见下方步骤 2b
     const poNo = await apiCallRaw<Row>(page, 'GET', '/purchase/orders/generate-no');
     expect(String(poNo.prefix), `orders 取号 prefix 必须 PO，实际 ${String(poNo.prefix)}`).toBe(
       'PO'
@@ -63,12 +68,6 @@ test.describe.serial('99 采购单据族链', () => {
     expect(
       /^PO\d+$/.test(String(poNo.order_no)),
       `orders 取号应为 PO 加数字段，实际 ${String(poNo.order_no)}`
-    ).toBe(true);
-
-    const rcvNo = await apiCallRaw<Row>(page, 'GET', '/purchase/receipts/generate-no');
-    expect(
-      /^PR\d+$/.test(String(rcvNo.receipt_no)),
-      `receipts 取号应为 PR 加数字段，实际 ${String(rcvNo.receipt_no)}`
     ).toBe(true);
 
     // 2) 前置反查：供应商与产品自建，仓库与部门取全局种子真实行（建单门强校验仓库）
@@ -115,6 +114,39 @@ test.describe.serial('99 采购单据族链', () => {
       '部门种子缺失（全局种子未建部门属载体级失败，不兜底）'
     ).toBeGreaterThan(0);
     const departmentId = Number(departments.items[0].id);
+
+    // 2b) 收货单号回读契约，建独立白坯入库单，单号取自 POST 建单响应并 GET 复核与落库一致
+    const receipt = await apiCallRaw<Row>(page, 'POST', '/purchase/receipts', {
+      supplier_id: supplierId,
+      receipt_date: today(),
+      warehouse_id: warehouseId,
+      department_id: departmentId,
+      notes: `99收货回读${tag}`,
+      items: [
+        {
+          line_no: 1,
+          material_id: productId,
+          material_code: `99P${tag}`,
+          material_name: `99坯${tag}`,
+          batch_no: `99B${tag}`,
+          quantity: '5',
+          quantity_alt: '0',
+          unit_master: 'm',
+          unit_price: '12.50',
+        },
+      ],
+    });
+    const receiptId = Number(receipt.id);
+    expect(receiptId > 0, `收货建单失败 ${JSON.stringify(receipt)}`).toBe(true);
+    expect(
+      /^PR\d+$/.test(String(receipt.receipt_no)),
+      `收货单号应为 PR 加数字段，实际 ${String(receipt.receipt_no)}`
+    ).toBe(true);
+    const receiptReadback = await apiCallRaw<Row>(page, 'GET', `/purchase/receipts/${receiptId}`);
+    expect(
+      String(receiptReadback.receipt_no),
+      `建单响应单号必须与落库回读一致，实际 ${String(receiptReadback.receipt_no)}`
+    ).toBe(String(receipt.receipt_no));
 
     // 3) 建单两行：10 x 12.50 加 5 x 20.00，总额 225.00
     const order = await apiCallRaw<Row>(page, 'POST', '/purchase/orders', {
@@ -183,6 +215,13 @@ test.describe.serial('99 采购单据族链', () => {
     ).not.toBe('DRAFT');
 
     // 7) 清理。已审批单不可删，供应商与产品与分类走延迟删除通道并如实告警
+    // 先删草稿入库单解除供应商与产品外键（delete_receipt 仅放行 DRAFT，本支自建即 DRAFT）
+    await tryCleanup(
+      page,
+      'DELETE',
+      `/purchase/receipts/${receiptId}`,
+      `[99] receipt ${receiptId}`
+    );
     await tryCleanup(page, 'DELETE', `/products/${productId}`, `[99] product ${productId}`);
     await tryCleanup(page, 'DELETE', `/categories/${categoryId}`, `[99] category ${categoryId}`);
     await tryCleanup(
