@@ -265,10 +265,11 @@ jobs:
         #        原名条目存在时只认它并按字节同一比对（debug 实测形态，aapt2 不二次编码，
         #        字节锁更强，保留不动）；原名条目整体缺席时（release 档打包器改写资源
         #        存放路径与条目名，且 PNG crunch 无损重编码使字节等值恒不成立）改为
-        #        像素等值兜底，解 IHDR 与 IDAT 并按五种 filter 逐行还原 scanline 后
-        #        取 sha256 与生成产物同法摘要比对，无阈值无容差，同时叠加包内必须有
-        #        192x192 RGBA 位深 8 的 res 条目的尺寸族存在性断言，两向任一不满足仍判红，
-        #        不降级为警告。
+        #        像素等值兜底，解 IHDR 与 IDAT 并按五种 filter 逐行还原 scanline，
+        #        摘要输入为 IHDR 的宽高与位深与色彩类型四项再接 scanline 后取 sha256，
+        #        与生成产物同法摘要比对，无阈值无容差。同档还要求命中像素同一条目自身
+        #        同时满足 192x192 RGBA 位深 8 的尺寸族闸门，两条闸门分属两条不相干条目不算通过，
+        #        包内 res 下不可解码条目数与逐个原因恒打日志，两向任一不满足仍判红，不降级为警告。
         # 为什么 静态锁，不依赖编译。同源段防有人只换 web logo 或只换 app-icon 造成两头漂移，
         #        消费链段防 生成应用图标 产物再次没被构建吃进包里。
         # 存哪里 只读判定，不落盘。
@@ -541,7 +542,20 @@ jobs:
             # sys.boot_completed 置 1 早于 package 服务可用，此时装包只会得到找不到 package 服务的报错。
             # 装包前先轮询 package 服务，装包本身再做有界重试，把启动竞态与真正的装包失败区分开。
             i=0; until adb shell service check package 2>/dev/null | grep -q found; do i=$((i+1)); if [ "$i" -ge 40 ]; then echo 'E2E: package 服务 120 秒内未就绪'; adb shell service list | head -20; exit 1; fi; sleep 3; done; echo 'E2E: package 服务已就绪'
-            i=0; OK=""; while [ "$i" -lt 5 ]; do i=$((i+1)); OUT="$(adb install -r "$APK" 2>&1)" && { OK=1; break; }; printf '%s\n' "$OUT"; printf '%s\n' "$OUT" | grep -qE "Can't find service|Broken pipe|device offline|closed" || { echo 'E2E: 装包失败且不属于瞬时故障'; exit 1; }; sleep 5; done; test -n "$OK" || { echo 'E2E: 装包重试 5 次仍失败'; exit 1; }; echo 'E2E: APK 安装完成'
+            # 装包重试的预算按墙上时间给 300 秒总窗口，不按固定次数计。
+            # 为什么 无硬件加速时 system_server 重启后 package 服务重新注册要几分钟，固定 5 次乘 5 秒
+            #        只有约 22 秒，远小于该耗时，轮次成败取决于贴边时间而不是包本身。
+            #        无硬件加速实测开机到装包跨度可达约 380 秒，本步之前的 package 服务轮询另有 120 秒
+            #        上限，两段相加才盖得住该跨度。
+            # 怎么做 窗口内退避从 10 秒起倍增到 60 秒封顶，单次 adb install 用 timeout 钉在 180 秒内返回，
+            #        避免一次挂住把整个窗口吃穿。退出码 124 与 137 表示本次超时，与找不到 package 服务
+            #        与管道断开与设备离线同样按瞬时处理继续退避，其余失败打印原文并即刻判红，
+            #        真装不上不会被退避兜成假绿。
+            # 超窗怎么办 判红前把最后一次失败原文与 sys.boot_completed 与 package 服务可达性一并打出，
+            #        让下轮日志自证是装不上还是窗口不够，不无限重试也不失败放行。
+            # 写法约束 取退出码用先置零再 赋值后接或号赋 RC 的形态，失败的安装调用不能裸露给 errexit，
+            #        否则第一次装不上就整段中断，退避形同没写。
+            W0=$(date +%s); DEADLINE=$((W0+300)); OK=""; LAST=""; TRIES=0; WAIT=10; while [ -z "$OK" ]; do TRIES=$((TRIES+1)); RC=0; OUT="$(timeout -k 10 180 adb install -r "$APK" 2>&1)" || RC=$?; if [ "$RC" = 0 ]; then OK=1; break; fi; if [ "$RC" = 124 ] || [ "$RC" = 137 ]; then LAST="第 $TRIES 次 adb install 在 180 秒内未返回 rc=$RC"; else LAST="$OUT"; fi; printf '%s\n' "$LAST"; if [ "$RC" != 124 ] && [ "$RC" != 137 ]; then printf '%s\n' "$LAST" | grep -qE "Can't find service|Broken pipe|device offline|closed" || { echo 'E2E: 装包失败且不属于瞬时故障'; exit 1; }; fi; NOW=$(date +%s); [ "$NOW" -lt "$DEADLINE" ] || break; REM=$((DEADLINE-NOW)); if [ "$WAIT" -gt "$REM" ]; then WAIT=$REM; fi; sleep "$WAIT"; WAIT=$((WAIT*2)); if [ "$WAIT" -gt 60 ]; then WAIT=60; fi; done; if [ -z "$OK" ]; then echo "E2E: 装包在 300 秒窗口内共 $TRIES 次尝试仍未成功，超窗判红"; echo 'E2E: 最后一次 adb 失败原文'; printf '%s\n' "$LAST"; echo "E2E: sys.boot_completed $(adb shell getprop sys.boot_completed 2>&1 | tr -d '\r')"; echo "E2E: package 服务可达性 $(adb shell service check package 2>&1 | tr -d '\r')"; exit 1; fi; echo "E2E: APK 安装完成（第 $TRIES 次尝试，累计 $(( $(date +%s) - W0 )) 秒）"
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.INTERNET' || { echo 'E2E: 安装包未声明 INTERNET 联网权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.CAMERA' || { echo 'E2E: 安装包未声明 CAMERA 相机权限'; exit 1; }
             adb shell dumpsys package "${APP_ID}" | grep -q 'android.permission.BLUETOOTH_CONNECT' || { echo 'E2E: 安装包未声明 BLUETOOTH_CONNECT 蓝牙权限'; exit 1; }
