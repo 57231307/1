@@ -17,12 +17,7 @@
 //   未向后端新增任何 DELETE/取消端点。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
-import {
-  apiCall,
-  apiCallRaw,
-  apiCallExpectFail,
-  tryCleanup,
-} from '../flow/helpers';
+import { apiCall, apiCallRaw, apiCallExpectFail, tryCleanup } from '../flow/helpers';
 
 /** 供应商出参（键对齐 models/supplier.rs；select/detail 中 phone/email 可能被脱敏，本套件不断言它们） */
 interface SupplierRow {
@@ -170,12 +165,11 @@ test.describe('15 供应商子资源 API 契约', () => {
     const s = await createDedicatedSupplier(page, `CTC-BAD-${stamp}`);
 
     const before = (await listContacts(page, s.id)).length;
-    const fail = await apiCallExpectFail(
-      page,
-      'POST',
-      `/purchase/suppliers/${s.id}/contacts`,
-      { contact_name: '李四', mobile_phone: '12345', is_primary: false }
-    );
+    const fail = await apiCallExpectFail(page, 'POST', `/purchase/suppliers/${s.id}/contacts`, {
+      contact_name: '李四',
+      mobile_phone: '12345',
+      is_primary: false,
+    });
     expect(fail.status, `非法手机号应 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(400);
     expect(fail.status, '校验拒绝应为 4xx 非 5xx').toBeLessThan(500);
 
@@ -227,11 +221,7 @@ test.describe('15 供应商子资源 API 契约', () => {
       { contact_name: '待删人', mobile_phone: '13600136000', is_primary: true }
     );
 
-    const del = await apiCall(
-      page,
-      'DELETE',
-      `/purchase/suppliers/${s.id}/contacts/${doomed.id}`
-    );
+    const del = await apiCall(page, 'DELETE', `/purchase/suppliers/${s.id}/contacts/${doomed.id}`);
     expect(del.code, 'DELETE 联系人应返回成功信封码').toBe(200);
 
     const rows = await listContacts(page, s.id);
@@ -251,12 +241,9 @@ test.describe('15 供应商子资源 API 契约', () => {
     const s = await createDedicatedSupplier(page, `STA-${stamp}`);
 
     // 停用：enable=false → is_enabled=false, status=inactive
-    const off = await apiCallRaw<SupplierRow>(
-      page,
-      'POST',
-      `/purchase/suppliers/${s.id}/status`,
-      { enable: false }
-    );
+    const off = await apiCallRaw<SupplierRow>(page, 'POST', `/purchase/suppliers/${s.id}/status`, {
+      enable: false,
+    });
     expect(off.is_enabled, '停用后 is_enabled 应为 false').toBe(false);
     expect(off.status, `停用后 status 应为 inactive，实际 ${off.status}`).toBe('inactive');
     const offRead = await apiCallRaw<SupplierRow>(page, 'GET', `/purchase/suppliers/${s.id}`);
@@ -264,12 +251,9 @@ test.describe('15 供应商子资源 API 契约', () => {
     expect(offRead.status, '回读 status 应为 inactive').toBe('inactive');
 
     // 启用：enable=true → is_enabled=true, status=active
-    const on = await apiCallRaw<SupplierRow>(
-      page,
-      'POST',
-      `/purchase/suppliers/${s.id}/status`,
-      { enable: true }
-    );
+    const on = await apiCallRaw<SupplierRow>(page, 'POST', `/purchase/suppliers/${s.id}/status`, {
+      enable: true,
+    });
     expect(on.is_enabled, '启用后 is_enabled 应为 true').toBe(true);
     expect(on.status, `启用后 status 应为 active，实际 ${on.status}`).toBe('active');
     const onRead = await apiCallRaw<SupplierRow>(page, 'GET', `/purchase/suppliers/${s.id}`);
@@ -282,12 +266,9 @@ test.describe('15 供应商子资源 API 契约', () => {
     const stamp = Date.now();
     const s = await createDedicatedSupplier(page, `STA-BAD-${stamp}`);
 
-    const fail = await apiCallExpectFail(
-      page,
-      'POST',
-      `/purchase/suppliers/${s.id}/status`,
-      { not_enable_field: true }
-    );
+    const fail = await apiCallExpectFail(page, 'POST', `/purchase/suppliers/${s.id}/status`, {
+      not_enable_field: true,
+    });
     expect(fail.status, `缺 enable 键应 4xx，实际 ${fail.status}`).toBeGreaterThanOrEqual(400);
     expect(fail.status, '反序列化拒绝应为 4xx 非 5xx').toBeLessThan(500);
 
