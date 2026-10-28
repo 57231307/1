@@ -124,15 +124,34 @@ test.describe('06 分配负载 workload 契约', () => {
     ).toContain('abc');
   });
 
-  test('06-03 user_ids 空串拒绝，400 并点名参数不能为空', async ({ page }) => {
+  test('06-03 空串参数在归一化层被剔除，走缺必填字段通道出公开文案', async ({ page }) => {
+    // 查询归一化中间件在进 handler 前把只含空值的 query 键整体剔除，服务端看到的是
+    // 「缺 user_ids 字段」而不是「user_ids 值为空串」，因此出参恒为解码器拒绝的公开文案，
+    // 不外显 serde 原文。本用例钉这条通道分界，同时点名它不会误报字段名。
     const fail = await apiCallExpectFail(page, 'GET', '/crm/assignments/workload?user_ids=');
-    expect(fail.status, `空 user_ids 应 400，实际 ${fail.status}`).toBe(400);
+    expect(fail.status, `缺 user_ids 应 400，实际 ${fail.status}`).toBe(400);
     expect(failureCode(fail), `应 VALIDATION_ERROR，实际 code=${fail.code}`).toBe(
       'VALIDATION_ERROR'
     );
     expect(
       String(fail.message ?? ''),
-      `文案应点名 user_ids 不能为空，实际 message=${fail.message}`
-    ).toContain('user_ids');
+      `空串被归一化剔除后应走解码器公开文案，实际 message=${fail.message}`
+    ).toContain('请求格式不正确');
+    expect(
+      String(fail.message ?? ''),
+      `解码器拒绝通道不得外显字段名，实际 message=${fail.message}`
+    ).not.toContain('user_ids');
+  });
+
+  test('06-04 逗号列表含空项时进 handler 逐项拒绝并点名 user_ids', async ({ page }) => {
+    // 值非空但每一项都是空串时才真的进 handler 的逐项校验分支，文案必须落到字段名与项次。
+    const fail = await apiCallExpectFail(page, 'GET', '/crm/assignments/workload?user_ids=,');
+    expect(fail.status, `空项列表应 400，实际 ${fail.status}`).toBe(400);
+    expect(failureCode(fail), `应 VALIDATION_ERROR，实际 code=${fail.code}`).toBe(
+      'VALIDATION_ERROR'
+    );
+    const message = String(fail.message ?? '');
+    expect(message, `文案应点名 user_ids，实际 message=${message}`).toContain('user_ids');
+    expect(message, `文案应点名第 1 项为空，实际 message=${message}`).toContain('第 1 项为空');
   });
 });

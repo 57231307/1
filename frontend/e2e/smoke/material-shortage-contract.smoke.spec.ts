@@ -221,14 +221,16 @@ test.describe('缺料预警取值与列表契约', () => {
     // resolved 下推（文案→取值绑定真实生效，而不是只列对文案却发错查询参数）。
     // 视图选项由 constants/shortage 的 SHORTAGE_ALERT_STATUS_VALUES 与
     // msFmts.getStatusText 单源生成，本断言钉的就是这条绑定链。
-    await dropdownItems(statusPanel).filter({ hasText: '已解除' }).first().click();
-    await page.locator('.filter-bar button').filter({ hasText: '查询' }).first().click();
-    const listReq = await page.waitForRequest(
+    // 等待先于点击注册：点查询后列表请求数毫秒内即完成，先点后等必然错过 request 事件。
+    const listReqPromise = page.waitForRequest(
       r =>
         r.url().includes('/material-shortage/list') &&
         new URL(r.url()).searchParams.get('status') === 'resolved',
       { timeout: 15_000 }
     );
+    await dropdownItems(statusPanel).filter({ hasText: '已解除' }).first().click();
+    await page.locator('.filter-bar button').filter({ hasText: '查询' }).first().click();
+    const listReq = await listReqPromise;
     expect(listReq, '选中「已解除」点查询后应发出 status=resolved 的列表请求').toBeTruthy();
     await page.keyboard.press('Escape');
     await expectDropdownClosed(page);
