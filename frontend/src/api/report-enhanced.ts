@@ -78,28 +78,6 @@ export interface SubscriptionPage {
   page_size: number;
 }
 
-export interface CreateTemplateRequest {
-  name: string;
-  description?: string;
-  type: string;
-  category: string;
-  fields: ReportTemplateField[];
-  filters?: ReportFilterCondition[];
-  group_by?: string[];
-  sort_by?: { field: string; direction: 'asc' | 'desc' }[];
-  chart_type?: string;
-}
-
-export interface UpdateTemplateRequest {
-  name?: string;
-  description?: string;
-  fields?: ReportTemplateField[];
-  filters?: ReportFilterCondition[];
-  group_by?: string[];
-  sort_by?: { field: string; direction: 'asc' | 'desc' }[];
-  chart_type?: string;
-}
-
 // 后端 report_subscription_service::CreateSubscriptionRequest（subscriptions::create 的 Json<T>）。
 // name/template_id/frequency/recipients 为非 Option 必填；frequency 取值 'DAILY' | 'WEEKLY' | 'MONTHLY'
 // （service 严格校验，其余值 422）。parameters 对应 Option<serde_json::Value>。

@@ -1,5 +1,5 @@
 {
-  "total": 108,
+  "total": 106,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -197,14 +197,12 @@
       ]
     },
     "frontend/src/api/report-enhanced.ts": {
-      "count": 6,
+      "count": 4,
       "keys": [
-        "CreateTemplateRequest.chart_type",
         "ReportTemplate.chart_type",
         "ReportTemplateField.display_label",
         "ReportTemplateField.field_key",
-        "ReportTemplateField.visible",
-        "UpdateTemplateRequest.chart_type"
+        "ReportTemplateField.visible"
       ]
     },
     "frontend/src/api/sales-analysis.ts": {
