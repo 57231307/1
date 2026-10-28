@@ -117,6 +117,28 @@ export function getInventoryAdjustment(id: number) {
   return request.get(`/inventory/adjustments/${id}`);
 }
 
+/**
+ * 建单响应出参，与后端 `handlers/inventory_adjustment_handler.rs` 的 `AdjustmentResponse`
+ * 逐字段对齐（Decimal 与时间序列化为字符串）。调用方 AdjustmentFormDialogTab 的
+ * handleSubmit 从 `res.data?.adjustment_no` 回读事务内生成的真实单号。
+ * items 复用本文件既有 `AdjustmentItem`（含 product_name、product_code 两枚前端
+ * 补出参字段，后端 AdjustmentItemResponse 不回传，属类型超集；建单视图不触碰 items）。
+ */
+export interface AdjustmentCreateResponse {
+  id: number;
+  adjustment_no: string;
+  warehouse_id: number;
+  adjustment_date: string;
+  adjustment_type: string;
+  reason_type: string;
+  reason_description: string | null;
+  total_quantity: string;
+  notes: string | null;
+  status: string;
+  created_at: string;
+  items: AdjustmentItem[];
+}
+
 export function createInventoryAdjustment(data: CreateInventoryAdjustmentPayload) {
   return request.post<ApiResponse<AdjustmentCreateResponse>>('/inventory/adjustments', data);
 }
