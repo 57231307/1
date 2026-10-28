@@ -179,8 +179,8 @@ impl AdoptionDecision {
     pub fn excluded_note(&self) -> String {
         let mut parts: Vec<String> = Vec::new();
         for item in &self.excluded {
-            let label = report_adoption_reason::display_label(&item.reason)
-                .unwrap_or(item.reason.as_str());
+            let label =
+                report_adoption_reason::display_label(&item.reason).unwrap_or(item.reason.as_str());
             parts.push(format!("{}（{}）", item.report_no, label));
         }
         parts.join("、")
