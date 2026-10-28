@@ -338,11 +338,21 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let pos = lib
         .find(tail)
         .unwrap_or_else(|| panic!("迁移链里找不到 {tail}（域未注册进 lib.rs，活库上四表必缺席）"));
-    let after = &lib[pos + tail.len()..];
-    assert!(
-        !after.contains("Box::new(domain::"),
-        "contract_template_schema 必须是链尾最后一枚注册项，其后不得再有其它域注册"
-    );
+    // 只要求注册在依赖域之后，不要求绝对末位。本仓迁移规矩是新域一律追加到链尾，
+    // 钉死末位会让下一条按规矩并基的车道必红（#1079 与 #1081 实测同红于此断言）。
+    for dep in [
+        "domain::system::Migration",
+        "domain::business::Migration",
+        "domain::v15::Migration",
+    ] {
+        let dpos = lib
+            .find(dep)
+            .unwrap_or_else(|| panic!("lib.rs 找不到依赖域注册 {dep}，无法判定次序"));
+        assert!(
+            dpos < pos,
+            "contract_template_schema 必须注册在 {dep} 之后（两张合同主表由该域先建），实得次序相反"
+        );
+    }
 
     assert!(
         domain_mod.contains("pub mod contract_template_schema;"),
