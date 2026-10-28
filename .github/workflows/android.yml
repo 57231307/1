@@ -234,30 +234,10 @@ jobs:
           grep -q 'manifestPlaceholders\["usesCleartextTraffic"\] = "true"' "$GRADLE" || { echo '明文流量占位符改写未生效'; exit 1; }
 
       - name: 构建 debug APK
-        # 调用方 严格冒烟 3 与 严格冒烟 4 取 universal debug 包判发布契约参照面。上传 debug APK 步
-        #        外发 universal 包。新增的 上传模拟器专用 APK 步外发本步确认在位的 x86_64 debug 包，
-        #        供 模拟器 E2E 装包。
-        # 入参 无。
-        # 做什么 构建后先按既有口径确认 universal debug 包在位，再显式确认 x86_64 debug 包在位并
-        #        打出它的字节数。x86_64 包缺失即点名判红并列出构建输出目录的实际形态后退出。
-        # 为什么 CI 模拟器是 x86_64 且无硬件加速，实测 universal debug 包 429211995 字节时
-        #        单次 adb install 物理耗时 378 秒，装包窗口被体积压死。单 ABI 包只带本 ABI 的
-        #        native 库，传输面小得多。缺这枚包必须当场判红而不是退回 universal 包装模拟器，
-        #        退回等于把该路判据兜成假绿且下轮照旧慢。
-        # 存哪里 产物仍只落在构建输出目录，不改仓库文件。
         working-directory: mobile-app
         env:
           NDK_HOME: ${{ format('{0}/ndk/{1}', env.ANDROID_HOME, env.NDK_VERSION) }}
-        run: |
-          set -euo pipefail
-          cargo tauri android build --debug --apk
-          OUT="src-tauri/gen/android/app/build/outputs/apk"
-          UNI="$(find "$OUT" -path '*universal/debug/*.apk' -print -quit)"
-          test -n "$UNI" || { echo "::error::未找到 universal debug APK，构建产物形态已变，下列为实际目录层级"; find "$OUT" -maxdepth 2 -type d | sort; exit 1; }
-          echo "universal debug 包 $UNI（$(stat -c%s "$UNI") 字节）"
-          X86="$(find "$OUT" -path '*x86_64/debug/*.apk' -print -quit)"
-          test -n "$X86" || { echo "::error::未找到 x86_64 debug APK，模拟器专用包这一路不成立，下列为实际目录层级与全部 apk"; find "$OUT" -maxdepth 2 -type d | sort; find "$OUT" -name '*.apk' | sort; exit 1; }
-          echo "模拟器专用包 $X86（$(stat -c%s "$X86") 字节）"
+        run: cargo tauri android build --debug --apk
 
       - name: 严格冒烟·3 校验 APK 清单（包名/launcher/minSdk/权限/明文流量/插件类/体积）
         run: |
@@ -305,21 +285,6 @@ jobs:
         with:
           name: bingxi-erp-android-debug
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
-          if-no-files-found: error
-
-      - name: 上传模拟器专用 APK
-        # 调用方 模拟器 E2E job 的 下载模拟器专用 APK 步，产物只进该 job 的装包行。
-        # 入参 构建 debug APK 步已显式确认在位并打过字节数的 x86_64 debug 包。
-        # 做什么 以独立制品名上传 x86_64 debug 包，与 universal 制品并存不互替，两个制品名不共享。
-        # 为什么 universal 包实测 429211995 字节，无硬件加速的 x86_64 模拟器单次装它要 378 秒，
-        #        装包窗口按物理耗时判红属工装脆断而不是产物缺陷。E2E 只要求能装上并跑通运行期断言，
-        #        单 ABI 包把装包传输面降到本 ABI。universal 制品继续按原口径上传，
-        #        发布链、严格冒烟 3 与 严格冒烟 4 与图标与权限断言仍按 universal 判，参照面不降。
-        # 存哪里 只进制品，不改工作区与仓库。找不到文件即判红，不放行空制品。
-        uses: actions/upload-artifact@v4
-        with:
-          name: bingxi-erp-android-debug-x8664
-          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/x86_64/debug/*.apk
           if-no-files-found: error
 
       - name: 构建 release APK（未签名，发布轮必需产物）
@@ -524,10 +489,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 下载模拟器专用 APK
+      - name: 下载 debug APK
         uses: actions/download-artifact@v4
         with:
-          name: bingxi-erp-android-debug-x8664
+          name: bingxi-erp-android-debug
           path: apk
 
       - name: 定位待安装 APK 并导出
@@ -540,19 +505,18 @@ jobs:
         #        find 的结果留在上一个 shell，装包行的 APK 变量展开成空串，adb 直接以
         #        文件名不以 apk 结尾拒收。放本步导出是唯一能跨 step 存住值的正规通道。
         #        本步放在模拟器启动之前，产物问题当场点名，不占用七分钟的开机时间。
-        # 选哪个包 本 job 只下载 bingxi-erp-android-debug-x8664，即 x86_64 debug APK，
+        # 选哪个包 本 job 只下载 bingxi-erp-android-debug，即 universal debug APK，
         #        装包后的 run-as 与 WebView 首选项断言要求 debuggable，release 签名包不满足；
-        #        universal debug 包只由严格冒烟 3 与 严格冒烟 4 与发布链判，不由本 job 消费，
-        #        发布轮的 bingxi-erp-android-release-signed 也不由本 job 消费，三者不共享制品名也不互查。
+        #        发布轮的 bingxi-erp-android-release-signed 不由本 job 消费，两个包不共享产物名也不互查。
         #        因此 apk 目录内的 .apk 必须恰好 1 个，多包说明产物被扩大，拒绝猜测装哪个。
         # 存哪里 只写 GITHUB_ENV 中的 APK 一个键，不落盘、不改仓库、不外发。
         run: |
           set -euo pipefail
-          test -d apk || { echo "::error::apk 目录不存在，下载模拟器专用 APK 步未落盘"; exit 1; }
+          test -d apk || { echo "::error::apk 目录不存在，下载 debug APK 步未落盘"; exit 1; }
           APKS="$(find apk -type f -name '*.apk' | sort)"
           COUNT="$(printf '%s\n' "$APKS" | grep -c . || true)"
-          test -n "$APKS" || { echo "::error::无 APK 产物，bingxi-erp-android-debug-x8664 制品内没有 .apk 文件"; ls -laR apk; exit 1; }
-          test "$COUNT" = 1 || { echo "::error::apk 目录下 .apk 应恰有 1 个（本 job 只下载模拟器专用产物），实际 $COUNT 个，拒绝猜要装哪一个"; printf '%s\n' "$APKS"; exit 1; }
+          test -n "$APKS" || { echo "::error::无 APK 产物，bingxi-erp-android-debug 产物内没有 .apk 文件"; ls -laR apk; exit 1; }
+          test "$COUNT" = 1 || { echo "::error::apk 目录下 .apk 应恰有 1 个（本 job 只下载 debug 产物），实际 $COUNT 个，拒绝猜要装哪一个"; printf '%s\n' "$APKS"; exit 1; }
           APK_PATH="$(printf '%s\n' "$APKS" | head -1)"
           # 导绝对路径，避免装包行的 shell 与本步工作目录不一致时找不到文件。
           APK_ABS="$PWD/$APK_PATH"
