@@ -5,6 +5,10 @@
 //! 词表白名单校验、状态机守卫、批次口径校验都不在 handler 复制第二套。
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::status::export_market;
+use crate::models::textile_export_market_requirement::{
+    Column as ReqColumn, Entity as ExportRequirement,
+};
 use crate::services::textile_safety_report_service::{
     ReportCandidate, TextileSafetyReportService, select_adopted_reports,
 };
@@ -18,6 +22,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use rust_decimal::Decimal;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::Deserialize;
 
 #[allow(dead_code, reason = "反序列化输入字段")]
@@ -170,6 +175,15 @@ pub async fn get_submission(
             &reports.iter().map(ReportCandidate::from).collect::<Vec<_>>(),
             chrono::Utc::now().date_naive(),
         ),
+        // 目标市场合规要求参考（内销不挂出口要求返回空集；只推荐不硬判，不做判定依据）
+        "market_requirements": if submission.target_market == export_market::DOM {
+            Vec::<crate::models::textile_export_market_requirement::Model>::new()
+        } else {
+            ExportRequirement::find()
+                .filter(ReqColumn::Market.eq(submission.target_market.as_str()))
+                .all(state.db.as_ref())
+                .await?
+        },
     });
     Ok(Json(ApiResponse::success(data)))
 }

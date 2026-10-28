@@ -178,6 +178,7 @@ export interface SubmissionDetail {
   child_checks: TextileChildCheck[];
   reports: TextileReport[];
   adoption: AdoptionDecision;
+  market_requirements: TextileExportRequirement[];
 }
 
 /** 采信决策的最小报告快照（后端 ReportCandidate 同形，采信原因消费本结构点名） */

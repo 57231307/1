@@ -438,6 +438,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import {
   createExportRequirement,
@@ -470,7 +471,8 @@ import {
   optionList,
 } from '@/constants/textile-safety';
 
-const activeTab = ref('items');
+const route = useRoute();
+const activeTab = ref((route.query.tab as string) || 'items');
 
 const items = ref<TextileTestItem[]>([]);
 const itemsLoading = ref(false);

@@ -65,11 +65,45 @@
             BASIS_STANDARD_LABELS[row.basis_standard] ?? row.basis_standard
           }}</template>
         </el-table-column>
-        <el-table-column prop="source" label="归因" width="110" />
+        <el-table-column label="归因" width="130">
+          <template #default="{ row }">
+            <el-tag size="small" :type="(ITEM_SOURCE_TAG_TYPE[row.source] as any) ?? 'info'">
+              {{ ITEM_SOURCE_LABELS[row.source] ?? row.source }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="测量类型" width="110">
           <template #default="{ row }">{{
             ITEM_KIND_LABELS[row.item_kind ?? ''] ?? row.item_kind
           }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <div v-if="detail?.market_requirements?.length" class="section">
+      <div class="section-head">
+        <h3>市场合规要求参考（{{ TARGET_MARKET_LABELS[detail.submission.target_market] }}）</h3>
+        <router-link :to="{ name: 'TextileSafetyMaster', query: { tab: 'requirements' } }">
+          <el-button size="small" link type="primary">管理市场要求登记</el-button>
+        </router-link>
+      </div>
+      <p class="muted hint-text">
+        以下为该出口市场的法规登记位（只推荐不硬判，判定以第三方实测与限值矩阵为准）。
+      </p>
+      <el-table :data="detail.market_requirements" border size="small">
+        <el-table-column label="类型" width="160">
+          <template #default="{ row }">
+            {{ REQUIREMENT_TYPE_LABELS[row.requirement_type] ?? row.requirement_type }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="standard_ref" label="法规或标准" min-width="200" />
+        <el-table-column prop="detail" label="要求细则" min-width="300" show-overflow-tooltip />
+        <el-table-column label="强制性" width="90">
+          <template #default="{ row }">
+            <el-tag size="small" :type="row.mandatory ? 'danger' : 'info'">
+              {{ row.mandatory ? '强制' : '自愿' }}
+            </el-tag>
+          </template>
         </el-table-column>
       </el-table>
     </div>
@@ -428,8 +462,11 @@ import {
   FASTNESS_GRADE_TOKENS,
   FLAG_VALUE_LABELS,
   ITEM_KIND_LABELS,
+  ITEM_SOURCE_LABELS,
+  ITEM_SOURCE_TAG_TYPE,
   OEKO_CLASS_LABELS,
   PRODUCT_FORM_LABELS,
+  REQUIREMENT_TYPE_LABELS,
   SAFETY_CATEGORY_LABELS,
   SUBMISSION_STATUS_LABELS,
   TARGET_MARKET_LABELS,
@@ -752,6 +789,9 @@ onMounted(load);
 .muted {
   color: var(--el-text-color-secondary);
   font-size: 12px;
+}
+.hint-text {
+  margin: 0 0 8px;
 }
 .missing {
   color: var(--el-color-danger);

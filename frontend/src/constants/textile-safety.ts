@@ -139,6 +139,22 @@ export const REQUIREMENT_TYPE_LABELS: Record<string, string> = {
   jp_formaldehyde: '日本甲醛管控',
 };
 
+/** 送检项目清单归因标签（后端 models::status::textile_item_source 同字典） */
+export const ITEM_SOURCE_LABELS: Record<string, string> = {
+  GB18401: '法定基本安全',
+  GB31701: '婴童加考',
+  EXPORT: '出口市场推荐',
+  CUSTOMER: '客户点名',
+};
+
+/** 归因标签到 el-tag type 的映射：法定与婴童为 mandatory，出口为 recommended，客户为 optional */
+export const ITEM_SOURCE_TAG_TYPE: Record<string, string> = {
+  GB18401: 'danger',
+  GB31701: 'warning',
+  EXPORT: 'primary',
+  CUSTOMER: 'info',
+};
+
 /** 等级 token 九档（半级含 3-4），与后端 textile_fastness_grade::ALL 同源 */
 export const FASTNESS_GRADE_TOKENS = ['1', '1-2', '2', '2-3', '3', '3-4', '4', '4-5', '5'];
 
