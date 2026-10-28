@@ -3,7 +3,7 @@
 //! 包含线索 CRUD、状态更新、线索转客户等。
 //! 拆分自原 `crm_service.rs`。
 
-use crate::models::{crm_lead, crm_opportunity, customer};
+use crate::models::{crm_lead, crm_opportunity, customer, customer_transfer_approval};
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
@@ -582,14 +582,25 @@ impl CrmService {
 
     /// 删除线索
     ///
-    /// 删除前先做引用校验：`crm_opportunity.lead_id` 通过外键 `fk_crm_opportunity_lead`
-    /// 引用 `crm_lead.id` 且无 `ON DELETE` 动作。若该线索已被任一存活商机引用，直接物理删除会
-    /// 命中 FK 约束并被裸映射成 500 `DATABASE_ERROR`（违反失败信封只能单一 `AppError` 形状的红线）。
-    /// 此处以与 DB 约束同口径的“是否存在引用”预校验，命中则返回可外显业务错误（HTTP 400 / `BUSINESS_ERROR`）。
-    /// 说明：`crm_lead` 表无软删列，线索状态词表亦无 `deleted/cancelled` 态，故维持硬删语义——
-    /// 已转商机的线索禁止直接删除，由调用方先处理关联商机（行业惯例口径，是否改软删保留引用待产品确认）。
+    /// 删除前做两条引用预校验，命中任一腿都返回可外显业务错误（HTTP 400 BUSINESS_ERROR）。
+    /// 拒绝发生在任何写操作之前，库里零漂移。
+    /// 腿一 商机引用（DB 有护栏）。`crm_opportunity.lead_id` 经外键 `fk_crm_opportunity_lead`
+    /// 引用 `crm_lead.id` 且无 ON DELETE 动作。存在任意引用时直接物理删除会撞 FK 约束，
+    /// 并被裸映射成 500 DATABASE_ERROR（违反失败信封只能单一 AppError 形状的红线），
+    /// 故以同口径的"是否存在引用"预校验，改成可外显业务错误。
+    /// 腿二 转移审批引用（DB 无护栏）。`customer_transfer_approvals.lead_id` 在 DDL 里是
+    /// INTEGER NOT NULL 且没有外键，DB 侧不会拦。漏拦的后果是把审批单留成孤儿行，
+    /// 更坏的一条链是孤儿审批单被审批通过时先落 approved 再执行转移失败，
+    /// 库里留下"已批准但未转移"的脏态，故这条腿只能在服务层拦。
+    /// 审批腿统计不加状态过滤，终态单（approved、rejected、cancelled）同样拒删，
+    /// 审批历史要留痕，不能靠删线索抹掉。
+    /// 入参 lead_id 为待删线索主键，user_id 为真实操作人（写审计用）。
+    /// 调用方为 crm_handler 的 delete_lead（归属门禁在前、本校验在后）。
+    /// 说明：`crm_lead` 表无软删列，线索状态词表亦无 deleted、cancelled 态，故维持硬删语义，
+    /// 被引用的线索禁止直接删除，由调用方先处理关联商机与关联审批
+    /// （行业惯例口径，是否改软删保留引用待产品确认）。
     pub async fn delete_lead(&self, lead_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 引用预校验：与 fk_crm_opportunity_lead 同口径——只要存在任意一条引用该线索的商机即拒绝删除
+        // 引用预校验腿一：与 fk_crm_opportunity_lead 同口径——只要存在任意一条引用该线索的商机即拒绝删除
         let referencing_opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::LeadId.eq(lead_id))
             .count(&*self.db)
@@ -597,6 +608,19 @@ impl CrmService {
         if referencing_opportunities > 0 {
             return Err(AppError::business_displayable(
                 "该线索已转商机，不可删除，请先处理关联商机",
+            ));
+        }
+
+        // 引用预校验腿二 转移审批引用。该列无外键，DB 不会拦，
+        // 只要名下存在任意 customer_transfer_approvals 引用（含终态单）即拒绝删除。
+        // 命中时不写任何表，线索行与审批行与审计行均保持原样。
+        let referencing_approvals = customer_transfer_approval::Entity::find()
+            .filter(customer_transfer_approval::Column::LeadId.eq(lead_id))
+            .count(&*self.db)
+            .await?;
+        if referencing_approvals > 0 {
+            return Err(AppError::business_displayable(
+                "该线索存在客户转移审批记录，不可删除，请先处理关联审批",
             ));
         }
 
