@@ -104,17 +104,24 @@ export interface ApiResponse<T = unknown> {
 // ============================================================================
 
 /**
- * CSRF 机器码：与后端 backend/src/middleware/csrf.rs:39-45 的三个常量同名同值
- * （CODE_MISS / CODE_INVAL / CODE_IP_MM）。此处引用真实来源而非散写魔法值，
+ * CSRF 机器码：与后端 backend/src/middleware/csrf.rs 的三个常量同名同值
+ * （CODE_MISS / CODE_INVAL / CODE_BIND）。此处引用真实来源而非散写魔法值，
  * 后端改名/改值时 e2e 侧只有一个维护点。
+ *
+ * 变更点：原 CSRF_IP_MISMATCH 已退役。观测 IP 与绑定 IP 不一致不再是拒绝条件
+ * （移动与 NAT 客户端必然变址），后端改为放行并重发令牌 + 写审计留痕，
+ * 因此该码不会再出现在响应里；替代它作为盗用面拒绝的是 CSRF_TOKEN_BINDING_MISMATCH。
  */
 export const CSRF_ERROR_CODES = {
-  /** csrf.rs:39 CODE_MISS */
+  /** CODE_MISS 请求头缺失 */
   MISSING: 'CSRF_TOKEN_MISSING',
-  /** csrf.rs:42 CODE_INVAL */
+  /** CODE_INVAL 令牌无效或已过期 */
   INVALID: 'CSRF_TOKEN_INVALID',
-  /** csrf.rs:45 CODE_IP_MM（后端对 IP 不匹配不下发恢复头，不参与自动重试） */
-  IP_MISMATCH: 'CSRF_IP_MISMATCH',
+  /**
+   * CODE_BIND 令牌的用户或会话绑定核验不通过（疑似盗用）。
+   * 后端对该码不下发恢复头，不参与自动重试，首次即原样返回。
+   */
+  BINDING_MISMATCH: 'CSRF_TOKEN_BINDING_MISMATCH',
 } as const;
 
 /**
@@ -3766,7 +3773,7 @@ const CSRF_REJECT_CODES: ReadonlySet<string> = new Set<string>(Object.values(CSR
  * 为什么只判 status 是假绿：本仓 CSRF 中间件与权限门**都**直出 403——
  * - CSRF 面：csrf.rs:232-234 `csrf_error_response` → `unified_error_response(FORBIDDEN, "CSRF_*")`；
  *   且一次性 token 竞败重放耗尽/异常时 apiCallExpectFail 仍返回该 403（仅记日志不抛），
- *   `CSRF_IP_MISMATCH` 不在 isCsrfRejection 重放判据内、首次即原样返回。
+ *   `CSRF_TOKEN_BINDING_MISMATCH` 不在 isCsrfRejection 重放判据内、首次即原样返回。
  * - 权限面：RBAC 直出 response.rs:145 与 AppError::PermissionDenied（error.rs:709/742）同码 `FORBIDDEN`。
  * 只判 status 时，CSRF-403 会冒名权限-403 通过——权限门即使被删，本类用例照样绿。
  * 故拒绝归因必须钉到权限家族唯一机器码 `FORBIDDEN`：实际 code 为 CSRF_* 即判红并点名
