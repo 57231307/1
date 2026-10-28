@@ -37,8 +37,8 @@ impl IntoResponse for AuthRejection {
     /// 出参完全委托 [`crate::utils::response::unified_error_response`]，与认证/权限中间件的
     /// 失败信封共用同一条构造路径（HTTP 状态码沿用 `self.status`）。
     ///
-    /// message 原样外显：该文案是提取器自身的固定字面量（「未授权：缺少认证信息」），
-    /// 走 `AppError::unauthorized` 会被 `public_message()` 替换成脱敏常量「未授权」，
+    /// message 原样外显：该文案是提取器自身的固定字面量（"未授权：缺少认证信息"），
+    /// 走 `AppError::unauthorized` 会被 `public_message()` 替换成脱敏常量"未授权"，
     /// 丢失告知用户的细节。
     ///
     /// trace_id 由 `unified_error_response` 经 `current_trace_id()` 取 `TRACE_ID` task-local
@@ -50,6 +50,29 @@ impl IntoResponse for AuthRejection {
             _ => CODE_UNAUTHORIZED,
         };
         unified_error_response(self.status, code, &self.message)
+    }
+}
+
+/// JWT 会话标识（由 auth 中间件从 access token 的 claims 注入到请求扩展）。
+///
+/// 用途：CSRF Token 与"签发它的那次会话"做强绑定核验——同用户但不同会话的请求
+/// 不得消费别的会话签发的 Token。观测 IP 降级为漂移信号后，这一项与会话内用户核验
+/// 一起构成 CSRF 的服务端拒绝依据，缺了它一次性 Token 就只剩"存在即有效"。
+///
+/// 为什么不塞进 AuthContext 的字段：AuthContext 的结构体字面量在全仓（含各业务契约测试的
+/// 夹具）有数百处，加字段会把与本改动无关的文件全部拖进编译失败面。会话标识只有 CSRF
+/// 链路消费，单独作为一个扩展类型注入，改动面收敛在认证与 CSRF 两个中间件内。
+#[derive(Debug, Clone)]
+pub struct CsrfSession {
+    /// access token claims 中的 session_id（JTI 吊销与刷新轮换都以它为键）
+    pub session_id: String,
+}
+
+impl CsrfSession {
+    pub fn new(session_id: impl Into<String>) -> Self {
+        Self {
+            session_id: session_id.into(),
+        }
     }
 }
 
@@ -75,7 +98,7 @@ pub struct AuthContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dept_ids: Option<Arc<String>>,
     /// 可见部门的成员用户 ID 集合（含本人，逗号分隔串）。应用层列表过滤
-    /// 按「归属人 ∈ 成员集合」判断（build_data_scope_condition Dept 分支），
+    /// 按"归属人 ∈ 成员集合"判断（build_data_scope_condition Dept 分支），
     /// 与 RLS 策略口径等价（触发器保证 department_id 恒等于归属人部门）。
     /// 仅 dept 用户加载；all/self 为 None。
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -32,7 +32,7 @@ pub struct RefreshTokenResponse {
 
 // P3 7-17 修复：已删除 CsrfTokenResponse（仅被 get_csrf_token 使用，一并清理）
 
-/// 刷新访问令牌（refresh_token 轮换 + CSRF IP 绑定）
+/// 刷新访问令牌（refresh_token 轮换 + CSRF Token 按新会话重签发并绑定观测 IP）
 #[utoipa::path(
     post,
     path = "/api/v1/erp/auth/refresh",
@@ -42,7 +42,7 @@ pub struct RefreshTokenResponse {
     ),
     tags = ["Auth"]
 )]
-// Wave 3 安全漏洞 #7 修复：CSRF IP 绑定 + 强制轮换；P1 7-1 修复：refresh_token 轮换
+// 刷新链路同时完成两件事：refresh_token 轮换，以及 CSRF Token 按新会话强制重签发（旧 token 整集作废）。
 pub async fn refresh_token(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -186,30 +186,18 @@ async fn revoke_old_token(
     }
 }
 
-// 提取客户端 IP：X-Real-IP → X-Forwarded-For(first, trim) → ConnectInfo → "unknown"
-// 与 middleware/audit_context.rs 的 extract_client_ip 保持一致的四段回退链；
-// 缺少 ConnectInfo 兜底会导致直连部署下登录绑定真实 IP、刷新绑定 "unknown" 的系统性错配。
+// 提取客户端 IP：统一走 audit_context 的降级链（X-Real-IP → X-Forwarded-For 首段 → ConnectInfo → 占位）。
+// 本函数只是把 handler 手上的 HeaderMap 与对端地址喂给同一实现：
+// 登录链路绑定 IP 与 CSRF 中间件校验 IP 必须出自同一份优先级代码，
+// 任何一侧单独改动都会让另一侧出现系统性错配。
 fn extract_client_ip_from_headers(
     headers: &HeaderMap,
     peer_ip: Option<std::net::IpAddr>,
 ) -> String {
-    headers
-        .get("x-real-ip")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .or_else(|| {
-            headers
-                .get("x-forwarded-for")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|s| s.split(',').next().map(|s| s.trim().to_string()))
-                .filter(|s| !s.is_empty())
-        })
-        .or_else(|| peer_ip.map(|ip| ip.to_string()))
-        .unwrap_or_else(|| "unknown".to_string())
+    crate::middleware::audit_context::client_ip_from_parts(headers, peer_ip).0
 }
 
-// 强制轮换 CSRF Token：清除旧 token + 写入新 token（IP 绑定，TTL 1800s）
+// 强制轮换 CSRF Token：清除旧 token + 写入新 token（会话与用户绑定，TTL 1800s）
 fn rotate_csrf_token(
     state: &AppState,
     claims: &crate::services::auth_service::AppClaims,
