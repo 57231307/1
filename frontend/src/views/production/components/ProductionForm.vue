@@ -59,10 +59,10 @@
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelPlannedQuantity')" prop="planned_quantity">
             <div class="planned-qty-row">
-              <el-input-number
+              <NumericInput
                 v-model="localForm.planned_quantity"
-                :min="0"
                 class="planned-qty-input"
+                :min="0"
               />
               <span v-if="selectedUnit" class="planned-qty-unit">{{ selectedUnit }}</span>
             </div>
@@ -70,7 +70,7 @@
         </el-col>
         <el-col :span="12">
           <el-form-item :label="t('production.form.labelPriority')" prop="priority">
-            <el-input-number v-model="localForm.priority" :min="1" :max="10" style="width: 100%" />
+            <NumericInput v-model="localForm.priority" style="width: 100%" :min="1" :max="10" />
           </el-form-item>
         </el-col>
       </el-row>
@@ -99,7 +99,7 @@
         </el-col>
       </el-row>
       <el-form-item :label="t('production.form.labelWorkCenterId')">
-        <el-input-number v-model="localForm.work_center_id" :min="0" style="width: 100%" />
+        <NumericInput v-model="localForm.work_center_id" style="width: 100%" :min="0" />
       </el-form-item>
       <el-form-item :label="t('production.form.labelRemark')">
         <el-input
@@ -123,6 +123,7 @@
 
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 

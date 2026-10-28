@@ -158,7 +158,7 @@
 
     <!-- 新增节点（createProcessNode） -->
     <el-dialog v-model="nodeDialogVisible" :title="t('customOrders.detail.addNode')" width="480">
-      <el-form :model="nodeForm" label-width="110px">
+      <el-form ref="nodeFormRef" :model="nodeForm" :rules="nodeRules" label-width="110px">
         <el-form-item :label="t('customOrders.detail.nodeType')" required>
           <el-select v-model="nodeForm.node_type" style="width: 100%">
             <el-option label="裁剪" value="cutting" />
@@ -172,8 +172,8 @@
         <el-form-item :label="t('customOrders.detail.nodeName')" required>
           <el-input v-model="nodeForm.node_name" />
         </el-form-item>
-        <el-form-item :label="t('customOrders.detail.nodeSequence')" required>
-          <el-input-number v-model="nodeForm.sequence" :min="1" style="width: 100%" />
+        <el-form-item :label="t('customOrders.detail.nodeSequence')" prop="sequence" required>
+          <el-input v-model="nodeForm.sequence" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('customOrders.detail.plannedStart')">
           <el-input v-model="nodeForm.planned_start_date" placeholder="2026-01-01" />
@@ -242,7 +242,8 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import {
   getCustomOrder,
   advanceCustomOrder,
@@ -372,10 +373,20 @@ const selectedNodeId = ref<number | undefined>(undefined);
 const nodeForm = reactive({
   node_type: 'cutting',
   node_name: '',
-  sequence: 1,
+  // 序号码手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
+  sequence: '1',
   planned_start_date: '',
   planned_end_date: '',
 });
+const nodeFormRef = ref<FormInstance>();
+const nodeRules = computed<FormRules>(() => ({
+  sequence: numberInputRules({
+    label: t('customOrders.detail.nodeSequence'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+}));
 const nodeUpdateForm = reactive({ status: 'in_progress', notes: '' });
 const nodeLogForm = reactive({ action: '', log_content: '' });
 
@@ -384,12 +395,18 @@ const handleCreateNode = async () => {
     ElMessage.warning(t('customOrders.detail.nodeRequired'));
     return;
   }
+  if (!nodeFormRef.value) return;
+  let valid = false;
+  await nodeFormRef.value.validate(ok => {
+    valid = ok;
+  });
+  if (!valid) return;
   nodeSaving.value = true;
   try {
     await createProcessNode(order.value.id, {
       node_type: nodeForm.node_type,
       node_name: nodeForm.node_name,
-      sequence: nodeForm.sequence,
+      sequence: Number(nodeForm.sequence),
       planned_start_date: nodeForm.planned_start_date || undefined,
       planned_end_date: nodeForm.planned_end_date || undefined,
     });

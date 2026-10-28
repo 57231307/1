@@ -68,6 +68,17 @@
 //! - customers_nullable_columns_norm: customers 的 status/payment_terms 两列可空无默认 →
 //!   回填成文缺省（'active' / 30）+ SET DEFAULT + SET NOT NULL，与模型非 Option 对齐；
 //!   置于链尾为新的顶层条目，复用库上也必然执行（并入已应用的 system 域会被台账跳过）
+//! - contract_template_schema: 合同模板体系数据地基域。四张新表加两侧合同主表补列，
+//!   一支域文件一份词表常量，条款正文不在本域写入。contract_templates 承载模板版本与
+//!   「同一类别同一立场只允许一版启用」的部分唯一 ACTIVE 门；clause_library 是一枚条款码
+//!   一枚可复用正文的条款库；contract_template_clauses 是模板下的条款项，条款库引用与
+//!   模板内正文二选一，带顺序、必填标记、条件出条款标记与逐条法务复核位；contract_clauses
+//!   是签约时固化的条款快照，存固化当时的正文原文、标题、顺序、来源模板与模板版本号，
+//!   模板改版不回溯改写已固化行（合同实例只存 template_id 不足以回答当时签的是哪一版哪一条）。
+//!   两侧合同主表补出的条款、签署、印花税、内外销与含税列一律可空且不带默认，历史合同保持
+//!   空值即「模板前签约，条款未固化」的判据，域内绝不 UPDATE 或 DELETE 业务数据。
+//!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的域会被台账整体跳过，
+//!   四张表与补列全部缺席。台账名取域名 m_contract_template_schema
 
 pub mod system;
 pub mod business;
@@ -104,3 +115,4 @@ pub mod customer_credit_family_grant;
 pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
+pub mod contract_template_schema;

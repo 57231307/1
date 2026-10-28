@@ -179,21 +179,19 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('arModule.invoice.invoiceAmount')" prop="invoice_amount">
-              <el-input-number
-                v-model="invoiceForm.invoice_amount"
-                :min="0"
-                :precision="2"
+              <el-input
+                v-model="invoiceAmountField.text"
                 style="width: 100%"
+                @blur="invoiceAmountField.normalize()"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item :label="$t('arModule.invoice.taxAmount')">
-              <el-input-number
-                v-model="invoiceForm.tax_amount"
-                :min="0"
-                :precision="2"
+              <el-input
+                v-model="taxAmountField.text"
                 style="width: 100%"
+                @blur="taxAmountField.normalize()"
               />
             </el-form-item>
           </el-col>
@@ -236,11 +234,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Printer, Download } from '@element-plus/icons-vue';
 import { promptCancelReason } from '@/composables/useActionPrompts';
+import { useNumberField } from '@/composables/useNumberField';
 import printJS from 'print-js';
 import { printTableOnAndroid } from '@/utils/print';
 import type { FormInstance, FormRules } from 'element-plus';
@@ -286,6 +285,20 @@ const invoiceForm = reactive({
   remark: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const invoiceAmountField = useNumberField(toRef(invoiceForm, 'invoice_amount'), {
+  label: t('arModule.invoice.invoiceAmount'),
+  required: true,
+  min: 0,
+  precision: 2,
+  requiredMessage: t('arModule.invoice.invoiceAmountRequired'),
+});
+const taxAmountField = useNumberField(toRef(invoiceForm, 'tax_amount'), {
+  label: t('arModule.invoice.taxAmount'),
+  min: 0,
+  precision: 2,
+});
+
 const invoiceRules: FormRules = {
   customer_id: [
     { required: true, message: t('arModule.invoice.customerRequired'), trigger: 'change' },
@@ -293,9 +306,7 @@ const invoiceRules: FormRules = {
   invoice_date: [
     { required: true, message: t('arModule.invoice.invoiceDateRequired'), trigger: 'change' },
   ],
-  invoice_amount: [
-    { required: true, message: t('arModule.invoice.invoiceAmountRequired'), trigger: 'blur' },
-  ],
+  invoice_amount: [invoiceAmountField.rule],
 };
 
 // 后端 ar_invoice 金额字段为 rust_decimal 经 serde 序列化的 JSON 字符串（见 api/ar.ts ARInvoice 注释）。

@@ -23,7 +23,7 @@ import { logAuxLoadFailure } from '@/utils/logger';
 import { useTableApi } from '@/composables/useTableApi';
 
 /**
- * 编辑态（el-input-number 的 number）→ 写线格式（Decimal 十进制字符串）。
+ * 编辑态（数值录入界保持的 number）→ 写线格式（Decimal 十进制字符串）。
  * undefined = 缺值 ⇒ 返回 undefined，由载荷构造处省略键（严禁伪造 0/''，教训：提交 bd6c407c；
  * 0 是合法业务值，会被如实转成 "0" 提交，与"缺值"可区分）。
  * String(number) 输出十进制或科学计数法（如 1e+21），两者均被后端 visit_str 的
@@ -85,7 +85,7 @@ export function useSp() {
   const formRef = ref<FormInstance>();
 
   // 表单数据
-  // price/min_order_qty 为「编辑态」number（el-input-number 数值控件），初值不得伪造 0：
+  // price/min_order_qty 为「编辑态」number（手写数值录入经归一保持数值模型），初值不得伪造 0：
   // undefined=用户未填 ⇒ 提交时省略键（缺值写 0 覆盖旧值的事故教训：提交 bd6c407c）。
   // 写线格式 string 的换算只发生在 handleSubmitForm 边界（toDecimalWire）。
   const formData = reactive({
@@ -177,7 +177,7 @@ export function useSp() {
     // 显式逐字段映射（替代整体 Object.assign(formData, row)）：
     // 1) 读接口 price/min_order_qty 是 Decimal 字符串（后端 models/sales_price.rs::Model 两字段
     //    Decimal、rust_decimal 仅启用 serde feature ⇒ JSON 线格式为字符串），
-    //    编辑态控件 el-input-number 需要 number ⇒ 此处做有意的线格式→编辑态换算；
+    //    编辑态数值录入需要 number ⇒ 此处做有意的线格式→编辑态换算；
     // 2) 不再把行对象上的非表单键（status/created_at 等）连带塞进 formData。
     Object.assign(formData, {
       id: row.id,

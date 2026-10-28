@@ -24,7 +24,7 @@
         :aria-label="$t('accountingPeriod.filter.ariaLabel')"
       >
         <el-form-item :label="$t('accountingPeriod.filter.year')">
-          <el-input-number v-model="queryForm.year" :min="2000" :max="2100" style="width: 140px" />
+          <el-input v-model="queryForm.year" style="width: 140px" inputmode="numeric" />
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="handleSearch">{{
@@ -138,10 +138,10 @@
       >
         <template v-if="!isEdit">
           <el-form-item :label="$t('accountingPeriod.dialog.year')" prop="year">
-            <el-input-number v-model="form.year" :min="2000" :max="2100" style="width: 100%" />
+            <el-input v-model="form.year" style="width: 100%" inputmode="numeric" />
           </el-form-item>
           <el-form-item :label="$t('accountingPeriod.dialog.month')" prop="period">
-            <el-input-number v-model="form.period" :min="1" :max="12" style="width: 100%" />
+            <el-input v-model="form.period" style="width: 100%" inputmode="numeric" />
           </el-form-item>
           <!-- 起止日期由后端按 year/period 推导（CreateAccountingPeriodPayload 无日期字段），
                这里仅只读预览，不可编辑，避免"填了不生效"的假采集 -->
@@ -174,6 +174,7 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { ref, reactive, computed, onMounted } from 'vue';
+import { numberInputRules } from '@/utils/number-input';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Refresh } from '@element-plus/icons-vue';
@@ -197,25 +198,35 @@ const periodList = ref<AccountingPeriodDetail[]>([]);
 const formRef = ref<FormInstance>();
 
 const queryForm = reactive({
-  year: new Date().getFullYear(),
+  year: String(new Date().getFullYear()),
 });
 
 const isEdit = computed(() => !!form.id);
 
-const form = reactive<{ id?: number; year: number; period: number; period_name: string }>({
+const form = reactive<{ id?: number; year: string; period: string; period_name: string }>({
   id: undefined,
-  year: new Date().getFullYear(),
-  period: 1,
+  year: String(new Date().getFullYear()),
+  period: '1',
   period_name: '',
 });
 
 const rules = computed<FormRules>(() => ({
-  year: [
-    { required: true, message: t('accountingPeriod.validation.yearRequired'), trigger: 'blur' },
-  ],
-  period: [
-    { required: true, message: t('accountingPeriod.validation.monthRequired'), trigger: 'blur' },
-  ],
+  year: numberInputRules({
+    label: t('accountingPeriod.dialog.year'),
+    required: true,
+    min: 2000,
+    max: 2100,
+    integer: true,
+    messages: { empty: t('accountingPeriod.validation.yearRequired') },
+  }),
+  period: numberInputRules({
+    label: t('accountingPeriod.dialog.month'),
+    required: true,
+    min: 1,
+    max: 12,
+    integer: true,
+    messages: { empty: t('accountingPeriod.validation.monthRequired') },
+  }),
 }));
 
 // 状态词表写入方：services/accounting_period_service.rs + models/status/finance.rs
@@ -241,7 +252,9 @@ const getStatusType = (status: string) => {
 const formatDate = (value: string) => (value ? value.replace('T', ' ').slice(0, 10) : '-');
 
 // 后端列表端点无 Query<T>（参数被 Axum 整体丢弃），年度筛选只能在已加载全量列表本地做
-const filteredPeriods = computed(() => periodList.value.filter(p => p.year === queryForm.year));
+const filteredPeriods = computed(() =>
+  periodList.value.filter(p => p.year === Number(queryForm.year))
+);
 
 const fetchPeriods = async () => {
   loading.value = true;
@@ -272,7 +285,7 @@ const handleSearch = () => {
 };
 
 const handleReset = () => {
-  queryForm.year = new Date().getFullYear();
+  queryForm.year = String(new Date().getFullYear());
   fetchPeriods();
 };
 
@@ -286,20 +299,20 @@ const computeDateRange = (year: number, month: number) => {
 };
 
 // 创建对话框的起止日期预览（后端推导逻辑的本地镜像，仅展示，不随请求发送）
-const previewRange = computed(() => computeDateRange(form.year, form.period));
+const previewRange = computed(() => computeDateRange(Number(form.year), Number(form.period)));
 
 const openDialog = (row?: AccountingPeriodDetail) => {
   formRef.value?.resetFields();
   if (row) {
     form.id = row.id;
-    form.year = row.year;
-    form.period = row.period;
+    form.year = String(row.year);
+    form.period = String(row.period);
     form.period_name = row.period_name;
   } else {
     const now = new Date();
     form.id = undefined;
-    form.year = now.getFullYear();
-    form.period = now.getMonth() + 1;
+    form.year = String(now.getFullYear());
+    form.period = String(now.getMonth() + 1);
     form.period_name = '';
   }
   dialogVisible.value = true;
@@ -321,7 +334,10 @@ const handleSubmit = async () => {
         ElMessage.success(t('accountingPeriod.message.updateSuccess'));
       } else {
         // 后端 CreateAccountingPeriodPayload 仅 year + period(1-12)，日期由其推导
-        await createAccountingPeriod({ year: form.year, period: form.period });
+        await createAccountingPeriod({
+          year: Number(form.year),
+          period: Number(form.period),
+        });
         ElMessage.success(t('accountingPeriod.message.createSuccess'));
       }
       dialogVisible.value = false;
@@ -404,7 +420,7 @@ const deletePeriod = async (row: AccountingPeriodDetail) => {
 
 const handleInitYear = async () => {
   try {
-    const year = queryForm.year;
+    const year = Number(queryForm.year);
     await ElMessageBox.confirm(
       t('accountingPeriod.message.initYearConfirm', { year }),
       t('accountingPeriod.message.initYearConfirmTitle'),

@@ -56,7 +56,7 @@ export interface ARPayment {
  * 创建收款入参：逐字段对齐后端 `CreateArPaymentRequest`
  * （backend/src/handlers/ar_payment_handler.rs:31-43）——金额键是 amount（非 payment_amount），
  * customer_id/amount/payment_method/payment_date 必填，bank_account/remark/invoice_ids 可选。
- * amount 为 rust_decimal：serde 接受 JSON number，故 el-input-number 的 number 直接可用。
+ * amount 为 rust_decimal：serde 接受 JSON number，故手输框归一的 number 直接可用。
  */
 export interface CreateArPaymentRequest {
   customer_id: number;
@@ -167,7 +167,7 @@ export function getARInvoice(id: number): Promise<ApiResponse<ARInvoice>> {
 /**
  * 创建应收发票入参：对齐后端 `CreateArInvoiceRequestDto`（backend/src/handlers/ar_invoice_handler.rs:46），
  * 全部字段 Option。金额键 invoice_amount 为 `Option<Decimal>`：serde 接受 JSON number，
- * 故 el-input-number 的 number 可直接提交；请求侧金额是 number（与响应侧 ARInvoice 的 string 解耦，
+ * 故手输框归一的 number 可直接提交；请求侧金额是 number（与响应侧 ARInvoice 的 string 解耦，
  * 因后端入参/出参对 Decimal 的 serde 处理方向不同）。invoice_no 由后端自生成，不入参。
  */
 export interface CreateARInvoiceRequest {

@@ -50,6 +50,7 @@ import {
   seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, formItemByExactLabel, pickListArray } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -390,7 +391,22 @@ test.describe('22 质检到退货全流程契约链', () => {
         .first(),
       '派生预填：明细行产品必须带出（为空即"保存数据不完整"回归）'
     ).not.toHaveText('', { timeout: 10_000 });
-    await expect(firstItemRow.getByRole('spinbutton').first()).toHaveValue('50', {
+    // 退货数量预填断言与接口回读绑定（写后读回口径）。先 GET 质检明细端点取真实
+    // unqualified_quantity，再按列头「退货数量」锚定行内录入框断言同值显示，
+    // 不再拿硬编码字面量凑绿。退货数量录入无 precision，numericView 按 String(模型)
+    // 直出，Number 归一后期望形态即 '50'
+    const rtnInspItems = pickListArray<{ unqualified_quantity: string | number }>(
+      await apiCallRaw<unknown>(page, 'GET', `/purchase/inspections/${insp.id}/items`),
+      'items',
+      '22-02 质检明细不合格量回读'
+    );
+    expect(rtnInspItems.length, '质检明细应为 1 行').toBe(1);
+    const returnQtyInput = await cellInputByColumn(
+      dlg.locator('.el-table').first(),
+      firstItemRow,
+      '退货数量'
+    );
+    await expect(returnQtyInput).toHaveValue(String(Number(rtnInspItems[0].unqualified_quantity)), {
       timeout: 10_000,
     });
 

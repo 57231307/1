@@ -55,7 +55,6 @@
 
   .el-form--inline .el-form-item__content .el-input,
   .el-form--inline .el-form-item__content .el-select,
-  .el-form--inline .el-form-item__content .el-input-number,
   .el-form--inline .el-form-item__content .el-date-editor.el-input,
   .el-form--inline .el-form-item__content .el-date-editor .el-input__wrapper {
     width: 100%;

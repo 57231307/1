@@ -105,7 +105,7 @@
       "
       width="520"
     >
-      <el-form :model="form" label-width="110px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
         <el-form-item :label="$t('colorPrices.seasonalRules.dialog.ruleName')" required>
           <el-input v-model="form.rule_name" />
         </el-form-item>
@@ -116,8 +116,11 @@
             <el-option label="HOLIDAY" value="HOLIDAY" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.seasonalRules.dialog.categoryId')">
-          <el-input-number v-model="form.product_category_id" :min="1" />
+        <el-form-item
+          :label="$t('colorPrices.seasonalRules.dialog.categoryId')"
+          prop="product_category_id"
+        >
+          <el-input v-model="form.product_category_id" inputmode="numeric" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.seasonalRules.dialog.adjustType')" required>
           <el-radio-group v-model="form.adjustment_type">
@@ -127,8 +130,12 @@
             <el-radio value="fixed">{{ $t('colorPrices.seasonalRules.dialog.fixed') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.seasonalRules.dialog.adjustValue')" required>
-          <el-input-number v-model="form.adjustment_value" :precision="2" />
+        <el-form-item
+          :label="$t('colorPrices.seasonalRules.dialog.adjustValue')"
+          prop="adjustment_value"
+          required
+        >
+          <el-input v-model="form.adjustment_value" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.seasonalRules.dialog.validFrom')" required>
           <el-input v-model="form.valid_from" placeholder="2026-01-01" />
@@ -154,9 +161,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import {
   getSeasonalRuleList,
@@ -166,6 +173,7 @@ import {
   deleteSeasonalRule,
   type SeasonalPriceRule,
 } from '@/api/color-price';
+import { numberInputRules, numericView } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -178,17 +186,34 @@ const rules = ref<SeasonalPriceRule[]>([]);
 const dialogVisible = ref(false);
 const editingId = ref<number | null>(null);
 
+// 手写录入文本模型（数字约束收进 numberInputRules 校验器，不靠步进按钮）
+// 类目 ID 为可选项初值空串（提交回 null 三态）；调整值原控件无下界，负数调价为合法语义
 const form = reactive({
   rule_name: '',
   season: 'SS' as 'SS' | 'AW' | 'HOLIDAY',
-  product_category_id: null as number | null,
+  product_category_id: '',
   adjustment_type: 'percentage' as 'percentage' | 'fixed',
-  adjustment_value: 0,
+  adjustment_value: '0',
   valid_from: '',
   valid_until: '',
   description: '',
   is_active: true,
 });
+
+// 弹窗数值录入校验（范围与精度靠校验器，不靠步进按钮）
+const formRef = ref<FormInstance>();
+const formRules = computed<FormRules>(() => ({
+  product_category_id: numberInputRules({
+    label: t('colorPrices.seasonalRules.dialog.categoryId'),
+    min: 1,
+    integer: true,
+  }),
+  adjustment_value: numberInputRules({
+    label: t('colorPrices.seasonalRules.dialog.adjustValue'),
+    required: true,
+    precision: 2,
+  }),
+}));
 
 const loadRules = async () => {
   loading.value = true;
@@ -207,9 +232,9 @@ const handleCreate = () => {
   Object.assign(form, {
     rule_name: '',
     season: 'SS',
-    product_category_id: null,
+    product_category_id: '',
     adjustment_type: 'percentage',
-    adjustment_value: 0,
+    adjustment_value: '0',
     valid_from: '',
     valid_until: '',
     description: '',
@@ -226,9 +251,12 @@ const handleEdit = async (row: SeasonalPriceRule) => {
     Object.assign(form, {
       rule_name: detail.rule_name,
       season: detail.season as 'SS' | 'AW' | 'HOLIDAY',
-      product_category_id: detail.product_category_id,
+      product_category_id:
+        detail.product_category_id === null || detail.product_category_id === undefined
+          ? ''
+          : String(detail.product_category_id),
       adjustment_type: detail.adjustment_type as 'percentage' | 'fixed',
-      adjustment_value: Number(detail.adjustment_value),
+      adjustment_value: numericView(Number(detail.adjustment_value), 2),
       valid_from: detail.valid_from,
       valid_until: detail.valid_until || '',
       description: detail.description || '',
@@ -246,15 +274,21 @@ const handleSave = async () => {
     );
     return;
   }
+  let valid = false;
+  await formRef.value?.validate(ok => {
+    valid = ok;
+  });
+  if (!valid) return;
   saving.value = true;
   try {
     if (editingId.value) {
       await updateSeasonalRule(editingId.value, {
         rule_name: form.rule_name,
         season: form.season,
-        product_category_id: form.product_category_id,
+        product_category_id:
+          form.product_category_id.trim() === '' ? null : Number(form.product_category_id),
         adjustment_type: form.adjustment_type,
-        adjustment_value: form.adjustment_value,
+        adjustment_value: Number(form.adjustment_value),
         valid_from: form.valid_from,
         valid_until: form.valid_until || null,
         is_active: form.is_active,
@@ -264,9 +298,10 @@ const handleSave = async () => {
       await createSeasonalRule({
         rule_name: form.rule_name,
         season: form.season,
-        product_category_id: form.product_category_id,
+        product_category_id:
+          form.product_category_id.trim() === '' ? null : Number(form.product_category_id),
         adjustment_type: form.adjustment_type,
-        adjustment_value: form.adjustment_value,
+        adjustment_value: Number(form.adjustment_value),
         valid_from: form.valid_from,
         valid_until: form.valid_until || null,
         description: form.description || null,

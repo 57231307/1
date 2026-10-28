@@ -70,21 +70,40 @@
       :title="$t('colorPrices.customerSpecial.dialog.createTitle')"
       width="520"
     >
-      <el-form :model="form" label-width="110px">
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.customerId')" required>
-          <el-input-number v-model="form.customer_id" :min="1" />
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.customerId')"
+          prop="customer_id"
+          required
+        >
+          <el-input v-model="form.customer_id" inputmode="numeric" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.productId')" required>
-          <el-input-number v-model="form.product_id" :min="1" />
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.productId')"
+          prop="product_id"
+          required
+        >
+          <el-input v-model="form.product_id" inputmode="numeric" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.colorId')" required>
-          <el-input-number v-model="form.color_id" :min="1" />
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.colorId')"
+          prop="color_id"
+          required
+        >
+          <el-input v-model="form.color_id" inputmode="numeric" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.specialPrice')" required>
-          <el-input-number v-model="form.special_price" :precision="2" :min="0" />
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.specialPrice')"
+          prop="special_price"
+          required
+        >
+          <el-input v-model="form.special_price" inputmode="decimal" />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.customerSpecial.dialog.discount')">
-          <el-input-number v-model="form.discount_percent" :precision="2" :min="0" :max="100" />
+        <el-form-item
+          :label="$t('colorPrices.customerSpecial.dialog.discount')"
+          prop="discount_percent"
+        >
+          <el-input v-model="form.discount_percent" inputmode="decimal" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.customerSpecial.dialog.currency')" required>
           <el-select v-model="form.currency" style="width: 100%">
@@ -114,15 +133,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import {
   getCustomerSpecialPriceList,
   createCustomerSpecialPrice,
   formatPrice,
   type CustomerColorPrice,
 } from '@/api/color-price';
+import { numberInputRules } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -131,17 +151,54 @@ const saving = ref(false);
 const items = ref<CustomerColorPrice[]>([]);
 const dialogVisible = ref(false);
 
+// 手写录入文本模型（数字约束收进 numberInputRules 校验器，不靠步进按钮）
+// ID 类初值为 1（手输主键下界），折扣为可选项初值空串（提交回 null 三态）
 const form = reactive({
-  customer_id: 1,
-  product_id: 1,
-  color_id: 1,
-  special_price: 0,
-  discount_percent: null as number | null,
+  customer_id: '1',
+  product_id: '1',
+  color_id: '1',
+  special_price: '',
+  discount_percent: '',
   currency: 'CNY',
   valid_from: '',
   valid_until: '',
   notes: '',
 });
+
+// 建单对话框数值录入校验（范围与精度靠校验器，不靠步进按钮）
+const formRef = ref<FormInstance>();
+const rules = computed<FormRules>(() => ({
+  customer_id: numberInputRules({
+    label: t('colorPrices.customerSpecial.dialog.customerId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  product_id: numberInputRules({
+    label: t('colorPrices.customerSpecial.dialog.productId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  color_id: numberInputRules({
+    label: t('colorPrices.customerSpecial.dialog.colorId'),
+    required: true,
+    min: 1,
+    integer: true,
+  }),
+  special_price: numberInputRules({
+    label: t('colorPrices.customerSpecial.dialog.specialPrice'),
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  discount_percent: numberInputRules({
+    label: t('colorPrices.customerSpecial.dialog.discount'),
+    min: 0,
+    max: 100,
+    precision: 2,
+  }),
+}));
 
 const loadList = async () => {
   loading.value = true;
@@ -157,11 +214,11 @@ const loadList = async () => {
 
 const handleCreate = () => {
   Object.assign(form, {
-    customer_id: 1,
-    product_id: 1,
-    color_id: 1,
-    special_price: 0,
-    discount_percent: null,
+    customer_id: '1',
+    product_id: '1',
+    color_id: '1',
+    special_price: '',
+    discount_percent: '',
     currency: 'CNY',
     valid_from: '',
     valid_until: '',
@@ -175,14 +232,19 @@ const handleSave = async () => {
     ElMessage.warning(t('colorPrices.customerSpecial.dialog.validFrom'));
     return;
   }
+  let valid = false;
+  await formRef.value?.validate(ok => {
+    valid = ok;
+  });
+  if (!valid) return;
   saving.value = true;
   try {
     await createCustomerSpecialPrice({
-      customer_id: form.customer_id,
-      product_id: form.product_id,
-      color_id: form.color_id,
-      special_price: form.special_price,
-      discount_percent: form.discount_percent,
+      customer_id: Number(form.customer_id),
+      product_id: Number(form.product_id),
+      color_id: Number(form.color_id),
+      special_price: Number(form.special_price),
+      discount_percent: form.discount_percent.trim() === '' ? null : Number(form.discount_percent),
       currency: form.currency,
       valid_from: form.valid_from,
       valid_until: form.valid_until || null,
