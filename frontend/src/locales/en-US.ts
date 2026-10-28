@@ -2181,7 +2181,6 @@ export default {
         approve: 'Approve',
         ship: 'Ship',
         delete: 'Delete',
-        generateNo: 'Generate No.',
       },
       table: {
         ariaLabel: 'Inventory transfer list',
@@ -2205,7 +2204,6 @@ export default {
         shipConfirm: 'Ship this transfer order? Stock will be moved per the items.',
         shipTitle: 'Confirm Shipment',
         shipSuccess: 'Shipped successfully',
-        generateNoTitle: 'Pre-generated Transfer No.',
       },
     },
   },

@@ -2167,7 +2167,6 @@ export default {
         approve: '审批',
         ship: '发货',
         delete: '删除',
-        generateNo: '取号',
       },
       table: {
         ariaLabel: '库存调拨列表',
@@ -2191,7 +2190,6 @@ export default {
         shipConfirm: '确定对此调拨单发货吗？发货后将按明细执行库存转移。',
         shipTitle: '确认发货',
         shipSuccess: '发货成功',
-        generateNoTitle: '预生成调拨单号',
       },
     },
   },
