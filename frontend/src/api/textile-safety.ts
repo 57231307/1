@@ -78,7 +78,8 @@ export interface TextileReportResult {
   id: number;
   report_id: number;
   item_id: number;
-  measured_value: number | null;
+  // 读侧后端 DECIMAL 出参为字符串线格式（rust_decimal 未开 serde-float），非数值型为 null
+  measured_value: string | null;
   measured_text: string | null;
   measured_unit: string | null;
   test_method: string | null;
@@ -93,7 +94,8 @@ export interface TextileChildCheck {
   submission_id: number;
   item_id: number;
   check_kind: string;
-  measured_value: number | null;
+  // 读侧后端 DECIMAL 出参为字符串线格式（rust_decimal 未开 serde-float），未录入为 null
+  measured_value: string | null;
   measured_unit: string | null;
   measured_flag: string | null;
   check_desc: string | null;

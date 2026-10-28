@@ -253,9 +253,11 @@ test.describe.serial('121 纺织品安全送检判定链写后读回', () => {
       `要素齐全应过门，实际缺项 ${JSON.stringify(gated.missing_elements)}`
     ).toHaveLength(0);
     const judgedRows = await apiCallRaw<
-      { id: number; item_id: number; verdict: string; measured_value: number | null }[]
+      { id: number; item_id: number; verdict: string; measured_value: string | null }[]
     >(page, 'PUT', `/textile-reports/${reportId}/judgement`, {});
-    const hcho = judgedRows.find(r => r.measured_value === 90);
+    // 后端 DECIMAL(12,4) 出参为字符串线格式（rust_decimal 未开 serde-float），
+    // 与全仓既有 e2e 同构：Number 包裹后按数值语义比较
+    const hcho = judgedRows.find(r => Number(r.measured_value) === 90);
     expect(hcho, '结果行必须含甲醛 90').toBeTruthy();
     expect(hcho!.verdict, '甲醛 90 超 B 类 75 上限必须 fail').toBe('fail');
     const judged = await apiCallRaw<{
