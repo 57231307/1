@@ -13,6 +13,8 @@
 // 说明：花费超出"可用预算"的同步拦截（enforce_budget_available）挂在采购下单预算门
 //   （services/po/order_ops/crud.rs），属采购域，不在财务域自控端点内；本套件覆盖财务域自有、
 //   同步、可确定复现的预算一致性拒绝，全部断真实状态码 + 机器码 + 回读数值。
+// 收尾口径：预算方案族后端没有删除腿，本轮自建方案统一走已注册的驳回跃迁腿置为 rejected 终态，
+//   并回读断状态字面值真实落库、重复驳回被状态门拒绝；方案行以唯一方案号残留，断言只按本轮 id 精确回读。
 import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
@@ -67,8 +69,39 @@ async function seedPlan(
   });
   const id = Number(res.id);
   if (!id) throw new Error(`建方案失败：${JSON.stringify(res)}`);
-  CLEANUP.push({ path: `/budgets/plans/${id}`, label: 'budget_plan' });
   return id;
+}
+
+// 预算方案收尾终态化：调用后端已注册的方案驳回跃迁腿，把本轮自建方案从 draft 置为 rejected。
+// 调用方：09-01、09-02、09-03 三个用例在各自断言全部通过后收尾调用。
+// 入参：page 为登录态页面对象，planId 为本轮 seedPlan 返回的方案 id，expectedTotal 为本轮写入的方案总额。
+// 传给谁：后端 reject_plan 处端点为方案驳回跃迁腿，请求体字段 approval_comment 按 BudgetApproveRequest 契约传入。
+// 存什么：方案行状态由 draft 变为 rejected（词表小写，服务层仅草稿可驳回、驳回不改金额等业务字段），断言只按本轮 id 精确回读。
+// 存哪里：方案行以 rejected 终态保留在预算方案表中，不依赖任何删除腿，残留行带唯一方案号不污染后续判定。
+async function retirePlanViaReject(
+  page: import('@playwright/test').Page,
+  planId: number,
+  expectedTotal: number
+): Promise<void> {
+  await apiCallRaw<Record<string, unknown>>(page, 'POST', `/budgets/plans/${planId}/reject`, {
+    approval_comment: 'E2E 收尾驳回',
+  });
+  // 回读断真腿生效：状态字面值为 rejected 族（不是只断请求返回码），且驳回不得改动方案总额。
+  const after = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/budgets/plans/${planId}`);
+  expect(String(after.status), '驳回落库后方案状态应为 rejected 字面值').toBe('rejected');
+  expect(num(after, 'total_amount'), '驳回不得改动方案总额').toBe(expectedTotal);
+  // 离开待审侧的行为学证据：方案列表接口无状态筛选参数，改用重复驳回被状态门拒绝，
+  // 证明该方案已不在仅草稿可驳回的前置白名单一侧。
+  const fail = await apiCallExpectFail(page, 'POST', `/budgets/plans/${planId}/reject`, {
+    approval_comment: 'E2E 对已驳回方案重复驳回',
+  });
+  expect(fail.status, `已驳回方案重复驳回应被状态门拒 400，实际=${fail.status}`).toBe(400);
+  expect(failureCode(fail), `机器码应为 BUSINESS_ERROR，实际=${fail.code}`).toBe(
+    APP_ERROR_CODES.BUSINESS_ERROR
+  );
+  expect(fail.message, '状态门应回显仅草稿可驳回的规则文案原文').toBe(
+    '预算方案状态不允许驳回（仅草稿状态可驳回）'
+  );
 }
 
 test.describe('09 预算端到端与一致性', () => {
@@ -128,6 +161,9 @@ test.describe('09 预算端到端与一致性', () => {
       `/budgets/control/${planId}/data`
     );
     expect(num(control, 'total_amount'), '控制数据应回读方案头总额 1000').toBe(1000);
+
+    // 收尾：方案无删除腿，走已注册的驳回跃迁腿置终态并回读生效。
+    await retirePlanViaReject(page, planId, 1000);
   });
 
   test('09-02 期间分解之和 ≠ 年度计划 → 建明细被拒（400 VALIDATION_ERROR）', async ({ page }) => {
@@ -152,6 +188,9 @@ test.describe('09 预算端到端与一致性', () => {
       APP_ERROR_CODES.VALIDATION_ERROR
     );
     expect(fail.message, '脱敏站点 message 应为固定验证失败常量').toBe('请求参数验证失败');
+
+    // 收尾：本轮方案未被任何成功写路径改动过状态，仍为草稿，走驳回跃迁腿置终态并回读生效。
+    await retirePlanViaReject(page, planId, 1000);
   });
 
   test('09-03 明细合计超过方案总额 → 审批方案被拒（400 BUSINESS_ERROR）', async ({ page }) => {
@@ -192,5 +231,8 @@ test.describe('09 预算端到端与一致性', () => {
     );
     expect(String(planAfter.status), '审批被拒后方案应仍为 draft').toBe('draft');
     expect(num(planAfter, 'total_amount'), '审批被拒不得改动方案总额').toBe(1000);
+
+    // 收尾：审批被状态门拒后方案仍为草稿，驳回跃迁腿前置可达，置终态并回读生效。
+    await retirePlanViaReject(page, planId, 1000);
   });
 });
