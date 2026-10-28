@@ -172,7 +172,11 @@ test.describe('15 供应商评估排名链路契约', () => {
     expect(Array.isArray(rankings), '排名应返回数组').toBe(true);
     const row = rankings.find(r => Number(r.supplier_id) === supplierId);
     expect(row, `排名榜应含新建供应商 ${supplierId}，实际条数 ${rankings.length}`).toBeDefined();
-    expect(Number(row!.average_score), '新建供应商排名均值应等于唯一一条 score 88.5').toBe(88.5);
+    // average_score 不是原始分的平均，而是 sum(weighted_score)/sum(weight)*100 反推：
+    // weighted_score 落库列是 DECIMAL(10,2)，0.885 存成 0.89，反推即得 89。
+    // 本断言钉这条推导事实。副产品是权重的有效分辨率被压到 1 分（88.5 与 89.4 同名），
+    // 该口径由列精度裁定决定，改与不改都不该让这条断言含糊通过。
+    expect(Number(row!.average_score), '排名均值应由两位存储的加权分反推，权重 1 时得 89').toBe(89);
     expect(Number(row!.total_records), '新建供应商评估记录数应为 1').toBe(1);
     expect(String(row!.supplier_name), '排名 supplier_name 应实查回填').toBe(supplierName);
 
