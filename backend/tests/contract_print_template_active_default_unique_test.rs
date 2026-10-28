@@ -484,7 +484,7 @@ async fn db_enforced_index_predicate_does_not_reject_non_conflicting_rows() {
     .unwrap_or_else(|e| panic!("不同 doc_type 的启用默认行应可插入: {e}"));
 
     // 复核最终形态：三个 doc_type 各恰有一行"启用且默认"。
-    for (dt, want) [
+    for (dt, want) in [
         ("it_docidx_dt_a", 1_i64),
         ("it_docidx_dt_b", 1_i64),
         ("it_docidx_dt_c", 1_i64),
