@@ -136,6 +136,13 @@ const SKU_MAPPING_IMPORT_COLUMNS: &[(&str, bool)] = &[
     (COL_REMARKS, false),
 ];
 
+/// 取 SKU 对照表文件导入的权威列清单 列名与是否必需。
+/// 调用方 导入模板登记（services/import_export_service.rs 的 build_sku_mapping_template）
+/// 与导入模板配对锁测试。入参 无，返回本文件常量表的只读引用，不落库也不改写。
+pub(crate) fn sku_mapping_import_columns() -> &'static [(&'static str, bool)] {
+    SKU_MAPPING_IMPORT_COLUMNS
+}
+
 // =====================================================
 // Handlers
 // =====================================================

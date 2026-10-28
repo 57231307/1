@@ -256,20 +256,10 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.totalQty')" prop="total_qty">
-          <el-input-number
-            v-model="recordForm.total_qty"
-            :min="0"
-            :precision="2"
-            :controls="false"
-          />
+          <NumericInput v-model="recordForm.total_qty" :min="0" :precision="2" />
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.inspectedQty')" prop="inspected_qty">
-          <el-input-number
-            v-model="recordForm.inspected_qty"
-            :min="0"
-            :precision="2"
-            :controls="false"
-          />
+          <NumericInput v-model="recordForm.inspected_qty" :min="0" :precision="2" />
         </el-form-item>
         <el-form-item :label="$t('quality.recordDialog.result')" prop="inspection_result">
           <el-radio-group v-model="recordForm.inspection_result">
@@ -301,6 +291,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { computed, ref, reactive, onMounted, provide } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { loadIfNot, createLazyLoader } from '@/utils/lazy-loader';

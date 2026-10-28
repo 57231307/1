@@ -429,21 +429,45 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     expect(RATING_TAB_SRC).not.toMatch(/creditLimit: 0/);
     expect(RATING_TAB_SRC).not.toMatch(/creditDays: 0/);
     expect(RATING_TAB_SRC).not.toMatch(/form\.credit(Score|Limit|Days) = 0/);
-    expect(RATING_TAB_SRC).toMatch(/creditScore: null as number \| null/);
-    expect(RATING_TAB_SRC).toMatch(/creditLimit: null as number \| null/);
-    expect(RATING_TAB_SRC).toMatch(/creditDays: null as number \| null/);
-    expect(RATING_TAB_SRC).toMatch(/form\.creditScore = null/);
-    // 清空输入框回到未填态，而不是被 :min="0" 拍平成 0
-    // 只在模板区计数：script 的说明注释里也出现过这个属性名，整文件匹配会多数一次
-    expect(
-      (RATING_TAB_TEMPLATE.match(/:value-on-clear="null"/g) || []).length,
-      '三个数字输入框都必须显式把清空态定为 null'
-    ).toBe(3);
+    // 未填态一律是空串（不是 0、也不是被下界拍平的数字），由提交腿显式换算成 null
+    expect(RATING_TAB_SRC).toMatch(/creditScore: ''/);
+    expect(RATING_TAB_SRC).toMatch(/creditLimit: ''/);
+    expect(RATING_TAB_SRC).toMatch(/creditDays: ''/);
+    // 界面仍是手写 el-input（禁步进控件回潮），且三处数值录入都绑定 model 字段。
+    // 只在模板区核：script 里的绑定与提交换算也在同一文件，整文件匹配会误判控件形态
+    expect(RATING_TAB_TEMPLATE.match(/el-input-number/g), '禁止步进控件回潮').toBeNull();
+    for (const field of ['creditScore', 'creditLimit', 'creditDays']) {
+      expect(
+        RATING_TAB_TEMPLATE,
+        `数值录入 ${field} 必须是手写 el-input 并绑定 form.${field}`
+      ).toMatch(new RegExp(`v-model="form\\.${field}"`));
+    }
+    // 提交腿必须把"未填（空串）"显式换算成 null；裸 Number 会把空串算成 0，一律判红
+    const numericConversions: ReadonlyArray<readonly [string, string]> = [
+      ['credit_score', 'creditScore'],
+      ['credit_limit', 'creditLimit'],
+      ['credit_days', 'creditDays'],
+    ];
+    for (const [payloadKey, modelKey] of numericConversions) {
+      expect(
+        RATING_TAB_SRC,
+        `提交腿 ${payloadKey} 必须存在"未填空串到 null"的显式分支（不是裸 Number 回 0）`
+      ).toMatch(
+        new RegExp(
+          `${payloadKey}:\\s*source\\.${modelKey} === '' \\? null : Number\\(source\\.${modelKey}\\)`
+        )
+      );
+      expect(
+        RATING_TAB_SRC,
+        `提交腿 ${payloadKey} 不得裸用 Number——Number 空串会伪装未填为 0`
+      ).not.toMatch(new RegExp(`${payloadKey}:\\s*Number\\(`));
+    }
+    // 全文件禁止 ?? 0 与 || 0 这类把未填兜成 0 的写法
+    expect(RATING_TAB_SRC, '不得出现 ?? 0 兜底').not.toMatch(/\?\?\s*0/);
+    expect(RATING_TAB_SRC, '不得出现 || 0 兜底').not.toMatch(/\|\|\s*0/);
     // 提交侧：拿不到数值时显式失败并留日志，不补默认值
     expect(RATING_TAB_SRC).toContain('function buildRatingPayload');
     expect(RATING_TAB_SRC).toContain('incompleteForm');
-    expect(RATING_TAB_SRC).not.toMatch(/credit_score: form\.creditScore \?\? 0/);
-    expect(RATING_TAB_SRC).not.toMatch(/credit_limit: form\.creditLimit \?\? 0/);
     // 提交键集合 = 后端 CreditRatingRequestDto 的键（不再丢 credit_score/credit_days）
     const submitted = [
       ...RATING_TAB_SRC.matchAll(
@@ -545,14 +569,20 @@ describe('客户信用出参形状锁（后端实体载体 ↔ 前端声明 ↔ 
     const mutatedOptional = CREDIT_API_SRC.replace('  status: string;', '  status?: string;');
     expect(mutatedOptional, '夹具替换本身必须生效').not.toBe(CREDIT_API_SRC);
     expect(tsInterfaceBody(mutatedOptional, 'CustomerCredit')).not.toMatch(/^ {2}status: /m);
-    // 夹具 G：评级表单初值退回 0，0 兜底判据必须抓到
-    const mutatedZero = RATING_TAB_SRC.replace(
-      'creditScore: null as number | null,',
-      'creditScore: 0,'
-    );
+    // 夹具 G：把未填空串初值退回 0，0 初值判据必须抓到
+    const mutatedZero = RATING_TAB_SRC.replace("creditScore: '',", 'creditScore: 0,');
     expect(mutatedZero, '夹具替换本身必须生效').not.toBe(RATING_TAB_SRC);
     expect(mutatedZero).toMatch(/creditScore: 0/);
-    expect(mutatedZero).not.toMatch(/creditScore: null as number \| null/);
+    // 夹具 G2：提交腿退回裸 Number（空串会算成 0），显式分支判据与裸 Number 反判都要失败
+    const mutatedBare = RATING_TAB_SRC.replace(
+      "credit_score: source.creditScore === '' ? null : Number(source.creditScore)",
+      'credit_score: Number(source.creditScore)'
+    );
+    expect(mutatedBare, '夹具替换本身必须生效').not.toBe(RATING_TAB_SRC);
+    expect(mutatedBare).not.toMatch(
+      /credit_score:\s*source\.creditScore === '' \? null : Number\(source\.creditScore\)/
+    );
+    expect(mutatedBare).toMatch(/credit_score:\s*Number\(/);
     // 夹具 H：编辑表单再带上 PUT 不接收的 status 键，入参差集锁必须抓到
     const mutatedStatus = CREDIT_API_SRC.replace(
       '  credit_limit?: string | number | null;\n  credit_days?: number | null;\n  remark?: string | null;\n}\n\nexport interface CreditAdjustment',

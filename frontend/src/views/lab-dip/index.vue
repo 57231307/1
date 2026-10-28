@@ -114,12 +114,7 @@
     >
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="110px">
         <el-form-item :label="t('labDip.index.labelCustomerId')" prop="customer_id">
-          <el-input-number
-            v-model="formData.customer_id"
-            :min="1"
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input v-model="formData.customer_id" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('labDip.index.colCustomerColorNo')" prop="customer_color_no">
           <el-input
@@ -162,13 +157,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('labDip.index.labelSampleVersions')" prop="sample_versions">
-          <el-input-number
-            v-model="formData.sample_versions"
-            :min="1"
-            :max="8"
-            :precision="0"
-            style="width: 100%"
-          />
+          <el-input v-model="formData.sample_versions" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="t('labDip.index.colRequiredDate')" prop="required_date">
           <el-date-picker
@@ -247,6 +236,7 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { useI18n } from 'vue-i18n';
 import {
   getLabDipRequestList,
@@ -323,29 +313,47 @@ const detailVisible = ref(false);
 const detailRow = ref<LabDipRequest | null>(null);
 const formRef = ref<FormInstance>();
 
+// 数值录入项统一为手写文本模型（空串=未填），提交前显式 Number() 归一为契约数值
 const formData = reactive<{
-  customer_id: number | undefined;
+  customer_id: string;
   customer_color_no: string;
   customer_color_name: string;
   light_source: string;
   fabric_spec: string;
   dye_category: string;
-  sample_versions: number;
+  sample_versions: string;
   required_date: string;
   remarks: string;
 }>({
-  customer_id: undefined,
+  customer_id: '',
   customer_color_no: '',
   customer_color_name: '',
   light_source: '',
   fabric_spec: '',
   dye_category: '',
-  sample_versions: 4,
+  sample_versions: '4',
   required_date: '',
   remarks: '',
 });
 
+/** 手写文本模型转契约数值：空串回 undefined（可选键省略=不采集） */
+const numOpt = (text: string): number | undefined =>
+  text.trim() === '' ? undefined : Number(text);
+
 const formRules: FormRules = {
+  // 范围与精度靠校验器（numberInputRules 单源），不靠步进按钮
+  customer_id: numberInputRules({
+    label: t('labDip.index.labelCustomerId'),
+    min: 1,
+    integer: true,
+  }),
+  sample_versions: numberInputRules({
+    label: t('labDip.index.labelSampleVersions'),
+    required: true,
+    min: 1,
+    max: 8,
+    integer: true,
+  }),
   light_source: [
     { required: true, message: t('labDip.index.ruleLightSourceRequired'), trigger: 'change' },
   ],
@@ -440,13 +448,13 @@ const handleCreate = () => {
 };
 
 const resetForm = () => {
-  formData.customer_id = undefined;
+  formData.customer_id = '';
   formData.customer_color_no = '';
   formData.customer_color_name = '';
   formData.light_source = '';
   formData.fabric_spec = '';
   formData.dye_category = '';
-  formData.sample_versions = 4;
+  formData.sample_versions = '4';
   formData.required_date = '';
   formData.remarks = '';
   formRef.value?.resetFields();
@@ -459,13 +467,13 @@ const submitCreate = async () => {
     submitLoading.value = true;
     try {
       await createLabDipRequest({
-        customer_id: formData.customer_id,
+        customer_id: numOpt(formData.customer_id),
         customer_color_no: formData.customer_color_no || undefined,
         customer_color_name: formData.customer_color_name || undefined,
         light_source: formData.light_source,
         fabric_spec: formData.fabric_spec || undefined,
         dye_category: formData.dye_category || undefined,
-        sample_versions: formData.sample_versions,
+        sample_versions: numOpt(formData.sample_versions),
         required_date: formData.required_date,
         remarks: formData.remarks || undefined,
       });

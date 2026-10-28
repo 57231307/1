@@ -52,6 +52,7 @@ import {
   seedInspectionPass,
 } from '../flow/helpers';
 import { pickSelectIn, pickListArray, findRowAction } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -236,7 +237,19 @@ async function receiveViaUI(
   const dialog = page.getByRole('dialog', { name: '采购收货' });
   await expect(dialog).toBeVisible({ timeout: 30000 });
   await pickSelectIn(dialog, page, '仓库');
-  await dialog.getByRole('spinbutton').first().fill(qty);
+  // 本次收货录入按列头「本次收货」锚定（控件已无 spinbutton 角色）。
+  // 填值后失焦触发提交归一并 toHaveValue 读回真值——录入无 precision，
+  // 归一后回显为 Number 直出的整数文本，断的是控件真实形态而非位置型命中。
+  // 本 helper 由 20-01 与 20-02 共用，收口一处即覆盖两支调用
+  const receiveTable = dialog.locator('.el-table').first();
+  const receiveQtyInput = await cellInputByColumn(
+    receiveTable,
+    receiveTable.locator('.el-table__row').first(),
+    '本次收货'
+  );
+  await receiveQtyInput.fill(qty);
+  await receiveQtyInput.press('Tab');
+  await expect(receiveQtyInput).toHaveValue(String(Number(qty)));
   await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill(altQty);
   await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
   // 只绑 200：CSRF token 一次性消费下 UI「确定收货」首个 POST 可能 403（csrf.rs:110 consume
