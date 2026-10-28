@@ -79,6 +79,12 @@
 //!   空值即「模板前签约，条款未固化」的判据，域内绝不 UPDATE 或 DELETE 业务数据。
 //!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的域会被台账整体跳过，
 //!   四张表与补列全部缺席。台账名取域名 m_contract_template_schema
+//! - m0104_add_document_no_partial_unique_four_tables: 单据号四列（production_recipe.recipe_no /
+//!   production_recipe_addition.addition_no / process_wage_rate.rate_no / wage_record.record_no）
+//!   补活跃行部分唯一索引（谓词与读路径判重同源 is_deleted = false），先于服务侧取号-插入
+//!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
+//!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
+//!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
 //! - contract_clause_snapshot_provenance: 合同条款快照来源指针独立域。给 contract_clauses 追加
 //!   一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
 //!   供详情腿单义回查必填标记。为什么另立独立域 该列本可塞进 contract_template_schema 域尾，
@@ -124,4 +130,5 @@ pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
+pub mod m0104_add_document_no_partial_unique_four_tables;
 pub mod contract_clause_snapshot_provenance;

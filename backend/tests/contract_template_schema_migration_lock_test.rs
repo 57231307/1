@@ -350,6 +350,22 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let pos = lib
         .find(tail)
         .unwrap_or_else(|| panic!("迁移链里找不到 {tail}（域未注册进 lib.rs，活库上四表必缺席）"));
+    // 只要求注册在依赖域之后，不要求绝对末位。本仓迁移规矩是新域一律追加到链尾，
+    // 钉死末位会让下一条按规矩并基的车道必红，锁就变成阻止仓库正常演进的东西。
+    for dep in [
+        "domain::system::Migration",
+        "domain::business::Migration",
+        "domain::v15::Migration",
+    ] {
+        let dpos = lib
+            .find(dep)
+            .unwrap_or_else(|| panic!("lib.rs 找不到依赖域注册 {dep}，无法判定次序"));
+        assert!(
+            dpos < pos,
+            "contract_template_schema 必须注册在 {dep} 之后（两张合同主表由该域先建），实得次序相反"
+        );
+    }
+
     let provenance = "Box::new(domain::contract_clause_snapshot_provenance::Migration),";
     let prov_pos = lib.find(provenance).unwrap_or_else(|| {
         panic!("迁移链里找不到 {provenance}（溯源补列独立域未注册，复用库上补列永不落地）")

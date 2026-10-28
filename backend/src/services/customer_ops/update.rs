@@ -2,8 +2,7 @@
 //!
 //! 拆分：从原 `customer_service.rs` 迁移 CustomerService 的更新相关方法：
 //! - build_customer_doc / sync_customer_to_es（ES 同步，最终一致性）
-//! - generate_customer_code（客户编码生成）
-//! - build_customer_active_model（create 复用的 ActiveModel 构建器）
+//! - build_customer_active_model（create 复用的 ActiveModel 构建器，编码由取号腿传入）
 //! - apply_customer_field_updates（update 复用的字段更新器）
 //! - publish_customer_updated_side_effects（缓存失效 + 事件 + ES 同步）
 //! - update_customer（事务 + lock_exclusive + 审计 + 副作用）
@@ -21,7 +20,6 @@ use crate::services::customer_ops::types::{CreateCustomerArgs, UpdateCustomerArg
 use crate::services::customer_service::CustomerService;
 use crate::services::event_bus::{BusinessEvent, EVENT_BUS};
 use crate::utils::error::AppError;
-use crate::utils::number_generator::DocumentNumberGenerator;
 use crate::utils::redis_cache::{cache_key, redis_cache_del};
 
 impl CustomerService {
@@ -53,37 +51,24 @@ impl CustomerService {
         }
     }
 
-    /// 生成客户编码
-    pub async fn generate_customer_code(&self) -> Result<String, AppError> {
-        DocumentNumberGenerator::generate_no(
-            &*self.db,
-            "CUS",
-            customer::Entity,
-            customer::Column::CustomerCode,
-        )
-        .await
-    }
-
-    /// 构建客户 ActiveModel（create_customer 复用，默认 owner_id=created_by）
-    pub(crate) fn build_customer_active_model(args: CreateCustomerArgs) -> customer::ActiveModel {
-        let rest = Self::build_customer_active_model_rest(&args);
-        let CreateCustomerArgs {
-            customer_code,
-            customer_name,
-            contact_person,
-            contact_phone,
-            contact_email,
-            address,
-            ..
-        } = args;
+    /// 构建客户 ActiveModel（create 复用，默认 owner_id=created_by）
+    ///
+    /// 入参 `customer_code` 由 create_customer 的取号腿传入（自动取号来自
+    /// DocumentNumberGenerator，手工编码来自调用方指定值）；其余字段从 `args`
+    /// 只读克隆，以支持取号撞 23505 时在同一事务保存点内多次重建 ActiveModel。
+    pub(crate) fn build_customer_active_model(
+        args: &CreateCustomerArgs,
+        customer_code: String,
+    ) -> customer::ActiveModel {
+        let rest = Self::build_customer_active_model_rest(args);
         customer::ActiveModel {
             id: Default::default(),
             customer_code: Set(customer_code),
-            customer_name: Set(customer_name),
-            contact_person: Set(contact_person),
-            contact_phone: Set(contact_phone),
-            contact_email: Set(contact_email),
-            address: Set(address),
+            customer_name: Set(args.customer_name.clone()),
+            contact_person: Set(args.contact_person.clone()),
+            contact_phone: Set(args.contact_phone.clone()),
+            contact_email: Set(args.contact_email.clone()),
+            address: Set(args.address.clone()),
             ..rest
         }
     }

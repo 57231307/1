@@ -5,7 +5,7 @@ use chrono::NaiveDate;
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    QueryFilter, QueryOrder, QuerySelect, SqlErr, TransactionTrait,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -78,8 +78,13 @@ impl CostCollectionService {
             req.batch_no, req.color_no
         );
 
-        // 生成成本归集单编号
-        let collection_no = self.generate_collection_no().await?;
+        // 生成成本归集单编号与插入同一临界区：自开新事务内经带事务臂生成器取号
+        // （前缀级 advisory 锁持到本事务提交，同前缀并发取号在锁上串行化），
+        // 再在同一事务插入 cost_collections；撞 collection_no 唯一约束（m0063 全表
+        // UNIQUE）时映射为单号冲突的专属可外显错误、整事务回滚不留半行；
+        // 非唯一类 SQL 错误按 From<DbErr> 照常归类上抛，不裸贴驱动文本。
+        let txn = (*self.db).begin().await?;
+        let collection_no = self.generate_collection_no(&txn).await?;
 
         // 计算总成本
         let total_cost = req.direct_material
@@ -106,7 +111,7 @@ impl CostCollectionService {
         });
 
         let active_model = cost_collection::ActiveModel {
-            collection_no: sea_orm::Set(collection_no),
+            collection_no: sea_orm::Set(collection_no.clone()),
             collection_date: sea_orm::Set(req.collection_date),
             cost_object_type: sea_orm::Set(req.cost_object_type),
             cost_object_id: sea_orm::Set(req.cost_object_id),
@@ -131,7 +136,22 @@ impl CostCollectionService {
             ..Default::default()
         };
 
-        let result = active_model.insert(&*self.db).await?;
+        let result = active_model.insert(&txn).await.map_err(|e| {
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    error = %e,
+                    collection_no = %collection_no,
+                    "成本归集建单撞 collection_no 唯一约束（并发撞号或旁路重复号），整事务回滚"
+                );
+                AppError::business_displayable(format!(
+                    "成本归集单号 {} 已存在，本次建单未落库，请重新提交",
+                    collection_no
+                ))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+        txn.commit().await?;
         info!("成本归集创建成功：no={}", result.collection_no);
 
         Ok(result)
@@ -254,12 +274,16 @@ impl CostCollectionService {
         Ok(collection)
     }
 
-    // 生成成本归集单编号
+    // 生成成本归集单编号（带事务臂：入参 txn 为 create 自开的建单事务句柄，
+    // 前缀级咨询锁随该事务结束才释放，消除取号与落库之间的并发撞号窗口；
+    // 形态照 purchase_return_service.rs 的既有先例。
+    // 格式为 COST 前缀加年月日加三位流水（COST20260315001）
     crate::impl_generate_no!(
         generate_collection_no,
         "COST",
         cost_collection::Entity,
-        cost_collection::Column::CollectionNo
+        cost_collection::Column::CollectionNo,
+        txn
     );
 
     pub async fn update(
