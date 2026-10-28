@@ -64,7 +64,7 @@ impl MigrationTrait for Migration {
 // ===== up 分步实现（全部走 execute_unprepared，不引入迁移 crate 未依赖的 tracing/serde_json/sea_orm）=====
 
 /// 为 export_approval_request 幂等新增令牌生命周期所需列 + bpm_instance_id 外键
-async fn add_columns_for_token_lifecycle(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn add_columns_for_token_lifecycle(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 ALTER TABLE "export_approval_request" ADD COLUMN IF NOT EXISTS "token_hash" VARCHAR(64);
 ALTER TABLE "export_approval_request" ADD COLUMN IF NOT EXISTS "token_fingerprint" VARCHAR(16);
@@ -106,7 +106,7 @@ COMMENT ON COLUMN "export_approval_request"."bpm_instance_id" IS '关联 BPM 流
 }
 
 /// 先探测后约束：统计 status 词表外存量，非 0 即点名中止；再重建 chk_ear_status 八值 CHECK
-async fn apply_status_check_constraint(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn apply_status_check_constraint(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let drop_old = r#"
 ALTER TABLE "export_approval_request" DROP CONSTRAINT IF EXISTS "chk_ear_status";
 "#;
@@ -153,7 +153,7 @@ COMMENT ON COLUMN "export_approval_request"."status" IS '导出审批状态：�
 }
 
 /// token_hash 部分唯一索引（令牌验证高频路径；NULL 不入索引，兼容历史明文行）
-async fn create_token_hash_index(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn create_token_hash_index(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_ear_token_hash"
   ON "export_approval_request" ("token_hash") WHERE "token_hash" IS NOT NULL;
@@ -169,7 +169,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "idx_ear_token_hash"
 /// 审批人锚点取 admin 角色下 ID 最小的启用用户；系统未初始化（admin 或启用用户不存在）时
 /// 子查询命中 0 行、插入 0 行并以 NOTICE 报出，不伪造审批人。config 用 jsonb_build_object
 /// 组装，assignee_value 存 admin 用户 id（数字），与 bpm_ops::resolve_user_assignee 读取口径一致。
-async fn seed_export_approval_process_definition(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn seed_export_approval_process_definition(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let seed_visibility = r#"
 DO $$
 DECLARE
@@ -240,7 +240,7 @@ SELECT
 
 // ===== down 分步实现 =====
 
-async fn remove_export_approval_process_definition(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn remove_export_approval_process_definition(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 DELETE FROM "bpm_process_definition" WHERE "code" = 'export_approval';
 "#;
@@ -248,7 +248,7 @@ DELETE FROM "bpm_process_definition" WHERE "code" = 'export_approval';
     Ok(())
 }
 
-async fn drop_token_hash_index(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn drop_token_hash_index(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 DROP INDEX IF EXISTS "idx_ear_token_hash";
 "#;
@@ -258,7 +258,7 @@ DROP INDEX IF EXISTS "idx_ear_token_hash";
 
 /// 回退 status CHECK：base 表原本无 chk_ear_status 约束（本迁移新建），故 down 直接 DROP，
 /// 恢复到建约束前的无 CHECK 状态；不猜造一个 base 里并不存在的窄集约束。
-async fn revert_status_check_constraint(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn revert_status_check_constraint(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 ALTER TABLE "export_approval_request" DROP CONSTRAINT IF EXISTS "chk_ear_status";
 "#;
@@ -266,7 +266,7 @@ ALTER TABLE "export_approval_request" DROP CONSTRAINT IF EXISTS "chk_ear_status"
     Ok(())
 }
 
-async fn drop_new_columns(manager: &SchemaManager) -> Result<(), DbErr> {
+async fn drop_new_columns(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
 ALTER TABLE "export_approval_request" DROP CONSTRAINT IF EXISTS "fk_ear_bpm_instance";
 ALTER TABLE "export_approval_request" DROP COLUMN IF EXISTS "bpm_instance_id";
