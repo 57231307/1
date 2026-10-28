@@ -250,7 +250,17 @@ fn m0111_allowed_consts_match_vocab_and_bindings() {
         let pos = src
             .find(&anchor)
             .unwrap_or_else(|| panic!("m0111 缺少约束 {constraint} 的 ColumnCheck 配方锚点"));
-        let window = &src[pos.saturating_sub(400)..(pos + 400).min(src.len())];
+        // 取锚点前后各约 400 字节的上下文窗口；下标先钳到最近字符边界，
+        // 中文注释跨三字节时裸字节切分会崩（与仓内其余读回锁同口径）
+        let mut start = pos.saturating_sub(400);
+        while !src.is_char_boundary(start) {
+            start += 1;
+        }
+        let mut end = (pos + 400).min(src.len());
+        while !src.is_char_boundary(end) {
+            end -= 1;
+        }
+        let window = &src[start..end];
         assert!(
             window.contains(&format!("allowed: {const_name},")),
             "约束 {constraint} 未绑定常量 {const_name}（绑定漂移，同名词表可能被错钉到别的列）"
