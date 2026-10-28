@@ -277,11 +277,13 @@ test.describe.serial('121 纺织品安全送检判定链写后读回', () => {
   });
 
   test('送检中心与主数据页渲染且零步进控件', async ({ page }) => {
-    await page.goto('#/textile-safety');
+    // 路由是 createWebHistory（无 hash），写成 '#/xxx' 只会停在首页加一个锚点，
+    // 目标组件根本不挂载，断言就变成"元素不存在"。
+    await page.goto('/textile-safety');
     await expect(page.locator('.textile-safety-page')).toBeVisible();
     await expect(page.getByRole('button', { name: '新建送检单' })).toBeVisible();
     expect(await page.locator('.el-input-number').count(), '全项目禁步进控件').toBe(0);
-    await page.goto('#/textile-safety-master');
+    await page.goto('/textile-safety-master');
     await expect(page.locator('.textile-master-page')).toBeVisible();
     expect(await page.locator('.el-input-number').count(), '全项目禁步进控件').toBe(0);
   });
