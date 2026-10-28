@@ -362,7 +362,10 @@ async fn delete_allows_unreferenced_draft_and_names_snapshot_references() {
          body_rendered, template_id, template_version, sort) \
          VALUES ('sales', $1, 'subject_and_spec', '标的与规格', '固化正文', $2, 1, 1)"
             .to_string(),
-        vec![Value::Int(Some(IT_SNAPSHOT_CONTRACT_ID)), Value::Int(Some(b))],
+        vec![
+            Value::Int(Some(IT_SNAPSHOT_CONTRACT_ID)),
+            Value::Int(Some(b)),
+        ],
     ))
     .await
     .expect("写快照探针行失败");
