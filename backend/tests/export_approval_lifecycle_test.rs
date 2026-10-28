@@ -409,10 +409,22 @@ fn secured_export_sites() -> Vec<(&'static str, &'static str)> {
         ("handlers/dye_recipe_handler.rs", "export_dye_recipes"),
         ("handlers/finance_report_handler.rs", "export_trial_balance"),
         ("handlers/finance_report_handler.rs", "export_balance_sheet"),
-        ("handlers/finance_report_handler.rs", "export_income_statement"),
-        ("handlers/finance_report_handler.rs", "export_cash_flow_statement"),
-        ("handlers/finance_report_handler.rs", "export_general_ledger"),
-        ("handlers/finance_report_handler.rs", "export_subsidiary_ledger"),
+        (
+            "handlers/finance_report_handler.rs",
+            "export_income_statement",
+        ),
+        (
+            "handlers/finance_report_handler.rs",
+            "export_cash_flow_statement",
+        ),
+        (
+            "handlers/finance_report_handler.rs",
+            "export_general_ledger",
+        ),
+        (
+            "handlers/finance_report_handler.rs",
+            "export_subsidiary_ledger",
+        ),
         ("handlers/product_handler.rs", "export_products"),
         ("handlers/sales_price_handler.rs", "export_prices"),
         ("handlers/supplier_handler.rs", "export_suppliers"),

@@ -287,7 +287,10 @@ async fn request_scope_drifting_from_approved_scope_is_rejected_by_name() {
             Some(serde_json::json!({})),
         )
         .await;
-    assert!(missing.is_err(), "丢掉批准维度必须被拒（空范围等于放大到全量）");
+    assert!(
+        missing.is_err(),
+        "丢掉批准维度必须被拒（空范围等于放大到全量）"
+    );
     let missing_msg = missing.unwrap_err().to_string();
     assert!(
         missing_msg.contains("丢失了批准时的维度") && missing_msg.contains("status"),
@@ -346,10 +349,7 @@ async fn export_leg_failure_is_recorded_and_error_is_passed_through() {
     let failing_leg = async { Err::<(), AppError>(AppError::business("模拟取数失败")) };
     let outcome = svc.run_export_leg(id, failing_leg).await;
     assert!(
-        outcome
-            .unwrap_err()
-            .to_string()
-            .contains("模拟取数失败"),
+        outcome.unwrap_err().to_string().contains("模拟取数失败"),
         "记账腿必须把导出错误原样交回，不得换成别的文案"
     );
 
@@ -359,7 +359,10 @@ async fn export_leg_failure_is_recorded_and_error_is_passed_through() {
         .unwrap()
         .expect("申请行应存在");
     let ctx = row.context.expect("失败留痕应写进 context");
-    let last_failure = ctx.0.get("last_failure").expect("context 应有 last_failure 留痕");
+    let last_failure = ctx
+        .0
+        .get("last_failure")
+        .expect("context 应有 last_failure 留痕");
     assert_eq!(
         last_failure.get("reason").and_then(|v| v.as_str()),
         Some("模拟取数失败"),
