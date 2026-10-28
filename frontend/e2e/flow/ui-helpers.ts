@@ -271,22 +271,30 @@ async function fillInField(
         console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
       });
       await page.waitForTimeout(300);
-      const dropdown = page.locator('.el-select-dropdown:visible').last();
-      await dropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
+      // 收口归属面板：选项面板 teleport 到 body，旧形态取任一可见面板末位，
+      // 弹窗内多下拉并发时跨字段误读候选（跨字段假绿通道），
+      // 现按本字段触发 input 引用的面板归属 id 钉定，归属定位失败记告警走 API 兜底。
+      let panel: Locator;
+      try {
+        panel = await ownedDropdown(formItem, page, 10_000);
+      } catch (e) {
+        console.warn(
+          `[fillInField] 下拉字段「${field.label}」归属面板未定位，跳过该字段: ${(e as Error).message}`
+        );
+        return;
+      }
+      await panel.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
         console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
       });
-      if ((await dropdown.count()) === 0) break;
-      const item = dropdown
-        .locator('.el-select-dropdown__item')
-        .filter({ hasText: new RegExp(field.value, 'i') })
-        .first();
+      const items = dropdownItems(panel);
+      const item = items.filter({ hasText: new RegExp(field.value, 'i') }).first();
       if ((await item.count()) > 0) {
         await item.click({ timeout: 10_000 }).catch(e => {
           console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
         });
       } else {
         // 无匹配项时选第一项（避免空点击报错拖到 120s 测试超时）
-        const firstItem = dropdown.locator('.el-select-dropdown__item').first();
+        const firstItem = items.first();
         if ((await firstItem.count()) > 0) {
           await firstItem.click({ timeout: 10_000 }).catch(e => {
             console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
@@ -614,18 +622,17 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
     .first();
   await categorySelect.waitFor({ state: 'visible', timeout: 20000 });
   await categorySelect.click();
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
+  // 收口归属面板：按本字段触发 input 引用的面板归属 id 钉定，不取页内任一可见面板
+  const dropdown = await ownedDropdown(categorySelect, page, 20000);
   await dropdown.waitFor({ state: 'visible', timeout: 20000 });
   // 等待 option 项真正渲染（排除 loading/空 dropdown 暂态）
-  await dropdown
-    .locator('.el-select-dropdown__item')
+  await dropdownItems(dropdown)
     .first()
     .waitFor({ state: 'visible', timeout: 10_000 })
     .catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-  const fabricItem = dropdown
-    .locator('.el-select-dropdown__item')
+  const fabricItem = dropdownItems(dropdown)
     .filter({ hasText: /面料/i })
     .first();
   if ((await fabricItem.count()) > 0) {
@@ -633,7 +640,7 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   } else {
     // 无“面料”选项 → 取第一项（避免空值提交），并告警
     console.warn('[createProductUI] 分类下拉无“面料”选项，回退选第一项');
-    await dropdown.locator('.el-select-dropdown__item').first().click();
+    await dropdownItems(dropdown).first().click();
   }
   // 验证分类已选中（select 显示非 placeholder 文本），未选中则重试一次
   await page.waitForTimeout(500);
@@ -641,9 +648,9 @@ export async function createProductUI(page: Page): Promise<number | undefined> {
   if (selectText.includes('选择分类') || selectText.trim() === '') {
     console.warn('[createProductUI] 分类未选中，重试一次');
     await categorySelect.click();
-    const dropdown2 = page.locator('.el-select-dropdown:visible').last();
+    const dropdown2 = await ownedDropdown(categorySelect, page, 20000);
     await dropdown2.waitFor({ state: 'visible', timeout: 20000 });
-    const firstItem = dropdown2.locator('.el-select-dropdown__item').first();
+    const firstItem = dropdownItems(dropdown2).first();
     await firstItem.waitFor({ state: 'visible', timeout: 10_000 });
     await firstItem.click();
     await page.waitForTimeout(500);
@@ -691,14 +698,14 @@ export async function createColorCardUI(page: Page): Promise<number | undefined>
     if ((await typeSelect.count()) > 0) {
       await typeSelect.click();
       await page.waitForTimeout(300);
-      const dropdown = page.locator('.el-select-dropdown:visible').last();
+      // 收口归属面板：按本字段触发 input 引用的面板归属 id 钉定，不取页内任一可见面板
+      const dropdown = await ownedDropdown(typeSelect, page, 20000);
       await dropdown.waitFor({ state: 'visible', timeout: 20000 });
-      const item = dropdown
-        .locator('.el-select-dropdown__item')
+      const item = dropdownItems(dropdown)
         .filter({ hasText: /自定义|CUSTOM/i })
         .first();
       if ((await item.count()) > 0) await item.click();
-      else await dropdown.locator('.el-select-dropdown__item').first().click();
+      else await dropdownItems(dropdown).first().click();
     }
     // 色卡创建页提交按钮文本为"提交"（colorCards.create.submit），正则须含"提交"
     const submitBtn = page.getByRole('button', { name: /提交|立即创建|创建|确定|保存/ }).first();
@@ -798,18 +805,16 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     const productSelect = productItem.locator('.el-select__wrapper, .el-select').first();
     await productSelect.waitFor({ state: 'visible', timeout: 20000 });
     await productSelect.click();
-    const prodDropdown = page.locator('.el-select-dropdown:visible').last();
+    // 收口归属面板：按本字段触发 input 引用的面板归属 id 钉定，不取页内任一可见面板
+    const prodDropdown = await ownedDropdown(productSelect, page, 10_000);
     await prodDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
       console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
     });
-    const e2eProd = prodDropdown
-      .locator('.el-select-dropdown__item')
-      .filter({ hasText: /E2E/i })
-      .first();
+    const e2eProd = dropdownItems(prodDropdown).filter({ hasText: /E2E/i }).first();
     if ((await e2eProd.count()) > 0) {
       await e2eProd.click();
     } else {
-      const first = prodDropdown.locator('.el-select-dropdown__item').first();
+      const first = dropdownItems(prodDropdown).first();
       if ((await first.count()) > 0) await first.click();
     }
     await page.waitForTimeout(300);
@@ -832,18 +837,18 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
     const statusSelect = statusItem.locator('.el-select__wrapper, .el-select').first();
     if ((await statusSelect.count()) > 0) {
       await statusSelect.click();
-      const statusDropdown = page.locator('.el-select-dropdown:visible').last();
+      // 收口归属面板：按本字段触发 input 引用的面板归属 id 钉定，不取页内任一可见面板
+      const statusDropdown = await ownedDropdown(statusSelect, page, 10_000);
       await statusDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
         console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
       });
-      const activeOpt = statusDropdown
-        .locator('.el-select-dropdown__item')
+      const activeOpt = dropdownItems(statusDropdown)
         .filter({ hasText: /启用|active/i })
         .first();
       if ((await activeOpt.count()) > 0) {
         await activeOpt.click();
       } else {
-        const first = statusDropdown.locator('.el-select-dropdown__item').first();
+        const first = dropdownItems(statusDropdown).first();
         if ((await first.count()) > 0) await first.click();
       }
       await page.waitForTimeout(300);
@@ -859,18 +864,16 @@ export async function createBomUI(page: Page): Promise<number | undefined> {
         const matSelect = firstRow.locator('.el-select').first();
         if ((await matSelect.count()) > 0) {
           await matSelect.click();
-          const matDropdown = page.locator('.el-select-dropdown:visible').last();
+          // 收口归属面板：按本字段触发 input 引用的面板归属 id 钉定，不取页内任一可见面板
+          const matDropdown = await ownedDropdown(matSelect, page, 10_000);
           await matDropdown.waitFor({ state: 'visible', timeout: 10_000 }).catch(e => {
             console.warn(`[E2E] 断言容错（元素可能未渲染）: ${(e as Error).message}`);
           });
-          const matE2e = matDropdown
-            .locator('.el-select-dropdown__item')
-            .filter({ hasText: /E2E/i })
-            .first();
+          const matE2e = dropdownItems(matDropdown).filter({ hasText: /E2E/i }).first();
           if ((await matE2e.count()) > 0) {
             await matE2e.click();
           } else {
-            const first = matDropdown.locator('.el-select-dropdown__item').first();
+            const first = dropdownItems(matDropdown).first();
             if ((await first.count()) > 0) await first.click();
           }
           await page.waitForTimeout(300);
@@ -1777,7 +1780,7 @@ export async function pickSelect(
   await clickTarget.click({ timeout });
   const dropdown = await ownedDropdown(trigger, page, timeout);
   await dropdown.waitFor({ state: 'visible', timeout });
-  const items = dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
+  const items = dropdownItems(dropdown);
   if (opts.openOnly) {
     await items.first().waitFor({ state: 'visible', timeout });
     return;
@@ -2091,9 +2094,9 @@ export async function openSelectDropdownItems(
   const clickTarget = (await wrapper.count()) > 0 ? wrapper : trigger;
   await clickTarget.waitFor({ state: 'visible', timeout });
   await clickTarget.click({ timeout });
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
-  await dropdown.waitFor({ state: 'visible', timeout });
-  return dropdown.locator('.el-select-dropdown__item, .el-select-v2__item');
+  const panel = await ownedDropdown(trigger, page, timeout);
+  await panel.waitFor({ state: 'visible', timeout });
+  return dropdownItems(panel);
 }
 
 /**
