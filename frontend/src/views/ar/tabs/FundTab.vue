@@ -176,11 +176,10 @@
     >
       <el-form label-width="80px" :aria-label="$t('arModule.fund.opFormAria')">
         <el-form-item :label="$t('arModule.fund.amount')">
-          <el-input-number
-            v-model="fundOperationAmount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="fundOperationField.text"
             style="width: 100%"
+            @blur="fundOperationField.normalize()"
           />
         </el-form-item>
         <el-form-item v-if="fundOperationType === 'freeze'" :label="$t('arModule.fund.reason')">
@@ -214,6 +213,11 @@ import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import {
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
+import {
   getFundAccountList,
   createFundAccount,
   depositFund as depositFundApi,
@@ -235,6 +239,14 @@ const fundFormRef = ref<FormInstance>();
 const fundOperationType = ref('');
 const fundOperationTitle = ref('');
 const fundOperationAmount = ref(0);
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const fundAmountSpec: NumberFieldSpec = {
+  label: t('arModule.fund.amount'),
+  required: true,
+  min: 0,
+  precision: 2,
+};
+const fundOperationField = useNumberField(fundOperationAmount, fundAmountSpec);
 const fundOperationReason = ref('');
 const fundOperationRemark = ref('');
 const currentFundAccount = ref<FundAccount | null>(null);
@@ -353,6 +365,11 @@ const freezeFund = (row: FundAccount) => {
 };
 
 const submitFundOperation = async () => {
+  const amountInvalid = validateNumberValue(fundOperationAmount.value, fundAmountSpec);
+  if (amountInvalid) {
+    ElMessage.warning(amountInvalid);
+    return;
+  }
   if (fundOperationAmount.value <= 0) {
     ElMessage.warning(t('arModule.fund.invalidAmount'));
     return;

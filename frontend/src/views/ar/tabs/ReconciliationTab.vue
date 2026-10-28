@@ -132,17 +132,17 @@
           />
         </el-form-item>
         <el-form-item :label="$t('arModule.reconciliation.invoiceAmount')">
-          <el-input-number
-            v-model="reconciliationForm.total_invoices"
-            :min="0"
+          <el-input
+            v-model="totalInvoicesField.text"
             style="width: 100%"
+            @blur="totalInvoicesField.normalize()"
           />
         </el-form-item>
         <el-form-item :label="$t('arModule.reconciliation.paymentAmount')">
-          <el-input-number
-            v-model="reconciliationForm.total_collections"
-            :min="0"
+          <el-input
+            v-model="totalCollectionsField.text"
             style="width: 100%"
+            @blur="totalCollectionsField.normalize()"
           />
         </el-form-item>
       </el-form>
@@ -162,11 +162,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance } from 'element-plus';
+import {
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import {
   getARReconciliationList,
   createARReconciliation,
@@ -193,6 +198,24 @@ const reconciliationForm = reactive({
   total_invoices: 0,
   total_collections: 0,
 });
+
+// 数值手输桥 范围由单源校验器裁决（全项目禁步进控件）
+const totalInvoicesSpec: NumberFieldSpec = {
+  label: t('arModule.reconciliation.invoiceAmount'),
+  min: 0,
+};
+const totalCollectionsSpec: NumberFieldSpec = {
+  label: t('arModule.reconciliation.paymentAmount'),
+  min: 0,
+};
+const totalInvoicesField = useNumberField(
+  toRef(reconciliationForm, 'total_invoices'),
+  totalInvoicesSpec
+);
+const totalCollectionsField = useNumberField(
+  toRef(reconciliationForm, 'total_collections'),
+  totalCollectionsSpec
+);
 
 // 后端 ReconciliationResponse 金额字段为 Decimal.to_string()，前端按字符串接收后转数值格式化
 const formatMoney = (amount: number | string | null | undefined) => {
@@ -248,6 +271,19 @@ const openReconciliationDialog = () => {
 const submitReconciliation = async () => {
   if (!reconciliationForm.customer_id || !periodRange.value) {
     ElMessage.warning(t('arModule.reconciliation.selectCustomer'));
+    return;
+  }
+  const invoicesInvalid = validateNumberValue(reconciliationForm.total_invoices, totalInvoicesSpec);
+  if (invoicesInvalid) {
+    ElMessage.warning(invoicesInvalid);
+    return;
+  }
+  const collectionsInvalid = validateNumberValue(
+    reconciliationForm.total_collections,
+    totalCollectionsSpec
+  );
+  if (collectionsInvalid) {
+    ElMessage.warning(collectionsInvalid);
     return;
   }
 

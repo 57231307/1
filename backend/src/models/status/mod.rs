@@ -38,6 +38,11 @@ pub mod quality_dyeing;
 pub mod wage_energy_chemical_business;
 pub mod export_inspection;
 pub mod print;
+// 合同模板体系词表，八组取值域，DB 侧 CHECK 与本文件各 ALL 逐元素相等。
+// 本模块不做短路径 glob 再导出，crate 内尚无消费方，无消费者的再导出会新增
+// unused_imports 告警并被 CI 新增告警计数判红。读写腿落地后若需要短路径，
+// 届时按真实消费面再开，消费方经 status::contract_template 模块名访问。
+pub mod contract_template;
 
 pub use bpm_crm_contract::*;
 pub use export_inspection::*;
