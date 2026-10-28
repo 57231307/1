@@ -240,7 +240,9 @@ SELECT
 
 // ===== down 分步实现 =====
 
-async fn remove_export_approval_process_definition(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
+async fn remove_export_approval_process_definition(
+    manager: &SchemaManager<'_>,
+) -> Result<(), DbErr> {
     let sql = r#"
 DELETE FROM "bpm_process_definition" WHERE "code" = 'export_approval';
 "#;
