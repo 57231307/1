@@ -29,15 +29,17 @@
       </el-select>
     </el-form-item>
     <el-form-item :label="t('components.colorCardIssueForm.customerId')" prop="customer_id">
-      <el-input-number
+      <!-- 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字 -->
+      <el-input
         v-model="form.customer_id"
-        :min="1"
+        inputmode="numeric"
         style="width: 100%"
         :placeholder="t('components.colorCardIssueForm.customerIdPlaceholder')"
       />
     </el-form-item>
     <el-form-item :label="t('components.colorCardIssueForm.issueQty')" prop="issue_qty">
-      <el-input-number v-model="form.issue_qty" :min="1" :step="1" style="width: 100%" />
+      <!-- 手写录入 发放数量 正整数（原步进控件 min=1 step=1 约束落到 rules） -->
+      <el-input v-model="form.issue_qty" inputmode="numeric" style="width: 100%" />
     </el-form-item>
     <el-form-item :label="t('components.colorCardIssueForm.dyeLotNo')">
       <el-input
@@ -79,6 +81,7 @@ import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';
 import { useColorCardIssue } from '@/composables/useColorCardIssue';
+import { numberInputRules } from '@/utils/number-input';
 import type { ColorCardListItem } from '@/api/color-card';
 import type { CreateIssueDto, IssueRecordInfo } from '@/types/colorCardIssue';
 
@@ -98,8 +101,9 @@ const { issue } = useColorCardIssue();
 
 const form = reactive({
   color_card_id: undefined as number | undefined,
-  customer_id: 1,
-  issue_qty: 1,
+  // 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字
+  customer_id: '1',
+  issue_qty: '1',
   expected_return_date: '',
   purpose: '',
   remark: '',
@@ -120,6 +124,12 @@ const rules = {
       message: t('components.colorCardIssueForm.validation.customerId'),
       trigger: 'blur',
     },
+    // 客户 ID 正整数（原步进控件 min=1 硬约束逐条落到 rules）
+    ...numberInputRules({
+      label: t('components.colorCardIssueForm.customerId'),
+      min: 1,
+      integer: true,
+    }),
   ],
   issue_qty: [
     {
@@ -127,6 +137,12 @@ const rules = {
       message: t('components.colorCardIssueForm.validation.issueQty'),
       trigger: 'blur',
     },
+    // 发放数量 正整数（原步进控件 min=1 与默认精度 0 的硬约束逐条落到 rules）
+    ...numberInputRules({
+      label: t('components.colorCardIssueForm.issueQty'),
+      min: 1,
+      integer: true,
+    }),
   ],
 };
 
@@ -139,8 +155,9 @@ const handleSubmit = async () => {
     try {
       const dto: CreateIssueDto = {
         color_card_id: form.color_card_id,
-        customer_id: form.customer_id,
-        issue_qty: form.issue_qty || 1,
+        customer_id: Number(form.customer_id),
+        // rules 已保证正整数；保留原「空回落 1」提交语义
+        issue_qty: Number(form.issue_qty) || 1,
         expected_return_date: form.expected_return_date || undefined,
         purpose: form.purpose || undefined,
         remark: form.remark || undefined,

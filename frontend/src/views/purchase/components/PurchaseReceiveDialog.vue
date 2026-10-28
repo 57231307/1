@@ -76,11 +76,11 @@
           />
           <el-table-column :label="t('purchase.receiveDlg.colThisReceive')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 v-model="row.receive_quantity"
+                size="small"
                 :min="0"
                 :max="row.quantity - row.received_quantity"
-                size="small"
               />
             </template>
           </el-table-column>
@@ -92,16 +92,12 @@
           -->
           <el-table-column :label="t('purchase.receiveDlg.colAltQty')" width="130">
             <template #default="{ row }">
-              <el-input-number
-                :model-value="row.receive_quantity_alt"
-                :min="0"
+              <NumericInput
+                v-model="row.receive_quantity_alt"
                 size="small"
                 :placeholder="t('purchase.receiveDlg.altQtyPlaceholder')"
-                @update:model-value="
-                  (v: number | undefined) => {
-                    row.receive_quantity_alt = v ?? undefined;
-                  }
-                "
+                :min="0"
+                optional
               />
             </template>
           </el-table-column>
@@ -168,6 +164,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Warehouse } from '@/api/warehouse';

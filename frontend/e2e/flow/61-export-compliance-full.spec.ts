@@ -162,15 +162,15 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
       ),
       (async () => {
         await formItemByExactLabel(dialog, '销售订单ID')
-          .locator('.el-input-number input')
+          .locator('input')
           .fill(String(ctx.salesOrderId));
         await fillFieldByLabel(dialog, page, '报关单号', no);
         const dateInput = formItemByExactLabel(dialog, '出口日期').locator('input').first();
         await dateInput.click();
         await dateInput.fill('2027-03-01');
         await page.keyboard.press('Enter');
-        await formItemByExactLabel(dialog, '总金额').locator('.el-input-number input').fill('1000');
-        await formItemByExactLabel(dialog, '汇率').locator('.el-input-number input').fill('2');
+        await formItemByExactLabel(dialog, '总金额').locator('input').fill('1000');
+        await formItemByExactLabel(dialog, '汇率').locator('input').fill('2');
         await dialog.getByRole('button', { name: '保存' }).click();
       })(),
     ]);
@@ -379,7 +379,7 @@ test.describe.serial('61 出口合规：退税要素 + Incoterms + 环保税', (
     await page.goto(`${BASE_URL}/export-compliance`);
     await page.getByRole('tab', { name: '贸易术语', exact: true }).click();
     const form = page.locator('.el-form--inline');
-    await form.locator('.el-input-number input').first().fill(String(q));
+    await form.locator('.el-form-item', { hasText: '报价单ID' }).locator('input').fill(String(q));
     await page.getByRole('button', { name: '查询价格构成' }).click();
     const result = page.locator('.result-box').first();
     await expect(result, '结果框应渲染价格构成 JSON').toBeVisible({ timeout: 20_000 });

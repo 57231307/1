@@ -124,7 +124,7 @@
           <el-date-picker v-model="lotForm.lot_date" type="date" value-format="YYYY-MM-DD" />
         </el-form-item>
         <el-form-item label="数量">
-          <el-input-number v-model="lotForm.quantity" :min="0" :precision="2" />
+          <NumericInput v-model="lotForm.quantity" :min="0" :precision="2" />
         </el-form-item>
         <el-form-item label="状态">
           <el-input v-model="lotForm.status" />
@@ -147,7 +147,7 @@
           <el-input v-model="categoryForm.name" />
         </el-form-item>
         <el-form-item label="父分类 ID">
-          <el-input-number v-model="categoryForm.parent_id" :min="0" />
+          <NumericInput v-model="categoryForm.parent_id" :min="0" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -162,6 +162,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { logAuxLoadFailure } from '@/utils/logger';

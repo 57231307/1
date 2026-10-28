@@ -62,10 +62,11 @@ test.describe('01 创建采购订单', () => {
     // 产品：div 明细行内 el-select（placeholder '选择产品'），无 form-item label 可锚定，
     // 用向后兼容 pickSelect 点其 .el-select__wrapper（非外层 .el-select/只读 input）选首项。
     await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
-    // 数量 / 单价（el-input-number → spinbutton，在 .items-row 内无标签）
-    const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
-    await spinbuttons.first().fill('200');
-    await spinbuttons.nth(1).fill('30');
+    // 数量 / 单价（手写数字录入框，在 .items-row 内 .col-qty/.col-price，无标签）
+    const row = dlg.locator('.items-row').first();
+    await expect(row.getByRole('spinbutton'), '明细行数值录入不应是步进角色').toHaveCount(0);
+    await row.locator('.col-qty input').fill('200');
+    await row.locator('.col-price input').fill('30');
     // 税率已改为人工建单必录，按 placeholder 文案定位输入框，不按下标，
     // 以免明细行字段顺序变化时错填到数量或单价。13 是人工录入样本税率，非系统默认档位。
     await dlg.locator('.items-row').first().getByPlaceholder('百分数，如 13 表示 13%').fill('13');
@@ -94,10 +95,11 @@ test.describe('01 创建采购订单', () => {
     await page.keyboard.press('Enter');
     // 产品：明细行内 el-select 无 label，用 pickSelect 点 wrapper 选首项
     await pickSelect(page, dlg.locator('.items-row').first().locator('.el-select').first());
-    // 数量/单价（spinbutton in items-row）
-    const spinbuttons = dlg.locator('.items-row').first().locator('input[type="number"]');
-    await spinbuttons.first().fill('100');
-    await spinbuttons.nth(1).fill('25.5');
+    // 数量/单价（手写数字录入框 .col-qty/.col-price in items-row）
+    const row2 = dlg.locator('.items-row').first();
+    await expect(row2.getByRole('spinbutton'), '明细行数值录入不应是步进角色').toHaveCount(0);
+    await row2.locator('.col-qty input').fill('100');
+    await row2.locator('.col-price input').fill('25.5');
     // 税率必填，同 01-03，按 placeholder 定位，不按下标。
     await dlg.locator('.items-row').first().getByPlaceholder('百分数，如 13 表示 13%').fill('13');
     await dlg.getByRole('button', { name: '确定', exact: true }).click();

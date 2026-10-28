@@ -237,14 +237,21 @@
       width="420px"
       :aria-label="$t('colorCards.detail.stockDialog.ariaLabel')"
     >
-      <el-form label-width="96px" @submit.prevent>
-        <el-form-item :label="$t('colorCards.detail.stockDialog.field')">
-          <el-input-number
-            v-model="stockInput"
-            :min="0"
-            :step="1"
-            :precision="0"
+      <el-form
+        ref="stockFormRef"
+        :model="stockForm"
+        :rules="stockRules"
+        label-width="96px"
+        @submit.prevent
+      >
+        <el-form-item :label="$t('colorCards.detail.stockDialog.field')" prop="stock_quantity">
+          <!-- 步进按钮与加减键会误触改数，登记印制张数走手写输入，范围与整数位由 rules 兜 -->
+          <el-input
+            v-model="stockForm.stock_quantity"
+            inputmode="numeric"
             :placeholder="$t('colorCards.detail.stockDialog.placeholder')"
+            :min="0"
+            :integer="true"
           />
         </el-form-item>
         <el-form-item>
@@ -378,6 +385,7 @@ import {
   type IssueRecordInfo,
 } from '@/api/color-card';
 import { logAuxLoadFailure } from '@/utils/logger';
+import { numberInputRules } from '@/utils/number-input';
 import ColorCardGrid from '@/components/ColorCardGrid.vue';
 import ColorItemEditor from '@/components/ColorItemEditor.vue';
 import IssueRecordTimeline from '@/components/IssueRecordTimeline.vue';
@@ -647,23 +655,46 @@ const importing = ref(false);
 // 库存不是卡面属性，而是"这批色卡印了多少张"的离散记账动作，因此不套草稿态门控：
 // 归档或停用后仍可能补登印制数量，而发放守门读的始终是库里的 stock_quantity。
 // 初值取库里现值而不是 0：0 会让"没印够"被读成一次合法的低库存声明。
+// 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字类型。
 const showStockDialog = ref(false);
 const stockSubmitting = ref(false);
-const stockInput = ref<number | undefined>(undefined);
+const stockFormRef = ref<FormInstance>();
+const stockForm = reactive<{ stock_quantity: string }>({ stock_quantity: '' });
+
+// 后端 update_color_card 只接受非负整数 stock_quantity（原步进数字控件 的 min=0 precision=0 硬约束）
+// 逐条落到 rules，越界或含小数即前端拒发，避免 422 兜底
+const stockRules = computed<FormRules>(() => ({
+  stock_quantity: numberInputRules({
+    label: t('colorCards.detail.stockDialog.field'),
+    required: true,
+    min: 0,
+    integer: true,
+    step: 1,
+    messages: { empty: t('colorCards.detail.stockDialog.required') },
+  }),
+}));
 
 const openStockDialog = () => {
-  stockInput.value = card.value?.stock_quantity;
+  stockForm.stock_quantity =
+    card.value?.stock_quantity === undefined || card.value?.stock_quantity === null
+      ? ''
+      : String(card.value.stock_quantity);
   showStockDialog.value = true;
+  // 打开时清掉上一次可能残留的校验红字
+  stockFormRef.value?.clearValidate();
 };
 
 const handleRegisterStock = async () => {
-  if (stockInput.value == null) {
+  if (!stockFormRef.value) return;
+  const valid = await stockFormRef.value.validate().catch(() => false);
+  if (!valid) return;
+  if (stockForm.stock_quantity === '') {
     ElMessage.warning(t('colorCards.detail.stockDialog.required'));
     return;
   }
   stockSubmitting.value = true;
   try {
-    await updateColorCard(cardId.value, { stock_quantity: stockInput.value });
+    await updateColorCard(cardId.value, { stock_quantity: Number(stockForm.stock_quantity) });
     // 不信任 PUT 响应体形状：提交后整卡重读，页面上三个数量都以库里的值呈现
     await loadData();
     ElMessage.success(t('colorCards.detail.stockDialog.saved'));
