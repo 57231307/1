@@ -261,7 +261,10 @@ jobs:
         # 调用方 本 job 构建 debug APK 之后。入参 debug APK、mobile-app/app-icon.png、
         #        frontend/src/assets/logo.png、生成应用图标步产出的 xxxhdpi ic_launcher.png。
         # 做什么 先跑判定器自检夹具，再断言 安卓图标源图与 web logo 字节同一，
-        #        并从 APK 内解出 xxxhdpi ic_launcher.png 与生成步产物比字节，不等即判红。
+        #        再从 APK 内解出 xxxhdpi ic_launcher.png 与生成步产物比字节，不等即判红。
+        #        原名条目存在时只认它（debug 实测形态），整体缺席时（release 档打包器改写
+        #        资源存放路径）对包内全部 res 下 PNG 条目按字节同一全量扫描兜底，
+        #        两形态都无同字节条目仍判红，不降级为警告。
         # 为什么 静态锁，不依赖编译。同源段防有人只换 web logo 或只换 app-icon 造成两头漂移，
         #        消费链段防 生成应用图标 产物再次没被构建吃进包里。
         # 存哪里 只读判定，不落盘。

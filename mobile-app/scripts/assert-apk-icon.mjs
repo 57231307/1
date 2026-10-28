@@ -14,12 +14,19 @@
 //   段二 消费链，APK 内 res/mipmap-xxxhdpi 的 ic_launcher.png 必须与生成步产出的
 //        同名文件字节同一。已实测 aapt2 对 PNG 条目原样存储不做二次编码，
 //        模板默认图与生成图字节不符，比对即可判消费与否。
-//   段三 存在性，APK 内必须能解析出 xxxhdpi ic_launcher.png 条目，缺失即判红。
-// 传给谁 失败消息点名文件与实测字节数，供 CI 日志直接定位。
+//        debug 包保留原名条目，实测条目形如 res/mipmap-xxxhdpi-v4/ic_launcher.png；
+//        release 包由打包器改写资源存放路径，原名条目整体缺席（本仓 CI 日志实测
+//        同一份注入产物 debug 判绿 release 报条目不存在）。故段二分两形态，原名条目
+//        存在时只与它比字节，不存在时对包内全部 res 下 PNG 条目逐个比字节，命中即通过
+//        并打出实际条目名，两形态都没命中同一字节即判红，不降级为警告。
+//   段三 存在性，生成 mipmap 的字节必须以某个 res PNG 条目的形态存在于 APK 内，
+//        缺失即判红。
+// 传给谁 失败消息点名文件与实测字节数，并附包内 res PNG 条目数量与名字样例，供 CI 日志直接定位。
 // 存哪里 只读判定，不落盘任何文件。
 //
-// 自检模式在内存里合成三枚 APK 夹具，图标与生成 mipmap 同字节应判绿，
-// 图标被替换与条目缺失都应判红，三向都验才算判定器自身可信。
+// 自检模式在内存里合成五枚 APK 夹具，图标与生成 mipmap 同字节应判绿，
+// 图标被替换与条目缺失都应判红，路径被改写且字节同一应判绿，路径被改写且无同字节条目应判红，
+// 六个判定方向都验才算判定器自身可信。
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -37,7 +44,7 @@ function info(message) {
 
 // ---------- 只读 ZIP 解析，够吃 APK ----------
 
-function readZipEntryByName(apkBuffer, matcher, label) {
+function parseZipEntries(apkBuffer, label) {
   let eocd = -1;
   const scanFrom = Math.max(0, apkBuffer.length - 66000);
   for (let i = apkBuffer.length - 22; i >= scanFrom; i--) {
@@ -62,17 +69,19 @@ function readZipEntryByName(apkBuffer, matcher, label) {
     entries.push({ name, method, compressedSize, localHeaderOffset });
     directoryOffset += 46 + nameLength + extraLength + commentLength;
   }
-  const target = entries.find((entry) => matcher(entry.name));
-  if (!target) return null;
-  const local = target.localHeaderOffset;
-  if (apkBuffer.readUInt32LE(local) !== 0x04034b50) fail(label + ' 条目 ' + target.name + ' 本地头签名不符');
+  return entries;
+}
+
+function readEntryData(apkBuffer, entry, label) {
+  const local = entry.localHeaderOffset;
+  if (apkBuffer.readUInt32LE(local) !== 0x04034b50) fail(label + ' 条目 ' + entry.name + ' 本地头签名不符');
   const localNameLength = apkBuffer.readUInt16LE(local + 26);
   const localExtraLength = apkBuffer.readUInt16LE(local + 28);
   const dataStart = local + 30 + localNameLength + localExtraLength;
-  const raw = apkBuffer.slice(dataStart, dataStart + target.compressedSize);
-  if (target.method === 0) return { name: target.name, data: raw };
-  if (target.method === 8) return { name: target.name, data: zlib.inflateRawSync(raw) };
-  fail(label + ' 条目 ' + target.name + ' 压缩方式 ' + target.method + ' 不支持');
+  const raw = apkBuffer.slice(dataStart, dataStart + entry.compressedSize);
+  if (entry.method === 0) return raw;
+  if (entry.method === 8) return zlib.inflateRawSync(raw);
+  fail(label + ' 条目 ' + entry.name + ' 压缩方式 ' + entry.method + ' 不支持');
   return null;
 }
 
@@ -150,20 +159,43 @@ function assertApkIcon(apkPath, sourceIconPath, webLogoPath, generatedMipmapPath
   info('同源通过，安卓图标源图与 web logo 字节同一，共 ' + sourceBuffer.length + ' 字节');
 
   const apkBuffer = fs.readFileSync(apkPath);
-  const entry = readZipEntryByName(apkBuffer, (name) => XXXHDPI_ICON.test(name), apkPath);
-  if (!entry) {
-    fail('消费链断，APK 内未找到 res/mipmap-xxxhdpi 的 ic_launcher.png 条目，安卓图标未进包');
+  const entries = parseZipEntries(apkBuffer, apkPath);
+  const generatedBuffer = fs.readFileSync(generatedMipmapPath);
+
+  const direct = entries.find((entry) => XXXHDPI_ICON.test(entry.name));
+  if (direct) {
+    const data = readEntryData(apkBuffer, direct, apkPath);
+    if (!data.equals(generatedBuffer)) {
+      fail(
+        '消费链断，APK 内 ' + direct.name + ' 共 ' + data.length + ' 字节，与生成步产物 ' +
+          generatedMipmapPath + ' 共 ' + generatedBuffer.length +
+          ' 字节不符，构建没有吃进 生成应用图标 的 mipmap，包内仍是旧图或模板默认图'
+      );
+    }
+    info('消费链通过，APK 条目 ' + direct.name + ' 与生成 mipmap 字节同一，共 ' + data.length + ' 字节');
+    return;
   }
 
-  const generatedBuffer = fs.readFileSync(generatedMipmapPath);
-  if (!entry.data.equals(generatedBuffer)) {
-    fail(
-      '消费链断，APK 内 ic_launcher.png 共 ' + entry.data.length + ' 字节，与生成步产物 ' +
-        generatedMipmapPath + ' 共 ' + generatedBuffer.length +
-        ' 字节不符，构建没有吃进 生成应用图标 的 mipmap，包内仍是旧图或模板默认图'
-    );
+  const resPngs = entries.filter((entry) => entry.name.startsWith('res/') && entry.name.endsWith('.png'));
+  for (const entry of resPngs) {
+    const data = readEntryData(apkBuffer, entry, apkPath);
+    if (data.equals(generatedBuffer)) {
+      info(
+        '消费链通过，APK 条目 ' + entry.name +
+          ' 与生成 mipmap 字节同一，共 ' + data.length +
+          ' 字节，原名条目缺席说明打包器改写了资源路径，按字节同一兜底命中'
+      );
+      return;
+    }
   }
-  info('消费链通过，APK 条目 ' + entry.name + ' 与生成 mipmap 字节同一，共 ' + entry.data.length + ' 字节');
+
+  const sampleNames = resPngs.slice(0, 12).map((entry) => entry.name).join('，');
+  fail(
+    '消费链断，APK 内未找到 res/mipmap-xxxhdpi 的 ic_launcher.png 条目，' +
+      'res 下 ' + resPngs.length + ' 个 PNG 条目内也没有与生成步产物 ' + generatedMipmapPath +
+      ' 共 ' + generatedBuffer.length + ' 字节字节同一的条目，安卓图标未进包，条目样例 ' +
+      (sampleNames || '无')
+  );
 }
 
 // ---------- 自检，内存合成夹具验判定器双向可信，夹具只落系统临时目录 ----------
@@ -177,10 +209,17 @@ function selfTest() {
     { name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') },
     { name: 'res/mipmap-xxxhdpi-v4/ic_launcher.png', data: iconBytes },
   ]);
+  const zipShortened = (iconBytes) => buildZip([
+    { name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') },
+    { name: 'res/aC.png', data: other },
+    { name: 'res/aD.png', data: iconBytes },
+  ]);
   fs.writeFileSync(filePath('source.png'), source);
   fs.writeFileSync(filePath('good.apk'), zipWith(source));
   fs.writeFileSync(filePath('bad.apk'), zipWith(other));
   fs.writeFileSync(filePath('noicon.apk'), buildZip([{ name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') }]));
+  fs.writeFileSync(filePath('shortgood.apk'), zipShortened(source));
+  fs.writeFileSync(filePath('shortbad.apk'), zipShortened(Buffer.from('OTHER-RES-ID-DIFFERENT-BYTES')));
   try {
     runQuiet(() => assertApkIcon(filePath('good.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
     let badDetected = false;
@@ -204,7 +243,15 @@ function selfTest() {
       splitDetected = true;
     }
     if (!splitDetected) fail('自检失败，源图与 web logo 分家必须判同源断链红');
-    info('自检通过 4 条，覆盖同字节判绿、异字节判红、缺条目判红、源分家判红');
+    runQuiet(() => assertApkIcon(filePath('shortgood.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
+    let shortBadDetected = false;
+    try {
+      runQuiet(() => assertApkIcon(filePath('shortbad.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
+    } catch {
+      shortBadDetected = true;
+    }
+    if (!shortBadDetected) fail('自检失败，路径被改写且包内无同字节条目的 APK 必须判红但没有判红');
+    info('自检通过 6 条，覆盖同字节判绿、异字节判红、缺条目判红、源分家判红、路径改写同字节判绿、路径改写无同字节判红');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
