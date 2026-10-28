@@ -116,12 +116,14 @@ pub async fn list_templates(
         page: params.page.unwrap_or(1).clamp(1, 1000),
         page_size: params.page_size.unwrap_or(10).clamp(1, 100),
     };
+    let page = query.page;
+    let page_size = query.page_size;
     let (rows, total) = service.list(query).await?;
     Ok(Json(ApiResponse::success(serde_json::json!({
         "items": rows,
         "total": total,
-        "page": query.page,
-        "page_size": query.page_size,
+        "page": page,
+        "page_size": page_size,
     }))))
 }
 
