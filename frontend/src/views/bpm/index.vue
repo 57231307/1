@@ -294,8 +294,12 @@
           />
         </el-form-item>
         <el-form-item :label="$t('bpm.startProcessDialog.businessId')">
-          <el-input-number
+          <!-- 业务单据 ID 手写录入 整数且下界 1 对应后端 business_id i64 主键取值域
+               清空保持 null 未填态 由既有必填守门点名 -->
+          <NumericInput
             v-model="startProcessDialog.businessId"
+            :min="1"
+            :integer="true"
             :placeholder="$t('bpm.startProcessDialog.businessIdPlaceholder')"
             style="width: 100%"
           />
@@ -335,8 +339,12 @@
           />
         </el-form-item>
         <el-form-item :label="$t('bpm.businessRelationDialog.businessId')">
-          <el-input-number
+          <!-- 业务单据 ID 手写录入 整数且下界 1 对应后端 business_id i64 主键取值域
+               清空保持 null 未填态 由既有查询前守门点名 -->
+          <NumericInput
             v-model="businessRelation.businessId"
+            :min="1"
+            :integer="true"
             :placeholder="$t('bpm.businessRelationDialog.businessIdPlaceholder')"
             style="width: 100%"
           />
@@ -448,6 +456,8 @@ import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
 import { hasRoutePermission } from '@/router';
 import { PERMISSIONS } from '@/constants/permissions';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();
