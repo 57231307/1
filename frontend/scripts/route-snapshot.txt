@@ -1,4 +1,4 @@
-# layers=8 endpoints=1774
+# layers=8 endpoints=1769
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -549,12 +549,10 @@ GET	/api/v1/erp/inventory/adjustments	inventory_adjustment_handler::list_adjustm
 GET	/api/v1/erp/inventory/adjustments/*	inventory_adjustment_handler::get_adjustment	inventory
 GET	/api/v1/erp/inventory/adjustments/*/items	inventory_adjustment_handler::list_items	inventory
 GET	/api/v1/erp/inventory/adjustments/*/print	print_handler::inventory_adjustment_print_docx	inventory
-GET	/api/v1/erp/inventory/adjustments/generate-no	inventory_adjustment_handler::generate_no	inventory
 GET	/api/v1/erp/inventory/batches	inventory_batch_handler::list_batches	inventory
 GET	/api/v1/erp/inventory/batches/*	inventory_batch_handler::get_batch	inventory
 GET	/api/v1/erp/inventory/counts	inventory_count_handler::list_counts	inventory
 GET	/api/v1/erp/inventory/counts/*	inventory_count_handler::get_count	inventory
-GET	/api/v1/erp/inventory/counts/generate-no	inventory_count_handler::generate_no	inventory
 GET	/api/v1/erp/inventory/logistics	logistics_handler::list_waybills	inventory
 GET	/api/v1/erp/inventory/logistics/*	logistics_handler::get_waybill	inventory
 GET	/api/v1/erp/inventory/pieces	crate::handlers::inventory_piece_handler::list_pieces	inventory
@@ -573,7 +571,6 @@ GET	/api/v1/erp/inventory/transfers	inventory_transfer_handler::list_transfers	i
 GET	/api/v1/erp/inventory/transfers/*	inventory_transfer_handler::get_transfer	inventory
 GET	/api/v1/erp/inventory/transfers/*/items	inventory_transfer_handler::list_items	inventory
 GET	/api/v1/erp/inventory/transfers/*/print	print_handler::inventory_transfer_print_docx	inventory
-GET	/api/v1/erp/inventory/transfers/generate-no	inventory_transfer_handler::generate_no	inventory
 GET	/api/v1/erp/inventory/write-downs	inventory_write_down_handler::list_write_downs	inventory
 GET	/api/v1/erp/inventory/write-downs/*	inventory_write_down_handler::get_write_down	inventory
 GET	/api/v1/erp/inventory/write-downs/*/print	print_handler::inventory_write_down_print_docx	inventory
@@ -810,7 +807,6 @@ GET	/api/v1/erp/purchase/receipts	purchase_receipt_handler::list_receipts	purcha
 GET	/api/v1/erp/purchase/receipts/*	purchase_receipt_handler::get_receipt	purchase
 GET	/api/v1/erp/purchase/receipts/*/items	purchase_receipt_handler::list_receipt_items	purchase
 GET	/api/v1/erp/purchase/receipts/*/print	print_handler::purchase_receipt_print_docx	purchase
-GET	/api/v1/erp/purchase/receipts/generate-no	purchase_receipt_handler::generate_no	purchase
 GET	/api/v1/erp/purchase/returns	purchase_return_handler::list_purchase_returns	purchase
 GET	/api/v1/erp/purchase/returns/*	purchase_return_handler::get_purchase_return	purchase
 GET	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::list_purchase_return_items	purchase
@@ -952,7 +948,6 @@ GET	/api/v1/erp/vouchers	voucher_handler::list_vouchers	finance
 GET	/api/v1/erp/vouchers/*	voucher_handler::get_voucher	finance
 GET	/api/v1/erp/vouchers/*/print	crate::handlers::print_handler::voucher_print_docx	finance
 GET	/api/v1/erp/vouchers/export	voucher_handler::export_vouchers	finance
-GET	/api/v1/erp/vouchers/generate-no	voucher_handler::generate_voucher_no	finance
 GET	/api/v1/erp/vouchers/types	voucher_handler::get_voucher_types	finance
 GET	/api/v1/erp/warehouses	warehouse_handler::list	catalog
 GET	/api/v1/erp/warehouses/*	warehouse_handler::get	catalog
