@@ -1,6 +1,6 @@
+use rust_decimal::Decimal;
 /// 双计量单位换算工具（面料行业专用，提供米数↔公斤数精确换算，支持幅宽/克重等多参数）
 use rust_decimal::prelude::ToPrimitive;
-use rust_decimal::Decimal;
 use std::str::FromStr;
 
 /// 双计量单位换算器
