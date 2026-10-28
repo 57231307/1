@@ -143,11 +143,17 @@ pub async fn get_rankings(
     Ok(Json(ApiResponse::success(rankings)))
 }
 
+/// 销售目标列表 —— `GET targets` 路由，出参 `Vec<SalesTargetDto>`（含前端渲染的
+/// target_amount/actual_amount/completion_rate/variance/status 五枚派生键，
+/// 唯一构造点在 service `to_target_dto`，本 handler 只透传）。
+/// 谁调：前端 `api/sales-analysis.ts::getSalesTargetList`（销售分析目标卡片）。
+/// 入参：page/page_size（clamp 同前）+ 登录者数据范围 + 共享缓存（透传取数腿）。
+/// 实际成交额现算 `sales_orders`（复用 BI 聚合），周期无法对齐的行派生列为 null。
 pub async fn get_targets(
     Query(params): Query<TargetQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SalesTargetDto>>>, AppError> {
     info!("用户 {} 正在查询销售目标", auth.user_id);
 
     let service = SalesAnalysisService::new(state.db.clone());
@@ -155,6 +161,8 @@ pub async fn get_targets(
         .get_targets(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(10).clamp(1, 100),
+            auth.to_data_scope_context(),
+            state.cache.clone(),
         )
         .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());
