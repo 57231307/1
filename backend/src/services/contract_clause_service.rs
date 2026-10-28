@@ -33,8 +33,8 @@ use crate::models::status::contract_template::{
 };
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
+    EntityTrait, Order, QueryFilter, QueryOrder, Set,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
