@@ -22,6 +22,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
+import { fillCellNumberByColumnAndReadBack } from '../flow/table-column';
 
 /** GET /products/{id} 回读的产品主档切片（编码为前端契约别名键，别名由后端 append_frontend_aliases 补齐） */
 interface ProductMaster {
@@ -195,8 +196,11 @@ test.describe('04 明细选产品自动带出主档资料', () => {
     await expect(cells().nth(7).locator('input')).toHaveValue(String(masterA.specification), {
       timeout: 15000,
     });
-    await itemsTable.getByRole('spinbutton').first().fill('10');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('5');
+    // 明细行数值列是纯手写 el-input 加数字校验（步进控件已全项目禁用）录入框按列头锚定
+    // 失焦归一后读回真值 保证提交体里的数量与单价是界面录入的真值而非 0
+    const itemRow = itemsTable.locator('.el-table__row').first();
+    await fillCellNumberByColumnAndReadBack(itemsTable, itemRow, '数量', '10');
+    await fillCellNumberByColumnAndReadBack(itemsTable, itemRow, '单价', '5');
 
     const requestPromise = page.waitForRequest(
       req => req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/quotations'),

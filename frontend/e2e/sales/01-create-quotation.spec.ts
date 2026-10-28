@@ -5,6 +5,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { fillCellNumberByColumnAndReadBack } from '../flow/table-column';
 
 /**
  * 测试套件：销售报价单创建
@@ -51,9 +52,11 @@ test.describe('01 创建报价单', () => {
     // 产品选择：QuotationItemEditor 内 el-select placeholder='选择产品'
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await pickSelect(page, itemsTable.locator('.el-select').first());
-    // 数量/单价（el-input-number → spinbutton 在明细行内）
-    await itemsTable.getByRole('spinbutton').first().fill('100');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 数量与单价是明细行内纯手写 el-input 加数字校验（步进控件已全项目禁用），按列头锚定录入框
+    // 失焦归一后读回真值，保证提交体的数量与单价就是界面录入值
+    const itemRow = itemsTable.locator('.el-table__row').first();
+    await fillCellNumberByColumnAndReadBack(itemsTable, itemRow, '数量', '100');
+    await fillCellNumberByColumnAndReadBack(itemsTable, itemRow, '单价', '50');
     // 税率必录（落 sales_quotations.tax_rate NOT NULL，系统不设默认档位），13 是本例录入样本值
     await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 提交（quotations.create.saveDraft = '保存草稿'）
@@ -76,8 +79,10 @@ test.describe('01 创建报价单', () => {
     await page.getByRole('button', { name: '添加产品' }).click();
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await pickSelect(page, itemsTable.locator('.el-select').first());
-    await itemsTable.getByRole('spinbutton').first().fill('100');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 数量与单价按列头锚定手写录入框 失焦归一后读回真值（与 01-03 同口径）
+    const draftItemRow = itemsTable.locator('.el-table__row').first();
+    await fillCellNumberByColumnAndReadBack(itemsTable, draftItemRow, '数量', '100');
+    await fillCellNumberByColumnAndReadBack(itemsTable, draftItemRow, '单价', '50');
     // 税率必录，同 01-03，否则表单校验先拦住保存草稿
     await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 保存草稿 → 专属草稿落库，真实提示 quotations.create.draftSaved = '草稿保存成功'

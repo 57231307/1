@@ -114,25 +114,26 @@
 
       <el-table-column :label="t('quotations.itemEditor.colQuantity')" min-width="120">
         <template #default="{ row }">
-          <el-input-number v-model="row.quantity" :min="0" :precision="2" style="width: 100%" />
+          <NumericInput v-model="row.quantity" :min="0" :precision="2" style="width: 100%" />
         </template>
       </el-table-column>
 
       <el-table-column :label="t('quotations.itemEditor.colUnitPrice')" min-width="130">
         <template #default="{ row }">
-          <el-input-number
+          <!-- 单价提交后经 change 转发 按单据税率重算含税单价（模型已由绑定器归一写回） -->
+          <NumericInput
             v-model="row.unit_price"
             :min="0"
             :precision="2"
             style="width: 100%"
-            @change="(v: number | undefined) => recalcTax(row, v)"
+            @change="recalcTax(row, row.unit_price)"
           />
         </template>
       </el-table-column>
 
       <el-table-column :label="t('quotations.itemEditor.colUnitPriceWithTax')" min-width="130">
         <template #default="{ row }">
-          <el-input-number
+          <NumericInput
             v-model="row.unit_price_with_tax"
             :min="0"
             :precision="2"
@@ -176,6 +177,8 @@ import { getProductColorList, getProductById, getProductList } from '@/api/produ
 import type { Product } from '@/api/product';
 import type { QuotationItemEditForm } from '@/api/quotation';
 import { formatDecimalAmount } from '@/utils/money';
+// 数值手写录入单源件 明细行数量与单价保持 number 模型 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 
 // 明细行编辑态：金额/数量字段是 number 与 数值录入控件 双向绑定；
 // 提交时由 quotationToWire 在 create.vue 边界转 DecimalWire 字符串上送后端

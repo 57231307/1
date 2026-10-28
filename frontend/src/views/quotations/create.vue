@@ -96,7 +96,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="t('quotations.create.labelExchangeRate')" prop="exchange_rate">
-              <el-input-number
+              <NumericInput
                 v-model="form.exchange_rate"
                 :min="0"
                 :precision="6"
@@ -111,7 +111,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="t('quotations.create.labelTaxRate')" prop="tax_rate">
-              <el-input-number
+              <NumericInput
                 v-model="form.tax_rate"
                 :min="0"
                 :max="100"
@@ -134,12 +134,17 @@
           </el-col>
           <el-col :span="8">
             <el-form-item label="MOQ">
-              <el-input-number v-model="form.moq" :min="0" style="width: 100%" />
+              <NumericInput v-model="form.moq" :min="0" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item :label="t('quotations.create.labelLeadTime')">
-              <el-input-number v-model="form.lead_time_days" :min="0" style="width: 100%" />
+              <NumericInput
+                v-model="form.lead_time_days"
+                :min="0"
+                :integer="true"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -226,6 +231,8 @@ import {
 import { getCustomerList } from '@/api/customer';
 import { useUserStore } from '@/store/user';
 import { decimalWireToNumber, formatDecimalAmount } from '@/utils/money';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 import QuotationItemEditor from './components/QuotationItemEditor.vue';
 import TermEditor from './components/TermEditor.vue';
 
@@ -262,7 +269,7 @@ function defaultValidUntil(): string {
   return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
-/** 表单数据（编辑态：金额/数量/税率为 number 与 el-input-number 双向绑定；提交前 quotationToWire 转后端 DecimalWire string） */
+/** 表单数据 编辑态的金额 数量 税率都是 number 与手写数值录入控件双向绑定 提交前 quotationToWire 转成后端 DecimalWire 十进制字符串 */
 const form = reactive<QuotationEditForm>({
   // v11 批次 163 P2-1 修复：undefined as any 改为类型断言
   customer_id: undefined as unknown as number,

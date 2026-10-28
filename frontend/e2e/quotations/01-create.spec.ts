@@ -4,6 +4,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { fillCellNumberByColumnAndReadBack } from '../flow/table-column';
 
 test.describe('01 报价单创建', () => {
   test.beforeEach(async ({ page, context }) => {
@@ -35,8 +36,15 @@ test.describe('01 报价单创建', () => {
     // 明细表 aria-label 在 el-table 包装 div 上，用属性选择器定位
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await pickSelect(page, itemsTable.locator('.el-select').first());
-    await itemsTable.getByRole('spinbutton').first().fill('100');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 明细行数值列是纯手写 el-input 加数字校验（步进控件已全项目禁用），录入框按列头锚定，
+    // 失焦归一后读回真值；同时反向钉住该表不再出现步进角色。
+    const firstItemRow = itemsTable.locator('.el-table__row').first();
+    await expect(
+      firstItemRow.getByRole('spinbutton'),
+      '报价明细行数值录入不应是步进角色'
+    ).toHaveCount(0);
+    await fillCellNumberByColumnAndReadBack(itemsTable, firstItemRow, '数量', '100');
+    await fillCellNumberByColumnAndReadBack(itemsTable, firstItemRow, '单价', '50');
     // 税率必录（落 sales_quotations.tax_rate NOT NULL，系统不设默认档位），13 是本例录入样本值
     await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     await page.getByLabel('备注').fill('E2E 测试报价单');

@@ -87,11 +87,40 @@ export async function cellInputByColumn(
   return input;
 }
 
+/**
+ * 表格行内数值录入并读回归一后的真值（cellInputByColumn 的录入加断言复合原语）。
+ *
+ * 功能 明细行数值列换成纯 el-input 加数字校验后 输入只写草稿 失焦才由单源绑定器把文本
+ * 归一成数值并回显 所以必须 fill 后 blur 再读回 断言按数值真值比对而非字符串全等
+ * 避开小数位补零这类显示格式化造成的伪红 列缺失或录入框不在该列都会显式抛错 不做软跳过
+ * 调用方 报价明细数量与单价与含税单价 采购收货本次收货与辅量与单价 库存与调整明细等表格行内录入用例
+ * 入参 table 主表 Locator row 数据行 Locator headerText 列头全文 value 键入文本
+ * expected 期望数值 省略时按 value 数值化
+ * 传给谁 失败抛断言错 消息带列头与期望值和实际显示值
+ * 存什么 不存储 仅录入与读回断言
+ */
+export async function fillCellNumberByColumnAndReadBack(
+  table: Locator,
+  row: Locator,
+  headerText: string,
+  value: string,
+  expected = Number(value)
+): Promise<void> {
+  const input = await cellInputByColumn(table, row, headerText);
+  await input.click({ clickCount: 3 });
+  await input.fill(value);
+  await input.blur();
+  const shown = await input.inputValue();
+  expect(
+    Number(shown),
+    `列 ${headerText} 失焦归一后的录入值应为 ${expected}，实际显示 ${JSON.stringify(shown)}`
+  ).toBe(expected);
+}
+
 /** 主表体行数 */
 export async function rowCount(table: Locator): Promise<number> {
   return table.locator(BODY_ROW).count();
 }
-
 /** 等表格渲染出至少一行数据（等待本身即断言，超时判红） */
 export async function waitFirstRow(table: Locator): Promise<void> {
   await table.locator(BODY_ROW).first().waitFor({ state: 'visible', timeout: 30_000 });
