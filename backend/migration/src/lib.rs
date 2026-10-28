@@ -15,6 +15,8 @@
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   → m0104_add_document_no_partial_unique_four_tables
+//!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -128,6 +130,23 @@
 //!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
 //!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
 //!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
+//! 25. m0104_add_document_no_partial_unique_four_tables: 单据号四列活跃行部分唯一索引
+//!    （production_recipe.recipe_no / production_recipe_addition.addition_no /
+//!    process_wage_rate.rate_no / wage_record.record_no，形态照 m0068 部分唯一 +
+//!    fail-visible 存量重复探测，谓词与读路径判重同源 is_deleted = false）——服务侧
+//!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
+//!    建表（四表表定义见 v15 域），置于链尾为新的顶层条目：链尾晚于 v15 执行，
+//!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
+//! 26. product_spec_extension_columns: 产品主档规格扩展列。products 加
+//!    width_needle_included_cm 与 weight_tolerance 与 spandex_percent 与 usage 与
+//!    safety_category，product_colors 加 color_fastness_grade，全部可空无默认。独立顶层域
+//!    是因为并入 business 域会在复用库被台账整体跳过、补列全部缺席；两张表由 business 域
+//!    先建，置于链尾必然晚于建表
+//! 27. product_vocab_check: 上述扩展列的取值词表收口域，晚于加列域，形如先加列、再点名、
+//!    再收约束；全部先探测后约束的失败可见写法，域内绝不 UPDATE 或 DELETE 业务数据
+//! 28. product_roll_column_drop: 产品每卷米数列的探测式下线域，晚于代码面摘除读写
+//!    （先改代码，再收列形态）；脏值存在时 RAISE EXCEPTION 点名中止不洗数据，
+//!    down 只回空壳不回填历史值
 
 pub use sea_orm_migration::prelude::*;
 
@@ -175,6 +194,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
+            Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
             // 产品主档规格扩展列，链尾独立域（products 与 product_colors 由 business 域先建）
             Box::new(domain::product_spec_extension_columns::Migration),
             // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）

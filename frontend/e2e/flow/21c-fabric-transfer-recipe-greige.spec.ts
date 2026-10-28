@@ -439,7 +439,7 @@ test.describe('面料单据专用字段全链路验证', () => {
 
     // 坯布管理已是独立页面，编码由后端自动生成（前端只读）
     await page.goto(`${BASE_URL}/greige-fabrics`);
-    await expect(page.getByLabel('坯布列表')).toBeVisible({ timeout: 30000 });
+    await expect(page.getByLabel('坯布列表表格')).toBeVisible({ timeout: 30000 });
 
     // 点击"新建坯布"按钮
     await page.getByRole('button', { name: '新建坯布' }).first().click();

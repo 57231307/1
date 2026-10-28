@@ -1,8 +1,10 @@
 // dead_code 检查已开启；当前所有 pub API 均已被业务引用（AppCache/MemoryCache/Cache trait/CacheStats）。
 // 私有项 CachedValue<T> 内部使用。
 
+use crate::middleware::audit_context::CLIENT_IP_UNRESOLVED;
 use dashmap::DashMap;
 use std::collections::HashSet;
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -258,6 +260,132 @@ where
 // Wave 3 安全漏洞 #7 修复引入。
 pub const CSRF_TOKEN_DEFAULT_TTL_SECS: u64 = 1800;
 
+/// IP 漂移时旧 Token 的宽限窗口（秒）。
+/// 取值依据：轮换（rotation）与 IP 重绑发生在同一个请求上，此后 60 秒内仍可能带着旧 Token 的
+/// 是在途并发请求（浏览器一次提交可能并行发出多个写请求，移动端切网时队列里还压着未发出的请求）。
+/// 立即作旧会让这批请求全部落入"已消费"分支，靠恢复重放才能回来，代价是把一次正常的换网
+/// 放大成一轮 403 风暴。60 秒远小于 1800 秒的 Token 生命周期，既覆盖在途窗口，
+/// 又不给被窃 Token 额外拉长可用期（OWASP 关于 Token 轮换建议保留一个有界的重叠窗口，而不是无限期双活）。
+pub const CSRF_IP_DRIFT_GRACE_SECS: u64 = 60;
+
+/// Token 未绑定任何 JWT 会话时的占位值。
+/// 只有"签发方拿不到会话标识"这一种情况会写入该值，此时会话维度不参与核验（用户维度仍然核验）。
+pub const CSRF_SESSION_UNBOUND: &str = "unbound";
+
+/// CSRF Token 的绑定记录。
+/// 拒绝依据是"用户 + 会话"两项：Token 记录的身份必须与当前认证上下文一致。
+/// `ip_address` 只是漂移信号（移动与 NAT 客户端必然变址），不再参与拒绝判定。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CsrfTokenBinding {
+    /// 签发时的 JWT 会话标识（登录与刷新链路来自 AppClaims.session_id）
+    pub session_id: String,
+    /// 签发时观测到的客户端 IP（仅供漂移比较与审计留痕）
+    pub ip_address: String,
+    /// 签发时的用户 ID（消费时与 AuthContext.user_id 强比对）
+    pub user_id: i32,
+}
+
+/// CSRF Token 绑定核验失败的分类。三类都必须拒绝请求，且都不得消费 Token
+/// （否则攻击者可以用错配的 Token 把受害者的有效 Token 消耗掉，构成 DoS）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CsrfBindingMismatch {
+    /// 请求没有认证上下文，无法核验 Token 的用户与会话归属
+    Unauthenticated,
+    /// Token 绑定的用户与当前登录用户不一致（跨用户盗用面）
+    UserMismatch,
+    /// Token 绑定的会话与当前 JWT 会话不一致（同用户跨会话盗用面）
+    SessionMismatch,
+}
+
+/// CSRF Token 消费结果
+/// 拒绝依据只有绑定（用户 / 会话）；IP 差异降级为"漂移信号"，由调用方原子重发 Token 并留痕后放行
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CsrfConsumeResult {
+    /// 消费成功（token 有效 + 绑定核验通过，已从缓存移除）
+    Ok,
+    /// 消费成功但请求 IP 与绑定 IP 不同：调用方必须重发绑定到新 IP 的 Token 并写审计留痕。
+    /// 旧 Token 未被立即作废，已在 [CSRF_IP_DRIFT_GRACE_SECS] 窗口内重新挂到缓存供在途请求使用。
+    OkIpDrift {
+        /// 漂移前的绑定 IP（供审计留痕）
+        previous_ip: String,
+    },
+    /// Token 不存在或已过期
+    NotFound,
+    /// Token 存在但绑定核验不通过（疑似盗用），Token 原样保留
+    BindingMismatch(CsrfBindingMismatch),
+}
+
+/// 判断一条 IP 值是否属于不可用（占位串或空串）。
+/// 不可用的值不构成客户端身份证据，既不能用来判"换址"，也不能用来判"同一地址"。
+fn is_unresolved_ip(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.is_empty() || trimmed.eq_ignore_ascii_case(CLIENT_IP_UNRESOLVED)
+}
+
+/// 把一个 IP 字符串折算成可比较的 IPv6 段组（IPv4 走 v4-mapped 形态）。
+/// 目的：`1.2.3.4` 与 `::ffff:1.2.3.4` 是同一个地址，必须判为相等；
+/// 直接按 IpAddr 枚举比较会因 V4 与 V6 是两个 variant 而误判成换址。
+fn ip_comparable(value: &str) -> Option<[u16; 8]> {
+    match value.trim().parse::<IpAddr>().ok()? {
+        IpAddr::V4(v4) => {
+            let o = v4.octets();
+            Some([
+                0,
+                0,
+                0,
+                0,
+                0,
+                0xffff,
+                ((o[0] as u16) << 8) | o[1] as u16,
+                ((o[2] as u16) << 8) | o[3] as u16,
+            ])
+        }
+        IpAddr::V6(v6) => Some(v6.segments()),
+    }
+}
+
+/// IP 漂移判据：绑定 IP 与请求 IP 是否代表"不同的客户端地址"。公开供活体锁直接点名判据本身。
+/// 规则（全部服务于同一个目标：只有真换址才算漂移，格式差异与占位值都不算）：
+/// - 任一侧是占位或空值, 不算漂移。直连与测试链路里 CLIENT_IP_UNRESOLVED 与真实 IP 的组合
+///   属于"观测能力差异"，不是客户端换了网络。
+/// - 两侧都能解析, 按规范化段组比较。IPv4 与 v4-mapped IPv6 写法、前导零、大小写差异
+///   都不会被误判成换址。
+/// - 解析不了的两侧, 按去空白小写后的字面比较（非 IP 形态的值走这条）。
+pub fn csrf_ip_drifted(bound_ip: &str, request_ip: &str) -> bool {
+    if is_unresolved_ip(bound_ip) || is_unresolved_ip(request_ip) {
+        return false;
+    }
+    match (ip_comparable(bound_ip), ip_comparable(request_ip)) {
+        (Some(a), Some(b)) => a != b,
+        _ => !bound_ip.trim().eq_ignore_ascii_case(request_ip.trim()),
+    }
+}
+
+/// 绑定核验判据：返回不一致的分类，全部一致返回 None。公开供活体锁直接点名核验次序。
+/// 用户维度必核（拿不到认证上下文即视为核验不通过）；
+/// 会话维度在"token 已绑定真实会话"且"当前请求能解析出会话"时必核，
+/// token 侧是 CSRF_SESSION_UNBOUND 占位时不参与比对（此时用户维度仍然必核）。
+pub fn csrf_binding_mismatch(
+    binding: &CsrfTokenBinding,
+    expected_user_id: Option<i32>,
+    expected_session_id: Option<&str>,
+) -> Option<CsrfBindingMismatch> {
+    let Some(user_id) = expected_user_id else {
+        return Some(CsrfBindingMismatch::Unauthenticated);
+    };
+    if binding.user_id != user_id {
+        return Some(CsrfBindingMismatch::UserMismatch);
+    }
+    match expected_session_id {
+        Some(session_id)
+            if binding.session_id != CSRF_SESSION_UNBOUND && binding.session_id != session_id =>
+        {
+            Some(CsrfBindingMismatch::SessionMismatch)
+        }
+        _ => None,
+    }
+}
+
 /// 全局缓存实例
 pub struct AppCache {
     pub dashboard_cache: Arc<MemoryCache<String, serde_json::Value>>,
@@ -271,25 +399,13 @@ pub struct AppCache {
     /// 缺陷 3.1 修复：BI 多维分析聚合结果缓存（5 分钟 TTL）
     pub bi_cache: Arc<MemoryCache<String, serde_json::Value>>,
     pub token_blacklist: Arc<MemoryCache<String, bool>>,
-    /// CSRF Token 缓存：key=csrf_token, value=(session_id, ip_address)。
-    /// IP 绑定用于防御 CSRF 窃取后的跨 IP 重放（Wave 3 安全漏洞 #7）。
-    pub csrf_token_cache: Arc<MemoryCache<String, (String, String)>>,
+    /// CSRF Token 缓存：key=csrf_token，value=CsrfTokenBinding（会话 + 用户 + 观测 IP）。
+    /// 拒绝依据是会话与用户绑定；观测 IP 只用于漂移判定与审计留痕。
+    pub csrf_token_cache: Arc<MemoryCache<String, CsrfTokenBinding>>,
     /// CSRF Token 用户索引（key=user_id, value=该用户全部存活 token 集合；
     /// 登录/刷新强制轮换时按用户整集清除，实现"重新登录使历史 token 立即失效"，
     /// 防多设备旧 token 残留，Wave 3 安全漏洞 #7）
     pub csrf_user_index: DashMap<i32, HashSet<String>>,
-}
-
-/// CSRF Token 消费结果（Wave 3 安全漏洞 #7）
-/// 区分 IP 不匹配、缺失/过期两种失败原因，前端可基于业务码差异化处理（IP 失配引导重新登录，缺失/过期提示刷新）
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CsrfConsumeResult {
-    /// 消费成功（token 有效 + IP 匹配，已从缓存移除）
-    Ok,
-    /// IP 地址不匹配（token 存在但绑定到其他 IP，疑似盗用）
-    IpMismatch,
-    /// Token 不存在或已过期
-    NotFound,
 }
 
 impl Default for AppCache {
@@ -371,17 +487,14 @@ impl AppCache {
     }
 
     /// 获取 CSRF Token 缓存（保留用于测试与内部维护）
-    /// 优先使用 set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user 高层 API（封装 IP 绑定 + 强制轮换）
-    pub fn get_csrf_token_cache(&self) -> Arc<MemoryCache<String, (String, String)>> {
+    /// 优先使用 set_csrf_token / consume_csrf_token / clear_old_csrf_token_for_user 高层 API（封装绑定核验 + 强制轮换）
+    pub fn get_csrf_token_cache(&self) -> Arc<MemoryCache<String, CsrfTokenBinding>> {
         self.csrf_token_cache.clone()
     }
 
-    /// 写入 CSRF Token（含 IP 绑定 + 用户索引维护，Wave 3 安全漏洞 #7 修复）
-    /// 缓存值=(session_id, ip_address) 元组 IP 校验；用户索引记录该用户全部存活 token 便于登录轮换整集清除。
+    /// 写入 CSRF Token（会话与用户绑定 + 观测 IP 留痕 + 用户索引维护）
+    /// 缓存值为 CsrfTokenBinding：会话与用户是消费时的拒绝依据，IP 只作漂移信号。
     /// 参数：token/session_id/ip_address/user_id/ttl（None 用 CSRF_TOKEN_DEFAULT_TTL_SECS）
-    // 批次 327 v10 复审 P3 修复：移除误报的 #[allow]
-    // - too_many_arguments：仅 5 参数（token, session_id, ip_address, user_id, ttl），低于阈值 7
-    // - needless_pass_by_value：owned String 来自上游调用方，保留 owned 形式避免生命周期污染
     pub fn set_csrf_token(
         &self,
         token: String,
@@ -391,65 +504,130 @@ impl AppCache {
         ttl: Option<Duration>,
     ) {
         let effective_ttl = ttl.unwrap_or(Duration::from_secs(CSRF_TOKEN_DEFAULT_TTL_SECS));
-        self.csrf_token_cache
-            .set(token.clone(), (session_id, ip_address), Some(effective_ttl));
+        self.install_csrf_token(token, session_id, ip_address, user_id, effective_ttl);
         // 用户索引不显式 TTL：其生命周期由 clear_old_csrf_token_for_user（登录/刷新轮换时
         // 整集清除）与 consume_csrf_token（消费后从集合移除）驱动；残留的已过期 token 集合项
         // 在该用户下次轮换时随整集清理，不会无限增长
+    }
+
+    /// 把一条 CSRF Token 绑定写入缓存并登记用户索引。
+    /// set_csrf_token 的正常签发与 IP 漂移的宽限副本共用这一条路径，保证两者都必然进用户索引，
+    /// 从而都能被登录/刷新的强制轮换整集清除。
+    fn install_csrf_token(
+        &self,
+        token: String,
+        session_id: String,
+        ip_address: String,
+        user_id: i32,
+        ttl: Duration,
+    ) {
+        self.csrf_token_cache.set(
+            token.clone(),
+            CsrfTokenBinding {
+                session_id,
+                ip_address,
+                user_id,
+            },
+            Some(ttl),
+        );
         self.csrf_user_index
             .entry(user_id)
             .or_default()
             .insert(token);
     }
 
-    /// 校验并消费一次性 CSRF Token（含 IP 校验）
-    /// 行为：找不到→NotFound；IP 不匹配→IpMismatch（保留原条目及其剩余 TTL，防 DoS 探测同时避免 TTL 刷新为永久）；IP 匹配→Ok（消费并从用户索引集合移除）。参数：token(X-CSRF-Token 头)/client_ip
-    pub fn consume_csrf_token(&self, token: &str, client_ip: &str) -> CsrfConsumeResult {
-        // 先 get 校验、匹配后再 take 移除：
-        // 避免"take 后回写 ttl=None 导致 30 分钟有效期变成永久条目"的内存泄漏。
-        // 并发窗口内的重复消费由第二次 take 返回 None 兜底为 NotFound，语义安全。
-        let bound = self.csrf_token_cache.get(&token.to_string());
-        match bound {
-            Some((session_id, bound_ip)) => {
-                if bound_ip.as_str() != client_ip {
-                    tracing::warn!(
-                        client_ip = %client_ip,
-                        bound_ip = %bound_ip,
-                        "CSRF Token 绑定的 IP 与请求 IP 不一致（保留原 Token）"
-                    );
-                    return CsrfConsumeResult::IpMismatch;
-                }
-                // 二次 take 完成一次性消费语义；None 说明被并发请求抢先消费
-                match self.csrf_token_cache.take(&token.to_string()) {
-                    Some(_) => {}
-                    None => return CsrfConsumeResult::NotFound,
-                }
-                let _ = session_id;
-                // 清理用户索引中的对应 token（找到持有该 token 的用户并从集合移除；
-                // 集合空时移除用户条目避免空集合堆积）
-                let to_remove: Option<i32> = {
-                    let mut found: Option<i32> = None;
-                    for entry in self.csrf_user_index.iter() {
-                        if entry.value().contains(token) {
-                            found = Some(*entry.key());
-                            break;
-                        }
-                    }
-                    found
-                };
-                if let Some(uid) = to_remove {
-                    let mut should_remove_user = false;
-                    if let Some(mut set) = self.csrf_user_index.get_mut(&uid) {
-                        set.remove(token);
-                        should_remove_user = set.is_empty();
-                    }
-                    if should_remove_user {
-                        self.csrf_user_index.remove(&uid);
-                    }
-                }
-                CsrfConsumeResult::Ok
-            }
-            None => CsrfConsumeResult::NotFound,
+    /// 从用户索引里摘掉一个已消费的 token；集合空时移除用户条目，避免空集合堆积。
+    fn detach_csrf_token_from_user_index(&self, token: &str, user_id: i32) {
+        let mut should_remove_user = false;
+        if let Some(mut set) = self.csrf_user_index.get_mut(&user_id) {
+            set.remove(token);
+            should_remove_user = set.is_empty();
+        }
+        if should_remove_user {
+            self.csrf_user_index.remove(&user_id);
+        }
+    }
+
+    /// 校验并一次性消费 CSRF Token（默认宽限窗口，业务链路用这个）
+    /// 参数：token(X-CSRF-Token 头)/client_ip/expected_user_id/expected_session_id
+    pub fn consume_csrf_token(
+        &self,
+        token: &str,
+        client_ip: &str,
+        expected_user_id: Option<i32>,
+        expected_session_id: Option<&str>,
+    ) -> CsrfConsumeResult {
+        self.consume_csrf_token_with_grace(
+            token,
+            client_ip,
+            expected_user_id,
+            expected_session_id,
+            Duration::from_secs(CSRF_IP_DRIFT_GRACE_SECS),
+        )
+    }
+
+    /// 消费判定的真正实现，宽限窗口作为入参暴露给测试（线上调用方一律走 consume_csrf_token 的常量窗口）
+    /// 判定次序：
+    /// 1. 取不到 token 或已过期，返回 NotFound。
+    /// 2. 绑定核验（用户必核，会话在两侧都已知时必核）。任一不符直接返回 BindingMismatch，
+    ///    token 原样保留：核验失败的一方不得消耗掉受害方的有效 token。
+    /// 3. 核验通过后 take 完成一次性消费；take 落空说明被并发请求抢先，返回 NotFound。
+    /// 4. 消费成功但 IP 相对绑定值漂移时，按 grace_ttl 把旧 token 以"新 IP + 同会话同用户"
+    ///    重新挂回缓存并登记索引（在途并发请求仍可消费它），同时返回 OkIpDrift 让调用方
+    ///    重发新 token 并写审计留痕。IP 漂移本身不构成拒绝，也不放宽任何绑定核验。
+    pub fn consume_csrf_token_with_grace(
+        &self,
+        token: &str,
+        client_ip: &str,
+        expected_user_id: Option<i32>,
+        expected_session_id: Option<&str>,
+        grace_ttl: Duration,
+    ) -> CsrfConsumeResult {
+        let Some(binding) = self.csrf_token_cache.get(&token.to_string()) else {
+            return CsrfConsumeResult::NotFound;
+        };
+        let mismatch = csrf_binding_mismatch(&binding, expected_user_id, expected_session_id);
+        if let Some(kind) = mismatch {
+            tracing::warn!(
+                client_ip = %client_ip,
+                bound_user_id = binding.user_id,
+                expected_user_id = ?expected_user_id,
+                bound_session = %binding.session_id,
+                expected_session = ?expected_session_id,
+                mismatch = ?kind,
+                "CSRF Token 绑定核验不通过，拒绝且不消费 Token"
+            );
+            return CsrfConsumeResult::BindingMismatch(kind);
+        }
+
+        // 二次 take 完成一次性消费语义；None 说明被并发请求抢先消费
+        let Some(consumed) = self.csrf_token_cache.take(&token.to_string()) else {
+            return CsrfConsumeResult::NotFound;
+        };
+        self.detach_csrf_token_from_user_index(token, consumed.user_id);
+
+        if !csrf_ip_drifted(&consumed.ip_address, client_ip) {
+            return CsrfConsumeResult::Ok;
+        }
+
+        // 宽限副本：旧 token 不立刻作废，改绑到本次请求观测到的 IP 后按短窗口保留。
+        // 会话与用户绑定原样继承，因此副本只能在同一会话同一用户下使用，跨会话跨用户仍被拒。
+        self.install_csrf_token(
+            token.to_string(),
+            consumed.session_id.clone(),
+            client_ip.to_string(),
+            consumed.user_id,
+            grace_ttl,
+        );
+        tracing::warn!(
+            bound_ip = %consumed.ip_address,
+            request_ip = %client_ip,
+            user_id = consumed.user_id,
+            session_id = %consumed.session_id,
+            "CSRF Token 观测 IP 发生漂移，放行并重发 Token（旧 Token 进入宽限窗口）"
+        );
+        CsrfConsumeResult::OkIpDrift {
+            previous_ip: consumed.ip_address.clone(),
         }
     }
 

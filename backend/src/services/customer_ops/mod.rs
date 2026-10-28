@@ -9,7 +9,7 @@
 //! - crud：create_customer / get_customer / list_customers / delete_customer
 //! - query：list_customers_with_filter / get_customer_with_filter 等
 //! - contact：客户联系人 4 方法（list/create/update/delete + clear_primary_contacts_txn）
-//! - update：update_customer / sync_customer_to_es / generate_customer_code 等
+//! - update：update_customer / sync_customer_to_es / build_customer_active_model 等
 
 pub mod contact;
 pub mod crud;
