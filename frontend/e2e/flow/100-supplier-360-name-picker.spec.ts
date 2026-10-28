@@ -123,10 +123,10 @@ test.describe('供应商 360 名称选择器端到端', () => {
       label: '供应商 360 页',
     });
 
-    // 1) 页头不应再出现数字主键输入项（评分页签里的打分输入框不属页头，不参与该判据）
+    // 1) 页头不应再出现数字主键的步进录入项（评分页签里的打分输入框不属页头，不参与该判据）
     await expect(
-      page.locator('.header-actions .el-input-number'),
-      '页头不应再有要求手填供应商数字主键的输入项'
+      page.locator('.header-actions [role="spinbutton"], .header-actions input[type="number"]'),
+      '页头不应再有要求手填供应商数字主键的步进输入项'
     ).toHaveCount(0);
     await expect(pickerInput(page), '页头应存在按名称搜索的选择器').toBeVisible();
     await assertPickerPlaceholder(page);
@@ -164,7 +164,7 @@ test.describe('供应商 360 名称选择器端到端', () => {
 
     // 5) 派生字段是文本呈现，不存在可编辑控件绑定它们
     await expect(
-      descriptions.locator('input, .el-input, .el-select, .el-input-number'),
+      descriptions.locator('input, .el-input, .el-select'),
       '派生信息区不应有可编辑控件'
     ).toHaveCount(0);
   });

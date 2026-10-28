@@ -30,6 +30,10 @@
           <el-icon><Upload /></el-icon>
           {{ $t('crmLeads.import') }}
         </el-button>
+        <el-button @click="handleDownloadTemplate">
+          <el-icon><Download /></el-icon>
+          {{ $t('crmLeads.importTemplate') }}
+        </el-button>
         <el-button @click="handleExport">
           <el-icon><Download /></el-icon>
           {{ $t('crmLeads.export') }}
@@ -294,6 +298,7 @@ import {
   type Lead,
 } from '@/api/crm';
 import { useTableApi } from '@/composables/useTableApi';
+import { downloadImportTemplate, saveTemplateBlob } from '@/api/import-template';
 import { logger } from '@/utils/logger';
 import { LEAD_STATUS, leadStatusLabelKey, leadStatusTagType } from '@/utils/crm-status';
 import LeadFormTab from './tabs/LeadFormTab.vue';
@@ -545,6 +550,18 @@ const handleImport = () => {
     }
   };
   input.click();
+};
+
+// 导入模板下载：列序与列名由后端模板登记表出，前端不另写一份，改列只需改后端
+const handleDownloadTemplate = async () => {
+  try {
+    const blob = await downloadImportTemplate('crm_leads');
+    saveTemplateBlob(blob, 'crm_leads_template.xlsx');
+    ElMessage.success(t('crmLeads.message.templateDownloaded'));
+  } catch (e: unknown) {
+    const err = e as Error;
+    ElMessage.error(err.message || t('crmLeads.message.templateDownloadFailed'));
+  }
 };
 
 // 批次 94 P2-12 修复：原占位假成功，现接入真实导出 API 并触发浏览器下载

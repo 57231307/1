@@ -16,9 +16,9 @@
 //   （backend/src/handlers/purchase_order_handler.rs:100-127）。
 // - PurchaseReceiveDialog（aria-label purchase.index.receiveDlgAriaLabel = '收货对话框'，标题 '采购收货'）：
 //   只读采购单号/供应商；收货日期(默认今日 date)；仓库 el-select(label '仓库')；
-//   明细 el-table 列 产品/订购数量/已收货/本次收货(el-input-number)/辅助数量(el-input-number)/
+//   明细 el-table 列 产品/订购数量/已收货/本次收货(手写数字录入)/辅助数量(手写数字录入)/
 //   单价/批次号/备注；底部 '取消' / '确定收货'。
-//   本次收货 el-input-number :max = 订购数量 - 已收货，超限输入被钳制。
+//   本次收货手写数字录入经录入边界钳 max = 订购数量 - 已收货，超限输入被钳回上限。
 // - 校验（submitReceive）：未选仓库 → msg.warning('pleaseSelectWarehouse') = '请选择收货仓库'；
 //   全部本次收货为 0 → msg.warning('pleaseFillItem') = '请填写至少一项收货数量'；
 //   批次号为空 → msg.warning('receiveBatchRequired') = '请为每行收货录入批次号'；
@@ -170,7 +170,11 @@ test.describe('03 采购收货', () => {
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
     // 不选仓库，先填数量以绕过"请填写至少一项收货数量"校验，再直接提交
-    await dialog.getByRole('spinbutton').first().fill('1');
+    // 本次收货为手写数字录入（inputmode decimal，非步进角色），Tab 失焦提交模型
+    await expect(dialog.getByRole('spinbutton'), '收货数量不应是步进角色').toHaveCount(0);
+    const receiveInput = dialog.locator('input[inputmode="decimal"]').first();
+    await receiveInput.fill('1');
+    await receiveInput.press('Tab');
     // 批次号也是必填，填上绕过该校验；辅量留空不影响本例——仓库校验先于辅量拦截
     await dialog.locator('input[placeholder="收货批次号"]').first().fill('BATCH-NO-WH');
     await dialog.getByRole('button', { name: '确定收货' }).click();
@@ -185,12 +189,13 @@ test.describe('03 采购收货', () => {
     await row.getByRole('button', { name: '收货', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
-    const qty = dialog.getByRole('spinbutton').first();
-    // quantity_ordered='20'，received_quantity=0 → :max=20
+    const qty = dialog.locator('input[inputmode="decimal"]').first();
+    // quantity_ordered='20'，received_quantity=0 → 可收上限 max=20
     await qty.fill('99999');
     await page.keyboard.press('Tab');
-    // el-input-number :max 生效 → 失焦后被钳制（不等于 99999）
+    // 手写录入在失焦边界按 max 钳回上限（不等于 99999），落到真值 20
     await expect(qty).not.toHaveValue('99999');
+    await expect(qty).toHaveValue('20');
   });
 
   test('03-04 选仓库并填写本次收货后收货成功', async ({ page }) => {
@@ -201,8 +206,9 @@ test.describe('03 采购收货', () => {
     await expect(dialog).toBeVisible();
     // 选仓库（el-select，label='仓库'）
     await pickSelectIn(dialog, page, '仓库');
-    // 填收货数量
-    await dialog.getByRole('spinbutton').first().fill('5');
+    // 填收货数量（手写数字录入，inputmode decimal）
+    await expect(dialog.getByRole('spinbutton'), '收货数量不应是步进角色').toHaveCount(0);
+    await dialog.locator('input[inputmode="decimal"]').first().fill('5');
     // 辅助数量（创建契约必填，placeholder='请输入辅助数量，无辅量填0'）：实录 10
     await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('10');
     // 批次号：placeholder='收货批次号'
@@ -267,7 +273,8 @@ test.describe('03 采购收货', () => {
     const dialog = page.getByRole('dialog', { name: '采购收货' });
     await expect(dialog).toBeVisible();
     await pickSelectIn(dialog, page, '仓库');
-    await dialog.getByRole('spinbutton').first().fill('5');
+    await expect(dialog.getByRole('spinbutton'), '收货数量不应是步进角色').toHaveCount(0);
+    await dialog.locator('input[inputmode="decimal"]').first().fill('5');
     await dialog.locator('input[placeholder="请输入辅助数量，无辅量填0"]').first().fill('10');
     const batchNo = `E2E-${genCode('CONC')}`;
     await dialog.locator('input[placeholder="收货批次号"]').first().fill(batchNo);
