@@ -261,10 +261,14 @@ jobs:
         # 调用方 本 job 构建 debug APK 之后。入参 debug APK、mobile-app/app-icon.png、
         #        frontend/src/assets/logo.png、生成应用图标步产出的 xxxhdpi ic_launcher.png。
         # 做什么 先跑判定器自检夹具，再断言 安卓图标源图与 web logo 字节同一，
-        #        再从 APK 内解出 xxxhdpi ic_launcher.png 与生成步产物比字节，不等即判红。
-        #        原名条目存在时只认它（debug 实测形态），整体缺席时（release 档打包器改写
-        #        资源存放路径）对包内全部 res 下 PNG 条目按字节同一全量扫描兜底，
-        #        两形态都无同字节条目仍判红，不降级为警告。
+        #        再从 APK 内解出 xxxhdpi ic_launcher.png 与生成步产物比对，不等即判红。
+        #        原名条目存在时只认它并按字节同一比对（debug 实测形态，aapt2 不二次编码，
+        #        字节锁更强，保留不动）；原名条目整体缺席时（release 档打包器改写资源
+        #        存放路径与条目名，且 PNG crunch 无损重编码使字节等值恒不成立）改为
+        #        像素等值兜底，解 IHDR 与 IDAT 并按五种 filter 逐行还原 scanline 后
+        #        取 sha256 与生成产物同法摘要比对，无阈值无容差，同时叠加包内必须有
+        #        192x192 RGBA 位深 8 的 res 条目的尺寸族存在性断言，两向任一不满足仍判红，
+        #        不降级为警告。
         # 为什么 静态锁，不依赖编译。同源段防有人只换 web logo 或只换 app-icon 造成两头漂移，
         #        消费链段防 生成应用图标 产物再次没被构建吃进包里。
         # 存哪里 只读判定，不落盘。
@@ -425,6 +429,8 @@ jobs:
       - name: 签名 release APK
         # 供上传签名 APK 步产文件。入参来自准备签名证书步写入的 env，两条证书路在此合流，
         # 口令与 base64 只经 env 传递不进日志；BUILD_TOOLS_VERSION 供动作内 zipalign 与 apksigner。
+        # 步 id 供上传签名 release APK 步判本轮签名成没成，据此选上传路径形态。
+        id: signReleaseApk
         if: env.BUILD_RELEASE == 'true'
         uses: r0adkll/sign-android-release@v1
         with:
@@ -437,12 +443,16 @@ jobs:
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_BUILD_TOOLS }}
 
       - name: 上传签名 release APK
-        # 传给调用方与 GitHub Release 附资产步。发布轮必须见到签名产物，缺文件即判红，不再 warn 放行。
-        if: env.BUILD_RELEASE == 'true'
+        # 传给调用方与 GitHub Release 附资产步，失败轮还传给判红后的取证人。发布轮必须见到签名产物，缺文件即判红，不再 warn 放行。
+        # 入参 签名步 id 与 release 目录。成功轮（签名步判成功）只上传 *-signed.apk，制品内容与口径逐字不变，
+        # 失败轮（签名步未成功，含构建断言判红导致签名被跳过）改上传 release 目录全部 APK，
+        # 让断言判红的当轮未签名包也能进制品供事后取证，旧口径下这些轮根本不落包。
+        # 失败轮 android-apk job 已红，Release 附资产步在 needs 链上不会消费该制品，不存在误附未签名包的路。
+        if: ${{ always() && env.BUILD_RELEASE == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: bingxi-erp-android-release-signed
-          path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk
+          path: ${{ steps.signReleaseApk.outcome == 'success' && 'mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk' || 'mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk' }}
           if-no-files-found: error
 
       - name: 上传签名证书（公钥）

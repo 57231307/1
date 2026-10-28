@@ -12,25 +12,32 @@
 // 做什么 三段判据，缺任一段判红并以退出码 1 结束。
 //   段一 同源，安卓图标源图与 web logo 必须字节同一，任一被单独改动即断链判红。
 //   段二 消费链，APK 内 res/mipmap-xxxhdpi 的 ic_launcher.png 必须与生成步产出的
-//        同名文件字节同一。已实测 aapt2 对 PNG 条目原样存储不做二次编码，
-//        模板默认图与生成图字节不符，比对即可判消费与否。
-//        debug 包保留原名条目，实测条目形如 res/mipmap-xxxhdpi-v4/ic_launcher.png；
-//        release 包由打包器改写资源存放路径，原名条目整体缺席（本仓 CI 日志实测
-//        同一份注入产物 debug 判绿 release 报条目不存在）。故段二分两形态，原名条目
-//        存在时只与它比字节，不存在时对包内全部 res 下 PNG 条目逐个比字节，命中即通过
-//        并打出实际条目名，两形态都没命中同一字节即判红，不降级为警告。
-//   段三 存在性，生成 mipmap 的字节必须以某个 res PNG 条目的形态存在于 APK 内，
-//        缺失即判红。
+//        同名文件一致。分两档形态。
+//        debug 档，原名条目存在时只与它比字节。已实测 aapt2 对 PNG 条目原样存储
+//        不做二次编码，模板默认图与生成图字节不符，字节同一是比像素更强的硬锁，保留不动。
+//        release 档，原名条目整体缺席（打包器改写资源存放路径，实测同一份注入产物
+//        debug 判绿 release 报条目不存在），且 release 构建的 PNG crunch 会做 libpng
+//        无损二次编码，IDAT 分块改写并剥掉 gAMA sRGB pHYs 等辅助块，条目名还被改成
+//        两字符短名，字节等值在该档恒不成立。故 release 档改为像素等值。解 PNG 的
+//        IHDR 拿宽高位深色彩类型，压缩与 filter 方法必须为 0、隔行必须为 0，拼合全部
+//        IDAT 用 zlib inflate，按五种 filter（none sub up average paeth）逐行还原原始
+//        scanline，取 sha256 与生成步产物同法摘要比对。crunch 无损，像素必等，
+//        无阈值无容差，两形态都没命中即判红，不降级为警告。
+//   段三 存在性，release 档下包内必须能找到 192x192 且 RGBA（色彩类型 6 位深 8）的
+//        res PNG 条目，用来钉住图标尺寸族确实进了包。像素等值只证同图在包内，
+//        尺寸族存在性防同字节流换了尺寸形态混过。debug 档字节同一已蕴含该断言。
 // 传给谁 失败消息点名文件与实测字节数，并附包内 res PNG 条目数量与名字样例，供 CI 日志直接定位。
 // 存哪里 只读判定，不落盘任何文件。
 //
-// 自检模式在内存里合成五枚 APK 夹具，图标与生成 mipmap 同字节应判绿，
-// 图标被替换与条目缺失都应判红，路径被改写且字节同一应判绿，路径被改写且无同字节条目应判红，
-// 六个判定方向都验才算判定器自身可信。
+// 自检模式合成九枚 APK 夹具，debug 同字节判绿，debug 异字节判红，缺条目判红，
+// 源分家判红，release 重编码同像素判绿，release 异像素判红，release 同像素但缺
+// 192x192 RGBA 尺寸族判红，路径改写同字节判绿，路径改写内容不可解码判红，
+// 九个判定方向都验才算判定器自身可信。
 
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import zlib from 'node:zlib';
 
 function fail(message) {
@@ -139,9 +146,105 @@ function buildZip(entries) {
   return Buffer.concat([...locals, centralBuf, eocd]);
 }
 
+// ---------- PNG 解码，release 档像素等值判定用 ----------
+
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const PNG_CHANNELS = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+const PNG_BIT_DEPTHS = { 0: [1, 2, 4, 8, 16], 2: [1, 2, 4, 8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+
+function paeth(a, b, c) {
+  const p = a + b - c;
+  const pa = Math.abs(p - a);
+  const pb = Math.abs(p - b);
+  const pc = Math.abs(p - c);
+  return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+}
+
+function decodePngPixels(buffer, label) {
+  if (buffer.length < 8 || !buffer.subarray(0, 8).equals(PNG_SIG)) throw new Error(label + ' 无 PNG 签名');
+  let ihdr = null;
+  const idatParts = [];
+  let off = 8;
+  while (off + 12 <= buffer.length) {
+    const len = buffer.readUInt32BE(off);
+    const type = buffer.toString('latin1', off + 4, off + 8);
+    if (off + 12 + len > buffer.length) throw new Error(label + ' 块 ' + type + ' 越界');
+    const data = buffer.subarray(off + 8, off + 8 + len);
+    const crc = buffer.readUInt32BE(off + 8 + len);
+    if (crc32(Buffer.concat([Buffer.from(type, 'latin1'), data])) !== crc) throw new Error(label + ' 块 ' + type + ' CRC 不符');
+    if (type === 'IHDR') {
+      if (ihdr !== null) throw new Error(label + ' IHDR 重复');
+      if (len !== 13) throw new Error(label + ' IHDR 长度应为 13');
+      ihdr = Buffer.from(data);
+    } else if (type === 'IDAT') {
+      idatParts.push(Buffer.from(data));
+    } else if (type === 'IEND') {
+      break;
+    }
+    off += 12 + len;
+  }
+  if (ihdr === null) throw new Error(label + ' 缺 IHDR');
+  if (idatParts.length === 0) throw new Error(label + ' 缺 IDAT');
+  const width = ihdr.readUInt32BE(0);
+  const height = ihdr.readUInt32BE(4);
+  const bitDepth = ihdr[8];
+  const colorType = ihdr[9];
+  if (ihdr[10] !== 0 || ihdr[11] !== 0) throw new Error(label + ' 压缩或 filter 方法非 0');
+  if (ihdr[12] !== 0) throw new Error(label + ' 隔行扫描不支持');
+  const channels = PNG_CHANNELS[colorType];
+  if (!channels) throw new Error(label + ' 色彩类型 ' + colorType + ' 未知');
+  if (!PNG_BIT_DEPTHS[colorType].includes(bitDepth)) throw new Error(label + ' 色彩类型 ' + colorType + ' 位深 ' + bitDepth + ' 非法');
+  const inflated = zlib.inflateSync(Buffer.concat(idatParts));
+  const rawLen = Math.ceil((width * channels * bitDepth) / 8);
+  const stride = rawLen + 1;
+  if (inflated.length !== stride * height) throw new Error(label + ' IDAT 解压长度与宽高不符');
+  const bpp = Math.max(1, Math.floor((channels * bitDepth + 7) / 8));
+  const raw = Buffer.alloc(rawLen * height);
+  let prev = Buffer.alloc(rawLen);
+  for (let y = 0; y < height; y++) {
+    const base = y * stride;
+    const ft = inflated[base];
+    if (ft > 4) throw new Error(label + ' 第 ' + y + ' 行 filter ' + ft + ' 非法');
+    const cur = Buffer.allocUnsafe(rawLen);
+    for (let x = 0; x < rawLen; x++) {
+      const v = inflated[base + 1 + x];
+      const a = x >= bpp ? cur[x - bpp] : 0;
+      const b = prev[x];
+      const c = x >= bpp ? prev[x - bpp] : 0;
+      let rec;
+      switch (ft) {
+        case 0: rec = v; break;
+        case 1: rec = v + a; break;
+        case 2: rec = v + b; break;
+        case 3: rec = v + ((a + b) >> 1); break;
+        default: rec = v + paeth(a, b, c);
+      }
+      cur[x] = rec & 0xff;
+    }
+    cur.copy(raw, y * rawLen);
+    prev = cur;
+  }
+  return { width, height, bitDepth, colorType, raw };
+}
+
+function pixelDigest(buffer, label) {
+  const decoded = decodePngPixels(buffer, label);
+  return {
+    width: decoded.width,
+    height: decoded.height,
+    bitDepth: decoded.bitDepth,
+    colorType: decoded.colorType,
+    digest: crypto.createHash('sha256').update(decoded.raw).digest('hex'),
+  };
+}
+
 // ---------- 判定主流程 ----------
 
 const XXXHDPI_ICON = /^res\/mipmap-xxxhdpi[^/]*\/ic_launcher\.png$/;
+const FAMILY_WIDTH = 192;
+const FAMILY_HEIGHT = 192;
+const FAMILY_COLOR_TYPE = 6;
+const FAMILY_BIT_DEPTH = 8;
 
 function assertApkIcon(apkPath, sourceIconPath, webLogoPath, generatedMipmapPath) {
   const sourceBuffer = fs.readFileSync(sourceIconPath);
@@ -172,86 +275,222 @@ function assertApkIcon(apkPath, sourceIconPath, webLogoPath, generatedMipmapPath
           ' 字节不符，构建没有吃进 生成应用图标 的 mipmap，包内仍是旧图或模板默认图'
       );
     }
-    info('消费链通过，APK 条目 ' + direct.name + ' 与生成 mipmap 字节同一，共 ' + data.length + ' 字节');
+    info('消费链通过，debug 档 APK 条目 ' + direct.name + ' 与生成 mipmap 字节同一，共 ' + data.length + ' 字节');
     return;
   }
 
+  let generated;
+  try {
+    generated = pixelDigest(generatedBuffer, '生成步产物 ' + generatedMipmapPath);
+  } catch (error) {
+    fail('消费链断，生成步产物 ' + generatedMipmapPath + ' 无法解码为 PNG，' + error.message + '，无法建立像素基准');
+  }
+
   const resPngs = entries.filter((entry) => entry.name.startsWith('res/') && entry.name.endsWith('.png'));
+  let pixelHit = null;
+  let familyHit = null;
+  let undecodable = 0;
   for (const entry of resPngs) {
     const data = readEntryData(apkBuffer, entry, apkPath);
-    if (data.equals(generatedBuffer)) {
-      info(
-        '消费链通过，APK 条目 ' + entry.name +
-          ' 与生成 mipmap 字节同一，共 ' + data.length +
-          ' 字节，原名条目缺席说明打包器改写了资源路径，按字节同一兜底命中'
-      );
-      return;
+    let px;
+    try {
+      px = pixelDigest(data, '条目 ' + entry.name);
+    } catch {
+      undecodable++;
+      continue;
+    }
+    if (familyHit === null && px.width === FAMILY_WIDTH && px.height === FAMILY_HEIGHT && px.colorType === FAMILY_COLOR_TYPE && px.bitDepth === FAMILY_BIT_DEPTH) {
+      familyHit = entry.name;
+    }
+    if (pixelHit === null && px.digest === generated.digest) {
+      pixelHit = entry.name;
     }
   }
 
+  if (pixelHit !== null && familyHit !== null) {
+    info(
+      '消费链通过，release 档 APK 条目 ' + pixelHit +
+        ' 与生成 mipmap 像素同一（unfilter 后 scanline sha256 一致，生成侧 ' + generatedBuffer.length +
+        ' 字节），尺寸族存在性通过，包内有 ' + FAMILY_WIDTH + 'x' + FAMILY_HEIGHT +
+        ' RGBA 位深 ' + FAMILY_BIT_DEPTH + ' 条目 ' + familyHit +
+        '，原名条目缺席与字节改写均不影响该档判定'
+    );
+    return;
+  }
+
   const sampleNames = resPngs.slice(0, 12).map((entry) => entry.name).join('，');
+  if (pixelHit === null) {
+    fail(
+      '消费链断，APK 内未找到 res/mipmap-xxxhdpi 的 ic_launcher.png 条目，' +
+        'res 下 ' + resPngs.length + ' 个 PNG 条目内（' + undecodable + ' 个不可解码）没有与生成步产物 ' +
+        generatedMipmapPath + ' 共 ' + generatedBuffer.length + ' 字节像素同一的条目，安卓图标未进包，条目样例 ' +
+        (sampleNames || '无')
+    );
+  }
   fail(
-    '消费链断，APK 内未找到 res/mipmap-xxxhdpi 的 ic_launcher.png 条目，' +
-      'res 下 ' + resPngs.length + ' 个 PNG 条目内也没有与生成步产物 ' + generatedMipmapPath +
-      ' 共 ' + generatedBuffer.length + ' 字节字节同一的条目，安卓图标未进包，条目样例 ' +
-      (sampleNames || '无')
+    '消费链断，像素同一已命中条目 ' + pixelHit + '，但 res 下 ' + resPngs.length +
+      ' 个 PNG 条目内没有 ' + FAMILY_WIDTH + 'x' + FAMILY_HEIGHT + ' RGBA 位深 ' + FAMILY_BIT_DEPTH +
+      ' 的图标尺寸族条目，图标族没有进包，条目样例 ' + (sampleNames || '无')
   );
 }
 
 // ---------- 自检，内存合成夹具验判定器双向可信，夹具只落系统临时目录 ----------
 
+const SELF_W = 192;
+const SELF_H = 192;
+
+function buildRawPixels(width, height, variant) {
+  const raw = Buffer.alloc(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      raw[i] = (x * 3 + y * 5 + variant) & 0xff;
+      raw[i + 1] = (x ^ (y * 2)) & 0xff;
+      raw[i + 2] = (y * 7 + x) & 0xff;
+      raw[i + 3] = (x + y) & 0xff;
+    }
+  }
+  return raw;
+}
+
+function pngChunk(type, data) {
+  const head = Buffer.alloc(4);
+  head.writeUInt32BE(data.length, 0);
+  const typeBuf = Buffer.from(type, 'latin1');
+  const tail = Buffer.alloc(4);
+  tail.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
+  return Buffer.concat([head, typeBuf, data, tail]);
+}
+
+function encodeFilterRow(cur, prev, bpp, ft) {
+  const out = Buffer.allocUnsafe(cur.length);
+  for (let x = 0; x < cur.length; x++) {
+    const a = x >= bpp ? cur[x - bpp] : 0;
+    const b = prev[x];
+    const c = x >= bpp ? prev[x - bpp] : 0;
+    let pred;
+    switch (ft) {
+      case 0: pred = 0; break;
+      case 1: pred = a; break;
+      case 2: pred = b; break;
+      case 3: pred = (a + b) >> 1; break;
+      default: pred = paeth(a, b, c);
+    }
+    out[x] = (cur[x] - pred) & 0xff;
+  }
+  return out;
+}
+
+function buildSelfPng(width, height, raw, filterFor, idatSize, level, withAncillary) {
+  const rawLen = width * 4;
+  if (raw.length !== rawLen * height) fail('自检构造 raw 长度与宽高不符');
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+  const rows = [];
+  let prev = Buffer.alloc(rawLen);
+  for (let y = 0; y < height; y++) {
+    const cur = raw.subarray(y * rawLen, (y + 1) * rawLen);
+    const ft = filterFor(y);
+    rows.push(Buffer.concat([Buffer.from([ft]), encodeFilterRow(cur, prev, 4, ft)]));
+    prev = cur;
+  }
+  const idat = zlib.deflateSync(Buffer.concat(rows), { level });
+  const chunks = [PNG_SIG, pngChunk('IHDR', ihdr)];
+  if (withAncillary) {
+    const gama = Buffer.from([0x00, 0x00, 0xb1, 0x30]);
+    const srgb = Buffer.from([0x00]);
+    const phys = Buffer.from([0x00, 0x00, 0x2e, 0x23, 0x00, 0x00, 0x2e, 0x23, 0x01]);
+    chunks.push(pngChunk('gAMA', gama), pngChunk('sRGB', srgb), pngChunk('pHYs', phys));
+  }
+  for (let o = 0; o < idat.length; o += idatSize) {
+    chunks.push(pngChunk('IDAT', idat.subarray(o, Math.min(o + idatSize, idat.length))));
+  }
+  chunks.push(pngChunk('IEND', Buffer.alloc(0)));
+  return Buffer.concat(chunks);
+}
+
 function selfTest() {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apk-icon-selftest-'));
   const filePath = (name) => path.join(tmpDir, name);
-  const source = Buffer.from('BRAND-MASTER-ICON-BYTES');
-  const other = Buffer.from('TEMPLATE-DEFAULT-ICON-BYTES');
-  const zipWith = (iconBytes) => buildZip([
-    { name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') },
-    { name: 'res/mipmap-xxxhdpi-v4/ic_launcher.png', data: iconBytes },
-  ]);
-  const zipShortened = (iconBytes) => buildZip([
-    { name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') },
-    { name: 'res/aC.png', data: other },
-    { name: 'res/aD.png', data: iconBytes },
-  ]);
-  fs.writeFileSync(filePath('source.png'), source);
-  fs.writeFileSync(filePath('good.apk'), zipWith(source));
-  fs.writeFileSync(filePath('bad.apk'), zipWith(other));
-  fs.writeFileSync(filePath('noicon.apk'), buildZip([{ name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') }]));
-  fs.writeFileSync(filePath('shortgood.apk'), zipShortened(source));
-  fs.writeFileSync(filePath('shortbad.apk'), zipShortened(Buffer.from('OTHER-RES-ID-DIFFERENT-BYTES')));
+  const manifest = { name: 'AndroidManifest.xml', data: Buffer.from('<manifest/>') };
+  const directName = 'res/mipmap-xxxhdpi-v4/ic_launcher.png';
+
+  const genRaw = buildRawPixels(SELF_W, SELF_H, 0);
+  const genPng = buildSelfPng(SELF_W, SELF_H, genRaw, (y) => y % 5, 1024, 9, true);
+  const crunchPng = buildSelfPng(SELF_W, SELF_H, genRaw, () => 0, 8192, 6, false);
+  if (crunchPng.equals(genPng)) fail('自检失败，重编码夹具字节未变，编码差异没造出来');
+  const flippedRaw = Buffer.from(genRaw);
+  flippedRaw[0] ^= 0xff;
+  const pixelDiffPng = buildSelfPng(SELF_W, SELF_H, flippedRaw, () => 0, 8192, 6, false);
+  const wrongSizePng = buildSelfPng(96, 384, genRaw, () => 0, 8192, 6, false);
+  const decoyRaw = buildRawPixels(48, 48, 7);
+  const decoyPng = buildSelfPng(48, 48, decoyRaw, (y) => y % 5, 1024, 9, true);
+
+  fs.writeFileSync(filePath('source.png'), genPng);
+  fs.writeFileSync(filePath('webbad.png'), pixelDiffPng);
+
+  const zip = (entries2) => buildZip([manifest, ...entries2]);
+  fs.writeFileSync(filePath('good.apk'), zip([{ name: directName, data: genPng }]));
+  fs.writeFileSync(filePath('bad.apk'), zip([{ name: directName, data: pixelDiffPng }]));
+  fs.writeFileSync(filePath('noicon.apk'), zip([]));
+  fs.writeFileSync(filePath('crunchgreen.apk'), zip([
+    { name: 'res/aC.png', data: decoyPng },
+    { name: 'res/rK.png', data: crunchPng },
+  ]));
+  fs.writeFileSync(filePath('pixelred.apk'), zip([
+    { name: 'res/aC.png', data: decoyPng },
+    { name: 'res/rK.png', data: pixelDiffPng },
+  ]));
+  fs.writeFileSync(filePath('nosize.apk'), zip([{ name: 'res/aB.png', data: wrongSizePng }]));
+  fs.writeFileSync(filePath('shortgood.apk'), zip([
+    { name: 'res/aC.png', data: decoyPng },
+    { name: 'res/aD.png', data: genPng },
+  ]));
+  fs.writeFileSync(filePath('shortbad.apk'), zip([
+    { name: 'res/aC.png', data: Buffer.from('OTHER-RES-ID-DIFFERENT-BYTES') },
+    { name: 'res/aD.png', data: Buffer.from('TEMPLATE-DEFAULT-ICON-BYTES') },
+  ]));
+
+  const expectGreen = (apk, note) => {
+    try {
+      runQuiet(() => assertApkIcon(filePath(apk), filePath('source.png'), filePath('source.png'), filePath('source.png')));
+    } catch {
+      fail('自检失败，' + note + ' 必须判绿但判定器判了红，判定器不可信');
+    }
+  };
+  const expectRed = (apk, web, note) => {
+    let detected = false;
+    try {
+      runQuiet(() => assertApkIcon(filePath(apk), filePath('source.png'), filePath(web), filePath('source.png')));
+    } catch {
+      detected = true;
+    }
+    if (!detected) fail('自检失败，' + note + ' 必须判红但没有判红，判定器不可信');
+  };
+
   try {
-    runQuiet(() => assertApkIcon(filePath('good.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
-    let badDetected = false;
-    try {
-      runQuiet(() => assertApkIcon(filePath('bad.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
-    } catch {
-      badDetected = true;
-    }
-    if (!badDetected) fail('自检失败，包内图标与生成产物不同字节必须判红，判定器不可信');
-    let missingDetected = false;
-    try {
-      runQuiet(() => assertApkIcon(filePath('noicon.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
-    } catch {
-      missingDetected = true;
-    }
-    if (!missingDetected) fail('自检失败，缺 ic_launcher 条目的 APK 必须判红但没有判红');
+    expectGreen('good.apk', 'debug 档同字节');
+    expectRed('bad.apk', 'source.png', 'debug 档异字节');
+    expectRed('noicon.apk', 'source.png', '缺 ic_launcher 条目');
     let splitDetected = false;
     try {
-      runQuiet(() => assertApkIcon(filePath('good.apk'), filePath('source.png'), filePath('bad.apk'), filePath('source.png')));
+      runQuiet(() => assertApkIcon(filePath('good.apk'), filePath('source.png'), filePath('webbad.png'), filePath('source.png')));
     } catch {
       splitDetected = true;
     }
-    if (!splitDetected) fail('自检失败，源图与 web logo 分家必须判同源断链红');
-    runQuiet(() => assertApkIcon(filePath('shortgood.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
-    let shortBadDetected = false;
-    try {
-      runQuiet(() => assertApkIcon(filePath('shortbad.apk'), filePath('source.png'), filePath('source.png'), filePath('source.png')));
-    } catch {
-      shortBadDetected = true;
-    }
-    if (!shortBadDetected) fail('自检失败，路径被改写且包内无同字节条目的 APK 必须判红但没有判红');
-    info('自检通过 6 条，覆盖同字节判绿、异字节判红、缺条目判红、源分家判红、路径改写同字节判绿、路径改写无同字节判红');
+    if (!splitDetected) fail('自检失败，源图与 web logo 分家必须判同源断链红，判定器不可信');
+    expectGreen('crunchgreen.apk', 'release 档重编码同像素');
+    expectRed('pixelred.apk', 'source.png', 'release 档异像素');
+    expectRed('nosize.apk', 'source.png', 'release 档像素同一但缺 192x192 RGBA 尺寸族');
+    expectGreen('shortgood.apk', '路径改写同字节');
+    expectRed('shortbad.apk', 'source.png', 'release 档条目内容不可解码');
+    info('自检通过 9 条，覆盖 debug 同字节判绿、debug 异字节判红、缺条目判红、源分家判红、release 重编码同像素判绿、release 异像素判红、release 同像素缺尺寸族判红、路径改写同字节判绿、路径改写不可解码判红');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
