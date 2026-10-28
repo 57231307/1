@@ -190,4 +190,3 @@ impl MigratorTrait for Migrator {
         ]
     }
 }
-
