@@ -12,6 +12,10 @@
 //   状态机 draft→issued→processing→received→settled→closed，任意非 closed→cancelled
 //   （models/status/wage_energy_chemical_business.rs:248-277）。
 //   金额列为 rust_decimal，出参序列化为字符串（如 "25.5000"），断言前 Number() 归一。
+// 本批未纳入的邻近 outsourcing 端点（留后续批次，非豁免）：
+//   outsourcing-orders/*/print、outsourcing-receipts/*/print（docx 下载族，需按二进制
+//   Content-Type 与文件体真实内容断言，与本轮 JSON 契约族不同形态）；
+//   outsourcing-receipts/by-no/*（收回单族，需另建 receipt，本轮聚焦发料明细+状态机+凭证）。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
