@@ -6,7 +6,8 @@
 //! 都只读本表，不回读模板条款项。
 //!
 //! 表由 `migration/src/domain/contract_template_schema/m0117_create_contract_clauses.rs` 建立，
-//! 来源指针列 `template_clause_id` 由同域 `m0119_add_contract_clause_snapshot_provenance.rs` 追加。
+//! 来源指针列 `template_clause_id` 由链尾独立域 `migration/src/domain/contract_clause_snapshot_provenance/m0119_add_contract_clause_snapshot_provenance.rs` 追加
+//! （另立独立域的原因：contract_template_schema 已在复用测试库入账，域内新增子迁移永不重放）。
 //! 为什么必须存固化原文而不只存 template_id 参见该迁移头注，模板改版不得追溯改变已签合同的约定内容。
 //! 本 Entity 与模板条款项之间**没有** Relation，也没有外键，建了就等于让快照跟着模板行走，
 //! 正是本表要消除的追溯改写。`template_clause_id` 只是溯源指针：新固化行必写，

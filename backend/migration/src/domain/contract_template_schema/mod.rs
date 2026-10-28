@@ -1,7 +1,7 @@
 //! 合同模板体系建表域
 //!
-//! 本域把“合同约定内容”的数据地基一次落齐,登记为一条顶层迁移台账。域内六支按固定次序执行,
-//! 先建被引用表再建引用表,最后给两侧合同主表补列并补快照来源指针。
+//! 本域把“合同约定内容”的数据地基一次落齐,登记为一条顶层迁移台账。域内五支按固定次序执行,
+//! 先建被引用表再建引用表,最后给两侧合同主表补列。
 //! - m0114_create_contract_templates 模板主表,承载模板编码、合同类别、我方立场、版本号、
 //!   状态与 ACTIVE 互斥位、生效日、创建与法务复核留痕。
 //! - m0115_create_clause_library 条款库主数据,一枚条款码对应一枚可复用正文。
@@ -11,8 +11,10 @@
 //!   标题、条款码、来源模板与模板版本号,模板改版不回溯改写已固化行。
 //! - m0118_add_contract_main_clause_columns 两侧合同主表条款与签署与印花税列补齐,
 //!   新增列一律可空且无默认,历史行保持空值。
-//! - m0119_add_contract_clause_snapshot_provenance 合同条款快照补来源指针列
-//!   template_clause_id,固化腿写入当时引用的条款项行主键,详情腿据此单义回查必填标记。
+//!
+//! 快照表的来源指针列 `template_clause_id` 不在本域，由独立域 `contract_clause_snapshot_provenance`
+//! 挂在链尾补加。原因：本域已在复用测试库上入账，域内新增子迁移在复用库上永不重放，
+//! 只有另立新域让域名本身处于 pending 才会被 migrate run 拾起。
 //!
 //! 台账名取域名,注册在 lib.rs 迁移链尾。本域是新顶层条目而非并入既有域,并入已应用的域
 //! 在复用库上会因台账已记账而被整体跳过,导致四张表与补列全部缺席。
@@ -32,7 +34,6 @@ mod m0115_create_clause_library;
 mod m0116_create_contract_template_clauses;
 mod m0117_create_contract_clauses;
 mod m0118_add_contract_main_clause_columns;
-mod m0119_add_contract_clause_snapshot_provenance;
 
 /// 合同类别词表,十类,与模板清单逐一对应。
 /// 内销销售 出口销售 面料与纱线采购 辅料与包装物采购 外协加工 染整加工
@@ -88,17 +89,11 @@ impl MigrationTrait for Migration {
         m0118_add_contract_main_clause_columns::Migration
             .up(manager)
             .await?;
-        m0119_add_contract_clause_snapshot_provenance::Migration
-            .up(manager)
-            .await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        // 逆序回滚。先撤快照来源指针列,再撤合同主表补列,再按外键反向逐张删表,不留半张表在库里。
-        m0119_add_contract_clause_snapshot_provenance::Migration
-            .down(manager)
-            .await?;
+        // 逆序回滚。先撤补列,再按外键反向逐张删表,不留半张表在库里。
         m0118_add_contract_main_clause_columns::Migration
             .down(manager)
             .await?;

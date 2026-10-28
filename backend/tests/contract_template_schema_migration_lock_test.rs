@@ -8,8 +8,11 @@
 //!   建表列集合与可空性与四份 Entity 的字段同形，m0118 补列的两侧同形与 up 与 down
 //!   配对，域内子迁移的 up 正序与 down 严格逆序，每支迁移内部表与索引的创建与撤销
 //!   互逆，以及加在既有表上的 CHECK 必须在 down 显式撤销。
-//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读迁移域与六支子迁移与四份
+//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读迁移域与五支子迁移与四份
 //!   Entity 与词表文件的源文本，活库面一律交同目录的 `*_shape_live_test.rs` 由 CI 兑付。
+//!   快照表的 `template_clause_id` 补列由链尾独立域 `contract_clause_snapshot_provenance`
+//!   落，本锁的实体同形段按两支文本合成判定；独立域自身的 up 与 down 互逆与「不回填不建外键」
+//!   判据在同一文件里点名，路径写全，防两域互相顶替。
 //! 传给谁 无下游，纯断言。存什么 不写库、不写文件。存哪里 不落地。
 //!
 //! 判据是集合逐元素相等，不是包含
@@ -277,14 +280,15 @@ fn vocab_tokens_are_lowercase_ascii_and_non_empty() {
 /// 越界 token 的字面值，与本文件其余断言共用一份，防止比对对象自己漂。
 const BANNED_KIND: &str = "labor";
 
-/// 本域六支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
+/// 本域五支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
+/// 快照来源指针列 m0119 不在本域，由链尾独立域 `contract_clause_snapshot_provenance` 落；
+/// 本域已在复用测试库入账，域内新增子迁移永不重放，另立独立域是硬约束。
 const CHILD_MIGRATIONS: &[&str] = &[
     "m0114_create_contract_templates",
     "m0115_create_clause_library",
     "m0116_create_contract_template_clauses",
     "m0117_create_contract_clauses",
     "m0118_add_contract_main_clause_columns",
-    "m0119_add_contract_clause_snapshot_provenance",
 ];
 
 /// 词表清单不得被内联进子迁移。判据取每组词表的前两枚 token 拼成的签名串——
@@ -335,6 +339,8 @@ fn vocabulary_lists_are_never_inlined_into_child_migrations() {
 }
 
 /// 迁移域必须注册在链尾，且台账名是域名而不是单文件名（并域会被台账整体跳过，四表全缺席）。
+/// contract_template_schema 之后只允许 `contract_clause_snapshot_provenance` 一枚独立域，
+/// 后者是给本域 m0117 建的快照表补一列溯源指针的收尾；再出现别的域即越界。
 #[test]
 fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let lib = read("migration/src/lib.rs");
@@ -345,28 +351,37 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
         .find(tail)
         .unwrap_or_else(|| panic!("迁移链里找不到 {tail}（域未注册进 lib.rs，活库上四表必缺席）"));
     let after = &lib[pos + tail.len()..];
+    let allowed_after = "Box::new(domain::contract_clause_snapshot_provenance::Migration),";
+    let after_stripped = after.replace(allowed_after, "");
     assert!(
-        !after.contains("Box::new(domain::"),
-        "contract_template_schema 必须是链尾最后一枚注册项，其后不得再有其它域注册"
+        !after_stripped.contains("Box::new(domain::"),
+        "contract_template_schema 之后只允许 contract_clause_snapshot_provenance 一枚独立域注册，实得多枚即越界改动链尾次序"
+    );
+    assert!(
+        after.contains(allowed_after),
+        "链尾必须紧跟 contract_clause_snapshot_provenance 独立域（快照溯源补列），缺位即复用库上列永不落地"
     );
 
     assert!(
         domain_mod.contains("pub mod contract_template_schema;"),
         "域必须在 domain/mod.rs 声明，否则 lib.rs 的注册引用不到"
     );
+    assert!(
+        domain_mod.contains("pub mod contract_clause_snapshot_provenance;"),
+        "独立域必须在 domain/mod.rs 声明，否则链尾注册引用不到"
+    );
     let mod_src = read(MIGRATION_REL);
     assert!(
         mod_src.contains("\"m_contract_template_schema\""),
         "域必须手写 MigrationName 返回域名 m_contract_template_schema（derive 会把 mod.rs 折叠成同名 mod）"
     );
-    // 六支子迁移都要在域内串起来，缺支即半张表。
+    // 五支子迁移都要在域内串起来，缺支即半张表。
     for child in [
         "m0114_create_contract_templates",
         "m0115_create_clause_library",
         "m0116_create_contract_template_clauses",
         "m0117_create_contract_clauses",
         "m0118_add_contract_main_clause_columns",
-        "m0119_add_contract_clause_snapshot_provenance",
     ] {
         assert!(
             mod_src.contains(&format!("mod {child};")),
@@ -377,40 +392,61 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
             "域内 up 或 down 未调用子迁移 {child}"
         );
     }
+    // m0119 不得留在本域内，否则复用库上永不重放；必须只出现在新独立域里
+    assert!(
+        !mod_src.contains("m0119_add_contract_clause_snapshot_provenance"),
+        "m0119 不得留在 contract_template_schema 域内，必须挂在链尾独立域，实得域文件已含该子迁移即复用库永不重放"
+    );
+    let new_mod_src = read("migration/src/domain/contract_clause_snapshot_provenance/mod.rs");
+    assert!(
+        new_mod_src.contains("\"m_contract_clause_snapshot_provenance\""),
+        "独立域必须手写 MigrationName 返回域名 m_contract_clause_snapshot_provenance"
+    );
+    assert!(
+        new_mod_src.contains("mod m0119_add_contract_clause_snapshot_provenance;"),
+        "独立域必须声明 m0119 子迁移"
+    );
 }
 
-/// 本域六支迁移不得越界写业务数据，也不得留下空 down。
-/// 判据是域内 SQL 面不出现 UPDATE 与 DELETE 与 TRUNCATE 的语句形态，
+/// 合同模板建表域与其链尾的独立补列域两支都不得越界写业务数据，也不得留下空 down。
+/// 判据是两域 SQL 面不出现 UPDATE 与 DELETE 与 TRUNCATE 的语句形态，
 /// down 侧只允许 DROP 与显式 no-op。
 #[test]
 fn contract_template_schema_never_touches_business_data_rows() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("migration/src/domain/contract_template_schema");
-    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+    let dirs = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("migration/src/domain/contract_template_schema"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("migration/src/domain/contract_clause_snapshot_provenance"),
+    ];
     let mut checked = 0usize;
-    for entry in entries {
-        let path = entry
-            .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
-            .path();
-        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
-            continue;
+    for dir in dirs {
+        let entries =
+            fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+        for entry in entries {
+            let path = entry
+                .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
+                .path();
+            if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+                continue;
+            }
+            let text =
+                fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
+            let code_only = strip_line_comments(&text);
+            for banned in ["UPDATE \"", "DELETE FROM", "TRUNCATE "] {
+                assert!(
+                    !code_only.contains(banned),
+                    "{:?} 的代码面出现语句形态 {banned}——合同模板体系与快照溯源补列两支域绝不写业务数据行，\
+                     存量脏值一律交只读探测点名后人工处置",
+                    path
+                );
+            }
+            checked += 1;
         }
-        let text =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
-        let code_only = strip_line_comments(&text);
-        for banned in ["UPDATE \"", "DELETE FROM", "TRUNCATE "] {
-            assert!(
-                !code_only.contains(banned),
-                "{:?} 的代码面出现语句形态 {banned}——合同模板体系域绝不写业务数据行，\
-                 存量脏值一律交只读探测点名后人工处置",
-                path
-            );
-        }
-        checked += 1;
     }
     assert!(
-        checked >= 6,
-        "只扫到 {checked} 个源文件，说明扫描没走到迁移域目录，本锁已失去检测力"
+        checked >= 8,
+        "只扫到 {checked} 个源文件，说明扫描没走到两支迁移域目录（合同模板建表域六份加独立补列域两份），本锁已失去检测力"
     );
 }
 
@@ -668,12 +704,10 @@ const CONTRACT_CLAUSES_COLS: &[ColSpec] = &[
     col("updated_at", true),
 ];
 
-/// m0119 给快照表追加的来源指针列。可空且无默认：历史快照行没有可信指针可回填，
-/// 读侧对空值走 (模板, 条款码) 唯一行回落，伪造指针比空值更坏。
-const CONTRACT_CLAUSES_ADDED_BY_M0119: &[ColSpec] = &[col("template_clause_id", false)];
-
-/// 快照实体面对的完整列集合 建表十列加 m0119 追加一列（供实体同形比对使用；
+/// 快照实体面对的完整列集合 建表十列加链尾独立域 m0119 追加一列（供实体同形比对使用；
 /// 建表文本面仍按 m0117 的十列单独判定，两支各自互逆）。
+/// m0119 追加的一枚列规格：可空无默认；历史快照行没有可信指针可回填，读侧对空值走
+/// (模板, 条款码) 唯一行回落，伪造指针比空值更坏。
 const CONTRACT_CLAUSES_COLS_ALL: &[ColSpec] = &[
     col("id", true),
     col("contract_kind", true),
@@ -812,39 +846,39 @@ fn find_create_table_close(tail: &str, rel: &str, table: &str) -> usize {
 
 /// 实体与 DDL 必须同形，列名集合与可空性两处同源。表列一旦与 Entity 漂移，
 /// 解码整行失败或新列在读写腿里静默失踪，都是本仓反复出现过的缺陷形态。
+/// 快照表的列由两支域文本合成 contract_template_schema/m0117 建表加链尾独立域
+/// contract_clause_snapshot_provenance/m0119 补列。判据按 domain/stem 全路径读文件，
+/// 防止独立域被搬回 contract_template_schema 或另立他名后本锁静默失联。
 #[test]
 fn entities_declare_exactly_the_ddl_columns_with_matching_nullability() {
     let pairs: [(&str, &str, &[ColSpec]); 4] = [
         (
-            "m0114_create_contract_templates",
+            "contract_template_schema/m0114_create_contract_templates",
             "src/models/contract_template.rs",
             CONTRACT_TEMPLATES_COLS,
         ),
         (
-            "m0115_create_clause_library",
+            "contract_template_schema/m0115_create_clause_library",
             "src/models/clause_library.rs",
             CLAUSE_LIBRARY_COLS,
         ),
         (
-            "m0116_create_contract_template_clauses",
+            "contract_template_schema/m0116_create_contract_template_clauses",
             "src/models/contract_template_clause.rs",
             CONTRACT_TEMPLATE_CLAUSES_COLS,
         ),
         (
-            "m0117_create_contract_clauses|m0119_add_contract_clause_snapshot_provenance",
+            "contract_template_schema/m0117_create_contract_clauses|contract_clause_snapshot_provenance/m0119_add_contract_clause_snapshot_provenance",
             "src/models/contract_clause.rs",
             CONTRACT_CLAUSES_COLS_ALL,
         ),
     ];
     for (child, model_rel, spec) in pairs {
-        // 快照列由两支迁移合成（建表加补列），DDL 面按两支文本合并判定。
+        // 快照列由两支迁移合成（建表加补列），DDL 面按两支文本合并判定；
+        // child 里 pipe 分隔的每一段都是相对 domain/ 的完整路径（含域名与文件名）。
         let ddl = child
             .split('|')
-            .map(|c| {
-                strip_line_comments(&read(&format!(
-                    "migration/src/domain/contract_template_schema/{c}.rs"
-                )))
-            })
+            .map(|c| strip_line_comments(&read(&format!("migration/src/domain/{c}.rs"))))
             .collect::<Vec<_>>()
             .join("\n");
         let model = strip_line_comments(&read(model_rel));
@@ -891,10 +925,12 @@ fn entities_declare_exactly_the_ddl_columns_with_matching_nullability() {
 
 /// m0119 补列必须只加一列、可空无默认、up 与 down 互逆。判据与 m0118 同族但单点：
 /// 出现第二枚 ADD COLUMN 即越界改动快照表形态，缺 down 的 DROP 即回滚不干净。
+/// 该迁移已搬出 contract_template_schema 域，挂在链尾独立域 `contract_clause_snapshot_provenance`
+/// 目录下；判据按新路径读文件，防止搬回原域后本锁静默失联。
 #[test]
 fn m0119_adds_exactly_one_nullable_provenance_column_with_inverse_down() {
     let src = strip_line_comments(&read(
-        "migration/src/domain/contract_template_schema/m0119_add_contract_clause_snapshot_provenance.rs",
+        "migration/src/domain/contract_clause_snapshot_provenance/m0119_add_contract_clause_snapshot_provenance.rs",
     ));
     let down_at = src
         .find("async fn down")
@@ -932,36 +968,46 @@ fn m0119_adds_exactly_one_nullable_provenance_column_with_inverse_down() {
     );
 }
 
-/// 快照表的引用完整性口径 本域任何一支迁移都不给 contract_clauses 加指向条款项的外键
-/// （快照与模板行之间只留溯源指针，不留可级联可阻塞的强引用），也不给
-/// template_clause_id 建约束。判据是域内 SQL 文本面不出现指向 contract_template_clauses 的
+/// 快照表的引用完整性口径 合同模板建表域与链尾独立补列域任何一支迁移都不给 contract_clauses
+/// 加指向条款项的外键（快照与模板行之间只留溯源指针，不留可级联可阻塞的强引用），也不给
+/// template_clause_id 建约束。判据是两支域 SQL 文本面不出现指向 contract_template_clauses 的
 /// FOREIGN KEY，contract_clauses 的 ADD CONSTRAINT 名单不含外键该列的名。
 #[test]
 fn snapshot_table_never_gains_foreign_key_to_template_clauses() {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("migration/src/domain/contract_template_schema");
-    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+    let dirs = [
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("migration/src/domain/contract_template_schema"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("migration/src/domain/contract_clause_snapshot_provenance"),
+    ];
     let mut scanned = 0usize;
-    for entry in entries {
-        let path = entry
-            .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
-            .path();
-        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
-            continue;
+    for dir in dirs {
+        let entries =
+            fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+        for entry in entries {
+            let path = entry
+                .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
+                .path();
+            if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = strip_line_comments(
+                &fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path)),
+            );
+            // REFERENCES contract_template_clauses 一律判负：快照引用条款项只以指针列建模
+            assert!(
+                !text.contains("REFERENCES contract_template_clauses"),
+                "{:?} 出现指向 contract_template_clauses 的外键，快照行会被模板行删除动作阻塞\
+                 或牵动，与切片A对该表的建模决定冲突",
+                path
+            );
+            scanned += 1;
         }
-        let text = strip_line_comments(
-            &fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path)),
-        );
-        // REFERENCES contract_template_clauses 一律判负：快照引用条款项只以指针列建模
-        assert!(
-            !text.contains("REFERENCES contract_template_clauses"),
-            "{:?} 出现指向 contract_template_clauses 的外键，快照行会被模板行删除动作阻塞\
-             或牵动，与切片A对该表的建模决定冲突",
-            path
-        );
-        scanned += 1;
     }
-    assert!(scanned >= 7, "只扫到 {scanned} 个源文件，本锁失去检测对象");
+    assert!(
+        scanned >= 8,
+        "只扫到 {scanned} 个源文件，两支迁移域目录未走全（合同模板建表域六份加独立补列域两份），本锁失去检测对象"
+    );
 }
 
 /// m0118 补列必须两侧同形且一律可空。判据按表名加列名成对出现，缺任一一侧即点名。

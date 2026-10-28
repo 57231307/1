@@ -79,6 +79,14 @@
 //!   空值即「模板前签约，条款未固化」的判据，域内绝不 UPDATE 或 DELETE 业务数据。
 //!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的域会被台账整体跳过，
 //!   四张表与补列全部缺席。台账名取域名 m_contract_template_schema
+//! - contract_clause_snapshot_provenance: 合同条款快照来源指针独立域。给 contract_clauses 追加
+//!   一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
+//!   供详情腿单义回查必填标记。为什么另立独立域 该列本可塞进 contract_template_schema 域尾，
+//!   但后者已在复用测试库上入账，域内新增子迁移在复用库上永不重放，只有让本域名处于 pending
+//!   才能被 migrate run 拾起。up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、不建外键、
+//!   不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码) 唯一行回落，
+//!   多义如实给空值不伪造。台账名取域名 m_contract_clause_snapshot_provenance，
+//!   挂在链尾 contract_template_schema 之后
 
 pub mod system;
 pub mod business;
@@ -116,3 +124,4 @@ pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
+pub mod contract_clause_snapshot_provenance;

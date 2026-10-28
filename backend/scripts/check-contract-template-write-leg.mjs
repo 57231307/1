@@ -17,6 +17,15 @@
  * R7 渲染接线 两侧创建请求结构含 template_id clause_values contract_market tax_inclusive
  *    四字段；固化腿服务只读 contract_clauses 不 UPDATE 快照
  *    （src 面 `contract_clause::Entity::update` 零出现）；m0119 迁移不回填（无 UPDATE）。
+ * R8 快照与模板生命周期解耦 contract_template_service 的 retire 与 delete 两支函数体
+ *    不得含 contract_clause 的 update 与 delete 与 ActiveModel（快照只增不改，模板停用
+ *    或删除不得追溯改写已固化行）；contract_clause_service 的 list_clauses_for_contract
+ *    与 clauses_summary_for_print 与 resolve_required 三支函数体不得含 contract_template_status::
+ *    与 contract_template::Entity（读侧一律状态盲，模板停用即抹掉合同条款可见性为违规）。
+ * R9 溯源指针必写非空 PlannedClause 结构体含 `pub template_clause_id: i32`（非 Option<i32>）；
+ *    pin_plan_txn 函数体含 `template_clause_id: Set(Some(row.template_clause_id))`，
+ *    且不出现 `template_clause_id: Set(None)` 形态（新固化行必须携带来源条款项指针，
+ *    缺指针即详情腿必填标记回查断链）。
  *
  * 用法：
  *   node scripts/check-contract-template-write-leg.mjs            # 对真实源码判定
@@ -215,6 +224,95 @@ function r7RenderWiring(srcFiles, m0119Text) {
   return errs;
 }
 
+/** 取函数或结构体大括号体（简单扫描 depth 归零）。找不到 sig 返回 null 让上层点名。 */
+function braceBody(src, sig) {
+  const at = src.indexOf(sig);
+  if (at < 0) return null;
+  let depth = 0;
+  let seenOpen = false;
+  for (let i = at; i < src.length; i++) {
+    const c = src[i];
+    if (c === '{') {
+      depth += 1;
+      seenOpen = true;
+    } else if (c === '}') {
+      depth -= 1;
+      if (seenOpen && depth === 0) {
+        return src.slice(at, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+function r8FreezeDecoupledFromLifecycle(templateServiceSrc, clauseServiceSrc) {
+  const errs = [];
+  const tpl = stripLineComments(templateServiceSrc ?? '');
+  for (const sig of ['pub async fn retire(', 'pub async fn delete(']) {
+    const body = braceBody(tpl, sig);
+    if (body === null) {
+      errs.push(`R8 contract_template_service 找不到 ${sig}，判据对象缺席（改名或删函数需同步本锁）`);
+      continue;
+    }
+    for (const banned of [
+      'contract_clause::Entity::update',
+      'contract_clause::Entity::delete',
+      'contract_clause::ActiveModel',
+    ]) {
+      if (body.includes(banned)) {
+        errs.push(`R8 模板生命周期腿 ${sig} 出现 ${banned}——快照只增不改，停用或删除不得追溯改写已固化行`);
+      }
+    }
+  }
+  const cs = stripLineComments(clauseServiceSrc ?? '');
+  for (const sig of [
+    'pub async fn list_clauses_for_contract(',
+    'pub async fn clauses_summary_for_print(',
+    'async fn resolve_required(',
+  ]) {
+    const body = braceBody(cs, sig);
+    if (body === null) {
+      errs.push(`R8 contract_clause_service 找不到 ${sig}，读侧函数缺席（改名即断线）`);
+      continue;
+    }
+    if (body.includes('contract_template_status::')) {
+      errs.push(`R8 读侧 ${sig} 出现 contract_template_status::——详情与打印不得按模板状态过滤，模板停用即抹掉合同条款可见性`);
+    }
+    if (body.includes('contract_template::Entity')) {
+      errs.push(`R8 读侧 ${sig} 回查 contract_template::Entity——只读快照与条款项，不回读模板主表`);
+    }
+  }
+  return errs;
+}
+
+function r9ProvenanceNonNull(clauseServiceSrc) {
+  const errs = [];
+  const cs = stripLineComments(clauseServiceSrc ?? '');
+  const structBody = braceBody(cs, 'pub struct PlannedClause');
+  if (structBody === null) {
+    errs.push('R9 PlannedClause 结构体缺席，判据对象不存在（改名需同步本锁）');
+  } else {
+    if (!structBody.includes('pub template_clause_id: i32')) {
+      errs.push('R9 PlannedClause.template_clause_id 不是非 Option 的 i32——新固化行的溯源指针必须结构上非空');
+    }
+    if (structBody.includes('pub template_clause_id: Option<i32>')) {
+      errs.push('R9 PlannedClause.template_clause_id 漂成 Option<i32>——允许空指针即溯源断链');
+    }
+  }
+  const pinBody = braceBody(cs, 'pub async fn pin_plan_txn(');
+  if (pinBody === null) {
+    errs.push('R9 pin_plan_txn 缺席，落库单点不存在（改名需同步本锁）');
+  } else {
+    if (!pinBody.includes('template_clause_id: Set(Some(row.template_clause_id))')) {
+      errs.push('R9 pin_plan_txn 未把 template_clause_id 写为 Set(Some(row.template_clause_id))——新固化行的溯源指针必须非空');
+    }
+    if (pinBody.includes('template_clause_id: Set(None)')) {
+      errs.push('R9 pin_plan_txn 出现 template_clause_id: Set(None)——显式空指针即断链');
+    }
+  }
+  return errs;
+}
+
 // ---------------------------------------------------------------------------
 // 真实源码装载与执行
 // ---------------------------------------------------------------------------
@@ -231,12 +329,13 @@ function runOnRepo() {
   const routesSrc = readOpt(join(SRC, 'routes', 'contract_template.rs'));
   const handlerSrc = readOpt(join(SRC, 'handlers', 'contract_template_handler.rs'));
   const serviceSrc = readOpt(join(SRC, 'services', 'contract_template_service.rs'));
+  const clauseServiceSrc = readOpt(join(SRC, 'services', 'contract_clause_service.rs'));
   const initSrc = readOpt(join(SRC, 'services', 'init_service.rs'));
   const pathUtilsSrc = readOpt(join(SRC, 'utils', 'path_utils.rs'));
   const snapshot = readOpt(join(ROOT, 'frontend', 'scripts', 'route-snapshot.txt'));
   const srcFiles = collectRs(SRC);
   const m0119 = readOpt(
-    join(BACKEND, 'migration', 'src', 'domain', 'contract_template_schema', 'm0119_add_contract_clause_snapshot_provenance.rs')
+    join(BACKEND, 'migration', 'src', 'domain', 'contract_clause_snapshot_provenance', 'm0119_add_contract_clause_snapshot_provenance.rs')
   );
   const all = [
     ...r1RouteShape(routesSrc, handlerSrc),
@@ -246,6 +345,8 @@ function runOnRepo() {
     ...r5Snapshot(snapshot),
     ...r6FreezeSingleSource(srcFiles),
     ...r7RenderWiring(srcFiles, m0119),
+    ...r8FreezeDecoupledFromLifecycle(serviceSrc, clauseServiceSrc),
+    ...r9ProvenanceNonNull(clauseServiceSrc),
   ];
   return all;
 }
@@ -273,6 +374,20 @@ function selfTest() {
     ['R6', r6FreezeSingleSource([{ file: 'X/src/services/contract_clause_service.rs', body: 'contract_clause::ActiveModel' }]), /未消费渲染固化腿入口/],
     ['R7', r7RenderWiring([{ file: 'X/src/services/sales_contract_service.rs', body: 'pub template_id:' }], ''), /缺渲染字段|迁移文件缺失/],
     ['R7', r7RenderWiring([], 'async fn up(&self) { db.execute("UPDATE contract_clauses SET x = 1"); }'), /出现 UPDATE/],
+    ['R8', r8FreezeDecoupledFromLifecycle(
+      'pub async fn retire(&self) { contract_clause::Entity::delete_many().exec(db); } pub async fn delete(&self) {}',
+      'pub async fn list_clauses_for_contract() {} pub async fn clauses_summary_for_print() {} async fn resolve_required() {}',
+    ), /快照只增不改/],
+    ['R8', r8FreezeDecoupledFromLifecycle(
+      'pub async fn retire(&self) {} pub async fn delete(&self) {}',
+      'pub async fn list_clauses_for_contract() { if s == contract_template_status::ACTIVE {} } pub async fn clauses_summary_for_print() {} async fn resolve_required() {}',
+    ), /不得按模板状态过滤|详情与打印不得按模板状态/],
+    ['R8', r8FreezeDecoupledFromLifecycle(
+      'pub async fn retire(&self) {} pub async fn delete(&self) {}',
+      'pub async fn list_clauses_for_contract() {} pub async fn clauses_summary_for_print() { contract_template::Entity::find(); } async fn resolve_required() {}',
+    ), /不回读模板主表/],
+    ['R9', r9ProvenanceNonNull('pub struct PlannedClause { pub template_clause_id: Option<i32> } pub async fn pin_plan_txn() { template_clause_id: Set(None) }'), /漂成 Option|Set\(None\)|必须结构上非空/],
+    ['R9', r9ProvenanceNonNull('pub struct PlannedClause { pub template_clause_id: i32 } pub async fn pin_plan_txn() { let m = 1; }'), /未把 template_clause_id 写为 Set\(Some/],
   ];
   for (const [rule, errs, pattern] of cases) {
     if (errs.length === 0) {

@@ -128,6 +128,13 @@
 //!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
 //!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
 //!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
+//! 25. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
+//!    追加一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
+//!    供详情腿单义回查必填标记；up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、
+//!    不建外键、不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码)
+//!    唯一行回落，多义如实给空值不伪造。为什么另立独立域 contract_template_schema 已在复用测试库上入账，
+//!    域内新增子迁移在复用库上永不重放，只有让新域名处于 pending 才能被 migrate run 拾起；
+//!    挂在链尾 contract_template_schema 之后，只依赖该域 m0117 建的快照表
 
 pub use sea_orm_migration::prelude::*;
 
@@ -175,6 +182,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
             Box::new(domain::contract_template_schema::Migration),
+            Box::new(domain::contract_clause_snapshot_provenance::Migration),
         ]
     }
 }
