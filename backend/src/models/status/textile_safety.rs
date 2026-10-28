@@ -378,8 +378,11 @@ pub mod submission_status {
 
 /// 第三方报告受理态（`textile_third_party_report.acceptance_status`，报告完整性门的结论位）
 ///
-/// 完整性门在受理侧执行：缺 CMA 或 CNAS 资质标志、六项要素缺任一、有效期已过，
-/// 任一不满足都落 rejected 并逐条点名缺项，不允许"先收后进"式静默通过。
+/// 完整性门在受理侧执行：CMA 与 CNAS 两枚资质标志一起缺失、六项要素缺任一、有效期窗口
+/// 不覆盖今日（超过有效期、缺有效期无法核验或出具日尚未到达都算），任一不满足都落 rejected
+/// 并逐条点名缺项，不允许"先收后进"式静默通过。
+/// 资质标志按"至少一枚"放行（CMA 是法定资质认定、CNAS 是自愿认可，只持 CMA 的报告合法），
+/// 两枚都缺时 cma 与 cnas 逐枚点名，不合并成一句"无资质"。
 pub mod report_acceptance_status {
     /// 待核对：报告已录入，尚未跑完整性门
     pub const PENDING: &str = "pending";
@@ -415,8 +418,11 @@ pub mod report_element_code {
     pub const ITEM_RESULTS: &str = "item_results";
     /// 判定结论缺失
     pub const CONCLUSION: &str = "conclusion";
-    /// 报告已过期（签发有效期已过，或有效期列缺失无法核验）
+    /// 报告有效期窗口不覆盖今日（已超有效期，或有效期列缺失无法核验；两者都属"按有效期
+    /// 无法采信"这一事实，逐枚点名在 rejection_detail，不构成异常）
     pub const EXPIRED: &str = "expired";
+    /// 报告出具日尚未到达（出具日晚于今日，属未来日期的报告不能被采信）
+    pub const NOT_YET_VALID: &str = "not_yet_valid";
     /// 未按批次提供（报告色号或工艺口径与送检单批次三元组不一致）
     pub const BATCH_MISMATCH: &str = "batch_mismatch";
 
@@ -441,12 +447,65 @@ pub mod report_element_code {
         ITEM_RESULTS,
         CONCLUSION,
         EXPIRED,
+        NOT_YET_VALID,
         BATCH_MISMATCH,
     ];
 
     /// 白名单判定，口径同 `textile_safety_category::is_valid`
     pub fn is_valid(code: &str) -> bool {
         ALL.contains(&code)
+    }
+}
+
+/// 多份报告并存时的采信原因码（整单判定"采信哪一份、为什么排除其余"的点名取值域）
+///
+/// 消费方：`services/textile_safety_report_service.rs` 的采信单源函数
+/// `select_adopted_reports`，产出被 `textile_safety_submission_service.rs` 的整单判定与
+/// handler 详情读回消费，前端按同一字典回显（constants/textile-safety.ts）。
+/// 存列口径：**本码不入数据库**——采信是"受理态加有效期窗口加出具日新旧"的派生结论，
+/// 每次判定按当时库内真值重算，落列就会与报告要素编辑与复检时序漂移；因此本词表不进
+/// m0111 的 CHECK 清单，也不新增状态列（不造第 8 种单据状态）。
+pub mod report_adoption_reason {
+    /// 采信：本份即本次整单判定唯一采信的报告（至多一份）
+    pub const ADOPTED: &str = "adopted";
+    /// 被替代：另有出具日更新的已受理且在有效期内的报告，旧的那份不再作为结论依据
+    pub const SUPERSEDED: &str = "superseded";
+    /// 已过期：今日已晚于有效期
+    pub const EXPIRED: &str = "expired";
+    /// 缺有效期：有效期列未登记，无法核验窗口（无法核验即不采信，不默认当有效）
+    pub const VALID_WINDOW_MISSING: &str = "valid_window_missing";
+    /// 未生效：出具日尚未到达（未来日期）
+    pub const NOT_YET_VALID: &str = "not_yet_valid";
+    /// 未受理：完整性门尚未放行（pending 或 rejected），不配作为结论依据
+    pub const NOT_ACCEPTED: &str = "not_accepted";
+
+    /// 全部合法取值：入参与回显白名单的唯一来源
+    pub const ALL: &[&str] = &[
+        ADOPTED,
+        SUPERSEDED,
+        EXPIRED,
+        VALID_WINDOW_MISSING,
+        NOT_YET_VALID,
+        NOT_ACCEPTED,
+    ];
+
+    /// 白名单判定，口径同 `textile_safety_category::is_valid`
+    pub fn is_valid(reason: &str) -> bool {
+        ALL.contains(&reason)
+    }
+
+    /// 稳定码到中文点名文案的换算（回显与错误消息用，永不入库）。
+    /// 词表外返回 `None` 由调用方报错，不静默兜底成某一句。
+    pub fn display_label(reason: &str) -> Option<&'static str> {
+        match reason {
+            ADOPTED => Some("本次采信"),
+            SUPERSEDED => Some("已被出具日更新的报告替代"),
+            EXPIRED => Some("已过有效期"),
+            VALID_WINDOW_MISSING => Some("缺有效期无法核验"),
+            NOT_YET_VALID => Some("出具日尚未到达"),
+            NOT_ACCEPTED => Some("完整性门未放行"),
+            _ => None,
+        }
     }
 }
 

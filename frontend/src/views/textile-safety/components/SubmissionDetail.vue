@@ -153,6 +153,14 @@
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="采信" width="150">
+          <template #default="{ row }">
+            <el-tag v-if="adoptedReportNo === row.report_no" size="small" type="success">
+              {{ ADOPTION_REASON_LABELS.adopted }}
+            </el-tag>
+            <span v-else class="muted">{{ exclusionNote(row.report_no) }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="缺项点名" min-width="170">
           <template #default="{ row }">
             <span v-if="row.rejection_detail" class="missing">{{
@@ -411,6 +419,7 @@ import {
 } from '@/api/textile-safety';
 import {
   ACCEPTANCE_STATUS_LABELS,
+  ADOPTION_REASON_LABELS,
   BASIS_STANDARD_LABELS,
   CHECK_KIND_LABELS,
   CONTACT_TYPE_LABELS,
@@ -445,6 +454,15 @@ const canRegisterReport = computed(() =>
   ['sent', 'reported'].includes(detail.value?.submission.status ?? '')
 );
 
+// 同批次多份报告的采信口径只消费后端单源结论（adoption），前端不再自行比日期选报告
+const adoptedReportNo = computed(() => detail.value?.adoption?.adopted?.report_no ?? '');
+
+function exclusionNote(reportNo: string): string {
+  const hit = detail.value?.adoption?.excluded?.find((e) => e.report_no === reportNo);
+  if (!hit) return '—';
+  return ADOPTION_REASON_LABELS[hit.reason] ?? hit.reason;
+}
+
 const exemptionText = computed(() => {
   const raw = detail.value?.submission.exemption_tags;
   if (!raw) return '无';
@@ -478,8 +496,13 @@ async function load() {
 
 async function regenerateItems() {
   try {
-    await generateItems(props.submissionId);
-    ElMessage.success('清单已按人群与市场推导');
+    const generated = await generateItems(props.submissionId);
+    // 推导口径原样回显；是否成缺口由后端 needs_attention 定性，前端不猜文案语义
+    if (generated.needs_attention) {
+      ElMessage.warning(generated.scope_note);
+    } else {
+      ElMessage.success(generated.scope_note);
+    }
     await load();
     emit('changed');
   } catch (e: unknown) {
@@ -659,10 +682,14 @@ async function judgeSubmission() {
     const outcome = await apiJudgeSubmission(props.submissionId);
     const parts = [
       `整单结论：${VERDICT_LABELS[outcome.submission.overall_verdict ?? ''] ?? '未产出'}`,
+      `本次采信报告：${outcome.adoption.adopted?.report_no ?? '无（未产出结论）'}`,
     ];
     parts.push(outcome.stock_link.scope_note);
-    if (outcome.expired_reports_named.length > 0) {
-      parts.push(`过期已受理报告已点名排除：${outcome.expired_reports_named.join('、')}`);
+    // 被排除的报告逐枚带原因点名（过期、缺有效期、出具日未到达、被替代、门未放行）
+    for (const item of outcome.adoption.excluded) {
+      parts.push(
+        `排除 ${item.report_no}：${ADOPTION_REASON_LABELS[item.reason] ?? item.reason}`
+      );
     }
     if (outcome.submission.overall_verdict === 'fail') {
       ElMessage.warning(parts.join('；'));

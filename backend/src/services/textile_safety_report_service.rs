@@ -1,14 +1,20 @@
-//! 第三方检测报告服务（登记、完整性门、逐项目实测结果承载、报告级判定）
+//! 第三方检测报告服务（登记、完整性门、逐项目实测结果承载、报告级判定、多报告采信）
 //!
-//! 完整性门在受理侧执行：CMA 与 CNAS 资质位、六项要素（样品名称、材质成分、色号、
-//! 检验依据、检测项目与结果、判定结论）、有效期、按批次一致性，任一不满足落 rejected
-//! 并在 rejection_detail 逐条点名缺项代号（逗号串，取值域 `report_element_code`），
-//! 不允许"先收后进"式静默通过。
+//! 完整性门在受理侧执行：CMA 与 CNAS 资质位（至少一枚，两枚都缺即逐枚点名）、六项要素
+//! （样品名称、材质成分、色号、检验依据、检测项目与结果、判定结论）、有效期窗口、
+//! 按批次一致性，任一不满足落 rejected 并在 rejection_detail 逐条点名缺项代号
+//! （逗号串，取值域 `report_element_code`），不允许"先收后进"式静默通过，也不允许
+//! 只回一句"信息不完整"。
+//! 有效期窗口按**出具日与有效期两列**共同判定（`validity_window_on` 单源）：超过有效期、
+//! 缺有效期无法核验、出具日尚未到达三档都是可点名的业务事实，不是异常。
+//! 同一批次（同一送检单）多份报告时，采信规则成文且单源（`select_adopted_reports`）：
+//! 只采信已受理且有效期窗口覆盖今日的报告里出具日最新的一份，其余逐枚点名排除原因。
 //! 检验依据只做存在性与格式校验（完整标准号加类别形态，如 "GB 18401-2010 B类"），
 //! 不反向写产品侧 execution_standard 自由文本列（裁定 5）。
 use crate::models::status::{
-    report_acceptance_status, report_element_code, submission_status, textile_fastness_grade,
-    textile_flag_value, textile_item_kind, textile_safety_category, textile_verdict,
+    report_acceptance_status, report_adoption_reason, report_element_code, submission_status,
+    textile_fastness_grade, textile_flag_value, textile_item_kind, textile_safety_category,
+    textile_verdict,
 };
 use crate::models::textile_report_item_result::{
     ActiveModel, Column, Entity as ReportResult, Model,
@@ -72,6 +78,171 @@ pub struct ResultRowReq {
 
 pub struct TextileSafetyReportService {
     db: Arc<DatabaseConnection>,
+}
+
+/// 报告有效期窗口状态（采信与完整性门共用的单源判据，"过期"是事实不是异常）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValidityWindow {
+    /// 窗口覆盖今日，可采信
+    Valid,
+    /// 今日已晚于有效期
+    Expired,
+    /// 有效期列未登记，窗口无法核验（无法核验即不采信，不默认当有效）
+    WindowMissing,
+    /// 出具日尚未到达（今日早于出具日）
+    NotYetValid,
+}
+
+impl ValidityWindow {
+    /// 窗口状态的人类可读点名文案（错误消息与回显用，单源避免三处手写漂移）
+    fn label(self) -> &'static str {
+        match self {
+            ValidityWindow::Valid => "窗口覆盖今日",
+            ValidityWindow::Expired => "已过有效期",
+            ValidityWindow::WindowMissing => "缺有效期无法核验",
+            ValidityWindow::NotYetValid => "出具日尚未到达",
+        }
+    }
+}
+
+/// 有效期窗口判定单源：同时消费出具日与有效期两列，调用方不得另写第二套比法。
+///
+/// 入参：`issue_date` 报告出具日、`valid_until` 有效期至（可空）、`today` 判定时点的本地日。
+/// 传给谁：完整性门 `run_acceptance_gate`、报告级判定 `judge_report`、整单采信
+/// `select_adopted_reports`（送检服务经整单判定消费）。
+/// 判据顺序不可倒：出具日未到达优先（未来日期的报告连"起算"都还没开始，谈不上过期），
+/// 再看有效期是否缺失（缺失是无法核验而非"永不过期"），最后比上界。
+/// 库内 `chk_textile_report_valid_window` 已保证 valid_until 不早于 issue_date，
+/// 因此三个失败档互斥，不会同窗口既过期又未生效。
+pub fn validity_window_on(
+    issue_date: chrono::NaiveDate,
+    valid_until: Option<chrono::NaiveDate>,
+    today: chrono::NaiveDate,
+) -> ValidityWindow {
+    if today < issue_date {
+        return ValidityWindow::NotYetValid;
+    }
+    match valid_until {
+        None => ValidityWindow::WindowMissing,
+        Some(until) if today > until => ValidityWindow::Expired,
+        Some(_) => ValidityWindow::Valid,
+    }
+}
+
+/// 采信判定所需的最小报告快照（不依赖库连接，采信规则因此可离线单测；口径同判定器 `CandidateRule`）
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ReportCandidate {
+    pub id: i32,
+    pub report_no: String,
+    pub acceptance_status: String,
+    pub issue_date: chrono::NaiveDate,
+    pub valid_until: Option<chrono::NaiveDate>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<&ReportModel> for ReportCandidate {
+    fn from(r: &ReportModel) -> Self {
+        Self {
+            id: r.id,
+            report_no: r.report_no.clone(),
+            acceptance_status: r.acceptance_status.clone(),
+            issue_date: r.issue_date,
+            valid_until: r.valid_until,
+            created_at: r.created_at,
+        }
+    }
+}
+
+/// 一份报告在采信口径下的点名（report_no 加原因码，原因取值域 `report_adoption_reason`）
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ReportAdoption {
+    pub report_no: String,
+    pub reason: String,
+}
+
+/// 同批次多份报告的采信决策（**至多一份采信**，其余逐枚点名原因，绝不静默丢行）
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct AdoptionDecision {
+    /// 本次唯一采信的报告；无任何可采信报告时为 `None`
+    pub adopted: Option<ReportCandidate>,
+    /// 被排除的报告与排除原因（含未受理的，全部点名）
+    pub excluded: Vec<ReportAdoption>,
+}
+
+impl AdoptionDecision {
+    /// 采信那份的报告编号
+    pub fn adopted_report_no(&self) -> Option<&str> {
+        self.adopted.as_ref().map(|c| c.report_no.as_str())
+    }
+
+    /// 排除清单的逐枚点名文案（整单判定的错误消息与界面回显共用单源，不再各处手写）
+    pub fn excluded_note(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        for item in &self.excluded {
+            let label = report_adoption_reason::display_label(&item.reason)
+                .unwrap_or(item.reason.as_str());
+            parts.push(format!("{}（{}）", item.report_no, label));
+        }
+        parts.join("、")
+    }
+}
+
+/// 采信规则单源实现（成文判据，静态锁 `check-textile-report-adoption.mjs` 钉本函数形态）：
+/// 1. 只有完整性门已放行（`acceptance_status` 为 accepted）的报告进入采信候选；
+///    pending 与 rejected 一律点名 `not_accepted`，rejected 的缺项明细另有完整性门通道；
+/// 2. 候选内按有效期窗口 `validity_window_on` 筛，过期、缺有效期、出具日未到达逐枚点名，
+///    过期报告不得被判定器采信；
+/// 3. 窗口覆盖今日的候选中**只采信出具日最新的一份**（出具日相同按登记时间新优先，
+///    仍相同按主键大者优先，保证同输入同结论的确定性）；
+/// 4. 其余窗口内但更旧的报告点名 `superseded` 排除——旧报告的结论不再作为整单依据，
+///    但行不删不改，留痕完整。
+/// 入参：同一送检单（即同一批次口径 同品种同色号同工艺）下的全部报告快照、判定时点今日。
+/// 传给谁：`textile_safety_submission_service::judge_submission` 与送检单详情读回。
+/// 返回：`AdoptionDecision`；调用方必须把 `excluded` 原样回显给操作者，不得只取 adopted。
+pub fn select_adopted_reports(
+    reports: &[ReportCandidate],
+    today: chrono::NaiveDate,
+) -> AdoptionDecision {
+    let mut in_window: Vec<ReportCandidate> = Vec::new();
+    let mut excluded: Vec<ReportAdoption> = Vec::new();
+    for report in reports {
+        if report.acceptance_status != report_acceptance_status::ACCEPTED {
+            excluded.push(ReportAdoption {
+                report_no: report.report_no.clone(),
+                reason: report_adoption_reason::NOT_ACCEPTED.to_string(),
+            });
+            continue;
+        }
+        let window = validity_window_on(report.issue_date, report.valid_until, today);
+        let reason = match window {
+            ValidityWindow::Valid => None,
+            ValidityWindow::Expired => Some(report_adoption_reason::EXPIRED),
+            ValidityWindow::WindowMissing => Some(report_adoption_reason::VALID_WINDOW_MISSING),
+            ValidityWindow::NotYetValid => Some(report_adoption_reason::NOT_YET_VALID),
+        };
+        match reason {
+            Some(code) => excluded.push(ReportAdoption {
+                report_no: report.report_no.clone(),
+                reason: code.to_string(),
+            }),
+            None => in_window.push(report.clone()),
+        }
+    }
+    // 出具日新者优先，其次登记时间，最后主键；排序后首位即唯一采信对象
+    in_window.sort_by(|a, b| {
+        b.issue_date
+            .cmp(&a.issue_date)
+            .then_with(|| b.created_at.cmp(&a.created_at))
+            .then_with(|| b.id.cmp(&a.id))
+    });
+    let adopted = in_window.first().cloned();
+    for stale in in_window.iter().skip(1) {
+        excluded.push(ReportAdoption {
+            report_no: stale.report_no.clone(),
+            reason: report_adoption_reason::SUPERSEDED.to_string(),
+        });
+    }
+    AdoptionDecision { adopted, excluded }
 }
 
 impl TextileSafetyReportService {
@@ -232,10 +403,13 @@ impl TextileSafetyReportService {
     /// 完整性门：逐条点名缺项，全过落 accepted，任一缺落 rejected 并写 rejection_detail。
     ///
     /// 门的形状（与裁定六面对齐，缺项代号取值域 `report_element_code::ALL`）：
-    /// 1. 资质位：has_cma 缺记 cma、has_cnas 缺记 cnas；
+    /// 1. 资质位：CMA 与 CNAS **至少持一枚**即放行（CMA 是法定资质认定、CNAS 是自愿认可，
+    ///    只持 CMA 的报告合法）；两枚都缺即逐枚记 cma 与 cnas，不合并成一句"无资质"；
     /// 2. 六项要素：样品名称、材质成分、色号、检验依据（存在且格式为完整标准号加类别形态）、
     ///    检测项目与结果（结果行非空且每行都有存值或 flag）、判定结论；
-    /// 3. 有效期：valid_until 缺失（无法核验即拒）或今天已晚于有效期记 expired；
+    /// 3. 有效期窗口：按出具日与有效期两列判（`validity_window_on` 单源），超过有效期或
+    ///    缺有效期无法核验记 expired，出具日尚未到达记 not_yet_valid（三档都是点名事实，
+    ///    不是异常，也不静默当作有效）；
     /// 4. 按批次：报告色号与工艺必须与送检单批次口径一致，报告侧工艺缺失即无法对账，
     ///    记 batch_mismatch；色号缺失已按要素记 color_no，不重复记。
     /// 传给谁：handler accept 端点（PUT /textile-reports/{id}/acceptance）。
@@ -251,10 +425,9 @@ impl TextileSafetyReportService {
             .await?
             .ok_or_else(|| AppError::internal(format!("报告 {} 的送检单引用悬空", id)))?;
         let mut missing: Vec<String> = Vec::new();
-        if !report.has_cma {
+        if !report.has_cma && !report.has_cnas {
+            // 两枚资质标志一起缺失才拒，且逐枚点名缺了哪两枚
             missing.push(report_element_code::CMA.to_string());
-        }
-        if !report.has_cnas {
             missing.push(report_element_code::CNAS.to_string());
         }
         let blank = |v: &Option<String>| v.as_deref().map(|s| !s.trim().is_empty()) == Some(true);
@@ -288,13 +461,20 @@ impl TextileSafetyReportService {
         if !blank(&report.conclusion) {
             missing.push(report_element_code::CONCLUSION.to_string());
         }
-        match report.valid_until {
-            None => missing.push(report_element_code::EXPIRED.to_string()),
-            Some(vu) => {
-                let today = chrono::Utc::now().date_naive();
-                if today > vu {
-                    missing.push(report_element_code::EXPIRED.to_string());
-                }
+        // 有效期窗口按出具日与有效期两列判；过期与缺登记两档在受理门里同归 expired 档点名
+        // （采信链路上 `select_adopted_reports` 把两档拆成 expired 与 valid_window_missing
+        // 各自点名，报告详情面能直接看出 valid_until 是空还是已过）
+        match validity_window_on(
+            report.issue_date,
+            report.valid_until,
+            chrono::Utc::now().date_naive(),
+        ) {
+            ValidityWindow::Valid => {}
+            ValidityWindow::Expired | ValidityWindow::WindowMissing => {
+                missing.push(report_element_code::EXPIRED.to_string())
+            }
+            ValidityWindow::NotYetValid => {
+                missing.push(report_element_code::NOT_YET_VALID.to_string())
             }
         }
         let color_claimed = blank(&report.color_no);
@@ -419,6 +599,8 @@ impl TextileSafetyReportService {
     /// 报告级判定：对全部结果行按限值矩阵出三态并写 verdict（na 行不需要实测输入）。
     ///
     /// 判据：报告必须已受理（rejected 或 pending 的报告不配产结论，先过门再判定）；
+    /// 报告必须处于自身有效期窗口内（按出具日与有效期两列判，过期、缺有效期或出具日未到达
+    /// 一律点名拒绝——**过期报告不得被判定器采信**，这是业务事实不是异常）；
     /// 每行走判定器 `resolve_item_verdict`（四维取行、合取、分层），输入不足即整批报错
     /// （fail-visible，已判行保持，重跑幂等）。
     /// 传给谁：handler judge_report 端点（PUT /textile-reports/{id}/judgement）。
@@ -432,6 +614,24 @@ impl TextileSafetyReportService {
             return Err(AppError::business(format!(
                 "报告 {} 受理态为 {}，完整性门未放行前不得产出逐项目判定",
                 report_id, report.acceptance_status
+            )));
+        }
+        let window = validity_window_on(
+            report.issue_date,
+            report.valid_until,
+            chrono::Utc::now().date_naive(),
+        );
+        if window != ValidityWindow::Valid {
+            let until_note = report
+                .valid_until
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| "未登记".to_string());
+            return Err(AppError::business(format!(
+                "报告 {} 不被判定器采信（{}；出具日 {}、有效期至 {}），过期或无法核验有效期的报告不得产出逐项目判定；请取得有效报告或走复检更新报告后重判",
+                report_id,
+                window.label(),
+                report.issue_date,
+                until_note
             )));
         }
         let submission = Submission::find_by_id(report.submission_id)

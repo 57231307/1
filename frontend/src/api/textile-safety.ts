@@ -177,6 +177,29 @@ export interface SubmissionDetail {
   items: TextileSubmissionItemRow[];
   child_checks: TextileChildCheck[];
   reports: TextileReport[];
+  adoption: AdoptionDecision;
+}
+
+/** 采信决策的最小报告快照（后端 ReportCandidate 同形，采信原因消费本结构点名） */
+export interface AdoptionCandidate {
+  id: number;
+  report_no: string;
+  acceptance_status: string;
+  issue_date: string;
+  valid_until: string | null;
+  created_at: string;
+}
+
+export interface ReportAdoptionPoint {
+  report_no: string;
+  /** 排除原因，取值域见 constants/textile-safety.ts 的 ADOPTION_REASON_LABELS */
+  reason: string;
+}
+
+/** 同批次多份报告的采信结论（后端至多采信一份，其余逐枚带原因排除） */
+export interface AdoptionDecision {
+  adopted: AdoptionCandidate | null;
+  excluded: ReportAdoptionPoint[];
 }
 
 export interface StatusResult {
@@ -187,6 +210,7 @@ export interface StatusResult {
 export interface JudgeResult {
   submission: TextileSubmission;
   stock_link: StockLinkResult;
+  adoption: AdoptionDecision;
   expired_reports_named: string[];
 }
 
@@ -280,7 +304,11 @@ export const setSubmissionStatus = (id: number, status: string) =>
   unwrap<StatusResult>(api.put(`/textile-submissions/${id}/status`, { status }));
 
 export const generateItems = (id: number, extraItemCodes: string[] = []) =>
-  unwrap<{ items: TextileSubmissionItemRow[] }>(
+  unwrap<{
+    items: TextileSubmissionItemRow[];
+    scope_note: string;
+    needs_attention: boolean;
+  }>(
     api.post(`/textile-submissions/${id}/items`, { extra_item_codes: extraItemCodes })
   );
 

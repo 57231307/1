@@ -5,7 +5,9 @@
 //! 词表白名单校验、状态机守卫、批次口径校验都不在 handler 复制第二套。
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::services::textile_safety_report_service::TextileSafetyReportService;
+use crate::services::textile_safety_report_service::{
+    ReportCandidate, TextileSafetyReportService, select_adopted_reports,
+};
 use crate::services::textile_safety_submission_service::{
     ChildCheckUpsertReq, CreateSubmissionReq, SubmissionListParams, TextileSafetySubmissionService,
 };
@@ -163,6 +165,11 @@ pub async fn get_submission(
         "items": items_json,
         "child_checks": child_checks,
         "reports": reports,
+        // 采信决策预览（同一套单源规则，未判定前也能看清"哪份会被采信、其余为什么被排除"）
+        "adoption": select_adopted_reports(
+            &reports.iter().map(ReportCandidate::from).collect::<Vec<_>>(),
+            chrono::Utc::now().date_naive(),
+        ),
     });
     Ok(Json(ApiResponse::success(data)))
 }
@@ -233,6 +240,9 @@ pub async fn set_submission_status(
 }
 
 /// 生成（重生成）送检项目清单：按人群与接触方式与市场推项目集，可带客户点名项。
+///
+/// 判据：项目集一律来自检测项目主数据的 basis 分组（单源），本 handler 不写任何项目编码；
+/// 出口市场在单源里无登记加验项时由 service 的 scope_note 点名回显，不静默。
 pub async fn generate_items(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -240,10 +250,11 @@ pub async fn generate_items(
     Json(body): Json<GenerateItemsBody>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = TextileSafetySubmissionService::new(state.db.clone());
-    let rows = service
+    let generated = service
         .generate_items(id, body.extra_item_codes, auth.user_id)
         .await?;
-    let items_json: Vec<serde_json::Value> = rows
+    let items_json: Vec<serde_json::Value> = generated
+        .items
         .iter()
         .map(|(row, item)| {
             serde_json::json!({
@@ -256,9 +267,11 @@ pub async fn generate_items(
             })
         })
         .collect();
-    Ok(Json(ApiResponse::success(
-        serde_json::json!({ "items": items_json }),
-    )))
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "items": items_json,
+        "scope_note": generated.scope_note,
+        "needs_attention": generated.needs_attention,
+    }))))
 }
 
 /// 童装加考核查登记（GB 31701 条款逐行 upsert；人工项只给条目与结论位）。
@@ -285,9 +298,10 @@ pub async fn upsert_child_checks(
     Ok(Json(ApiResponse::success(serde_json::to_value(saved)?)))
 }
 
-/// 整单判定：童装 measurable 行走判定器、manual 行搬运结论位、按已受理报告结果汇总三态。
+/// 整单判定：童装 measurable 行走判定器、manual 行搬运结论位、按**采信的那一份报告**汇总三态。
 ///
-/// 判据：缺报告受理、缺人工结论、残留待判定行一律拒绝完成并点名，绝不产出无依据结论。
+/// 判据：缺报告受理、无可靠采信对象、缺人工结论、残留待判定行一律拒绝完成并点名，
+/// 绝不产出无依据结论；被排除的报告逐枚带原因回显（取值域 report_adoption_reason）。
 pub async fn judge_submission(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -304,6 +318,7 @@ pub async fn judge_submission(
     Ok(Json(ApiResponse::success(serde_json::json!({
         "submission": outcome.submission,
         "stock_link": outcome.stock_link,
+        "adoption": outcome.adoption,
         "expired_reports_named": outcome.expired_reports_named,
     }))))
 }

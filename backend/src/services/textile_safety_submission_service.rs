@@ -11,10 +11,10 @@ use crate::models::status::purchase_inventory::{
     inventory_stock_quality_status as stock_quality, inventory_stock_status as stock_status,
 };
 use crate::models::status::{
-    export_market, sampling_color_role, submission_status, textile_basis_standard,
-    textile_check_kind, textile_contact_type, textile_end_user_group, textile_exemption_tag,
-    textile_flag_value, textile_item_kind, textile_item_source, textile_product_form,
-    textile_safety_category, textile_verdict,
+    export_market, report_adoption_reason, sampling_color_role, submission_status,
+    textile_basis_standard, textile_check_kind, textile_contact_type, textile_end_user_group,
+    textile_exemption_tag, textile_flag_value, textile_item_kind, textile_item_source,
+    textile_product_form, textile_safety_category, textile_verdict,
 };
 use crate::models::textile_child_safety_check::{
     ActiveModel as CheckActiveModel, Column as CheckColumn, Entity as ChildCheck,
@@ -35,6 +35,9 @@ use crate::models::textile_third_party_report::{
 use crate::services::audit_log_service::AuditLogService;
 use crate::services::textile_safety_limit_judge::{
     CandidateRule, JudgeDims, MeasuredInput, fetch_rules_for_item, resolve_verdict,
+};
+use crate::services::textile_safety_report_service::{
+    AdoptionDecision, ReportCandidate, select_adopted_reports,
 };
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
@@ -128,7 +131,7 @@ impl StockLinkAction {
 /// 库存联动回显（写了吗、写了谁、为什么没写，全部点名回给调用方，不静默）。
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct StockLinkResult {
-    /// 品种乘批次命中且在库（正常台账状态）的库存行数
+    /// 品种乘批次乘色号命中且在库（正常台账状态）的库存行数
     pub matched: u64,
     /// 本次实际改写质量状态的库存行 id
     pub updated_stock_ids: Vec<i32>,
@@ -136,13 +139,31 @@ pub struct StockLinkResult {
     pub scope_note: String,
 }
 
-/// 整单判定产出（单据本体加联动与告警回显；判定成功但联动细节不可见就是假绿）。
+/// 整单判定产出（单据本体加采信与联动回显；判定成功但采信与联动细节不可见就是假绿）。
 #[derive(serde::Serialize)]
 pub struct JudgementOutcome {
     pub submission: Model,
     pub stock_link: StockLinkResult,
-    /// 已受理但有效期已过或被复检替代而排除出本次汇总口径的报告编号（点名告警面）
+    /// 采信决策全貌：本次唯一采信的那份报告加逐枚点名的排除原因
+    /// （排除原因取值域 `report_adoption_reason`，实现单源在报告服务
+    /// `select_adopted_reports`）
+    pub adoption: AdoptionDecision,
+    /// 因有效期不可采信而被排除的报告编号（已过有效期、缺有效期无法核验、出具日未到达三档
+    /// 都算有效期类排除，点名告警面与采信决策同源派生，不是第二套判据）
     pub expired_reports_named: Vec<String>,
+}
+
+/// 项目清单推导产出（清单行加推导口径回显；市场推荐集为空这种事不能只靠"没报错"表达）。
+#[derive(Clone, Debug)]
+pub struct GeneratedItems {
+    /// 清单行与项目主数据快照
+    pub items: Vec<(ItemModel, TestItemModel)>,
+    /// 推导口径的人类可读说明（出口市场推荐集为空、其他市场不自动推、点名项覆盖归因等
+    /// 都要在这里点名，调用方回显给操作者，不静默）
+    pub scope_note: String,
+    /// 本次推导是否存在需要操作者处置的口径缺口（市场推荐集在单源里为空、或该市场按口径
+    /// 不自动推要求集）；由后端判定，前端据此选提示档位，不靠文案字符串猜语义
+    pub needs_attention: bool,
 }
 
 pub struct TextileSafetySubmissionService {
@@ -406,12 +427,15 @@ impl TextileSafetySubmissionService {
         Ok((saved, link))
     }
 
-    /// 库存质量状态联动原语：按品种乘批次命中在库（正常）行，依动作语义改写 quality_status，
-    /// 全部经 `AuditLogService::update_with_audit` 留痕。
+    /// 库存质量状态联动原语：按品种乘批次乘色号命中在库（正常）行，依动作语义改写
+    /// quality_status，全部经 `AuditLogService::update_with_audit` 留痕。
     ///
     /// 判据：无批次号的送检单无法点名库存行，返回 matched 0 并在 scope_note 显式说明，
     /// 由调用方回显给操作者（不静默）；词表外的 quality_status 残值不改写（那是别的域的
     /// 脏数据，交各自域定性，本域不越权清洗）。
+    /// 批次口径边界：取样批次口径是同品种同色号同工艺，库存行只有品种、批次号与色号三列可对账，
+    /// **工艺维在库存表没有对应列**，因此本联动只能锁到品种乘批次乘色号，工艺一致性靠送检单
+    /// 与报告侧的 process_no 门保证；这一边界在 scope_note 里如实点名，不假装已按工艺收窄。
     async fn apply_stock_link(
         &self,
         model: &Model,
@@ -434,6 +458,9 @@ impl TextileSafetySubmissionService {
         let rows = InventoryStock::find()
             .filter(StockColumn::ProductId.eq(model.product_id))
             .filter(StockColumn::BatchNo.eq(batch.as_str()))
+            // 取样批次口径是同品种同色号同工艺：库存行有 batch_no 与 color_no 两列，
+            // 色号必须进过滤，否则同批次其它色号的在库行会被这份送检单连带挂起或冻结。
+            .filter(StockColumn::ColorNo.eq(model.color_no.as_str()))
             .filter(StockColumn::StockStatus.eq(stock_status::NORMAL))
             .all(self.db.as_ref())
             .await?;
@@ -481,10 +508,11 @@ impl TextileSafetySubmissionService {
             matched,
             updated_stock_ids: updated,
             scope_note: format!(
-                "动作 {}：品种 {} 批次 {} 命中在库行 {} 行，实际改写质量状态 {} 行",
+                "动作 {}：品种 {} 批次 {} 色号 {} 命中在库行 {} 行，实际改写质量状态 {} 行（工艺维库存无列，联动只能锁到品种乘批次乘色号）",
                 action.label(),
                 model.product_id,
                 batch,
+                model.color_no,
                 matched,
                 updated_count
             ),
@@ -493,10 +521,16 @@ impl TextileSafetySubmissionService {
 
     /// 生成（重生成）送检项目清单：按人群与接触方式与市场推项目集。
     ///
-    /// 推导规则（全部来自项目主数据的 basis 分组，不硬编码项目编码）：
+    /// 推导规则（**全部来自项目主数据 `textile_test_item.basis_standard` 分组，即 m0112
+    /// 种子的单源**，本函数与 handler 与前端都不允许写任何项目编码字面量）：
     /// - basis GB18401 的项目恒入列（法定基本安全项，逐项目是否考核由判定器按矩阵出 na）；
-    /// - 人群为婴幼儿或儿童时加挂 basis GB31701 的加考项目；
-    /// - 市场非内销时加挂 basis EXPORT 的项目（无种子行时为空集，不报错）。
+    /// - 人群为婴幼儿或儿童，**或**接触方式为婴幼儿专用档时，加挂 basis GB31701 的加考项目
+    ///   （GB 31701 按"给谁穿"与"怎么用"两个维度触发，成人申报但走婴幼儿专用接触档的
+    ///   同样要加考）；
+    /// - 目标市场为欧盟、美国、日本时加挂 basis EXPORT 的项目；`other` 市场按词表口径
+    ///   "按客户要求登记，不自动推要求集"，不挂 EXPORT 组；内销不挂；
+    ///   EXPORT 组在单源里尚无登记项目时**不静默**，在 scope_note 点名"本次未推入任何出口
+    ///   加验项"并指向两条补齐通道（项目主数据登记或点名 extra_item_codes）。
     /// - extra_item_codes 为客户点名项，逐码存在性校验后以 CUSTOMER 归因入列。
     /// 重生成冲掉自动归因行、保留 CUSTOMER 行（人工点名不被机器重算抹掉）。
     /// 仅可编辑态允许。传给谁：handler generate_items 端点（POST /textile-submissions/{id}/items）。
@@ -505,7 +539,7 @@ impl TextileSafetySubmissionService {
         id: i32,
         extra_item_codes: Vec<String>,
         operator: i32,
-    ) -> Result<Vec<(ItemModel, TestItemModel)>, AppError> {
+    ) -> Result<GeneratedItems, AppError> {
         let model = self.get(id).await?;
         self.ensure_editable(&model)?;
 
@@ -514,15 +548,21 @@ impl TextileSafetySubmissionService {
             textile_basis_standard::GB18401.to_string(),
             textile_item_source::GB18401.to_string(),
         )];
-        if model.end_user_group == textile_end_user_group::INFANT
+        // 童装加考的触发维：人群（婴幼儿、儿童）或接触方式（婴幼儿专用档）任一命中
+        let child_scoped = model.end_user_group == textile_end_user_group::INFANT
             || model.end_user_group == textile_end_user_group::CHILD
-        {
+            || model.contact_type == textile_contact_type::INFANT_USE;
+        if child_scoped {
             bases.push((
                 textile_basis_standard::GB31701.to_string(),
                 textile_item_source::GB31701.to_string(),
             ));
         }
-        if model.target_market != export_market::DOM {
+        let market_pushes_export = matches!(
+            model.target_market.as_str(),
+            export_market::EU | export_market::US | export_market::JP
+        );
+        if market_pushes_export {
             bases.push((
                 textile_basis_standard::EXPORT.to_string(),
                 textile_item_source::EXPORT.to_string(),
@@ -565,6 +605,11 @@ impl TextileSafetySubmissionService {
                 "推导结果为空项目集：主数据未播种或点名项缺失，拒绝生成空清单",
             ));
         }
+        // 出口推荐集是否在单源里真有行，要在移动 picked 之前先数出来（空集必须点名，不静默）
+        let export_rows = picked
+            .iter()
+            .filter(|(_, _, source)| source == textile_item_source::EXPORT)
+            .count();
 
         // 冲掉自动归因行、保留既有 CUSTOMER 行；随后全量重插（已存在且保留的点名行不重复插）
         self.auto_rows_delete(id).exec(self.db.as_ref()).await?;
@@ -607,13 +652,43 @@ impl TextileSafetySubmissionService {
             let saved = active.insert(self.db.as_ref()).await?;
             out.push((saved, item));
         }
+        let mut note_parts: Vec<String> = vec![format!(
+            "人群 {}、接触方式 {}、市场 {} 口径下推入 {} 行（项目集单源为检测项目主数据 basis 分组）",
+            model.end_user_group,
+            model.contact_type,
+            model.target_market,
+            out.len()
+        )];
+        if child_scoped {
+            note_parts.push("已按人群或婴幼儿专用接触档加挂 GB 31701 童装加考组".to_string());
+        }
+        if model.target_market == export_market::OTHER {
+            note_parts.push(
+                "目标市场 other 按词表口径不自动推出口要求集，需要加验请点名 extra_item_codes"
+                    .to_string(),
+            );
+        } else if market_pushes_export && export_rows == 0 {
+            note_parts.push(format!(
+                "目标市场 {} 的出口推荐项目集在单源（检测项目主数据 basis=EXPORT 组）内尚无登记项目，本次未推入任何出口加验项；要覆盖请在项目主数据登记 EXPORT 组项目或点名 extra_item_codes，本回显不把它当成已覆盖",
+                model.target_market
+            ));
+        }
+        let scope_note = note_parts.join("；");
+        let needs_attention = model.target_market == export_market::OTHER
+            || (market_pushes_export && export_rows == 0);
         tracing::info!(
             submission_id = id,
             items = out.len(),
             operator,
+            scope_note = scope_note.as_str(),
+            needs_attention,
             "送检项目清单已按人群接触方式与市场推导生成"
         );
-        Ok(out)
+        Ok(GeneratedItems {
+            items: out,
+            scope_note,
+            needs_attention,
+        })
     }
 
     fn auto_rows_delete(&self, submission_id: i32) -> DeleteMany<SubmissionItem> {
@@ -720,18 +795,20 @@ impl TextileSafetySubmissionService {
         Ok(out)
     }
 
-    /// 整单判定汇总：判童装 measurable 行、搬运 manual 结论、按已受理报告的逐项目结果汇总整单。
+    /// 整单判定汇总：判童装 measurable 行、搬运 manual 结论、按**采信的那一份报告**汇总整单。
     ///
-    /// 前置（任一不满足即拒绝，不落半态）：状态为 reported；至少一份已受理且在有效期内的
-    /// 报告；全部在有效期内已受理报告的逐项目结果均已判定；全部童装核查行均已判定（manual
-    /// 缺结论即拒绝完成，不许假称自动判定）。
-    /// 过期点名：已受理但有效期已过（或缺有效期这类无法核验的行）的报告排除出汇总口径并
-    /// 逐枚点名回给调用方，绝不静默消费过期结论。
+    /// 前置（任一不满足即拒绝，不落半态）：状态为 reported；至少一份可采信的第三方报告；
+    /// 采信那份的逐项目结果均已判定；全部童装核查行均已判定（manual 缺结论即拒绝完成，
+    /// 不许假称自动判定）。
+    /// 采信规则（单源实现 `textile_safety_report_service::select_adopted_reports`，本函数只
+    /// 消费不另写判据）：同一批次（同一送检单）多份报告时，只采信已受理且有效期窗口覆盖今日
+    /// 的报告里出具日最新的一份；未受理、过期、缺有效期、出具日未到达、被更新报告替代，
+    /// 逐枚点名排除原因回给调用方，绝不静默消费过期或被替代的结论。
     /// 汇总三态：任一行 fail 则整单 fail；无 fail 且存在 pass 则整单 pass；
     /// 全部 na 则整单 na（无一项适用的极端形态如实呈现，不折算成合格）。
     /// 库存联动：fail 冻结批次库存（不合格不出库），pass 放行，na 维持送检挂起并点名。
     /// 产出：童装 measurable 行与 manual 行的 verdict、送检单 overall_verdict 与 judged 态、
-    /// 联动回显与过期告警清单。
+    /// 联动回显、采信决策全貌与有效期类排除的点名清单。
     pub async fn judge_submission(
         &self,
         id: i32,
@@ -748,46 +825,43 @@ impl TextileSafetySubmissionService {
             .filter(ReportColumn::SubmissionId.eq(id))
             .all(self.db.as_ref())
             .await?;
-        let accepted_all: Vec<_> = reports
-            .iter()
-            .filter(|r| {
-                r.acceptance_status == crate::models::status::report_acceptance_status::ACCEPTED
-            })
-            .collect();
-        if accepted_all.is_empty() {
+        // 采信决策一次算出（判据单源在报告服务，本函数不自写受理与日期的第二套比法）；
+        // 排除清单与告警面都从同一份结论派生
+        let candidates: Vec<ReportCandidate> = reports.iter().map(ReportCandidate::from).collect();
+        if candidates.is_empty() {
             return Err(AppError::business(format!(
-                "送检单 {} 没有已受理的第三方报告，完整性门未放行前不得出整单结论",
+                "送检单 {} 还没有登记任何第三方报告，整单结论必须建立在已受理且在有效期窗口内的报告上；请先登记报告并过完整性门",
                 id
             )));
         }
-        let today = chrono::Utc::now().date_naive();
-        let mut expired_reports_named: Vec<String> = Vec::new();
-        let accepted: Vec<_> = accepted_all
-            .into_iter()
-            .filter(|r| match r.valid_until {
-                Some(vu) if today <= vu => true,
-                _ => {
-                    expired_reports_named.push(r.report_no.clone());
-                    false
-                }
+        let adoption = select_adopted_reports(&candidates, chrono::Utc::now().date_naive());
+        let expired_reports_named: Vec<String> = adoption
+            .excluded
+            .iter()
+            .filter(|e| {
+                e.reason == report_adoption_reason::EXPIRED
+                    || e.reason == report_adoption_reason::VALID_WINDOW_MISSING
+                    || e.reason == report_adoption_reason::NOT_YET_VALID
             })
+            .map(|e| e.report_no.clone())
             .collect();
-        if accepted.is_empty() {
+        let Some(adopted) = adoption.adopted.as_ref() else {
             return Err(AppError::business(format!(
-                "送检单 {} 的已受理报告全部超过有效期或缺有效期登记（点名 {}），过期结论不得作为归档依据；请取得有效报告或走复检更新报告后再判定",
+                "送检单 {} 没有可采信的第三方报告（逐枚点名排除原因：{}）；采信规则为只采信已受理且有效期窗口覆盖今日的报告里出具日最新的一份，过期或被替代的结论不得作为归档依据，请取得有效报告或走复检更新报告后再判定",
                 id,
-                expired_reports_named.join("、")
+                adoption.excluded_note()
             )));
-        }
+        };
         if !expired_reports_named.is_empty() {
             tracing::warn!(
                 submission_id = id,
                 expired = expired_reports_named.join("|"),
-                "整单判定已受理但过期的报告被排除出汇总口径（点名告警，不静默）"
+                adopted = adoption.adopted_report_no().unwrap_or(""),
+                "整单判定按采信规则排除有效期不可采信的报告（点名告警，不静默）"
             );
         }
         let mut verdicts: Vec<String> = Vec::new();
-        for report in &accepted {
+        for report in std::iter::once(adopted) {
             let rows = ReportResult::find()
                 .filter(ResultColumn::ReportId.eq(report.id))
                 .all(self.db.as_ref())
@@ -898,12 +972,15 @@ impl TextileSafetySubmissionService {
             overall,
             operator,
             link = stock_link.scope_note.as_str(),
+            adopted = adoption.adopted_report_no().unwrap_or(""),
             expired = expired_reports_named.join("|"),
-            "纺织品安全送检单整单判定完成"
+            excluded = adoption.excluded_note(),
+            "纺织品安全送检单整单判定完成（按采信规则唯一采信那份报告）"
         );
         Ok(JudgementOutcome {
             submission: saved,
             stock_link,
+            adoption,
             expired_reports_named,
         })
     }
@@ -953,43 +1030,59 @@ impl TextileSafetySubmissionService {
         color_role: &str,
         exemption_tags: &[String],
     ) -> Result<(), AppError> {
-        let checks: [(&str, bool, &str); 6] = [
+        let checks: [(&str, &[&str], &str, &str); 6] = [
             (
                 end_user_group,
-                textile_end_user_group::is_valid(end_user_group),
+                textile_end_user_group::ALL,
                 "终端人群",
+                "不得默认按成人口径处理",
             ),
             (
                 contact_type,
-                textile_contact_type::is_valid(contact_type),
+                textile_contact_type::ALL,
                 "接触方式",
+                "不得默认按非直接接触处理",
             ),
             (
                 safety_category,
-                textile_safety_category::is_valid(safety_category),
+                textile_safety_category::ALL,
                 "安全类别",
+                "不得按最低档放宽",
             ),
             (
                 product_form,
-                textile_product_form::is_valid(product_form),
+                textile_product_form::ALL,
                 "产品形态",
+                "不得按中间产品放宽",
             ),
             (
                 target_market,
-                export_market::is_valid(target_market),
+                export_market::ALL,
                 "目标市场",
+                "不得按内销兜底",
             ),
             (
                 color_role,
-                sampling_color_role::is_valid(color_role),
+                sampling_color_role::ALL,
                 "色号角色",
+                "不得按全检兜底",
             ),
         ];
-        for (value, ok, label) in checks {
-            if !ok {
+        for (value, allowed, label, hint) in checks {
+            if value.trim().is_empty() {
                 return Err(AppError::validation_displayable(format!(
-                    "{} 取值 {} 不在本域词表内（合法值见词表模块，存储用带前缀稳定码）",
-                    label, value
+                    "{}必须显式给出（合法值 {}），{}",
+                    label,
+                    allowed.join(","),
+                    hint
+                )));
+            }
+            if !allowed.contains(&value) {
+                return Err(AppError::validation_displayable(format!(
+                    "{} 取值 {} 不在本域词表内（合法值 {}，存储用带前缀稳定码）",
+                    label,
+                    value,
+                    allowed.join(",")
                 )));
             }
         }

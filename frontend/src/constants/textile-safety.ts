@@ -82,7 +82,18 @@ export const ELEMENT_CODE_LABELS: Record<string, string> = {
   item_results: '缺检测项目与结果',
   conclusion: '缺判定结论',
   expired: '报告过期或缺有效期',
+  not_yet_valid: '报告出具日尚未到达',
   batch_mismatch: '批次口径不一致',
+};
+
+/** 多份报告采信排除原因（后端 models::status::report_adoption_reason 同字典，单源消费） */
+export const ADOPTION_REASON_LABELS: Record<string, string> = {
+  adopted: '本次采信',
+  superseded: '已被出具日更新的报告替代',
+  expired: '已过有效期',
+  valid_window_missing: '缺有效期无法核验',
+  not_yet_valid: '出具日尚未到达',
+  not_accepted: '完整性门未放行',
 };
 
 export const BASIS_STANDARD_LABELS: Record<string, string> = {
