@@ -4169,8 +4169,11 @@ jobs:
           # 扫描面：backend/ frontend/ 两棵代码树内的源码文件（IR 口径=代码注释）。
           # .md/.monkeycode/ 等文档不在本规则面内——同时规避裁定采纳记录里
           # "门禁反向判定 MEMORY.md 自身引用行号写法需用户确认"的风险（默认不碰）。
-          SCAN_PREFIXES = ('backend/', 'frontend/')
-          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'}
+          SCAN_PREFIXES = ('backend/', 'frontend/', '.github/')
+          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.yml', '.yaml'}
+          # YAML 与流水线定义文件的注释形态是 `#`，与上面四形态都不重合；只把前缀扩到
+          # .github/ 而不认 `#`，等于文件进了扫描面、注释却一行读不到（空判）。
+          SHARP_EXTS = {'.yml', '.yaml'}
 
           HARD_PATTERNS = [
               # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）。
@@ -4282,6 +4285,12 @@ jobs:
                       if ext == '.vue' and line[pos:pos + 4] == '<!--':
                           found, kind = pos, 'html'
                           break
+                      # `#` 仅在行首或前一字符是空格/tab 时才算注释起点（YAML 语义）；
+                      # 引号内的 # 已被上面的 in_str 分支吞掉，不会走到这里。
+                      if (ext in SHARP_EXTS and ch == '#'
+                              and (pos == 0 or line[pos - 1] in ' \t')):
+                          found, kind = pos, 'line'
+                          break
                       pos += 1
                   if found is None:
                       if ext == '.rs':
@@ -4388,6 +4397,11 @@ jobs:
               ('R5.行号引用', 'probe_r5a.ts', '// 见 api_gateway_handler.rs:129-151\n'),
               ('R5.行号引用', 'probe_r5b.vue',
                '<!-- 详见 store/fabric.ts:31 -->\n<template><div/></template>\n'),
+              # 流水线定义文件的 `#` 注释形态必须与上面四形态一道被探针覆盖：只扩前缀
+              # 不测该形态，扫描面看似含 .github/ 实际一行读不到（空判）
+              ('R1.看板引用', 'probe_r1e.yml', '# 修复见 #941\n'),
+              ('R3.run号', 'probe_r3b.yaml',
+               '# 实证：CI run #4675 该 job 串行未并发\n'),
           ]
 
 
@@ -4420,6 +4434,10 @@ jobs:
               # batch 标识符与"波次"作为工厂染色概念（后不接数词）都不该命中
               ('R2.Batch号', 'neg_r2e.ts', '// batchNo 与 batch_size 由库存批次规则给定\n'),
               ('R2.波次', 'neg_r2f.rs', '// 按波次划分下发染色任务，此处指工厂染色波次\n'),
+              # 流水线行里紧跟非空白字符的 # 不是 YAML 注释起点（值内的 # 属字面量），
+              # 若把它当注释判，正常写十六进制色值与占位符的 run 行会被误拦
+              ('R1.看板后缀', 'neg_r1f.yml',
+               '- run: node scripts/brand.mjs --hex=a#1a73e8 --out=dist/i.ong\n'),
           ]
 
 
