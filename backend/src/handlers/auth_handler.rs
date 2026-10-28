@@ -732,14 +732,16 @@ fn prepare_csrf_state(
     })?;
     let session_id = claims.session_id;
 
-    // Wave 3 安全漏洞 #7：IP 绑定到 CSRF Token，优先 AuditContext，回退 local client_ip
+    // CSRF Token 的观测 IP 绑定：优先取 AuditContext（已由 audit_context 中间件按统一降级链解析），
+    // 缺失时回退本地 client_ip。该值只作漂移信号与审计留痕，不参与拒绝判定，
+    // 但必须与 CSRF 中间件校验时同源（同一份优先级实现），否则会凭空造出漂移事件。
     let csrf_ip = audit_ctx
         .as_ref()
         .map(|e| e.0.ip_address.clone())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| client_ip.to_string());
 
-    // 强制轮换：登录前清除该 user_id 关联的旧 CSRF Token（Wave 3 #7）
+    // 强制轮换：登录前清除该 user_id 关联的全部旧 CSRF Token（多设备残留 token 一次性作废）
     let rotated = state.cache.clear_old_csrf_token_for_user(user.id);
     if rotated {
         tracing::info!(
@@ -749,9 +751,10 @@ fn prepare_csrf_state(
         );
     }
 
-    // 生成随机 CSRF Token 并存储到缓存中（Wave 3 #7）：
-    // - 缓存值 = (session_id, ip_address) 元组，IP 用于消费时校验
-    // - 反向索引 user_id → csrf_token 支持强制轮换
+    // 生成随机 CSRF Token 并写入缓存：
+    // - 缓存值 CsrfTokenBinding 携带 session_id、观测 ip_address、user_id
+    //   消费时以「用户 + 会话」做拒绝判定，观测 IP 只判漂移并重发（移动与 NAT 客户端 IP 必然变化）
+    // - 反向索引 user_id 对存活 csrf_token 的集合，支撑上面的强制轮换
     // - TTL = CSRF_TOKEN_DEFAULT_TTL_SECS (1800s = 30min)，与 access_token Cookie 对齐
     let csrf_token = uuid::Uuid::new_v4().to_string();
     state.cache.set_csrf_token(
