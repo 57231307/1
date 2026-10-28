@@ -776,11 +776,35 @@ impl ExportApprovalService {
         self.gate_and_register_attempt(&model).await
     }
 
-    /// 安全强化版受理入口（新接线方使用）：在 [`enforce_export_download`] 的校验之上
-    /// 增加两道门——调用者必须是被批准申请人本人（防令牌截图转发复用），
-    /// 且实际请求范围必须与批准范围一致（防超范围导出）。
+    /// 组装本次导出请求实际携带的范围参数，形状与申请落库的 export_params 同形。
     ///
-    /// 既有资源 handler 未迁移前继续走两参版；迁移接线清单随回报单提交。
+    /// 功能：把导出端点真实读取的筛选项收敛成一个对象，本次没带的维度不进对象。
+    /// 调用方：各敏感资源导出 handler 的受理腿。
+    /// 入参：项名与该项取值，None 表示本次请求未携带这一维。
+    /// 传给谁：交 enforce_export_download_secured 的 requested_params，
+    /// 由 validate_scope_against_approval 与批准时的参数做逐项比对。
+    /// 存什么：不落库，只参与受理门的比对。
+    /// 存哪里：不适用。
+    ///
+    /// 取值保持原形态，数字仍是数字、布尔仍是布尔，不做字符串化，否则与批准
+    /// 参数的逐字相等比对会自己造出差集。数字 0 与布尔 false 是有效取值，必须
+    /// 进对象，不按空值丢掉。
+    pub fn scope_params(items: &[(&str, Option<serde_json::Value>)]) -> serde_json::Value {
+        let mut obj = serde_json::Map::new();
+        for (key, value) in items {
+            if let Some(v) = value {
+                obj.insert((*key).to_string(), v.clone());
+            }
+        }
+        serde_json::Value::Object(obj)
+    }
+
+    /// 安全强化版受理入口，资源导出 handler 的受理门：在 enforce_export_download
+    /// 的校验之上增加两道门——调用者必须是被批准的申请人本人（防令牌被转发复用），
+    /// 且实际请求范围必须与批准范围逐项一致（防超范围导出）。
+    ///
+    /// requested_params 由调用方经 scope_params 组装，传 None 等于关掉范围核验，
+    /// 只允许确实不存在任何数据范围维度的端点使用。
     #[allow(
         clippy::too_many_arguments,
         reason = "受理门即校验要素全集：令牌/资源/调用者/请求范围，拆参会丢契约对照"
@@ -1021,10 +1045,15 @@ impl ExportApprovalService {
         Ok(updated)
     }
 
-    /// 显式登记导出失败（新接线方在生成文件失败的路径调用）。
+    /// 显式登记导出失败，导出腿任一步失败都走这一条。
     ///
-    /// 既有 handler 未接线前，失败可由尝试登记隐式推断（有尝试无消费即失败）；
-    /// 接线后优先走本方法，把失败原因留痕并即时判定是否用尽额度。
+    /// 功能：把失败原因留痕进申请的 context，并即时按重试额度判定是否落 exhausted 终态。
+    /// 调用方：run_export_leg（各资源导出 handler 经它执行导出腿）。
+    /// 入参：approval_id 是被受理的申请行主键，reason 是失败原因的原文。
+    /// 传给谁：写导出审批表本行，不外发。
+    /// 存什么：retry_count 加一、last_attempt_at 置当前、context.last_failure 记时刻与原因，
+    /// 达到 max_retries 时另置 status 与 completed_at。
+    /// 存哪里：export_approval_request 本行。
     pub async fn record_export_failure(
         &self,
         approval_id: i64,
@@ -1068,6 +1097,42 @@ impl ExportApprovalService {
 
         let updated = active.update(&*self.db).await?;
         Ok(updated)
+    }
+
+    /// 执行导出腿并在任一步失败时登记一次失败留痕，受理门之后的取数与成文件都走这一条。
+    ///
+    /// 功能：把受理门之后到登记消费之前的一段执行体统一交给失败记账，失败不改变错误原文。
+    /// 调用方：各敏感资源导出 handler，在 enforce_export_download_secured 放行之后。
+    /// 入参：approval_id 是刚被放行的申请行主键；leg 是该段执行体，产出 Result。
+    /// 传给谁：成功时把执行体原值交回 handler 继续成文件；失败时把原因原文交
+    /// record_export_failure 记账，随后把同一个错误原样回给调用方。
+    /// 存什么：成功不落库；失败时由 record_export_failure 落重试计数与失败原因留痕。
+    /// 存哪里：export_approval_request 本行。
+    ///
+    /// 登记消费之后的成文件步骤不在本段内，那一阶段令牌已进入消费终态，
+    /// 再记一次失败会把已消费的令牌改成重试额度耗尽，两类终态不得混写。
+    /// 记账本身失败时不掩盖导出错误，只把记账错误落日志。
+    pub async fn run_export_leg<F, T>(&self, approval_id: i64, leg: F) -> Result<T, AppError>
+    where
+        F: std::future::Future<Output = Result<T, AppError>>,
+    {
+        match leg.await {
+            Ok(value) => Ok(value),
+            Err(err) => {
+                if let Err(record_err) = self
+                    .record_export_failure(approval_id, &err.to_string())
+                    .await
+                {
+                    tracing::warn!(
+                        "导出失败留痕登记未成功 申请 {} 导出错误 {} 登记错误 {}",
+                        approval_id,
+                        err,
+                        record_err
+                    );
+                }
+                Err(err)
+            }
+        }
     }
 
     // ========================================================================

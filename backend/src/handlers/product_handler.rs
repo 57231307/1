@@ -637,83 +637,124 @@ pub async fn batch_create_colors(
 
 // ========== 数据导入导出接口 ==========
 
-use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
-// V15 P0-S11：导出审计日志写入所需依赖
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use crate::services::export_approval_service::ExportApprovalService;
+use crate::utils::xlsx_export::{XlsxTable, build_xlsx_response};
 use std::sync::Arc;
 
-/// 导出产品数据
+/// 导出产品数据为 xlsx，端点为 GET /api/v1/erp/products/export
+///
+/// 功能：按本次请求的筛选取产品全集，落成 xlsx 响应体并写导出审计
+/// 调用方：产品路由的导出端点
+/// 入参：查询参数（category_id、status、search 与审批令牌）、应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，取数交 ProductService::export_products_to_xlsx，审计交本函数内构造的
+/// AuditEvent，成功登记交 record_download
+/// 存什么：不写业务表；产品行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
+/// 存哪里：不适用
+///
+/// 范围参数只收本次请求实际带的筛选项，与批准范围逐项比对。审计日志为异步写入，
+/// 不阻塞响应。
 pub async fn export_products(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<ExportProductsQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
-    let download_token = query.download_token.clone();
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(download_token.as_deref(), "product")
-            .await?;
-
-    let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
-
-    // V15 P0-S11：提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
-    let audit_status = query.status.clone();
-    let audit_search = query.search.clone();
-
-    // T1: 直接获取结构化数据，去除 CSV 中转
-    let (headers, rows) = product_service
-        .export_products_to_xlsx(query.category_id, query.status, query.search)
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "category_id",
+            query.category_id.map(serde_json::Value::from),
+        ),
+        (
+            "status",
+            query.status.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "search",
+            query.search.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "product",
+            auth.user_id,
+            Some(requested_scope),
+        )
         .await?;
 
-    let row_count = rows.len();
-    let table = XlsxTable {
-        sheet_name: "产品列表".to_string(),
-        headers,
-        rows,
-    };
+    let (table, filename) = approval_svc
+        .run_export_leg(approval.id, async {
+            let product_service =
+                ProductService::new(state.db.clone(), state.search_client.clone());
 
-    let filename = format!(
-        "products_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
+            // 提前 clone 查询条件用于审计日志（避免 service 调用 move 后 borrow of moved value）
+            let audit_status = query.status.clone();
+            let audit_search = query.search.clone();
 
-    // V15 P0-S11：导出审计日志写入（best-effort，异步不阻塞响应）
-    let event = AuditEvent {
-        user_id: Some(auth.user_id),
-        username: Some(auth.username.clone()),
-        operation_type: OperationType::Export,
-        severity: Severity::Info,
-        resource_type: Some("product".to_string()),
-        resource_id: None,
-        resource_name: Some(format!("{}.xlsx", filename)),
-        description: Some(format!(
-            "用户 {} 导出产品数据（共 {} 条）",
-            auth.username, row_count
-        )),
-        request_method: Some("GET".to_string()),
-        request_path: Some("/api/v1/erp/products/export".to_string()),
-        before_snapshot: None,
-        after_snapshot: Some(serde_json::json!({
-            "format": "xlsx",
-            "total": row_count,
-            "category_id_filter": query.category_id,
-            "status_filter": audit_status,
-            "search_filter": audit_search,
-        })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
+            // 直接获取结构化数据，去除 CSV 中转
+            let (headers, rows) = product_service
+                .export_products_to_xlsx(
+                    query.category_id,
+                    query.status.clone(),
+                    query.search.clone(),
+                )
+                .await?;
 
-    // 敏感导出 fail-closed：记录令牌消费
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(
-            approval.id,
-            filename.clone(),
-            row_count as i64,
-            String::new(),
-        )
+            let row_count = rows.len();
+            let table = XlsxTable {
+                sheet_name: "产品列表".to_string(),
+                headers,
+                rows,
+            };
+
+            let filename = format!(
+                "products_export_{}",
+                chrono::Utc::now().format("%Y%m%d_%H%M%S")
+            );
+
+            // 导出审计日志写入（best-effort，异步不阻塞响应）
+            let event = AuditEvent {
+                user_id: Some(auth.user_id),
+                username: Some(auth.username.clone()),
+                operation_type: OperationType::Export,
+                severity: Severity::Info,
+                resource_type: Some("product".to_string()),
+                resource_id: None,
+                resource_name: Some(format!("{}.xlsx", filename)),
+                description: Some(format!(
+                    "用户 {} 导出产品数据（共 {} 条）",
+                    auth.username, row_count
+                )),
+                request_method: Some("GET".to_string()),
+                request_path: Some("/api/v1/erp/products/export".to_string()),
+                before_snapshot: None,
+                after_snapshot: Some(serde_json::json!({
+                    "format": "xlsx",
+                    "total": row_count,
+                    "category_id_filter": query.category_id,
+                    "status_filter": audit_status,
+                    "search_filter": audit_search,
+                })),
+            };
+            let svc = Arc::new(AuditLogService::new(state.db.clone()));
+            svc.record_async(event, None);
+
+            // 敏感导出 fail-closed：记录令牌消费
+            approval_svc
+                .record_download(
+                    approval.id,
+                    filename.clone(),
+                    row_count as i64,
+                    String::new(),
+                )
+                .await?;
+
+            Ok((table, filename))
+        })
         .await?;
 
     build_xlsx_response(&table, &filename)
