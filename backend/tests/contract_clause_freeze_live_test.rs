@@ -238,6 +238,7 @@ async fn sales_create_freezes_snapshot_text_version_and_pointer() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(template_id),
                 clause_values: Some(sales_values(&[
@@ -319,6 +320,7 @@ async fn missing_placeholder_rolls_back_contract_and_snapshot() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(template_id),
                 // 只给 customer_name，payment_terms 缺值
@@ -393,6 +395,7 @@ async fn draft_and_retired_templates_are_not_selectable() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(draft.id),
                 clause_values: None,
@@ -443,6 +446,7 @@ async fn draft_and_retired_templates_are_not_selectable() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(draft.id),
                 clause_values: None,
@@ -481,6 +485,7 @@ async fn template_revision_never_touches_frozen_rows() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(template_id),
                 clause_values: Some(sales_values(&[
@@ -568,6 +573,7 @@ async fn template_revision_never_touches_frozen_rows() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(v2.id),
                 clause_values: Some(sales_values(&[
@@ -613,6 +619,7 @@ async fn library_clause_text_change_affects_only_new_signings() {
         payment_method: None,
         delivery_location: None,
         remark: None,
+        source_order_id: None,
         items: None,
         template_id: Some(template_id),
         clause_values: Some(sales_values(&[
@@ -727,6 +734,7 @@ async fn config_ambiguous_and_wasteful_inputs_are_named() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(tpl.id),
                 clause_values: None,
@@ -761,6 +769,7 @@ async fn config_ambiguous_and_wasteful_inputs_are_named() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(template_id),
                 clause_values: Some(sales_values(&[
@@ -841,6 +850,7 @@ async fn required_clause_without_condition_source_rejects_and_custom_variant_ski
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: Some(tpl.id),
                 clause_values: None,
@@ -995,6 +1005,7 @@ async fn snapshot_body_db_backstops_reject_blank_and_residue() {
                 payment_method: None,
                 delivery_location: None,
                 remark: None,
+                source_order_id: None,
                 items: None,
                 template_id: None,
                 clause_values: None,
