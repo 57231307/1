@@ -52,6 +52,10 @@ pub struct Model {
     pub performance_period: Option<String>,
     /// V15 P2 B08-P2-7：印花税金额（购销合同 0.3‰/加工承揽合同 0.5‰）
     pub stamp_tax_amount: Option<Decimal>,
+    /// 内外销标记，可空，取值见 models::status::contract_template::contract_market。空值表示模板前签约未采集
+    pub contract_market: Option<String>,
+    /// 含税标记，可空三态。真为含税，假为不含税，空为未采集
+    pub tax_inclusive: Option<bool>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>坏账管理</span>
-          <el-button type="primary" @click="provisionVisible = true">运行计提</el-button>
+          <el-button type="primary" @click="openProvision">运行计提</el-button>
         </div>
       </template>
       <el-table v-loading="loading" :data="debts" border>
@@ -102,17 +102,17 @@
     </el-card>
 
     <el-dialog v-model="provisionVisible" title="运行坏账计提" width="460">
-      <el-form :model="provisionForm" label-width="120px">
-        <el-form-item label="计提年度" required>
-          <el-input-number
-            v-model="provisionForm.period_year"
-            :min="2000"
-            :max="2100"
-            class="w-full"
-          />
+      <el-form
+        ref="provisionFormRef"
+        :model="provisionForm"
+        :rules="provisionRules"
+        label-width="120px"
+      >
+        <el-form-item label="计提年度" prop="period_year">
+          <el-input v-model="provisionForm.period_year" class="w-full" inputmode="numeric" />
         </el-form-item>
-        <el-form-item label="计提月份" required>
-          <el-input-number v-model="provisionForm.period_month" :min="1" :max="12" class="w-full" />
+        <el-form-item label="计提月份" prop="period_month">
+          <el-input v-model="provisionForm.period_month" class="w-full" inputmode="numeric" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -126,8 +126,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { logAuxLoadFailure } from '@/utils/logger';
+import { numberInputRules } from '@/utils/number-input';
 import {
   cancelCollectionTask,
   confirmBadDebt,
@@ -149,9 +150,33 @@ const loadingTasks = ref(false);
 const saving = ref(false);
 const provisionVisible = ref(false);
 const provisionForm = reactive({
-  period_year: new Date().getFullYear(),
-  period_month: new Date().getMonth() + 1,
+  period_year: String(new Date().getFullYear()),
+  period_month: String(new Date().getMonth() + 1),
 });
+const provisionFormRef = ref<FormInstance>();
+const provisionRules: FormRules = {
+  period_year: numberInputRules({
+    label: '计提年度',
+    required: true,
+    min: 2000,
+    max: 2100,
+    integer: true,
+  }),
+  period_month: numberInputRules({
+    label: '计提月份',
+    required: true,
+    min: 1,
+    max: 12,
+    integer: true,
+  }),
+};
+
+function openProvision() {
+  provisionForm.period_year = String(new Date().getFullYear());
+  provisionForm.period_month = String(new Date().getMonth() + 1);
+  provisionFormRef.value?.clearValidate();
+  provisionVisible.value = true;
+}
 
 const unwrapList = <T,>(p: unknown): T[] => (p as { data: { items: T[] } }).data.items;
 
@@ -186,11 +211,13 @@ async function load() {
 }
 
 async function onProvision() {
+  const valid = await provisionFormRef.value?.validate().catch(() => false);
+  if (!valid) return;
   saving.value = true;
   try {
     await runProvision({
-      period_year: provisionForm.period_year,
-      period_month: provisionForm.period_month,
+      period_year: Number(provisionForm.period_year),
+      period_month: Number(provisionForm.period_month),
     });
     ElMessage.success('计提完成');
     provisionVisible.value = false;

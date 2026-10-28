@@ -42,7 +42,7 @@ interface SubjectOption {
 }
 
 /**
- * 分录编辑模型：绑定 el-input-number/el-select（数值/字符串混入），
+ * 分录编辑模型：绑定金额录入 el-input 与科目 el-select（数值/字符串混入），
  * UI 键沿用详情出参双命名中的 account_subject_* 族（详情回显零转换）。
  */
 interface VoucherEntryForm {

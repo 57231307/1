@@ -942,6 +942,7 @@ GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_st
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
+GET	/api/v1/erp/templates/meta/*	import_export_handler::describe_import_template	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
 GET	/api/v1/erp/user-path	tracking_handler::get_user_path	analytics
 GET	/api/v1/erp/user/profile	user_handler::get_current_user_profile	mod
@@ -1500,6 +1501,7 @@ POST	/api/v1/erp/purchase/returns/*/items	purchase_return_handler::create_purcha
 POST	/api/v1/erp/purchase/returns/*/reject	purchase_return_handler::reject_purchase_return	purchase
 POST	/api/v1/erp/purchase/returns/*/submit	purchase_return_handler::submit_purchase_return	purchase
 POST	/api/v1/erp/purchase/sku-mappings	crate::handlers::sku_mapping_handler::create_mapping	purchase
+POST	/api/v1/erp/purchase/sku-mappings/batch	crate::handlers::sku_mapping_handler::batch_create_mappings	purchase
 POST	/api/v1/erp/purchase/sku-mappings/import	crate::handlers::sku_mapping_handler::import_mappings	purchase
 POST	/api/v1/erp/purchase/supplier-blacklists	supplier_blacklist_handler::add_to_blacklist	purchase
 POST	/api/v1/erp/purchase/supplier-blacklists/*/release	supplier_blacklist_handler::release_from_blacklist	purchase

@@ -70,13 +70,7 @@
         />
         <el-table-column :label="t('inventoryCount.detailDialogTab.colQuantityActual')" width="140">
           <template #default="{ row }">
-            <el-input-number
-              v-if="isPending"
-              v-model="row.quantity_actual"
-              :min="0"
-              size="small"
-              controls-position="right"
-            />
+            <NumericInput v-model="row.quantity_actual" v-if="isPending" size="small" :min="0" />
             <span v-else>{{ row.quantity_actual }}</span>
           </template>
         </el-table-column>
@@ -121,6 +115,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';

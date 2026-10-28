@@ -49,25 +49,19 @@ import {
  * 缺必填键走解码门 400 加 VALIDATION_ERROR；客户外键不存在穿过业务门撞数据库
  * 外键收口 500 加 DATABASE_ERROR。
  *
- * 状态门。审核入口 POST 对象段 approve 当前不校验来源状态（无门），
- * 对 pending 与 rejected 都会改写为 approved 并写 approved_by 会话用户与
- * approved_at 服务端时间；拒绝入口 POST 对象段 reject 有硬门：来源必须 pending
- * 否则 400 加 BUSINESS_ERROR（脱敏），理由 trim 后为空 400 加 VALIDATION_ERROR
- * 且文案原文可钉；拒绝成功写 status 为 rejected、rejected_reason 为 trim 值、
+ * 状态门。更新入口 PUT 不收 status 键，载荷只要携带 status（词表内外一律），缺键点名
+ * 拒绝 400 加 VALIDATION_ERROR 且整行零写入，同载荷里的正常字段也不部分落库（与采购
+ * 收货、应付发票两族的收口口径一致），状态推进由动作入口专权。审核入口 POST 对象段
+ * approve 有硬门，来源必须 pending，否则 400 加 BUSINESS_ERROR（脱敏）。approved 行
+ * 重复审批同样被拒，approved_by 与 approved_at 两列不被覆盖。审核成功写 status 为
+ * approved、approved_by 为会话用户、approved_at 为服务端时间。拒绝入口 POST 对象段
+ * reject 同风格硬门（来源必须 pending），理由 trim 后为空 400 加 VALIDATION_ERROR 且
+ * 文案原文可钉。拒绝成功写 status 为 rejected、rejected_reason 为 trim 值、
  * approval_reason 保持 NULL（两动作两列），并同样写 approved_by 与 approved_at。
- * 主表更新 PUT 的 status 键直写列：词表内取值当前无状态机门即可写入（含 shipped），
- * 词表外取值撞数据库 CHECK 收口 400 加 BAD_REQUEST；remarks 与 items 键在
- * 改单口不消费。
- * 其中"审核对来源状态无门"与"改单词表内无状态机门"两处为现状登记，
- * 不代表契约认可，对应缺陷由调度登记、判责在后端实现；本 spec 只钉当前真实
- * 可达的行为，不反向锁死（绝不外显"未来也应允许"的含义），后端补门后
- * 这两步转红即预期内的返工信号。
- *
- * 删除门。面料入口 DELETE 不清明细，带明细的行删主表撞外键收口 500 加
- * DATABASE_ERROR，这是面料口与标准口的真实差异；标准入口 DELETE 同事务先清
- * 预留与明细再删主表，但 shipped 与 completed 状态有业务门拒删（脱敏 business，
- * 只钉 HTTP 与机器码），改回 pending 后方可删——本 spec 用它收口全部自建行。
- * 两口对不存在主键都是 404 加 NOT_FOUND。
+ * 删除门。面料入口 DELETE 仅放行尚未被审批链处置的 pending 行，approved 或 rejected
+ * 行被拒 400 加 BUSINESS_ERROR（脱敏）且行原样在库。pending 行在同一事务内先清明细
+ * 再删主表，主表与明细都读回不存在（与标准入口删除口径一致，不再撞外键收口 500）。
+ * 动作入口对不存在主键都是先行 404 加 NOT_FOUND。
  *
  * 假绿防线。每次写都紧跟按主键独立读回逐列对表；负例一律钉 HTTP 与机器码，
  * 可外显族加钉文案原文；被拒建单的零推进用唯一备注标记在客户与状态过滤列表里
@@ -435,6 +429,24 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     expect(str(o1Unchanged.status), '被拒的拒绝不许改动状态').toBe('approved');
     expect(o1Unchanged.rejected_reason, '被拒的拒绝不许写拒绝理由列').toBeNull();
 
+    // 二点五 重复审批，approved 行再审批同样被状态门拒绝，不得返回成功（幂等假绿口径）
+    const reApprove = await apiCallExpectFail(
+      page,
+      'POST',
+      `/sales/fabric-orders/${o1Id}/approve`,
+      {}
+    );
+    expect(reApprove.status, `approved 行重复审批必须 400，实际 ${reApprove.status}`).toBe(400);
+    expect(
+      failureCode(reApprove),
+      `重复审批的门必须归因 BUSINESS_ERROR，实际 ${JSON.stringify(reApprove.code)}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    const o1AfterReApprove = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${o1Id}`);
+    expect(str(o1AfterReApprove.status), '被拒的重复审批不许改动状态').toBe('approved');
+    expect(num(o1AfterReApprove.approved_by), '被拒的重复审批不许覆盖审批人追溯列').toBe(
+      num(self.id)
+    );
+
     // 三 空白理由：可外显校验门原文
     const o2 = await createFabricOrder(page, [item(1)], genCode('T3B'));
     const o2Id = num(o2.id);
@@ -483,30 +495,45 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
       APP_ERROR_CODES.BUSINESS_ERROR
     );
 
-    // 六 审核入口对 rejected 行当前无来源状态门，会直接改写回 approved。
-    // 本步是现状登记，不代表契约认可：审核缺状态门的缺陷由调度另立车道、判责在
-    // 后端实现；这里只钉"当前实现允许了这一步"，不反向锁死，后端补门后本步转红
-    // 即预期内的返工信号。
-    const approveRejected = await apiCallRaw<Row>(
+    // 六 审核入口对 rejected 行有硬来源状态门，非 pending 一律 400 加 BUSINESS_ERROR，
+    //    行不许被改写回 approved，既有拒绝理由列保持原值。
+    const approveRejected = await apiCallExpectFail(
       page,
       'POST',
       `/sales/fabric-orders/${o2Id}/approve`,
       {}
     );
     expect(
-      str(approveRejected.status),
-      `现状登记（非契约认可）：审核入口对 rejected 行当前放行并改写 approved，实际 ${str(
-        approveRejected.status
-      )}`
-    ).toBe('approved');
-    const o2Final = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${o2Id}`);
-    expect(str(o2Final.status), '现状登记：该无门改写必须真落库为 approved').toBe('approved');
+      approveRejected.status,
+      `rejected 行审核必须被状态门拒绝 400，实际 ${approveRejected.status}`
+    ).toBe(400);
     expect(
-      str(o2Final.rejected_reason),
-      '审核改写状态后，此前拒绝留下的理由列按当前实现保留原值'
-    ).toBe(reasonTrimmed);
+      failureCode(approveRejected),
+      `rejected 行审核的门必须归因 BUSINESS_ERROR，实际 ${JSON.stringify(approveRejected.code)}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    const o2Final = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${o2Id}`);
+    expect(str(o2Final.status), '被拒的审核不许把 rejected 改回 approved').toBe('rejected');
+    expect(str(o2Final.rejected_reason), '被拒的审核不许清空已写入的拒绝理由列').toBe(
+      reasonTrimmed
+    );
 
-    // 七 两动作对不存在主键都先行 404
+    // 七 删除入口对 approved 行有状态门，已处置单据不许删除，行与审批追溯原样在库
+    const deleteApproved = await apiCallExpectFail(page, 'DELETE', `/sales/fabric-orders/${o1Id}`);
+    expect(
+      deleteApproved.status,
+      `approved 行面料删除必须被状态门拒绝 400，实际 ${deleteApproved.status}`
+    ).toBe(400);
+    expect(
+      failureCode(deleteApproved),
+      `删除状态门必须归因 BUSINESS_ERROR，实际 ${JSON.stringify(deleteApproved.code)}`
+    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
+    const o1StillApproved = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${o1Id}`);
+    expect(str(o1StillApproved.status), '被拒的删除不许动已审批行（行必须原样存活）').toBe(
+      'approved'
+    );
+    expect(num(o1StillApproved.approved_by), '被拒的删除不许清空审批人追溯列').toBe(num(self.id));
+
+    // 八 两动作对不存在主键都先行 404
     const approveMissing = await apiCallExpectFail(
       page,
       'POST',
@@ -536,7 +563,7 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     await tryCleanup(page, 'DELETE', `/sales/orders/${o2Id}`, `[120] T3 o2 ${o2Id}`);
   });
 
-  test('T4 主表更新列映射 remarks不消费 状态词表内无门词表外撞CHECK 删除状态门联动', async ({
+  test('T4 主表更新列映射 remarks不消费 status键点名拒绝整行零写入 不存在主键404', async ({
     page,
   }) => {
     const tag = genCode('T4');
@@ -564,51 +591,52 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     const t1 = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
     expect(str(t1.notes), '对象读回也必须证明 remarks 的改动没落库').toBe(originalNotes);
 
-    // 二 状态词表外取值：改单口直写列，撞数据库 CHECK 收口 400 加 BAD_REQUEST
+    // 二 词表外 status 键，更新腿缺键点名拒绝，400 加 VALIDATION_ERROR（不再下探到
+    //    数据库 CHECK 通道），整行零写入
     const badStatus = await apiCallExpectFail(page, 'PUT', `/sales/fabric-orders/${orderId}`, {
       status: 'e2e_词表外状态',
     });
-    expect(badStatus.status, `词表外状态必须 400，实际 ${badStatus.status}`).toBe(400);
+    expect(badStatus.status, `携带 status 键的更新必须点名拒绝 400，实际 ${badStatus.status}`).toBe(
+      400
+    );
     expect(
       failureCode(badStatus),
-      `词表外状态必须归因 BAD_REQUEST（CHECK 违例经改单口收口），实际 ${JSON.stringify(
+      `status 键点名拒绝必须归因 VALIDATION_ERROR（服务层门，不是 CHECK 兜底），实际 ${JSON.stringify(
         badStatus.code
       )}`
-    ).toBe(APP_ERROR_CODES.BAD_REQUEST);
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
     const afterBadStatus = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
     expect(str(afterBadStatus.status), '被拒的改状态不许改动状态列').toBe('pending');
 
-    // 三 词表内取值 shipped：改单口当前无状态机门即写成功，并联动标准删除口的状态门。
-    // 本步同样是现状登记，不代表契约认可：改单缺状态机门的缺陷由调度另立车道、
-    // 判责在后端实现；补门后本步转红即预期内的返工信号。
-    const shipped = await apiCallRaw<Row>(page, 'PUT', `/sales/fabric-orders/${orderId}`, {
+    // 三 词表内 shipped 同样点名拒绝，状态推进是审核与拒绝动作入口专权，
+    //    更新腿不代写、不忽略（旁路收口后 shipped 直写不可达）
+    const shippedTry = await apiCallExpectFail(page, 'PUT', `/sales/fabric-orders/${orderId}`, {
       status: 'shipped',
     });
+    expect(shippedTry.status, `词表内 shipped 也必须点名拒绝 400，实际 ${shippedTry.status}`).toBe(
+      400
+    );
     expect(
-      str(shipped.status),
-      `现状登记（非契约认可）：改单口对词表内 shipped 当前放行直写，实际 ${str(shipped.status)}`
-    ).toBe('shipped');
-    const deleteBlocked = await apiCallExpectFail(page, 'DELETE', `/sales/orders/${orderId}`);
-    expect(
-      deleteBlocked.status,
-      `shipped 行的标准删除必须撞状态门 400，实际 ${deleteBlocked.status}`
-    ).toBe(400);
-    expect(
-      failureCode(deleteBlocked),
-      `删除状态门必须归因 BUSINESS_ERROR，实际 ${JSON.stringify(deleteBlocked.code)}`
-    ).toBe(APP_ERROR_CODES.BUSINESS_ERROR);
-    const stillThere = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
-    expect(str(stillThere.status), '被拒的删除不许动行').toBe('shipped');
+      failureCode(shippedTry),
+      `词表内 status 拒绝同样归因 VALIDATION_ERROR，实际 ${JSON.stringify(shippedTry.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const afterShipped = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
+    expect(str(afterShipped.status), '被拒的 shipped 直写不许改动状态（写状态旁路已收口）').toBe(
+      'pending'
+    );
 
-    // 四 改回 pending 后方可删（与三互为正反手的收口通道，同样属现状登记：
-    //    改单补门后若 shipped 不再可写，本步连同三一起转红为预期返工信号）
-    const back = await apiCallRaw<Row>(page, 'PUT', `/sales/fabric-orders/${orderId}`, {
+    // 四 即便提交与当前相等的 pending 也点名拒绝，门按键存在性判定，不按值静默放行
+    const sameStatus = await apiCallExpectFail(page, 'PUT', `/sales/fabric-orders/${orderId}`, {
       status: 'pending',
     });
     expect(
-      str(back.status),
-      `现状登记（非契约认可）：词表内 pending 改回当前放行，实际 ${str(back.status)}`
-    ).toBe('pending');
+      sameStatus.status,
+      `提交等值 pending 的 status 键也必须拒绝 400，实际 ${sameStatus.status}`
+    ).toBe(400);
+    expect(
+      failureCode(sameStatus),
+      `等值 status 键拒绝归因 VALIDATION_ERROR，实际 ${JSON.stringify(sameStatus.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
 
     // 五 改单与删除对不存在主键都先行 404
     const putMissing = await apiCallExpectFail(page, 'PUT', '/sales/fabric-orders/99999999', {
@@ -622,7 +650,7 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     await tryCleanup(page, 'DELETE', `/sales/orders/${orderId}`, `[120] T4 ${orderId}`);
   });
 
-  test('T5 分页回显与 clamp 状态过滤语义 面料口删带明细行撞外键 标准口清明细删除成功', async ({
+  test('T5 分页回显与 clamp 状态过滤语义 面料口删除清明细主表明细都读回不存在', async ({
     page,
   }) => {
     const ctx = getCtx();
@@ -689,28 +717,12 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
     );
     expect(num(shippedMiss.total), 'shipped 过滤按唯一单号必须为 0').toBe(0);
 
-    // 四 面料删除口不清明细：带明细行删主表撞外键收口 500 加 DATABASE_ERROR，
-    //    行与明细都在；随后标准口同事务清明细删主表收口本用例
-    const fabricDelete = await apiCallExpectFail(page, 'DELETE', `/sales/fabric-orders/${orderId}`);
+    // 四 面料删除口对 pending 行同事务先清明细再删主表，成功 200，主表与明细
+    //    都读回不存在（与标准入口删除口径一致，不再撞外键收口 500）
+    const fabricDelete = await apiCall<unknown>(page, 'DELETE', `/sales/fabric-orders/${orderId}`);
     expect(
-      fabricDelete.status,
-      `面料口删带明细的行必须走外键通道 500，实际 ${fabricDelete.status} code=${JSON.stringify(
-        fabricDelete.code
-      )}`
-    ).toBe(500);
-    expect(
-      failureCode(fabricDelete),
-      `明细外键违例必须归因 DATABASE_ERROR，实际 ${JSON.stringify(fabricDelete.code)}`
-    ).toBe(DATABASE_ERROR_CODE);
-    const stillAlive = await apiCallRaw<Row>(page, 'GET', `/sales/fabric-orders/${orderId}`);
-    expect(num(stillAlive.id), '被面料口拒删的行必须原样在库').toBe(orderId);
-    const detailWithItems = await readStandardDetail(page, orderId);
-    expect((detailWithItems.items as Row[]).length, '被拒的删除不许连带清掉明细行').toBe(2);
-
-    const deleted = await apiCall<unknown>(page, 'DELETE', `/sales/orders/${orderId}`);
-    expect(
-      num(deleted.code),
-      `标准删除的成功信封状态码必须是 200，实际 ${JSON.stringify(deleted.code)}`
+      num(fabricDelete.code),
+      `pending 行的面料删除成功信封状态码必须是 200，实际 ${JSON.stringify(fabricDelete.code)}`
     ).toBe(200);
 
     const goneFabric = await apiCallExpectFail(page, 'GET', `/sales/fabric-orders/${orderId}`);
@@ -724,7 +736,7 @@ test.describe.serial('120 面料行业版销售订单端点族真值链', () => 
       APP_ERROR_CODES.NOT_FOUND
     );
 
-    // 五 面料删除口对不存在主键先行 404（与 500 外键通道可分辨）
+    // 五 面料删除口对不存在主键先行 404（与状态门拒绝的 400 可分辨）
     const deleteMissing = await apiCallExpectFail(page, 'DELETE', '/sales/fabric-orders/99999999');
     expect(deleteMissing.status, `不存在主键的面料删除必须 404，实际 ${deleteMissing.status}`).toBe(
       404

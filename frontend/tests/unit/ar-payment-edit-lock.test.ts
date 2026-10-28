@@ -4,10 +4,12 @@
  * 双层三态字段、backend/src/services/ar_ops/collection.rs 的 update_payment
  * 金额/日期应用段与同源函数引用、verification_ops/manual.rs 的分配求和收敛、
  * frontend/src/api/ar.ts 更新载荷声明、frontend/src/views/ar/tabs/PaymentTab.vue
- * 编辑对话框真实上送与 Decimal→字符串口径互锁；任一侧单边回退（字段被移出 DTO、
- * 更新链路不再应用该键、前端不再上送、出现第二套分配求和、字符串直调 toFixed）即判红。
+ * 编辑对话框真实上送与 Decimal→字符串口径、frontend/src/composables/useNumberField.ts
+ * 单源数值校验器互锁；任一侧单边回退（字段被移出 DTO、
+ * 更新链路不再应用该键、前端不再上送、出现第二套分配求和、字符串直调 toFixed、
+ * 金额校验脱离单源件）即判红。
  * 调用方：vitest（tests/unit，CI vitest job）。
- * 入参：仅 fs 读取仓库内五份源码文本，不执行后端代码、不发网络请求。
+ * 入参：仅 fs 读取仓库内六份源码文本，不执行后端代码、不发网络请求。
  * 传给谁：纯断言，无下游；存什么/存哪里：不落盘、不存储。
  */
 import { readFileSync } from 'node:fs';
@@ -37,6 +39,9 @@ const MANUAL_SRC = readRepoSource(
 const AR_API_SRC = readRepoSource(path.join(FRONTEND_ROOT, 'src/api/ar.ts'));
 const PAYMENT_TAB_SRC = readRepoSource(
   path.join(FRONTEND_ROOT, 'src/views/ar/tabs/PaymentTab.vue')
+);
+const NUMBER_FIELD_SRC = readRepoSource(
+  path.join(FRONTEND_ROOT, 'src/composables/useNumberField.ts')
 );
 
 describe('后端 UpdateArPaymentRequest 金额/日期三态声明', () => {
@@ -115,10 +120,20 @@ describe('前端 ar.ts 更新载荷与 PaymentTab 编辑对话框真实上送', 
     expect(editCall).not.toContain('bank_account:');
   });
 
-  it('NOT NULL 列控件为必填形态：日期不可 clearable、金额规则 type number + min', () => {
+  it('NOT NULL 列控件为必填形态：日期不可 clearable、金额走单源数值校验器（必填 min precision）', () => {
     expect(PAYMENT_TAB_SRC).toContain(':clearable="false"');
-    expect(PAYMENT_TAB_SRC).toContain("type: 'number'");
-    expect(PAYMENT_TAB_SRC).toContain('min: 0.01');
+    // 步进控件已全项目禁用 金额改为 el-input 手输加 useNumberField 单源校验器
+    // 断言随动到等价或更强形态 手输桥真实绑定 规格含必填 min precision 规则接入表单
+    expect(PAYMENT_TAB_SRC).toContain('v-model="amountField.text"');
+    const amountSpec =
+      PAYMENT_TAB_SRC.match(/const amountField = useNumberField\([\s\S]*?\}\);/)?.[0] ?? '';
+    expect(amountSpec).toContain('required: true');
+    expect(amountSpec).toContain('min: 0.01');
+    expect(amountSpec).toContain('precision: 2');
+    expect(PAYMENT_TAB_SRC).toContain('amount: [amountField.rule]');
+    // 单源校验器本体 非有限数拒绝与 min 门只有一份实现 脱离单源件即判红
+    expect(NUMBER_FIELD_SRC).toContain('Number.isFinite(n)');
+    expect(NUMBER_FIELD_SRC).toContain('n < spec.min');
   });
 
   it('金额显示走 Decimal→字符串 typeof 口径，且不对字符串直调 toFixed', () => {

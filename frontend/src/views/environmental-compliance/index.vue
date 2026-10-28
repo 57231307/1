@@ -96,7 +96,7 @@
           <el-input v-model="permitForm.issuing_authority" />
         </el-form-item>
         <el-form-item label="许可量">
-          <el-input-number v-model="permitForm.permitted_capacity" :min="0" :precision="2" />
+          <el-input v-model="permitCapacityField.text" @blur="permitCapacityField.normalize()" />
         </el-form-item>
         <el-form-item label="许可量单位">
           <el-input v-model="permitForm.capacity_unit" placeholder="如：t/a" />
@@ -128,13 +128,13 @@
           <el-input v-model="recordForm.pollutant_name" />
         </el-form-item>
         <el-form-item label="实测值" required>
-          <el-input-number v-model="recordForm.measured_value" :min="0" :precision="3" />
+          <el-input v-model="measuredValueField.text" @blur="measuredValueField.normalize()" />
         </el-form-item>
         <el-form-item label="单位" required>
           <el-input v-model="recordForm.unit" placeholder="如 mg/L" />
         </el-form-item>
         <el-form-item label="限值" required>
-          <el-input-number v-model="recordForm.limit_value" :min="0" :precision="3" />
+          <el-input v-model="limitValueField.text" @blur="limitValueField.normalize()" />
         </el-form-item>
         <el-form-item label="监测时间" required>
           <el-input v-model="recordForm.monitoring_time" placeholder="2026-01-01T08:00:00Z" />
@@ -143,7 +143,7 @@
           <el-input v-model="recordForm.monitoring_method" />
         </el-form-item>
         <el-form-item label="设备 ID">
-          <el-input-number v-model="recordForm.equipment_id" :min="1" />
+          <el-input v-model="equipmentIdField.text" @blur="equipmentIdField.normalize()" />
         </el-form-item>
         <el-form-item label="备注"
           ><el-input v-model="recordForm.remarks" type="textarea" :rows="2"
@@ -158,10 +158,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, onMounted } from 'vue';
+import { reactive, ref, toRef, onMounted } from 'vue';
 import { logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { useNumberField, validateNumberValue } from '@/composables/useNumberField';
 import {
   getPollutionPermitList,
   createPollutionPermit,
@@ -190,6 +191,13 @@ const permitForm = reactive({
   capacity_unit: '',
   remarks: '',
 });
+
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const permitCapacityField = useNumberField(
+  toRef(permitForm, 'permitted_capacity'),
+  { label: '许可量', min: 0, precision: 2 },
+  'undefined'
+);
 
 async function loadPermits() {
   permitLoading.value = true;
@@ -284,6 +292,17 @@ const recordForm = reactive({
   remarks: '',
 });
 
+const measuredValueSpec = { label: '实测值', required: true, min: 0, precision: 3 } as const;
+const limitValueSpec = { label: '限值', required: true, min: 0, precision: 3 } as const;
+const equipmentIdSpec = { label: '设备 ID', min: 1, precision: 0 } as const;
+const measuredValueField = useNumberField(toRef(recordForm, 'measured_value'), measuredValueSpec);
+const limitValueField = useNumberField(toRef(recordForm, 'limit_value'), limitValueSpec);
+const equipmentIdField = useNumberField(
+  toRef(recordForm, 'equipment_id'),
+  equipmentIdSpec,
+  'undefined'
+);
+
 async function loadRecords() {
   recordLoading.value = true;
   try {
@@ -315,6 +334,14 @@ const openCreateRecord = () => {
 const handleSaveRecord = async () => {
   if (!recordForm.monitoring_point || !recordForm.pollutant_name || !recordForm.monitoring_time) {
     ElMessage.warning('请填写监测点/污染物/监测时间');
+    return;
+  }
+  const valueInvalid =
+    validateNumberValue(recordForm.measured_value, measuredValueSpec) ??
+    validateNumberValue(recordForm.limit_value, limitValueSpec) ??
+    validateNumberValue(recordForm.equipment_id, equipmentIdSpec);
+  if (valueInvalid) {
+    ElMessage.warning(valueInvalid);
     return;
   }
   recordSaving.value = true;

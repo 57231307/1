@@ -112,6 +112,12 @@ import {
 } from '@/api/company-profile';
 import { useCompanyProfile } from '@/composables/useCompanyProfile';
 import { logger } from '@/utils/logger';
+import {
+  detectImageFormat,
+  readFileHead,
+  stripDataUrlPrefix,
+  type ImageFormatToken,
+} from '@/utils/logo-file';
 
 const { t } = useI18n({ useScope: 'global' });
 const { refresh } = useCompanyProfile();
@@ -207,27 +213,37 @@ const fetchCompanyInfo = async () => {
   }
 };
 
-// logo 选择：仅接受 PNG（本地按 MIME 校验，后端再校验 PNG 魔数），≤512KB；
-// FileReader 读 data URL 后剥离 `data:...;base64,` 前缀，仅把裸 base64 绑到 form.logo。
-// 校验不通过只给 i18n 提示、不发后端。
-const onLogoFileChange = (event: Event) => {
+// logo 选择：按**文件头魔数**判类型（File.type 是浏览器按扩展名查表的结果，
+// 大写后缀、系统 MIME 表异常返回 image/x-png 或空串都会误拒真实 PNG；扩展名
+// 与内容不符的伪 png 则会漏到后端被魔数拒绝，用户见到"上传的就是 png 却被拒"）。
+// 判定与后端 company_profile_service 的 PNG 魔数判据同源：真实 PNG 一律放行，
+// 非 PNG 按检测到的真实格式点名拒绝、不发后端；≤512KB 与后端上限一致。
+const onLogoFileChange = async (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
-  if (file.type !== 'image/png') {
-    ElMessage.error(t('system.company.message.logoNotPng'));
-    if (logoFileInputRef.value) logoFileInputRef.value.value = '';
+  // 允许重复选择同一文件时再次触发 change（先复位，异步读取期间用户重选同文件也生效）
+  if (logoFileInputRef.value) logoFileInputRef.value.value = '';
+  let format: ImageFormatToken;
+  try {
+    format = detectImageFormat(await readFileHead(file));
+  } catch (error) {
+    logger.error(t('system.company.message.logoReadFailed'), error);
+    ElMessage.error(t('system.company.message.logoReadFailed'));
+    return;
+  }
+  if (format !== 'png') {
+    ElMessage.error(t('system.company.message.logoNotPng', { detected: format }));
     return;
   }
   if (file.size > LOGO_MAX_BYTES) {
     ElMessage.error(t('system.company.message.logoTooLarge'));
-    if (logoFileInputRef.value) logoFileInputRef.value.value = '';
     return;
   }
   const reader = new FileReader();
   reader.onload = () => {
     const dataUrl = reader.result as string;
-    companyForm.logo = dataUrl.replace(/^data:[^;]+;base64,/, '');
+    companyForm.logo = stripDataUrlPrefix(dataUrl);
     ElMessage.success(t('system.company.message.logoUploaded'));
   };
   reader.onerror = () => {
@@ -235,8 +251,6 @@ const onLogoFileChange = (event: Event) => {
     ElMessage.error(t('system.company.message.logoReadFailed'));
   };
   reader.readAsDataURL(file);
-  // 允许重复选择同一文件时再次触发 change
-  if (logoFileInputRef.value) logoFileInputRef.value.value = '';
 };
 
 const removeLogo = () => {

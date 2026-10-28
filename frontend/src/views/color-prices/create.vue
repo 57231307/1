@@ -109,8 +109,8 @@
             :placeholder="$t('colorPrices.create.maxQuantityPlaceholder')"
           />
         </el-form-item>
-        <el-form-item :label="$t('colorPrices.create.priority')">
-          <el-input-number v-model="form.priority" :min="0" :max="1000" style="width: 100%" />
+        <el-form-item :label="$t('colorPrices.create.priority')" prop="priority">
+          <el-input v-model="form.priority" inputmode="numeric" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('colorPrices.create.notes')">
           <el-input
@@ -139,6 +139,7 @@ import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { createColorPrice, type CreateColorPriceDto } from '@/api/color-price';
+import { numberInputRules } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
@@ -158,7 +159,7 @@ const form = reactive<{
   customer_id: number | null;
   min_quantity: number | null;
   max_quantity: number | null;
-  priority: number;
+  priority: string;
   notes: string | null;
 }>({
   product_id: undefined,
@@ -172,7 +173,7 @@ const form = reactive<{
   customer_id: null,
   min_quantity: null,
   max_quantity: null,
-  priority: 0,
+  priority: '0',
   notes: null,
 });
 
@@ -197,6 +198,14 @@ const rules = computed<FormRules>(() => ({
       trigger: 'change',
     },
   ],
+  // 优先级手写录入，范围靠校验器（numberInputRules 单源），不靠步进按钮
+  priority: numberInputRules({
+    label: t('colorPrices.create.priority'),
+    required: true,
+    min: 0,
+    max: 1000,
+    integer: true,
+  }),
 }));
 
 // 提交处理：调用创建 API，成功后跳转到列表页
@@ -218,7 +227,7 @@ const handleSubmit = async () => {
         customer_id: form.customer_id,
         min_quantity: form.min_quantity,
         max_quantity: form.max_quantity,
-        priority: form.priority,
+        priority: Number(form.priority),
         notes: form.notes,
       };
       await createColorPrice(payload);

@@ -160,11 +160,10 @@
           <el-input v-model="form.item_type" />
         </el-form-item>
         <el-form-item :label="$t('budget.item.dialog.plannedAmount')" prop="planned_amount">
-          <el-input-number
-            v-model="form.planned_amount"
-            :min="0"
-            :precision="2"
+          <el-input
+            v-model="plannedAmountField.text"
             style="width: 100%"
+            @blur="plannedAmountField.normalize()"
           />
         </el-form-item>
 
@@ -210,12 +209,10 @@
               </el-table-column>
               <el-table-column :label="$t('budget.item.period.amount')" width="150">
                 <template #default="{ row }">
-                  <el-input-number
-                    v-model="row.planned_amount"
-                    :min="0"
-                    :precision="2"
-                    :controls="false"
+                  <el-input
+                    v-model="periodAmountField(row, 'planned_amount').text"
                     style="width: 100%"
+                    @blur="periodAmountField(row, 'planned_amount').normalize()"
                   />
                 </template>
               </el-table-column>
@@ -270,7 +267,11 @@
     <el-dialog v-model="adjustVisible" :title="$t('budget.item.table.adjust')" width="460px">
       <el-form :model="adjustForm" label-width="100px">
         <el-form-item :label="$t('budget.item.table.plannedAmount')">
-          <el-input-number v-model="adjustForm.adjust_amount" :precision="2" style="width: 100%" />
+          <el-input
+            v-model="adjustAmountField.text"
+            style="width: 100%"
+            @blur="adjustAmountField.normalize()"
+          />
         </el-form-item>
         <el-form-item :label="$t('budget.item.dialog.remark')">
           <el-input v-model="adjustForm.reason" type="textarea" :rows="2" />
@@ -287,10 +288,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, toRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { Plus, Download, ArrowLeft } from '@element-plus/icons-vue';
+import {
+  createNumberFieldPool,
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import {
   getBudgetDetail,
   createBudgetItem,
@@ -437,17 +444,27 @@ const form = reactive<{
   periods: [],
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const plannedAmountField = useNumberField(toRef(form, 'planned_amount'), {
+  label: t('budget.item.dialog.plannedAmount'),
+  required: true,
+  min: 0,
+  precision: 2,
+  requiredMessage: t('budget.item.validation.plannedAmountRequired'),
+});
+// 期间行金额 按行对象惰性建桥 清空回落到提交侧既有的 0 口径
+const periodAmountSpec: NumberFieldSpec = {
+  label: t('budget.item.period.amount'),
+  min: 0,
+  precision: 2,
+};
+const periodAmountField = createNumberFieldPool(periodAmountSpec);
+
 const rules: FormRules = {
   item_name: [
     { required: true, message: t('budget.item.validation.itemNameRequired'), trigger: 'blur' },
   ],
-  planned_amount: [
-    {
-      required: true,
-      message: t('budget.item.validation.plannedAmountRequired'),
-      trigger: 'blur',
-    },
-  ],
+  planned_amount: [plannedAmountField.rule],
 };
 
 // 期间金额合计：走统一的后端十进制字符串安全求和（避免 number/string 混入时 `+` 触发字符串拼接）
@@ -468,6 +485,7 @@ const removePeriod = (index: number) => {
 const openDialog = async (row?: BudgetItem) => {
   formRef.value?.resetFields();
   form.periods = [];
+  periodAmountField.forget();
   if (row) {
     form.id = row.id;
     form.plan_id = row.plan_id;
@@ -565,6 +583,14 @@ const adjustVisible = ref(false);
 const adjustSaving = ref(false);
 const adjustForm = reactive({ item_id: 0, adjust_amount: 0, reason: '' });
 
+// 调整金额可正可负（增减两向）范围与精度由单源校验器裁决
+const adjustAmountSpec: NumberFieldSpec = {
+  label: t('budget.item.table.plannedAmount'),
+  required: true,
+  precision: 2,
+};
+const adjustAmountField = useNumberField(toRef(adjustForm, 'adjust_amount'), adjustAmountSpec);
+
 const openAdjust = (row: BudgetItem) => {
   adjustForm.item_id = row.id;
   adjustForm.adjust_amount = 0;
@@ -574,6 +600,11 @@ const openAdjust = (row: BudgetItem) => {
 
 const handleAdjust = async () => {
   if (!adjustForm.item_id || adjustForm.adjust_amount === 0) return;
+  const adjustInvalid = validateNumberValue(adjustForm.adjust_amount, adjustAmountSpec);
+  if (adjustInvalid) {
+    ElMessage.warning(adjustInvalid);
+    return;
+  }
   adjustSaving.value = true;
   try {
     await adjustBudget({

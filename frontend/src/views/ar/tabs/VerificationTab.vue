@@ -89,7 +89,10 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="t('arModule.verification.amount')" prop="verification_amount">
-          <el-input-number v-model="manualForm.verification_amount" :min="0.01" :precision="2" />
+          <el-input
+            v-model="verificationAmountField.text"
+            @blur="verificationAmountField.normalize()"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -129,12 +132,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, toRef, onMounted } from 'vue';
 import { logger } from '@/utils/logger';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
+import { useNumberField } from '@/composables/useNumberField';
 import {
   getARVerificationList,
   getARVerification,
@@ -210,6 +214,15 @@ const manualForm = reactive({
   verification_amount: 0,
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const verificationAmountField = useNumberField(toRef(manualForm, 'verification_amount'), {
+  label: t('arModule.verification.amount'),
+  required: true,
+  min: 0.01,
+  precision: 2,
+  requiredMessage: t('arModule.verification.amountRequired'),
+});
+
 const manualRules: FormRules = {
   invoice_id: [
     { required: true, message: t('arModule.verification.invoiceRequired'), trigger: 'change' },
@@ -217,9 +230,7 @@ const manualRules: FormRules = {
   payment_id: [
     { required: true, message: t('arModule.verification.paymentRequired'), trigger: 'change' },
   ],
-  verification_amount: [
-    { required: true, message: t('arModule.verification.amountRequired'), trigger: 'blur' },
-  ],
+  verification_amount: [verificationAmountField.rule],
 };
 
 const openManualDialog = async () => {

@@ -159,7 +159,9 @@ test.describe('财务模块全量：API 端点 + 真实 UI 交互', () => {
       const dialogVisible = await dialog.isVisible();
       expect(dialogVisible).toBe(true);
       // 验证表单字段
-      const inputs = dialog.locator('.el-input, .el-input-number, .el-select');
+      // 验证表单字段（金额等数值项现为手写数字录入，底层 el-input，不应存在步进角色）
+      await expect(dialog.getByRole('spinbutton'), '资产表单数值录入不应是步进角色').toHaveCount(0);
+      const inputs = dialog.locator('.el-input, .el-select');
       const inputCount = await inputs.count();
       expect(inputCount).toBeGreaterThan(0);
       await page.locator('.el-dialog__headerbtn').first().click();

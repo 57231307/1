@@ -23,12 +23,12 @@
         <el-input v-model="formData.name" :placeholder="t('crmRuleDialog.form.namePlaceholder')" />
       </el-form-item>
       <el-form-item :label="t('crmRuleDialog.form.days')" prop="days">
-        <el-input-number
+        <NumericInput
           v-model="formData.days"
-          :min="1"
-          :max="365"
           style="width: 100%"
           :placeholder="t('crmRuleDialog.form.daysPlaceholder')"
+          :min="1"
+          :max="365"
         />
       </el-form-item>
       <el-form-item :label="t('crmRuleDialog.form.enabled')" prop="is_enabled">
@@ -47,6 +47,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';

@@ -204,12 +204,7 @@
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item :label="$t('fixedAssets.dialog.originalValue')" prop="original_value">
-              <el-input-number
-                v-model="form.original_value"
-                :min="0"
-                :precision="2"
-                style="width: 100%"
-              />
+              <el-input v-model="form.original_value" inputmode="decimal" style="width: 100%" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -217,12 +212,7 @@
               :label="$t('fixedAssets.dialog.usefulLifeMonths')"
               prop="useful_life_months"
             >
-              <el-input-number
-                v-model="form.useful_life_months"
-                :min="1"
-                :step="12"
-                style="width: 100%"
-              />
+              <el-input v-model="form.useful_life_months" inputmode="numeric" style="width: 100%" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -293,12 +283,7 @@
           </el-select>
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.value')" prop="disposal_value">
-          <el-input-number
-            v-model="disposalForm.disposal_value"
-            :min="0"
-            :precision="2"
-            style="width: 100%"
-          />
+          <el-input v-model="disposalForm.disposal_value" inputmode="decimal" style="width: 100%" />
         </el-form-item>
         <el-form-item :label="$t('fixedAssets.disposal.date')" prop="disposal_date">
           <el-date-picker
@@ -379,6 +364,7 @@ import { PERMISSIONS } from '@/constants/permissions';
 import { ref, reactive } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
 import { Plus, Refresh, Download } from '@element-plus/icons-vue';
 import {
   getAsset,
@@ -413,11 +399,11 @@ const disposalDialogVisible = ref(false);
 const disposalSubmitting = ref(false);
 const disposalFormRef = ref<FormInstance>();
 const disposalTargetId = ref<number | undefined>(undefined);
-// 视图态金额保持 number（el-input-number 绑定），线格式在提交处按后端
+// 视图态金额保持字符串（el-input 手写录入），线格式在提交处按后端
 // rust_decimal 口径转两位小数十进制字符串（DisposalRequest.disposal_value）。
 const disposalForm = reactive({
   disposal_type: 'SALE',
-  disposal_value: 0,
+  disposal_value: '0',
   disposal_date: new Date().toISOString().split('T')[0],
   reason: '',
   buyer_info: '',
@@ -431,9 +417,13 @@ const disposalRules: FormRules = {
       trigger: 'change',
     },
   ],
-  disposal_value: [
-    { required: true, message: t('fixedAssets.validation.disposalValueRequired'), trigger: 'blur' },
-  ],
+  disposal_value: numberInputRules({
+    label: t('fixedAssets.disposal.value'),
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: t('fixedAssets.validation.disposalValueRequired') },
+  }),
   disposal_date: [
     {
       required: true,
@@ -504,8 +494,8 @@ const form = reactive({
   asset_name: '',
   asset_category: 'equipment',
   purchase_date: new Date().toISOString().split('T')[0],
-  original_value: 0,
-  useful_life_months: 60,
+  original_value: '0',
+  useful_life_months: '60',
   depreciation_method: 'straight_line',
   location: '',
 });
@@ -524,16 +514,20 @@ const rules: FormRules = {
       trigger: 'change',
     },
   ],
-  original_value: [
-    {
-      required: true,
-      message: t('fixedAssets.validation.purchaseAmountRequired'),
-      trigger: 'blur',
-    },
-  ],
-  useful_life_months: [
-    { required: true, message: t('fixedAssets.validation.usefulLifeRequired'), trigger: 'blur' },
-  ],
+  original_value: numberInputRules({
+    label: t('fixedAssets.dialog.originalValue'),
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: t('fixedAssets.validation.purchaseAmountRequired') },
+  }),
+  useful_life_months: numberInputRules({
+    label: t('fixedAssets.dialog.usefulLifeMonths'),
+    required: true,
+    min: 1,
+    integer: true,
+    messages: { empty: t('fixedAssets.validation.usefulLifeRequired') },
+  }),
   depreciation_method: [
     {
       required: true,
@@ -612,8 +606,8 @@ const openDialog = (row?: FixedAsset) => {
     form.asset_name = row.asset_name;
     form.asset_category = row.category;
     form.purchase_date = row.purchase_date;
-    form.original_value = row.purchase_amount;
-    form.useful_life_months = row.useful_life_months;
+    form.original_value = String(row.purchase_amount);
+    form.useful_life_months = String(row.useful_life_months);
     form.depreciation_method = row.depreciation_method;
     form.location = row.location ?? '';
   } else {
@@ -622,8 +616,8 @@ const openDialog = (row?: FixedAsset) => {
     form.asset_name = '';
     form.asset_category = 'equipment';
     form.purchase_date = new Date().toISOString().split('T')[0];
-    form.original_value = 0;
-    form.useful_life_months = 60;
+    form.original_value = '0';
+    form.useful_life_months = '60';
     form.depreciation_method = 'straight_line';
     form.location = '';
   }
@@ -652,9 +646,9 @@ const handleSubmit = async () => {
           asset_category: form.asset_category || undefined,
           location: form.location || undefined,
           // 后端 CreateAssetRequestDto.original_value 为 rust_decimal（serde-floats 未启用，
-          // JSON 浮点字面量反序列化即拒）：视图态 number 经必填校验后转两位小数十进制字符串下发
-          original_value: form.original_value.toFixed(2),
-          useful_life: Math.round(form.useful_life_months / 12),
+          // JSON 浮点字面量反序列化即拒）：视图态字符串经必填与精度校验后转两位小数十进制字符串下发
+          original_value: Number(form.original_value).toFixed(2),
+          useful_life: Math.round(Number(form.useful_life_months) / 12),
           depreciation_method: form.depreciation_method,
           purchase_date: form.purchase_date,
         };
@@ -722,7 +716,7 @@ const handleDepreciate = async (row: FixedAsset) => {
 const handleDispose = (row: FixedAsset) => {
   disposalTargetId.value = row.id;
   disposalForm.disposal_type = 'SALE';
-  disposalForm.disposal_value = 0;
+  disposalForm.disposal_value = '0';
   disposalForm.disposal_date = new Date().toISOString().split('T')[0];
   disposalForm.reason = '';
   disposalForm.buyer_info = '';
@@ -739,10 +733,10 @@ const submitDisposal = async () => {
     disposalSubmitting.value = true;
     try {
       // 后端 DisposalRequestDto.disposal_value 为 rust_decimal（serde-floats 未启用，
-      // JSON 浮点字面量反序列化即拒）：视图态 number 在提交边界转两位小数十进制字符串下发
+      // JSON 浮点字面量反序列化即拒）：视图态字符串在提交边界转两位小数十进制字符串下发
       const payload: DisposalRequest = {
         ...disposalForm,
-        disposal_value: disposalForm.disposal_value.toFixed(2),
+        disposal_value: Number(disposalForm.disposal_value).toFixed(2),
       };
       await disposeAsset(assetId, payload);
       ElMessage.success(t('fixedAssets.message.disposeSuccess'));
