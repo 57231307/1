@@ -443,7 +443,7 @@ impl TextileSafetyReportService {
         if !report
             .test_basis
             .as_deref()
-            .map(|s| test_basis_format_ok(s))
+            .map(test_basis_format_ok)
             .unwrap_or(false)
         {
             missing.push(report_element_code::TEST_BASIS.to_string());
