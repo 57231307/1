@@ -396,6 +396,8 @@ async fn four_new_tables_exist_with_declared_columns() {
         ("contract_clauses", "template_id", "NO"),
         ("contract_clauses", "template_version", "NO"),
         ("contract_clauses", "sort", "NO"),
+        // 切片B m0119 追加的来源指针列 可空，历史快照行为空值
+        ("contract_clauses", "template_clause_id", "YES"),
     ];
     for (table, column, nullable) in expected {
         let shape = column_shape(&db, table, column).await;

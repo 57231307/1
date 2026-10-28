@@ -56,6 +56,17 @@ pub struct CreateSalesContractRequest {
     pub remark: Option<String>,
     /// 合同明细行
     pub items: Option<Vec<CreateContractItemRequest>>,
+    /// 签约模板主键（切片B 渲染固化腿入口）：空即未选模板签约，条款快照为空，
+    /// 详情与打印按“模板前签约”口径返回；给值必须是启用态模板，否则点名拒绝整笔回滚
+    pub template_id: Option<i32>,
+    /// 条款正文占位符填充值（键为 {{键}} 中的键）：模板条款用到的键必须给齐，
+    /// 缺任一键拒绝落库；给值未用到同样点名拒绝（值表与模板错位）
+    pub clause_values: Option<std::collections::HashMap<String, String>>,
+    /// 内外销标记，取值见 models::status::contract_template::contract_market，
+    /// 条件出条款（出口与内销变体）的判定来源
+    pub contract_market: Option<String>,
+    /// 含税标记三态，条件出条款（含税与不含税变体）的判定来源
+    pub tax_inclusive: Option<bool>,
 }
 
 /// 更新销售合同请求
@@ -151,6 +162,14 @@ impl SalesContractService {
     ) -> Result<sales_contract::Model, AppError> {
         // 空串与缺省同义（未指定），统一进入系统取号分支；非空人工值原样保留
         let manual_no = req.contract_no.clone().filter(|no| !no.is_empty());
+        // 内外销标记词表门（切片B 条件出条款判定来源）：词表外取值点名拒绝，不落库不渲染
+        if let Some(v) = req.contract_market.as_deref() {
+            if !crate::models::status::contract_template::contract_market::is_valid(v) {
+                return Err(AppError::validation_displayable(format!(
+                    "内外销标记取值 {v} 不在允许范围内（允许：domestic、export）"
+                )));
+            }
+        }
         info!(
             "用户 {} 正在创建销售合同：{}",
             user_id,
@@ -216,6 +235,27 @@ impl SalesContractService {
             Self::insert_items_txn(&txn, contract.id, items).await?;
         }
 
+        // 签约条款渲染与固化（切片B 第二件）：选了模板就在同一事务内固化条款快照，
+        // 渲染或占位符校验失败即整笔回滚，不留半成品合同与半成品正文。
+        if let Some(template_id) = req.template_id {
+            let pinned = crate::services::contract_clause_service::render_and_pin_for_new_contract(
+                &txn,
+                crate::models::status::contract_template::contract_side_kind::SALES,
+                contract.id,
+                template_id,
+                contract.contract_market.as_deref(),
+                contract.tax_inclusive,
+                req.clause_values
+                    .as_ref()
+                    .unwrap_or(&std::collections::HashMap::new()),
+            )
+            .await?;
+            info!(
+                "销售合同 {} 固化条款 {} 条（模板 {}）",
+                contract.contract_no, pinned, template_id
+            );
+        }
+
         txn.commit().await?;
         info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
@@ -248,6 +288,9 @@ impl SalesContractService {
             delivery_location: Set(req.delivery_location.clone()),
             remark: Set(req.remark.clone()),
             stamp_tax_amount: Set(stamp_tax),
+            // 内外销与含税两列随表头一并落库（m0118 补列，可空，空即未采集）
+            contract_market: Set(req.contract_market.clone()),
+            tax_inclusive: Set(req.tax_inclusive),
             created_by: Set(user_id),
             ..Default::default()
         }

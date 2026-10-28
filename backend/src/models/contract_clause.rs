@@ -5,11 +5,14 @@
 //! 来源模板与模板版本号。本表是“约定内容”的唯一真相源，合同详情面、打印面的条款摘要区
 //! 都只读本表，不回读模板条款项。
 //!
-//! 表由 `migration/src/domain/contract_template_schema/m0117_create_contract_clauses.rs` 建立。
+//! 表由 `migration/src/domain/contract_template_schema/m0117_create_contract_clauses.rs` 建立，
+//! 来源指针列 `template_clause_id` 由同域 `m0119_add_contract_clause_snapshot_provenance.rs` 追加。
 //! 为什么必须存固化原文而不只存 template_id 参见该迁移头注，模板改版不得追溯改变已签合同的约定内容。
 //! 本 Entity 与模板条款项之间**没有** Relation，也没有外键，建了就等于让快照跟着模板行走，
-//! 正是本表要消除的追溯改写。`contract_kind` 与 `contract_id` 组合指向两侧合同主表之一，
-//! 两族主键各自独立自增，故该引用是多态形态，不建外键，也不建 Relation。
+//! 正是本表要消除的追溯改写。`template_clause_id` 只是溯源指针：新固化行必写，
+//! 列可由 (template_id, clause_code) 单义回查必填标记；历史行为空值，读侧对空值走
+//! 唯一行回落、多义时如实返回空值，不伪造。`contract_kind` 与 `contract_id` 组合指向
+//! 两侧合同主表之一，两族主键各自独立自增，故该引用是多态形态，不建外键，也不建 Relation。
 
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
@@ -46,6 +49,10 @@ pub struct Model {
 
     /// 固化当时的条款顺序，模板后续调序不回溯改写本列
     pub sort: i16,
+
+    /// 固化当时引用的模板条款项行主键（m0119 追加，可空）。新固化行必写，
+    /// 历史行为空值；详情腿据此回查条款项取必填标记
+    pub template_clause_id: Option<i32>,
 
     /// 创建时间，即固化时间
     pub created_at: DateTime<Utc>,

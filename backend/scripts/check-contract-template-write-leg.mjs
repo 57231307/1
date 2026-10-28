@@ -11,6 +11,12 @@
  *    出现第二处即自动降位或旁路启用通道。
  * R4 端点接线 十四条端点的 handler 符号在路由文件与 handler 文件双向存在。
  * R5 快照同步 route-snapshot.txt 必须已包含 /contract-templates 端点行（生成物滞后即红）。
+ * R6 固化单点 合同条款快照写入通道全 src 只有 contract_clause_service.rs 一处
+ *    （`contract_clause::ActiveModel` 出现面）；sales 与 purchase 两个创建 service 文件
+ *    各自引用 render_and_pin_for_new_contract 且不出现快照 ActiveModel。
+ * R7 渲染接线 两侧创建请求结构含 template_id clause_values contract_market tax_inclusive
+ *    四字段；固化腿服务只读 contract_clauses 不 UPDATE 快照
+ *    （src 面 `contract_clause::Entity::update` 零出现）；m0119 迁移不回填（无 UPDATE）。
  *
  * 用法：
  *   node scripts/check-contract-template-write-leg.mjs            # 对真实源码判定
@@ -146,6 +152,69 @@ function r5Snapshot(snapshotText) {
   return errs;
 }
 
+import { readdirSync, statSync } from 'fs';
+
+/** 递归收集 src 树内 .rs 文本（跳过注释行后返回拼接体）。 */
+function collectRs(dir) {
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) {
+      out.push(...collectRs(p));
+    } else if (name.endsWith('.rs')) {
+      out.push({ file: p, body: stripLineComments(readFileSync(p, 'utf8')) });
+    }
+  }
+  return out;
+}
+
+function r6FreezeSingleSource(srcFiles) {
+  const errs = [];
+  const writers = srcFiles
+    .filter((f) => f.body.includes('contract_clause::ActiveModel'))
+    .map((f) => f.file.replace(/\\/g, '/').split('/src/')[1]);
+  if (writers.length !== 1 || writers[0] !== 'services/contract_clause_service.rs') {
+    errs.push(`R6 快照写入通道应只有 services/contract_clause_service.rs 一处，实得 ${JSON.stringify(writers)}`);
+  }
+  for (const leg of ['services/sales_contract_service.rs', 'services/purchase_contract_service.rs']) {
+    const f = srcFiles.find((x) => x.file.replace(/\\/g, '/').endsWith(leg));
+    if (!f || !f.body.includes('render_and_pin_for_new_contract')) {
+      errs.push(`R6 ${leg} 未消费渲染固化腿入口 render_and_pin_for_new_contract（合同创建腿没接线）`);
+    }
+  }
+  const updaters = srcFiles
+    .filter((f) => f.body.includes('contract_clause::Entity::update') || f.body.includes('contract_clause::ActiveModel'))
+    .filter((f) => f.body.includes('Entity::update_many'))
+    .map((f) => f.file);
+  if (updaters.length > 0) {
+    errs.push(`R6 出现改写既有快照行的通道 ${JSON.stringify(updaters)}——固化行只增不改，改版不回溯`);
+  }
+  return errs;
+}
+
+function r7RenderWiring(srcFiles, m0119Text) {
+  const errs = [];
+  for (const leg of ['services/sales_contract_service.rs', 'services/purchase_contract_service.rs']) {
+    const f = srcFiles.find((x) => x.file.replace(/\\/g, '/').endsWith(leg));
+    const body = f ? f.body : '';
+    for (const field of ['template_id', 'clause_values', 'contract_market', 'tax_inclusive']) {
+      if (!body.includes(`pub ${field}:`)) {
+        errs.push(`R7 ${leg} 创建请求缺渲染字段 ${field}`);
+      }
+    }
+  }
+  const mig = m0119Text ?? '';
+  if (!mig) {
+    errs.push('R7 m0119 迁移文件缺失（快照来源指针列未落）');
+  } else {
+    const code = stripLineComments(mig);
+    if (code.includes('UPDATE ')) {
+      errs.push('R7 m0119 出现 UPDATE——历史快照行没有可信指针可回填，迁移内造值即伪造溯源');
+    }
+  }
+  return errs;
+}
+
 // ---------------------------------------------------------------------------
 // 真实源码装载与执行
 // ---------------------------------------------------------------------------
@@ -165,12 +234,18 @@ function runOnRepo() {
   const initSrc = readOpt(join(SRC, 'services', 'init_service.rs'));
   const pathUtilsSrc = readOpt(join(SRC, 'utils', 'path_utils.rs'));
   const snapshot = readOpt(join(ROOT, 'frontend', 'scripts', 'route-snapshot.txt'));
+  const srcFiles = collectRs(SRC);
+  const m0119 = readOpt(
+    join(BACKEND, 'migration', 'src', 'domain', 'contract_template_schema', 'm0119_add_contract_clause_snapshot_provenance.rs')
+  );
   const all = [
     ...r1RouteShape(routesSrc, handlerSrc),
     ...r2PermissionRegistry(initSrc, pathUtilsSrc),
     ...r3VocabSingleChannel(serviceSrc),
     ...r4Wiring(routesSrc, handlerSrc),
     ...r5Snapshot(snapshot),
+    ...r6FreezeSingleSource(srcFiles),
+    ...r7RenderWiring(srcFiles, m0119),
   ];
   return all;
 }
@@ -194,6 +269,10 @@ function selfTest() {
     ['R3', r3VocabSingleChannel('Set(contract_template_status::ACTIVE.to_string()) Set(contract_template_status::ACTIVE.to_string()) contract_template_status::DRAFT contract_template_status::ACTIVE contract_template_status::RETIRED Set(contract_template_status::RETIRED.to_string())'), /写 ACTIVE 的 Set 语句应恰好 1 处/],
     ['R4', r4Wiring('', ''), /缺少 handler 符号/],
     ['R5', r5Snapshot('GET\t/api/v1/erp/nothing'), /快照/],
+    ['R6', r6FreezeSingleSource([{ file: 'X/src/services/other_service.rs', body: 'let m = contract_clause::ActiveModel {' }]), /快照写入通道应只有/],
+    ['R6', r6FreezeSingleSource([{ file: 'X/src/services/contract_clause_service.rs', body: 'contract_clause::ActiveModel' }]), /未消费渲染固化腿入口/],
+    ['R7', r7RenderWiring([{ file: 'X/src/services/sales_contract_service.rs', body: 'pub template_id:' }], ''), /缺渲染字段|迁移文件缺失/],
+    ['R7', r7RenderWiring([], 'async fn up(&self) { db.execute("UPDATE contract_clauses SET x = 1"); }'), /出现 UPDATE/],
   ];
   for (const [rule, errs, pattern] of cases) {
     if (errs.length === 0) {

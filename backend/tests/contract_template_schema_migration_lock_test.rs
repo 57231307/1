@@ -8,7 +8,7 @@
 //!   建表列集合与可空性与四份 Entity 的字段同形，m0118 补列的两侧同形与 up 与 down
 //!   配对，域内子迁移的 up 正序与 down 严格逆序，每支迁移内部表与索引的创建与撤销
 //!   互逆，以及加在既有表上的 CHECK 必须在 down 显式撤销。
-//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读迁移域与五支子迁移与四份
+//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读迁移域与六支子迁移与四份
 //!   Entity 与词表文件的源文本，活库面一律交同目录的 `*_shape_live_test.rs` 由 CI 兑付。
 //! 传给谁 无下游，纯断言。存什么 不写库、不写文件。存哪里 不落地。
 //!
@@ -277,13 +277,14 @@ fn vocab_tokens_are_lowercase_ascii_and_non_empty() {
 /// 越界 token 的字面值，与本文件其余断言共用一份，防止比对对象自己漂。
 const BANNED_KIND: &str = "labor";
 
-/// 本域五支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
+/// 本域六支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
 const CHILD_MIGRATIONS: &[&str] = &[
     "m0114_create_contract_templates",
     "m0115_create_clause_library",
     "m0116_create_contract_template_clauses",
     "m0117_create_contract_clauses",
     "m0118_add_contract_main_clause_columns",
+    "m0119_add_contract_clause_snapshot_provenance",
 ];
 
 /// 词表清单不得被内联进子迁移。判据取每组词表的前两枚 token 拼成的签名串——
@@ -358,13 +359,14 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
         mod_src.contains("\"m_contract_template_schema\""),
         "域必须手写 MigrationName 返回域名 m_contract_template_schema（derive 会把 mod.rs 折叠成同名 mod）"
     );
-    // 五支子迁移都要在域内串起来，缺支即半张表。
+    // 六支子迁移都要在域内串起来，缺支即半张表。
     for child in [
         "m0114_create_contract_templates",
         "m0115_create_clause_library",
         "m0116_create_contract_template_clauses",
         "m0117_create_contract_clauses",
         "m0118_add_contract_main_clause_columns",
+        "m0119_add_contract_clause_snapshot_provenance",
     ] {
         assert!(
             mod_src.contains(&format!("mod {child};")),
@@ -377,7 +379,7 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
     }
 }
 
-/// 本域五支迁移不得越界写业务数据，也不得留下空 down。
+/// 本域六支迁移不得越界写业务数据，也不得留下空 down。
 /// 判据是域内 SQL 面不出现 UPDATE 与 DELETE 与 TRUNCATE 的语句形态，
 /// down 侧只允许 DROP 与显式 no-op。
 #[test]
@@ -407,7 +409,7 @@ fn contract_template_schema_never_touches_business_data_rows() {
         checked += 1;
     }
     assert!(
-        checked >= 5,
+        checked >= 6,
         "只扫到 {checked} 个源文件，说明扫描没走到迁移域目录，本锁已失去检测力"
     );
 }
@@ -666,6 +668,27 @@ const CONTRACT_CLAUSES_COLS: &[ColSpec] = &[
     col("updated_at", true),
 ];
 
+/// m0119 给快照表追加的来源指针列。可空且无默认：历史快照行没有可信指针可回填，
+/// 读侧对空值走 (模板, 条款码) 唯一行回落，伪造指针比空值更坏。
+const CONTRACT_CLAUSES_ADDED_BY_M0119: &[ColSpec] = &[col("template_clause_id", false)];
+
+/// 快照实体面对的完整列集合 建表十列加 m0119 追加一列（供实体同形比对使用；
+/// 建表文本面仍按 m0117 的十列单独判定，两支各自互逆）。
+const CONTRACT_CLAUSES_COLS_ALL: &[ColSpec] = &[
+    col("id", true),
+    col("contract_kind", true),
+    col("contract_id", true),
+    col("clause_code", true),
+    col("title", true),
+    col("body_rendered", true),
+    col("template_id", true),
+    col("template_version", true),
+    col("sort", true),
+    col("template_clause_id", false),
+    col("created_at", true),
+    col("updated_at", true),
+];
+
 /// m0118 补列的两侧合同主表名。
 const CONTRACT_MAIN_TABLES: &[&str] = &["sales_contracts", "purchase_contracts"];
 
@@ -808,15 +831,22 @@ fn entities_declare_exactly_the_ddl_columns_with_matching_nullability() {
             CONTRACT_TEMPLATE_CLAUSES_COLS,
         ),
         (
-            "m0117_create_contract_clauses",
+            "m0117_create_contract_clauses|m0119_add_contract_clause_snapshot_provenance",
             "src/models/contract_clause.rs",
-            CONTRACT_CLAUSES_COLS,
+            CONTRACT_CLAUSES_COLS_ALL,
         ),
     ];
     for (child, model_rel, spec) in pairs {
-        let ddl = strip_line_comments(&read(&format!(
-            "migration/src/domain/contract_template_schema/{child}.rs"
-        )));
+        // 快照列由两支迁移合成（建表加补列），DDL 面按两支文本合并判定。
+        let ddl = child
+            .split('|')
+            .map(|c| {
+                strip_line_comments(&read(&format!(
+                    "migration/src/domain/contract_template_schema/{c}.rs"
+                )))
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         let model = strip_line_comments(&read(model_rel));
         let mut fields: BTreeMap<String, bool> = BTreeMap::new();
         for raw in model.lines() {
@@ -857,6 +887,81 @@ fn entities_declare_exactly_the_ddl_columns_with_matching_nullability() {
             );
         }
     }
+}
+
+/// m0119 补列必须只加一列、可空无默认、up 与 down 互逆。判据与 m0118 同族但单点：
+/// 出现第二枚 ADD COLUMN 即越界改动快照表形态，缺 down 的 DROP 即回滚不干净。
+#[test]
+fn m0119_adds_exactly_one_nullable_provenance_column_with_inverse_down() {
+    let src = strip_line_comments(&read(
+        "migration/src/domain/contract_template_schema/m0119_add_contract_clause_snapshot_provenance.rs",
+    ));
+    let down_at = src
+        .find("async fn down")
+        .expect("m0119 缺少 down，无法分段判 up 与 down 的列集合");
+    let (up_src, down_src) = src.split_at(down_at);
+    let add = r#"ALTER TABLE "contract_clauses" ADD COLUMN IF NOT EXISTS "template_clause_id""#;
+    let drop = r#"ALTER TABLE "contract_clauses" DROP COLUMN IF EXISTS "template_clause_id""#;
+    assert_eq!(
+        up_src.matches("ADD COLUMN IF NOT EXISTS").count(),
+        1,
+        "m0119 只应追加来源指针一列，实得多枚 ADD COLUMN 即越界改快照表形态"
+    );
+    assert!(
+        up_src.contains(add),
+        "m0119 的 up 缺少来源指针加列语句，形如 {add}"
+    );
+    assert!(
+        down_src.contains(drop),
+        "m0119 的 down 必须撤销该列（与 up 互逆），缺位即回滚不干净"
+    );
+    assert_eq!(
+        down_src.matches("DROP COLUMN IF EXISTS").count(),
+        1,
+        "m0119 的 down 只应撤销这一列，多撤即动了不该动的形态"
+    );
+    let stmt = up_src
+        .split(add)
+        .nth(1)
+        .and_then(|t| t.split(';').next())
+        .unwrap_or_default();
+    assert!(
+        !stmt.contains("NOT NULL") && !stmt.contains("DEFAULT"),
+        "m0119 给 template_clause_id 带了 NOT NULL 或 DEFAULT，形={stmt}。\
+         新增列必须可空无默认，历史快照行没有可信指针可回填"
+    );
+}
+
+/// 快照表的引用完整性口径 本域任何一支迁移都不给 contract_clauses 加指向条款项的外键
+/// （快照与模板行之间只留溯源指针，不留可级联可阻塞的强引用），也不给
+/// template_clause_id 建约束。判据是域内 SQL 文本面不出现指向 contract_template_clauses 的
+/// FOREIGN KEY，contract_clauses 的 ADD CONSTRAINT 名单不含外键该列的名。
+#[test]
+fn snapshot_table_never_gains_foreign_key_to_template_clauses() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("migration/src/domain/contract_template_schema");
+    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
+    let mut scanned = 0usize;
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
+            .path();
+        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+            continue;
+        }
+        let text = strip_line_comments(
+            &fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path)),
+        );
+        // REFERENCES contract_template_clauses 一律判负：快照引用条款项只以指针列建模
+        assert!(
+            !text.contains("REFERENCES contract_template_clauses"),
+            "{:?} 出现指向 contract_template_clauses 的外键，快照行会被模板行删除动作阻塞\
+             或牵动，与切片A对该表的建模决定冲突",
+            path
+        );
+        scanned += 1;
+    }
+    assert!(scanned >= 7, "只扫到 {scanned} 个源文件，本锁失去检测对象");
 }
 
 /// m0118 补列必须两侧同形且一律可空。判据按表名加列名成对出现，缺任一一侧即点名。
