@@ -1,6 +1,5 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
-use crate::models::inventory_adjustment;
 use crate::models::inventory_adjustment_item;
 use crate::services::inventory_adjustment_service::{
     AdjustmentItemRequest, CreateAdjustmentRequest, InventoryAdjustmentService,

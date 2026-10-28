@@ -8,7 +8,6 @@ use serde::Deserialize;
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
-use crate::models::inventory_transfer;
 use crate::services::inv::{
     CreateInventoryTransferRequest, InventoryTransferItemRequest, InventoryTransferService,
     UpdateInventoryTransferItemRequest, UpdateInventoryTransferRequest,
