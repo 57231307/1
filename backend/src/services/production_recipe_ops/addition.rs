@@ -6,6 +6,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr, TransactionTrait,
 };
 
 use crate::models::production_recipe::{self, Entity as RecipeEntity};
@@ -45,12 +46,18 @@ impl ProductionRecipeAdditionService {
             )));
         }
 
-        let addition_no = self.generate_addition_no().await?;
+        // 取号与插入同一临界区：自开新事务内经带事务臂生成器取号（前缀级 advisory 锁
+        // 持到本事务提交，同前缀并发取号在锁上串行化），再在同一事务插入
+        // production_recipe_addition。撞 addition_no 活跃行部分唯一索引（m0104）时映射为
+        // 单号冲突的专属可外显错误、整事务回滚不留半行；非唯一类 SQL 错误按 From<DbErr>
+        // 照常归类上抛，不裸贴驱动文本。
+        let txn = (*self.db).begin().await?;
+        let addition_no = self.generate_addition_no(&txn).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = AdditionActiveModel {
             id: Default::default(),
-            addition_no: Set(addition_no),
+            addition_no: Set(addition_no.clone()),
             production_recipe_id: Set(req.production_recipe_id),
             work_order_id: Set(req.work_order_id.or(recipe.work_order_id)),
             dye_batch_id: Set(req.dye_batch_id.or(recipe.dye_batch_id)),
@@ -71,10 +78,22 @@ impl ProductionRecipeAdditionService {
             updated_at: Set(now),
         };
 
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("加料处方单创建失败: {}", e)))?;
+        let result = active.insert(&txn).await.map_err(|e| {
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    error = %e,
+                    addition_no = %addition_no,
+                    "加料处方建单撞 addition_no 唯一索引（并发撞号或旁路重复号），整事务回滚"
+                );
+                AppError::business_displayable(format!(
+                    "加料处方单号 {} 已存在，本次建单未落库，请重新提交",
+                    addition_no
+                ))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+        txn.commit().await?;
         Ok(result)
     }
 

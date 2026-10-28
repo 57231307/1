@@ -79,6 +79,12 @@
 //!   空值即「模板前签约，条款未固化」的判据，域内绝不 UPDATE 或 DELETE 业务数据。
 //!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的域会被台账整体跳过，
 //!   四张表与补列全部缺席。台账名取域名 m_contract_template_schema
+//! - m0104_add_document_no_partial_unique_four_tables: 单据号四列（production_recipe.recipe_no /
+//!   production_recipe_addition.addition_no / process_wage_rate.rate_no / wage_record.record_no）
+//!   补活跃行部分唯一索引（谓词与读路径判重同源 is_deleted = false），先于服务侧取号-插入
+//!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
+//!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
+//!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
 //! - export_approval_lifecycle: 导出审批令牌生命周期改造域（export_approval_request 补
 //!   BPM 关联/令牌哈希化/重试窗口列 + status CHECK 扩 consumed、exhausted + 登记
 //!   export_approval BPM 流程定义行；依赖 system 建的 bpm_process_definition 与
@@ -121,4 +127,5 @@ pub mod customers_nullable_columns_norm;
 pub mod status_vocab_check;
 pub mod wage_energy_vocab_check;
 pub mod contract_template_schema;
+pub mod m0104_add_document_no_partial_unique_four_tables;
 pub mod export_approval_lifecycle;

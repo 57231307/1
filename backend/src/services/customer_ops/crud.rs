@@ -1,7 +1,7 @@
 //! 客户 CRUD impl 子模块（customer_ops/crud）
 //!
 //! 拆分：从原 `customer_service.rs` 迁移 CustomerService 的基础 CRUD 方法：
-//! - create_customer（事务 + lock_exclusive 防重复编码 + ES 同步）
+//! - create_customer（手工编码事务内查重 / 自动编码取号与 INSERT 同临界区 + ES 同步）
 //! - get_customer（读穿透 Redis 缓存 + 行级数据权限校验）
 //! - list_customers（基础列表 + 数据权限过滤 + 分页）
 //! - delete_customer（软删除 + 状态门 + 事务 + 审计 + 缓存失效 + ES 同步）
@@ -22,6 +22,7 @@ use crate::utils::data_scope::{
     DataScopeContext, PoolVisibility, apply_department_scope_with_pool, check_resource_owner,
 };
 use crate::utils::error::AppError;
+use crate::utils::number_generator::DocumentNumberGenerator;
 // P0-D03（Batch 488）：Redis 分布式缓存接入（get_customer 读穿透 + 写失效）
 // V15 P2 B07-P2-6：使用差异化 TTL（CUSTOMER_CACHE_TTL_SECS=300s，客户数据中低波动率）
 use crate::utils::PaginatedResponse;
@@ -30,32 +31,59 @@ use crate::utils::redis_cache::{
 };
 
 impl CustomerService {
-    /// 创建客户（事务 + lock_exclusive 防重复编码 + PG 提交后 ES 同步）
+    /// 创建客户（手工编码事务内查重 / 自动编码取号与 INSERT 同临界区 + PG 提交后 ES 同步）
     pub async fn create_customer(
         &self,
         args: CreateCustomerArgs,
     ) -> Result<customer::Model, AppError> {
+        // 手工编码判定：Some(非空) 尊重调用方指定值，None 或 Some(空) 走自动取号。
+        // clone 出 Option 后 args 仍可被取号闭包按引用读取（撞 23505 重试需多次重建 ActiveModel）。
+        let manual_code = args.customer_code.clone().filter(|c| !c.is_empty());
+
         let txn = (*self.db).begin().await?;
 
-        // 检查客户编码是否已存在（lock_exclusive 防止并发创建相同编码）
-        let existing = CustomerEntity::find()
-            .filter(customer::Column::CustomerCode.eq(&args.customer_code))
-            .lock_exclusive()
-            .one(&txn)
-            .await?;
+        let customer = match manual_code {
+            // 手工编码：在写入事务内 lock_exclusive 查重，与存量重复即业务错误。
+            Some(code) => {
+                let existing = CustomerEntity::find()
+                    .filter(customer::Column::CustomerCode.eq(&code))
+                    .lock_exclusive()
+                    .one(&txn)
+                    .await?;
+                if existing.is_some() {
+                    return Err(AppError::business("客户编码已存在"));
+                }
+                Self::build_customer_active_model(&args, code)
+                    .insert(&txn)
+                    .await
+                    .map_err(AppError::from)?
+            }
+            // 自动编码：取号与主表 INSERT 收口到同一临界区。
+            // 为什么：customers.customer_code 带 UNIQUE 约束，旧实现先在事务外自开取号
+            // （generate_no 内层事务提交即放 advisory 锁），再另起事务 INSERT，两事务之间存在
+            // 并发窗口——同秒并发各取到同一候选号，lock_exclusive 因目标行尚不存在锁不到，
+            // 双双通过查重后一枚 INSERT 撞 23505 被原样抛成 DATABASE_ERROR。
+            // 现走 insert_with_no_retry：pg_advisory_xact_lock 在本写入事务内取号并持有到提交，
+            // INSERT 撞 23505（旁路/人工重复号）时在保存点内重新取号有界重试，非唯一约束类
+            // SQL 错误原样上抛；流水宽度沿用 DEFAULT_SEQ_WIDTH=3，不在业务侧另加零位宽。
+            None => {
+                DocumentNumberGenerator::insert_with_no_retry(
+                    &txn,
+                    "CUS",
+                    CustomerEntity,
+                    customer::Column::CustomerCode,
+                    |code| Self::build_customer_active_model(&args, code),
+                )
+                .await?
+            }
+        };
 
-        if existing.is_some() {
-            return Err(AppError::business("客户编码已存在"));
-        }
-
-        let customer = Self::build_customer_active_model(args);
-        let result = customer.insert(&txn).await.map_err(AppError::from)?;
         txn.commit().await?;
 
         // PG 事务提交后同步到 ES（最终一致性，ES 失败仅记日志）
-        self.sync_customer_to_es(&result, "create").await;
+        self.sync_customer_to_es(&customer, "create").await;
 
-        Ok(result)
+        Ok(customer)
     }
 
     /// 获取客户详情（读穿透 Redis 缓存 + 行级数据权限校验）

@@ -333,7 +333,7 @@ test.describe.serial('Shard 3: 染色生产闭环（缸号 14 态状态机）', 
       status?: string;
     }>(page, 'GET', `/production/production-recipes/${ctx.productionRecipeId}`);
     expect(saved.recipe_no, '单号由服务端取号（PR+8位日期+至少3位流水），手输值不得入库').toMatch(
-      /^PR\d{11,}$/
+      /^RP\d{11,}$/
     );
     expect(saved.recipe_no, `服务端取号不应等于手输值 ${submittedRecipeNo}`).not.toBe(
       submittedRecipeNo
