@@ -236,7 +236,12 @@
           </el-col>
           <el-col :span="12">
             <el-form-item :label="t('warehouse.index.labelCapacityM3')" prop="capacity">
-              <el-input-number v-model="formData.capacity" :min="0" style="width: 100%" />
+              <NumericInput
+                v-model="formData.capacity"
+                :min="0"
+                :integer="true"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -379,10 +384,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="最大承重 kg">
-          <el-input-number v-model="locForm.max_weight" :min="0" :precision="1" class="w-full" />
+          <NumericInput v-model="locForm.max_weight" :min="0" :precision="1" class="w-full" />
         </el-form-item>
         <el-form-item label="最大高度 m">
-          <el-input-number v-model="locForm.max_height" :min="0" :precision="1" class="w-full" />
+          <NumericInput v-model="locForm.max_height" :min="0" :precision="1" class="w-full" />
         </el-form-item>
         <el-form-item label="批次管理">
           <el-switch v-model="locForm.is_batch_managed" />
@@ -410,6 +415,8 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Plus, Download, Printer } from '@element-plus/icons-vue';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
 import {
   deleteWarehouse,
   updateWarehouse,
@@ -765,8 +772,8 @@ const openLocationForm = async (row?: WarehouseLocation) => {
     Object.assign(locForm, {
       location_code: row.location_code,
       location_type: row.location_type ?? '',
-      // max_weight/max_height 为 rust_decimal 出参字符串（如 "1250.00"），
-      // 绑定 el-input-number 前 Number() 归一；NULL 保持未填（省略键，不落 0）
+      // max_weight 与 max_height 是 rust_decimal 出参字符串（如 "1250.00"），
+      // 绑定手写数值录入前 Number() 归一；NULL 保持未填（省略键，不落 0）
       max_weight: row.max_weight === null ? undefined : Number(row.max_weight),
       max_height: row.max_height === null ? undefined : Number(row.max_height),
       is_batch_managed: row.is_batch_managed ?? false,
