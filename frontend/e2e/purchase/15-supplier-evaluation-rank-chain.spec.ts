@@ -136,14 +136,13 @@ test.describe('15 供应商评估排名链路契约', () => {
     ).toBeGreaterThan(0);
     expect(Number(created.score), '落库 score 应等于提交 88.5').toBe(88.5);
     expect(Number(created.max_score), '落库 max_score 应取指标行 100').toBe(100);
-    // weighted_score 落库列是 DECIMAL(10,2)（v15 域建表口径），服务侧算得的 0.885 在写入
-    // 那一刻就按两位存储，回读断言的参照面必须是存储值而不是数学值。期望值由同一组入参
-    // 现算后按列精度取两位，不写死字面量，也不用放宽容差的方式掩盖精度差。
-    const expectedWeighted = Math.round(((88.5 * 1) / 100) * 100) / 100;
+    // weighted_score 的线格式契约：服务侧按 score*weight/max_score 得 0.885 不取整，落库列是
+    // DECIMAL(10,2)（v15 域建表口径）由数据库半进位存 0.89，rust_decimal 出参为 JSON 字符串。
+    // 断言只认这条序列化事实，绝不在测试里再实现一遍舍入（换个入参就会与库侧不同向造偶发红）。
     expect(
-      Number(created.weighted_score),
-      `weighted_score 应为 score*weight/max_score 按列精度两位存储后的 ${expectedWeighted}，实际 ${created.weighted_score}`
-    ).toBe(expectedWeighted);
+      String(created.weighted_score),
+      `weighted_score 应按列精度两位以字符串出参，实际 ${JSON.stringify(created.weighted_score)}`
+    ).toBe('0.89');
     CLEANUP.push({ path: `/purchase/supplier-evaluations/${created.id}`, label: 'evaluation' });
 
     // 详情回读逐字段零漂移（含 JOIN 富化列实查回填契约）
