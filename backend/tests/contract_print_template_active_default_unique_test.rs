@@ -38,7 +38,7 @@ mod test_common;
 use bingxi_backend::models::print_template;
 use bingxi_backend::models::status::print::print_template_status;
 use sea_orm::ActiveValue;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, DbErr, Statement};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, Statement};
 use std::sync::Arc;
 use test_common::setup_test_db;
 
