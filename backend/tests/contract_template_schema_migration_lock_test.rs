@@ -338,9 +338,9 @@ fn vocabulary_lists_are_never_inlined_into_child_migrations() {
     }
 }
 
-/// 迁移域必须注册在链尾，且台账名是域名而不是单文件名（并域会被台账整体跳过，四表全缺席）。
-/// contract_template_schema 之后只允许 `contract_clause_snapshot_provenance` 一枚独立域，
-/// 后者是给本域 m0117 建的快照表补一列溯源指针的收尾；再出现别的域即越界。
+/// 链上两支域按依赖先后注册。溯源补列域只依赖建表域 m0117 建的快照表，注册位置必须晚于建表域。
+/// 只钉依赖先后不钉绝对末位，避免与后续按自身依赖追挂链尾的新域互斥成两套矛盾的锁。
+/// 台账名是域名而不是单文件名（并域会被台账整体跳过，四表全缺席）。
 #[test]
 fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let lib = read("migration/src/lib.rs");
@@ -350,16 +350,13 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let pos = lib
         .find(tail)
         .unwrap_or_else(|| panic!("迁移链里找不到 {tail}（域未注册进 lib.rs，活库上四表必缺席）"));
-    let after = &lib[pos + tail.len()..];
-    let allowed_after = "Box::new(domain::contract_clause_snapshot_provenance::Migration),";
-    let after_stripped = after.replace(allowed_after, "");
+    let provenance = "Box::new(domain::contract_clause_snapshot_provenance::Migration),";
+    let prov_pos = lib.find(provenance).unwrap_or_else(|| {
+        panic!("迁移链里找不到 {provenance}（溯源补列独立域未注册，复用库上补列永不落地）")
+    });
     assert!(
-        !after_stripped.contains("Box::new(domain::"),
-        "contract_template_schema 之后只允许 contract_clause_snapshot_provenance 一枚独立域注册，实得多枚即越界改动链尾次序"
-    );
-    assert!(
-        after.contains(allowed_after),
-        "链尾必须紧跟 contract_clause_snapshot_provenance 独立域（快照溯源补列），缺位即复用库上列永不落地"
+        prov_pos > pos,
+        "contract_clause_snapshot_provenance 必须注册在 contract_template_schema 之后（补列依赖该域 m0117 建的快照表），实得两者先后相反"
     );
 
     assert!(
