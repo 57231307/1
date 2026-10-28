@@ -700,11 +700,7 @@ impl SalesAnalysisService {
         let actuals = self
             .fetch_actual_amounts(&[period.to_string()], scope, cache)
             .await?;
-        Ok(Self::to_target_dto(
-            &updated,
-            actuals.get(period).copied(),
-            status,
-        ))
+        Ok(Self::to_target_dto(&updated, actuals.get(period).copied(), status))
     }
 
     /// 导出销售分析报告

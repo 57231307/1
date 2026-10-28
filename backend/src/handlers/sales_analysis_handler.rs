@@ -237,12 +237,7 @@ pub async fn update_sales_target(
     info!("用户 {} 正在更新销售目标，周期：{}", auth.user_id, period);
     let service = SalesAnalysisService::new(state.db.clone());
     let target = service
-        .update_target(
-            &period,
-            req,
-            auth.to_data_scope_context(),
-            state.cache.clone(),
-        )
+        .update_target(&period, req, auth.to_data_scope_context(), state.cache.clone())
         .await?;
     Ok(Json(ApiResponse::success(target)))
 }
