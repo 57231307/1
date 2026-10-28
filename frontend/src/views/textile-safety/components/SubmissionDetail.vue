@@ -495,7 +495,7 @@ const canRegisterReport = computed(() =>
 const adoptedReportNo = computed(() => detail.value?.adoption?.adopted?.report_no ?? '');
 
 function exclusionNote(reportNo: string): string {
-  const hit = detail.value?.adoption?.excluded?.find((e) => e.report_no === reportNo);
+  const hit = detail.value?.adoption?.excluded?.find(e => e.report_no === reportNo);
   if (!hit) return '—';
   return ADOPTION_REASON_LABELS[hit.reason] ?? hit.reason;
 }
@@ -724,9 +724,7 @@ async function judgeSubmission() {
     parts.push(outcome.stock_link.scope_note);
     // 被排除的报告逐枚带原因点名（过期、缺有效期、出具日未到达、被替代、门未放行）
     for (const item of outcome.adoption.excluded) {
-      parts.push(
-        `排除 ${item.report_no}：${ADOPTION_REASON_LABELS[item.reason] ?? item.reason}`
-      );
+      parts.push(`排除 ${item.report_no}：${ADOPTION_REASON_LABELS[item.reason] ?? item.reason}`);
     }
     if (outcome.submission.overall_verdict === 'fail') {
       ElMessage.warning(parts.join('；'));

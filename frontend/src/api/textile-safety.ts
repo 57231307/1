@@ -309,9 +309,7 @@ export const generateItems = (id: number, extraItemCodes: string[] = []) =>
     items: TextileSubmissionItemRow[];
     scope_note: string;
     needs_attention: boolean;
-  }>(
-    api.post(`/textile-submissions/${id}/items`, { extra_item_codes: extraItemCodes })
-  );
+  }>(api.post(`/textile-submissions/${id}/items`, { extra_item_codes: extraItemCodes }));
 
 export const upsertChildChecks = (id: number, rows: ChildCheckRowBody[]) =>
   unwrap<TextileChildCheck[]>(api.put(`/textile-submissions/${id}/child-checks`, { rows }));
