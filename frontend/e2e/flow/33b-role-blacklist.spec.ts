@@ -1,6 +1,8 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginAsRole, apiCall, apiCallRaw, API_BASE, API_PREFIX } from './helpers';
 import { pickListArray } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 33b 角色黑名单端到端验证（doto 2026-09-09 print/export 角色黑名单缺口）
@@ -51,6 +53,8 @@ test.describe('33b 角色黑名单（print/export/dye-recipe）', () => {
           code: `33B-P${Date.now().toString().slice(-6)}`,
           unit: '米',
           status: 'active',
+          // BOM 宿主产品无面料属性，取非面料类型免带面料三键
+          product_type: PRODUCT_TYPE.auxiliary,
         });
         productId = created?.data?.id;
       }

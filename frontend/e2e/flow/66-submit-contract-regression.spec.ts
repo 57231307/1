@@ -13,6 +13,8 @@ import {
   failureCode,
   APP_ERROR_CODES,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 66 提交契约族正向回归——本批修掉的"编辑和填写时一切正常，但提交和保存时报错参数错误"路径
@@ -148,7 +150,8 @@ async function seedProduct(page: Page, tag: string): Promise<number> {
     page,
     'POST',
     '/products',
-    { code, name: `66号${tag}布_${code}`, unit: 'm' },
+    // 提交契约宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+    { code, name: `66号${tag}布_${code}`, unit: 'm', product_type: PRODUCT_TYPE.auxiliary },
     `[66] 自建产品(${tag})`
   );
   const id = Number(res.data?.id);

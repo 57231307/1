@@ -8,6 +8,8 @@ import {
   submitDialog,
   formItemByExactLabel,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 106 产品米数下线与规格派生提交形态回读锁。
@@ -53,7 +55,7 @@ async function seedProduct(
     name,
     category_id: categoryId,
     unit: '米',
-    product_type: '辅料',
+    product_type: PRODUCT_TYPE.auxiliary,
     ...extra,
   });
   const id = Number(created?.id);

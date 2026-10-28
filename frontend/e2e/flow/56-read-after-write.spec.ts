@@ -8,6 +8,8 @@ import {
   fillFieldByLabel,
   findTableRow,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 56 读回可见性（read-after-write）：保存显示成功 → 刷新 → 目标列单元格真的显示该值
@@ -173,6 +175,8 @@ async function seedActiveProduct(
     name,
     unit: 'm',
     status: 'active',
+    // 库存预留宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const id = Number(res.data?.id);
   expect(id, `[56] 产品建单应回 id：${JSON.stringify(res)}`).toBeGreaterThan(0);
