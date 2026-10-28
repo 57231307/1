@@ -399,11 +399,12 @@ test.describe('06 委外加工单 API 契约', () => {
     const del = await apiCall(page, 'DELETE', `/production/outsourcing-vouchers/${created.id}`);
     expect(del.code, 'DELETE 未过账凭证应返回成功信封码').toBe(200);
 
-    // 删除后按号查询应 404（get_by_no 缺失 → AppError::not_found），证明真删而非软残留
+    // 删除后按号查询应 404（get_by_no 缺失 → AppError::not_found），证明真删而非软残留。
+    // 用 created.voucher_no 属性访问取号，保持与 06-09 同一 by-no 路径归一口径。
     const fail = await apiCallExpectFail(
       page,
       'GET',
-      `/production/outsourcing-vouchers/by-no/${vno}`
+      `/production/outsourcing-vouchers/by-no/${created.voucher_no}`
     );
     expect(fail.status, `已删凭证按号查询应 404，实际 ${fail.status}`).toBe(404);
   });
