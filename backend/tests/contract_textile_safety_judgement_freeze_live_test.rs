@@ -18,6 +18,7 @@ mod test_common;
 
 use bingxi_backend::models::inventory_stock::{
     ActiveModel as StockActiveModel, Column as StockColumn, Entity as InventoryStock,
+    REPLENISHMENT_REORDER_POINT,
 };
 use bingxi_backend::models::product::ActiveModel as ProductActiveModel;
 use bingxi_backend::models::status::purchase_inventory::{
@@ -102,6 +103,10 @@ async fn seeded_db() -> Arc<DatabaseConnection> {
         quantity_kg: Set(dec("20.00")),
         stock_status: Set(stock_status::NORMAL.to_string()),
         quality_status: Set(stock_quality::PASS.to_string()),
+        // 补货策略为本列非空必填（取值域 reorder_point/eoq/mrp，词表来源
+        // models::inventory_stock 的 REPLENISHMENT_* 常量与迁移 v15 列注释），
+        // 种子取订货点法初值，与本域其余库存写入口径一致
+        replenishment_strategy: Set(REPLENISHMENT_REORDER_POINT.to_string()),
         version: Set(0),
         created_at: Set(now()),
         updated_at: Set(now()),
