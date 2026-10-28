@@ -25,8 +25,8 @@ import {
  * 且 106-02 预置回读每卷米数即红。每种退化各有检测点，不互相重叠。
  *
  * 约束。不拦截前端请求路由、不做 mock，全程真实 UI 提交加真实 API 回读。
- * 编辑弹窗的米数输入为 el-input-number，precision 为 4，故显示带四位小数，
- * 断言一律 Number 归一后比较。清空经 value-on-clear 归一为 null。
+ * 编辑弹窗的米数为纯手写录入的数字输入框（el-input 加数字校验，无步进加减按钮），
+ * 显示值随控件格式化而变，断言一律 Number 归一后比较；清空后按显式 null 提交并回读为空。
  *
  * 页面路由 product。端点（相对 baseURL）products 与 products 加 id 路径段。
  */
@@ -137,12 +137,14 @@ test.describe('106 产品米数单入口提交形态回读', () => {
         cap.status,
         `[106-01] 改值提交必须被后端接受（HTTP 恰 200），实际 status=${cap.status} body=${cap.bodyRaw}`
       ).toBe(200);
-      expect(cap.body.meters_per_piece, `[106-01] 请求体每匹米数应为新值 120，实际 ${cap.bodyRaw}`).toBe(
-        120
-      );
-      expect(cap.body.meters_per_roll, `[106-01] 请求体每卷米数应同源带出 120，实际 ${cap.bodyRaw}`).toBe(
-        120
-      );
+      expect(
+        cap.body.meters_per_piece,
+        `[106-01] 请求体每匹米数应为新值 120，实际 ${cap.bodyRaw}`
+      ).toBe(120);
+      expect(
+        cap.body.meters_per_roll,
+        `[106-01] 请求体每卷米数应同源带出 120，实际 ${cap.bodyRaw}`
+      ).toBe(120);
 
       const fresh = await apiCallRaw<Row>(page, 'GET', `/products/${id}`);
       expect(Number(fresh.meters_per_piece), '回读每匹米数应为新值 120').toBe(120);

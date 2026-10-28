@@ -524,7 +524,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   // 对应修复项：
   //   BE-2: 后端 product_ops/crud.rs 已接线 meters_per_piece 到 ActiveModel Set，
   //         handler product_handler.rs CreateProductRequest/UpdateProductRequest 已含该字段
-  //   前端: ProductFormDialogTab.vue 已渲染"每匹米数" el-input-number
+  //   前端: ProductFormDialogTab.vue 已渲染"每匹米数"纯手写录入的数字输入框（el-input 加数字校验）
   // 本用例通过 API 创建带 meters_per_piece 的产品（产品表单 UI 交互复杂且脆弱，
   // 但关键契约验证是后端持久化+回读），随后 GET 详情断言该值非 null 且等于录入值。
   // 补充 UI 回读：编辑页打开验证输入框展示该值。
