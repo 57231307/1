@@ -78,50 +78,37 @@
               >
                 <el-option v-for="p in products" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
-              <el-input-number
-                :model-value="item.quantity"
+              <!-- 数量与单价是手写 el-input 单源件 无步进按钮 小数位按 DB 列标度 DECIMAL(18,4) 归一
+                   失焦写回 number 模型后由 change 转发父组件重算金额 -->
+              <NumericInput
+                v-model="item.quantity"
+                :precision="4"
                 class="col-qty"
-                @update:model-value="
-                  (v: number | undefined) => {
-                    item.quantity = v ?? 0;
-                    emit('calc-amount', item);
-                  }
-                "
+                @change="emit('calc-amount', item)"
               />
               <!--
                 辅量（quantity_alt）：面料行业按米点/公斤双计量收货的实测辅量。
                 DB 可空列（models/purchase_receipt_item 的 quantity_alt: Option<Decimal>）——留空=未采集
                 （undefined，不得 ?? 0 伪装成实测量）；更新契约行留空按三态处理（usePrcProc）。
+                optional 标记让清空写回 undefined 而不是 0 或 null 假清空。
               -->
-              <el-input-number
-                :model-value="item.quantity_alt"
+              <NumericInput
+                v-model="item.quantity_alt"
+                :precision="4"
+                optional
                 class="col-qty"
                 :placeholder="t('purchaseReceipt.form.placeholder.quantityAlt')"
-                @update:model-value="
-                  (v: number | undefined) => {
-                    item.quantity_alt = v ?? undefined;
-                  }
-                "
               />
               <!-- 主单位取自产品档案，不可手工录入（后端 unit_master 为必填契约字段） -->
               <span class="col-unit">{{ item.unit_master || '-' }}</span>
-              <el-input-number
-                :model-value="item.unit_price"
+              <NumericInput
+                v-model="item.unit_price"
                 :precision="2"
                 class="col-price"
-                @update:model-value="
-                  (v: number | undefined) => {
-                    item.unit_price = v ?? 0;
-                    emit('calc-amount', item);
-                  }
-                "
+                @change="emit('calc-amount', item)"
               />
-              <el-input-number
-                :model-value="item.amount"
-                :precision="2"
-                class="col-amount"
-                readonly
-              />
+              <!-- 金额是 quantity 乘 unit_price 的派生只读值 回显按列标度 DECIMAL(18,2) 归一 -->
+              <el-input class="col-amount" readonly :model-value="numericView(item.amount, 2)" />
               <el-button
                 v-if="(localForm.items || []).length > 1"
                 size="small"
@@ -201,6 +188,9 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReceiptItem } from '@/api/purchase-receipt';
+// 数值手写录入单源件 底层 el-input 无步进按钮 边界经 utils/number-input 的绑定器归一
+import NumericInput from '@/components/NumericInput.vue';
+import { numericView } from '@/utils/number-input';
 
 const { t } = useI18n({ useScope: 'global' });
 
