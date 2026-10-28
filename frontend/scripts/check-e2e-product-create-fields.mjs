@@ -311,7 +311,7 @@ function scanFile(filePath, strip, members, opts) {
       // 构造器透传（如 toProductPayload(data)）的判据是「类型无感」：builder 体内
       // 不得出现任何 product_type 注入。字面面值注入判散落红；成员默认值注入
       // （product_type: PRODUCT_TYPE.x、payload.product_type ??= ...、赋值式）判注入红。
-      // 口子必须封死：#1084 的修复语义是「新建必须显式提交类型、不允许缺省」，
+      // 口子必须封死：新建产品必须显式提交类型、不允许缺省，
       // API 层一旦代发缺省值，所有不透类型的调用方都被静默补默认，后端必填门形同虚设。
       // 取值经 ...rest 原样透传不算注入（键的产生仍在调用方）。
       const builderName = head[1];
