@@ -4,7 +4,8 @@
  * 功能：按后端既有建审分离授权，用岗位真账号接力走完"建报价、提交、审批通过、
  * 审批驳回、驳回后修订、已审批转销售订单"整段，并在每一步回读库里真值；同时把
  * "同一身份不得自批"与"审批岗不得建单"两条职责分离在运行时钉住。
- * 调用方：Playwright fullflow 分片（CI 的 fullflow 组按文件哈希分片，本文件由该组自动纳入）。
+ * 调用方：Playwright 分片（该组 targets 覆盖 e2e/quotations/ 整目录，新文件自动纳入，
+ *   不需改流水线矩阵；分片覆盖自检要求每条用例都被某组真选中）。
  * 入参：role-credentials.json 或 env 提供的 salesperson 与 sales_manager 岗位账号；
  *      实体夹具 getCtx 的 customerId 与 quotationProductId 与 quotationProductUnit。
  * 传给谁：后端 /api/v1/erp/quotations 一族端点与 /sales-orders 读口，经真实登录会话发起。
@@ -26,9 +27,9 @@
  * 理由必填依据：handlers/quotation_handler.rs 的 ApproveQuotationRequest 与 RejectRequest
  *   在服务端收口为非空，空理由走 validation 通道。
  *
- * 隔离与清理口径：报价单无删除端点族的合法终止腿时不假称清理，本轮单据一律带唯一
- *   notes 标记，断言只按本轮自建 id 精确回读，不依赖库内既有数据条数。
- *   用例内可删的（草稿态报价单）走已注册 DELETE 真腿并在末尾回读确认消失。
+ * 隔离与清理口径：本轮单据一律带唯一 notes 标记，断言只按本轮自建 id 精确回读，
+ *   不依赖库内既有数据条数。清理只用草稿态的已注册删除腿，并在清理后回读确认行已消失；
+ *   已进入待审与已审批与已转换态的行留库，靠唯一标记可点名，不假装已清。
  */
 import { test, expect, type Page } from '../diagnose-fixture';
 import {
