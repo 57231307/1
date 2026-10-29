@@ -1,6 +1,7 @@
 use crate::models::sales_contract;
 use crate::models::sales_contract_item;
 use crate::models::status::contract;
+use crate::models::status::contract_type;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -63,6 +64,17 @@ pub struct CreateSalesContractRequest {
     pub source_order_id: Option<i32>,
     /// 合同明细行
     pub items: Option<Vec<CreateContractItemRequest>>,
+    /// 签约模板主键（切片B 渲染固化腿入口）：空即未选模板签约，条款快照为空，
+    /// 详情与打印按“模板前签约”口径返回；给值必须是启用态模板，否则点名拒绝整笔回滚
+    pub template_id: Option<i32>,
+    /// 条款正文占位符填充值（键为 {{键}} 中的键）：模板条款用到的键必须给齐，
+    /// 缺任一键拒绝落库；给值未用到同样点名拒绝（值表与模板错位）
+    pub clause_values: Option<std::collections::HashMap<String, String>>,
+    /// 内外销标记，取值见 models::status::contract_template::contract_market，
+    /// 条件出条款（出口与内销变体）的判定来源
+    pub contract_market: Option<String>,
+    /// 含税标记三态，条件出条款（含税与不含税变体）的判定来源
+    pub tax_inclusive: Option<bool>,
 }
 
 /// 更新销售合同请求
@@ -132,10 +144,18 @@ impl SalesContractService {
         Self { db }
     }
 
-    /// 根据合同类型和金额计算印花税
-    /// - 购销合同（sale / purchase_sale）：总金额 * 0.3‰
-    /// - 加工承揽合同（processing / processing_contract）：总金额 * 0.5‰
-    /// - 其他类型：不计算
+    /// 根据合同类型和金额计算印花税（档位与合同类型取值逐一对应，档位穷举与取值形状由
+    /// 合同转合同字段映射锁按 main 语义钉住，改动触发人工复核）。
+    /// - 购销档 0.3‰：现行大写词表三型（购销、框架、补充，UI 建单腿现提交）均为购销性质；
+    ///   小写 sale / purchase_sale 是 main 原语义臂，framework / supplement 是销售订单转
+    ///   合同对话框当前提交的小写存量兼容读，四类同按购销档计。逐字面量并列匹配，不做
+    ///   大小写归一兜底；写侧取值以 models::status 合同类型词表为准，转单对话框选项对齐
+    ///   大写后小写兼容臂随臂收口。
+    /// - 加工承揽档 0.5‰：main 原语义档位（processing / processing_contract），现行大写
+    ///   词表无加工承揽成员，故不并入词表，按 main 追溯形态以小写字面量兼容读保留。
+    /// - 存量库是否仍有上述小写形态直连值无本地迁移证据可判（本车道 backend/migration
+    ///   内 sales_contracts 词表无 CHECK 约束可核），不以"库中不存在"为不补臂理由；若库中
+    ///   存在该形态脏值，交数据面点名，不在本函数用兜底掩盖。
     ///
     /// 可见性 pub(crate)：手工建单（本文件 create）与销售订单转合同
     /// （sales_contract_convert_service）两条链路共用同一印花税算法，税率与
@@ -145,7 +165,15 @@ impl SalesContractService {
         total_amount: Decimal,
     ) -> Option<Decimal> {
         let rate = match contract_type? {
-            "sale" | "purchase_sale" => Decimal::new(3, 4), // 0.0003 = 0.3‰
+            // 购销档 0.3‰：大写词表三型（单源常量引用）
+            contract_type::SALES | contract_type::FRAMEWORK | contract_type::SUPPLEMENT => {
+                Decimal::new(3, 4) // 0.0003 = 0.3‰
+            }
+            // 购销档 0.3‰：main 原语义小写字面臂，逐字保留以维持档位穷举与取值形状
+            "sale" | "purchase_sale" => Decimal::new(3, 4),
+            // 购销档 0.3‰：转单对话框当前提交的小写存量兼容读
+            "framework" | "supplement" => Decimal::new(3, 4),
+            // 加工承揽档 0.5‰：main 原语义档位，新词表无加工承揽成员，以小写字面量保留
             "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
             _ => return None,
         };
@@ -165,6 +193,14 @@ impl SalesContractService {
     ) -> Result<sales_contract::Model, AppError> {
         // 空串与缺省同义（未指定），统一进入系统取号分支；非空人工值原样保留
         let manual_no = req.contract_no.clone().filter(|no| !no.is_empty());
+        // 内外销标记词表门（切片B 条件出条款判定来源）：词表外取值点名拒绝，不落库不渲染
+        if let Some(v) = req.contract_market.as_deref() {
+            if !crate::models::status::contract_template::contract_market::is_valid(v) {
+                return Err(AppError::validation_displayable(format!(
+                    "内外销标记取值 {v} 不在允许范围内（允许：domestic、export）"
+                )));
+            }
+        }
         info!(
             "用户 {} 正在创建销售合同：{}",
             user_id,
@@ -230,6 +266,27 @@ impl SalesContractService {
             Self::insert_items_txn(&txn, contract.id, items).await?;
         }
 
+        // 签约条款渲染与固化（切片B 第二件）：选了模板就在同一事务内固化条款快照，
+        // 渲染或占位符校验失败即整笔回滚，不留半成品合同与半成品正文。
+        if let Some(template_id) = req.template_id {
+            let pinned = crate::services::contract_clause_service::render_and_pin_for_new_contract(
+                &txn,
+                crate::models::status::contract_template::contract_side_kind::SALES,
+                contract.id,
+                template_id,
+                contract.contract_market.as_deref(),
+                contract.tax_inclusive,
+                req.clause_values
+                    .as_ref()
+                    .unwrap_or(&std::collections::HashMap::new()),
+            )
+            .await?;
+            info!(
+                "销售合同 {} 固化条款 {} 条（模板 {}）",
+                contract.contract_no, pinned, template_id
+            );
+        }
+
         txn.commit().await?;
         info!("销售合同创建成功：{}（含明细行）", contract.contract_no);
         Ok(contract)
@@ -265,6 +322,9 @@ impl SalesContractService {
             delivery_location: Set(req.delivery_location.clone()),
             remark: Set(req.remark.clone()),
             stamp_tax_amount: Set(stamp_tax),
+            // 内外销与含税两列随表头一并落库（m0118 补列，可空，空即未采集）
+            contract_market: Set(req.contract_market.clone()),
+            tax_inclusive: Set(req.tax_inclusive),
             created_by: Set(user_id),
             // 溯源列必须在此显式落值。手工建档链路 req.source_order_id 恒 None，落 NULL
             // 即"无来源订单"；转单链路传入真实订单 ID，若漏本行则 ..Default::default() 会把
