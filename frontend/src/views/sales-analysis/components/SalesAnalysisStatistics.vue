@@ -13,9 +13,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthOrders') }}</div>
-            <div class="stat-value">{{ stats.monthOrders }}</div>
-            <div class="stat-trend" :class="stats.orderTrend > 0 ? 'up' : 'down'">
-              {{ stats.orderTrend > 0 ? '+' : '' }}{{ stats.orderTrend }}%
+            <div class="stat-value">{{ stats.month_orders }}</div>
+            <div class="stat-trend" :class="stats.order_trend > 0 ? 'up' : 'down'">
+              {{ stats.order_trend > 0 ? '+' : '' }}{{ stats.order_trend }}%
             </div>
           </div>
         </div>
@@ -29,9 +29,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthAmount') }}</div>
-            <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
-            <div class="stat-trend" :class="stats.amountTrend > 0 ? 'up' : 'down'">
-              {{ stats.amountTrend > 0 ? '+' : '' }}{{ stats.amountTrend }}%
+            <div class="stat-value">{{ formatCurrency(stats.month_amount) }}</div>
+            <div class="stat-trend" :class="stats.amount_trend > 0 ? 'up' : 'down'">
+              {{ stats.amount_trend > 0 ? '+' : '' }}{{ stats.amount_trend }}%
             </div>
           </div>
         </div>
@@ -45,9 +45,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelGrossProfitRate') }}</div>
-            <div class="stat-value">{{ stats.grossProfitRate }}%</div>
-            <div class="stat-trend" :class="stats.profitTrend > 0 ? 'up' : 'down'">
-              {{ stats.profitTrend > 0 ? '+' : '' }}{{ stats.profitTrend }}%
+            <div class="stat-value">{{ stats.gross_profit_rate === '' ? t('common.valueMissing') : `${stats.gross_profit_rate}%` }}</div>
+            <div class="stat-trend" :class="stats.profit_trend > 0 ? 'up' : 'down'">
+              {{ stats.profit_trend > 0 ? '+' : '' }}{{ stats.profit_trend }}%
             </div>
           </div>
         </div>
@@ -61,9 +61,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelActiveCustomers') }}</div>
-            <div class="stat-value">{{ stats.activeCustomers }}</div>
-            <div class="stat-trend" :class="stats.customerTrend > 0 ? 'up' : 'down'">
-              {{ stats.customerTrend > 0 ? '+' : '' }}{{ stats.customerTrend }}%
+            <div class="stat-value">{{ stats.active_customers }}</div>
+            <div class="stat-trend" :class="stats.customer_trend > 0 ? 'up' : 'down'">
+              {{ stats.customer_trend > 0 ? '+' : '' }}{{ stats.customer_trend }}%
             </div>
           </div>
         </div>
@@ -82,14 +82,14 @@ const { t } = useI18n({ useScope: 'global' });
 // 销售分析统计数据（reactive 对象，父组件传入）
 defineProps<{
   stats: {
-    monthOrders: number;
-    monthAmount: number;
-    grossProfitRate: number;
-    activeCustomers: number;
-    orderTrend: number;
-    amountTrend: number;
-    profitTrend: number;
-    customerTrend: number;
+    month_orders: number;
+    month_amount: string;
+    gross_profit_rate: string;
+    active_customers: number;
+    order_trend: number;
+    amount_trend: number;
+    profit_trend: number;
+    customer_trend: number;
   };
 }>();
 </script>
