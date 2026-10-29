@@ -220,9 +220,7 @@ impl ApInvoiceService {
         if invoice.invoice_status != crate::models::status::common::STATUS_DRAFT {
             // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
             // 文案点名公开规则，不回显词表原值与任何标识，可外显
-            return Err(AppError::business_displayable(
-                "仅草稿状态的应付单可以删除",
-            ));
+            return Err(AppError::business_displayable("仅草稿状态的应付单可以删除"));
         }
 
         // 3. 删除应付单（P0 8-3 修复：补审计日志，事务内 find→delete→audit 三步原子）
