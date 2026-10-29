@@ -50,18 +50,11 @@ async function newSupplier(page: Page, tag: string): Promise<number> {
   return id;
 }
 
-/** 取供应商联系人列表（出参为裸数组）并按 id 精确定位，取不到即判红不兜底 */
-async function findContact(page: Page, supplierId: number, contactId: number): Promise<Record<string, unknown>> {
-  const rows = pickListArray<Record<string, unknown>>(
-    await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/contacts`),
-    'bare',
-    `供应商 ${supplierId} 联系人列表`
-  );
-  const hit = rows.find(r => Number(r.id) === contactId);
+/** 在已取回的裸数组行里按 id 精确定位，取不到即判红不兜底 */
+function rowById(rows: Array<Record<string, unknown>>, id: number, label: string): Record<string, unknown> {
+  const hit = rows.find(r => Number(r.id) === id);
   if (!hit) {
-    throw new Error(
-      `供应商 ${supplierId} 联系人列表未找到 id=${contactId}，实际 id 集=${rows.map(r => r.id).join(',') || '(空)'}`
-    );
+    throw new Error(`${label}：列表未找到 id=${id}，实际 id 集=${rows.map(r => r.id).join(',') || '(空)'}`);
   }
   return hit;
 }
@@ -93,48 +86,39 @@ test.describe('151 供应商子资源与启停写改删契约：逐字段回读 
     expect(afterBad.length, '非法手机号被拒后不得写入任何联系人行').toBe(0);
 
     // 正向建：返回体带 id，回读列表逐字段核对提交真值
-    const created = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'POST',
-      `/purchase/suppliers/${supplierId}/contacts`,
-      {
-        contact_name: '张主联',
-        department: '采购部',
-        position: '经理',
-        mobile_phone: '13800138000',
-        email: 'zhang@example.com',
-        is_primary: true,
-      }
-    );
+    const created = await apiCallRaw<Record<string, unknown>>(page, 'POST', `/purchase/suppliers/${supplierId}/contacts`, { contact_name: '张主联', department: '采购部', position: '经理', mobile_phone: '13800138000', email: 'zhang@example.com', is_primary: true });
     const contactId = requireId(created, '联系人创建');
-    const readBack = await findContact(page, supplierId, contactId);
+    const createdRows = pickListArray<Record<string, unknown>>(await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/contacts`), 'bare', '建后联系人列表');
+    const readBack = rowById(createdRows, contactId, '联系人建后列表');
     expect(String(readBack.contact_name), '联系人姓名回读').toBe('张主联');
     expect(String(readBack.mobile_phone), '联系人手机号回读').toBe('13800138000');
     expect(String(readBack.department), '联系人部门回读').toBe('采购部');
     expect(readBack.is_primary, '主要联系人标记回读').toBe(true);
 
     // 改：只提交 position 与手机号，未提交的 department 必须原样保留
-    await apiCall(page, 'PUT', `/purchase/suppliers/${supplierId}/contacts/${contactId}`, {
-      position: '副经理',
-      mobile_phone: '13900139000',
-    });
-    const updated = await findContact(page, supplierId, contactId);
+    const updRes = await apiCallRaw<Record<string, unknown>>(page, 'PUT', `/purchase/suppliers/${supplierId}/contacts/${contactId}`, { position: '副经理', mobile_phone: '13900139000' });
+    expect(String(updRes.position), 'PUT 响应回显职位改写').toBe('副经理');
+    const updRows = pickListArray<Record<string, unknown>>(await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/contacts`), 'bare', '改值后联系人列表');
+    const updated = rowById(updRows, contactId, '联系人改值后列表');
     expect(String(updated.position), '联系人职位改写落库').toBe('副经理');
     expect(String(updated.mobile_phone), '联系人手机号改写落库').toBe('13900139000');
     expect(String(updated.department), '未提交字段不应被更新清空').toBe('采购部');
     expect(String(updated.contact_name), '未提交姓名不应漂移').toBe('张主联');
 
-    // 删：删除链路断库里已消失
-    await apiCall(page, 'DELETE', `/purchase/suppliers/${supplierId}/contacts/${contactId}`);
-    const rows = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/contacts`),
-      'bare',
-      '删除后的联系人列表'
-    );
+    // 删：删除链路断库里已消失，并断父供应商未被级联误伤（删前后 status/is_enabled 同源不变）
+    const parentBefore = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const delRes = await apiCall(page, 'DELETE', `/purchase/suppliers/${supplierId}/contacts/${contactId}`);
+    expect(delRes.code, '删除成功信封码').toBe(200);
+    const delRaw = await apiCallRaw(page, 'GET', `/purchase/suppliers/${supplierId}/contacts`);
+    const delRows = pickListArray<Record<string, unknown>>(delRaw, 'bare', '删除后联系人列表');
     expect(
-      rows.some(r => Number(r.id) === contactId),
+      delRows.some(r => Number(r.id) === contactId),
       '删除后联系人不应再在列表里'
     ).toBe(false);
+    const parentAfter = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    expect(Number(parentAfter.id), '删除子资源后父供应商应仍存在').toBe(Number(parentBefore.id));
+    expect(String(parentAfter.status), '子资源删除不得改写父供应商 status').toBe(String(parentBefore.status));
+    expect(parentAfter.is_enabled, '子资源删除不得改写父供应商 is_enabled').toBe(parentBefore.is_enabled);
   });
 
   test('151-02 资质改值与删除：建后回读、改名改有效期只动提交列、删后库里消失', async ({ page }) => {
@@ -166,38 +150,30 @@ test.describe('151 供应商子资源与启停写改删契约：逐字段回读 
 
     // 改：提交新名称与新有效期与年检标记，发证机关未提交应原样保留
     const newUntil = isoDate(730);
-    await apiCall(page, 'PUT', `/purchase/suppliers/${supplierId}/qualifications/${qualId}`, {
-      qualification_name: '营业执照（换证）',
-      qualification_type: 'business_license',
-      qualification_no: String(row.qualification_no),
-      issuing_authority: '市场监督管理局',
-      issue_date: isoDate(-30),
-      valid_until: newUntil,
-      need_annual_check: true,
-    });
-    const after = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/qualifications`),
-      'bare',
-      '资质改值后列表'
-    );
-    const upd = after.find(r => Number(r.id) === qualId);
-    if (!upd) throw new Error(`改值后资质列表未找到 id=${qualId}`);
+    const updRes = await apiCallRaw<Record<string, unknown>>(page, 'PUT', `/purchase/suppliers/${supplierId}/qualifications/${qualId}`, { qualification_name: '营业执照（换证）', qualification_type: 'business_license', qualification_no: String(row.qualification_no), issuing_authority: '市场监督管理局', issue_date: isoDate(-30), valid_until: newUntil, need_annual_check: true });
+    expect(String(updRes.qualification_name), 'PUT 响应回显资质改名').toBe('营业执照（换证）');
+    const afterRaw = await apiCallRaw(page, 'GET', `/purchase/suppliers/${supplierId}/qualifications`);
+    const after = pickListArray<Record<string, unknown>>(afterRaw, 'bare', '资质改值后列表');
+    const upd = rowById(after, qualId, '改值后资质列表');
     expect(String(upd.qualification_name), '资质名称改写落库').toBe('营业执照（换证）');
     expect(String(upd.valid_until), '资质有效期改写落库').toBe(newUntil);
     expect(upd.need_annual_check, '年检标记改写落库').toBe(true);
     expect(String(upd.issuing_authority), '发证机关应随整单提交保持不变').toBe('市场监督管理局');
 
-    // 删：删除后库里消失
-    await apiCall(page, 'DELETE', `/purchase/suppliers/${supplierId}/qualifications/${qualId}`);
-    const gone = pickListArray<Record<string, unknown>>(
-      await apiCallRaw<unknown>(page, 'GET', `/purchase/suppliers/${supplierId}/qualifications`),
-      'bare',
-      '删除后的资质列表'
-    );
+    // 删：删除后库里消失，并断父供应商未被级联误伤（删前后 status/is_enabled 同源不变）
+    const qualParentBefore = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const qualDelRes = await apiCall(page, 'DELETE', `/purchase/suppliers/${supplierId}/qualifications/${qualId}`);
+    expect(Number(qualDelRes.data && (qualDelRes.data as Record<string, unknown>).deleted_id), '删除信封回显被删资质 id').toBe(qualId);
+    const goneRaw = await apiCallRaw(page, 'GET', `/purchase/suppliers/${supplierId}/qualifications`);
+    const gone = pickListArray<Record<string, unknown>>(goneRaw, 'bare', '删除后的资质列表');
     expect(
       gone.some(r => Number(r.id) === qualId),
       '删除后资质不应再在列表里'
     ).toBe(false);
+    const qualParentAfter = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    expect(Number(qualParentAfter.id), '删除资质后父供应商应仍存在').toBe(Number(qualParentBefore.id));
+    expect(String(qualParentAfter.status), '资质删除不得改写父供应商 status').toBe(String(qualParentBefore.status));
+    expect(qualParentAfter.is_enabled, '资质删除不得改写父供应商 is_enabled').toBe(qualParentBefore.is_enabled);
   });
 
   test('151-03 供应商启停开关：停用同时落 is_enabled=false 与 status=inactive，再启用两列回到启用态', async ({
@@ -205,13 +181,17 @@ test.describe('151 供应商子资源与启停写改删契约：逐字段回读 
   }) => {
     const supplierId = await newSupplier(page, 'ST');
 
-    await apiCall(page, 'POST', `/purchase/suppliers/${supplierId}/status`, { enable: false });
-    const off = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const offRes = await apiCallRaw<Record<string, unknown>>(page, 'POST', `/purchase/suppliers/${supplierId}/status`, { enable: false });
+    expect(offRes.is_enabled, '停用响应回显 is_enabled=false').toBe(false);
+    const offRaw = await apiCallRaw(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const off = offRaw as Record<string, unknown>;
     expect(off.is_enabled, '停用后 is_enabled 应为 false').toBe(false);
     expect(String(off.status), '停用后 status 文本列应为 inactive').toBe('inactive');
 
-    await apiCall(page, 'POST', `/purchase/suppliers/${supplierId}/status`, { enable: true });
-    const on = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const onRes = await apiCallRaw<Record<string, unknown>>(page, 'POST', `/purchase/suppliers/${supplierId}/status`, { enable: true });
+    expect(String(onRes.status), '启用响应回显 status=active').toBe('active');
+    const onRaw = await apiCallRaw(page, 'GET', `/purchase/suppliers/${supplierId}`);
+    const on = onRaw as Record<string, unknown>;
     expect(on.is_enabled, '启用后 is_enabled 应为 true').toBe(true);
     expect(String(on.status), '启用后 status 文本列应回到 active').toBe('active');
   });

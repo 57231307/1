@@ -95,16 +95,9 @@ test.describe('150 能耗与工序路线改值契约：PUT 写后逐字段回读
 
     // 改写设备名、单价与备注后逐字段回读，证明 PUT 真正落到对应列
     const newName = `150号电表改名${workshop}`;
-    await apiCall(page, 'PUT', `/production/energy-meters/${id}`, {
-      meter_name: newName,
-      unit_price: '3.75',
-      remarks: '改值契约E2E',
-    });
-    const after = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/production/energy-meters/${id}`
-    );
+    const putRes = await apiCallRaw<Record<string, unknown>>(page, 'PUT', `/production/energy-meters/${id}`, { meter_name: newName, unit_price: '3.75', remarks: '改值契约E2E' });
+    expect(String(putRes.meter_name), 'PUT 响应回显改名').toBe(newName);
+    const after = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/production/energy-meters/${id}`);
     expect(after.meter_name, '设备名称改写应落库').toBe(newName);
     expectDecEquals(after.unit_price, '3.75', '设备单价改写');
     expect(String(after.remarks ?? ''), '设备备注改写').toBe('改值契约E2E');
@@ -140,15 +133,9 @@ test.describe('150 能耗与工序路线改值契约：PUT 写后逐字段回读
     CLEANUP.push({ path: `/production/energy-consumptions/${consId}`, label: `cons#${consId}` });
 
     // 草稿态可改：当前读数 30→50、单价 1.00→2.50，读回读数与派生量必须同口径
-    await apiCall(page, 'PUT', `/production/energy-consumptions/${consId}`, {
-      current_reading: '50',
-      unit_price: '2.50',
-    });
-    const after = await apiCallRaw<Record<string, unknown>>(
-      page,
-      'GET',
-      `/production/energy-consumptions/${consId}`
-    );
+    const putRes = await apiCallRaw<Record<string, unknown>>(page, 'PUT', `/production/energy-consumptions/${consId}`, { current_reading: '50', unit_price: '2.50' });
+    expectDecEquals(putRes.current_reading, '50', 'PUT 响应回显当前读数');
+    const after = await apiCallRaw<Record<string, unknown>>(page, 'GET', `/production/energy-consumptions/${consId}`);
     expectDecEquals(after.current_reading, '50', '当前读数改写');
     expectDecEquals(after.previous_reading, '10', '上次读数不受改写影响');
     expectDecEquals(after.unit_price, '2.50', '单价改写');
