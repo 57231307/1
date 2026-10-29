@@ -40,7 +40,7 @@ import {
  *
  * 调用方：routes/logistics_tracking.rs 的 logistics_tracking 函数注册，
  * handler 在 handlers/logistics_tracking_handler.rs 与 handlers/print_handler.rs。
- * 入参：依赖 logistics_waybills 表，运单通过 POST /logistics 自建
+ * 入参：依赖 logistics_waybills 表，运单通过 POST /inventory/logistics 自建
  *   （必填 order_id 取 EntityContext.salesOrderId、logistics_company、tracking_number）。
  * 传给谁：LogisticsService → sea_orm → PostgreSQL（logistics_tracking_events、logistics_waybills）。
  * 存什么：跟踪事件 id/waybill_id/event_time/location/description/event_type/data_source；
@@ -95,13 +95,13 @@ test.describe.serial('127 物流跟踪端点族读写回', () => {
   async function seedWaybill(page: import('@playwright/test').Page, tag: string): Promise<number> {
     const ctx = getCtx();
     expect(ctx.salesOrderId, '前置：EntityContext.salesOrderId 缺失').toBeTruthy();
-    const wb = await apiCall<WaybillRow>(page, 'POST', '/logistics', {
+    const wb = await apiCall<WaybillRow>(page, 'POST', '/inventory/logistics', {
       order_id: ctx.salesOrderId,
       logistics_company: `e2e-物流-${tag}`,
       tracking_number: `e2e-TN-${tag}`,
     });
     waybillId = wb.data.id;
-    deferCleanup(cleanup, 'DELETE', `/logistics/${waybillId}`, `lt-wb-${tag}`);
+    deferCleanup(cleanup, 'DELETE', `/inventory/logistics/${waybillId}`, `lt-wb-${tag}`);
     return waybillId;
   }
 
@@ -179,7 +179,7 @@ test.describe.serial('127 物流跟踪端点族读写回', () => {
     expect(Number(result.data), '未设费率的运单运费应为 0').toBe(0);
 
     // 回读运单确认 freight_fee 被写入
-    const wb = await apiCall<WaybillRow>(page, 'GET', `/logistics/${wbId}`);
+    const wb = await apiCall<WaybillRow>(page, 'GET', `/inventory/logistics/${wbId}`);
     expect(
       Number(wb.data.freight_fee),
       `freight_fee 应被回写为 0，实际：${wb.data.freight_fee}`
@@ -203,7 +203,7 @@ test.describe.serial('127 物流跟踪端点族读写回', () => {
     expect(result.data.order_type, 'order_type 应变为 purchase_order').toBe('purchase_order');
 
     // 回读运单确认持久
-    const wb = await apiCall<WaybillRow>(page, 'GET', `/logistics/${wbId}`);
+    const wb = await apiCall<WaybillRow>(page, 'GET', `/inventory/logistics/${wbId}`);
     expect(wb.data.order_id).toBe(ctx.purchaseOrderId);
     expect(wb.data.order_type).toBe('purchase_order');
   });

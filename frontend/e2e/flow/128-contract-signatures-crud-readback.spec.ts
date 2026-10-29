@@ -36,7 +36,7 @@ import {
  *
  * 调用方：routes/contract_signature.rs 的 contract_signatures 函数注册，
  * handler 在 handlers/contract_signature_handler.rs。
- * 入参：依赖 sales_contracts 表，合同通过 POST /sales-contracts 自建
+ * 入参：依赖 sales_contracts 表，合同通过 POST /sales/sales-contracts 自建
  *   （必填 contract_name、customer_id 取 EntityContext.customerId、total_amount）。
  * 传给谁：ContractSignatureService → sea_orm → PostgreSQL（sales_contracts 签名列组）。
  * 存什么：signed_at/signed_by_user_id/signature_hash/signature_image_url/signature_certificate。
@@ -86,14 +86,14 @@ test.describe.serial('128 合同签名端点族签署验证撤销读回', () => 
   async function seedContract(page: import('@playwright/test').Page, tag: string): Promise<number> {
     const ctx = getCtx();
     expect(ctx.customerId, '前置：EntityContext.customerId 缺失').toBeTruthy();
-    const ct = await apiCall<ContractRow>(page, 'POST', '/sales-contracts', {
+    const ct = await apiCall<ContractRow>(page, 'POST', '/sales/sales-contracts', {
       contract_name: `e2e签章合同-${tag}`,
       customer_id: ctx.customerId,
       total_amount: '10000.00',
     });
     expect(ct.code, '建合同应 200').toBe(200);
     const id = ct.data.id;
-    deferCleanup(cleanup, 'DELETE', `/sales-contracts/${id}`, `cs-ct-${tag}`);
+    deferCleanup(cleanup, 'DELETE', `/sales/sales-contracts/${id}`, `cs-ct-${tag}`);
     return id;
   }
 
