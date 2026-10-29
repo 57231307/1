@@ -16,9 +16,11 @@
 //
 // 设计依据与关联文件见下方各方法注释与文件头说明；令牌生命周期改造由迁移
 // m_export_approval_lifecycle 登记（export_approval_request 补列、status CHECK 扩集、
-// export_approval 流程定义落 bpm_process_definition）。
+// token_hash 部分唯一索引），export_approval 流程定义行由 services/bpm_definition_seed.rs
+// 的出厂种子在初始化链路与启动链路写入 bpm_process_definition。
 // 关联文件：models/export_approval_request.rs / handlers/export_approval_handler.rs /
 //           services/bpm_service.rs（start_process/approve_task/cancel_instance）/
+//           services/bpm_definition_seed.rs（出厂流程定义登记）/
 //           services/event_bus_ops/listener.rs（BpmProcessFinished 分发）
 
 use chrono::{DateTime, Duration, Utc};

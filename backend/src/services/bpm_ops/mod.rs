@@ -27,7 +27,7 @@ const BPM_APPROVAL_PATH: &str = "/bpm/approval";
 
 /// 流程标识（process_key，即 `bpm_process_definition.code`）取值的唯一事实来源。
 ///
-/// 四个业务发起点（报价 / 销售订单 / 采购订单 / 生产订单）构造
+/// 五个业务发起点（报价 / 销售订单 / 采购订单 / 生产订单 / 敏感数据导出）构造
 /// `StartProcessRequest` 与拼装 BPM 启动失败文案都必须取本模块常量，禁止再复制
 /// 字面量；流程定义种子的 `code` 落库值同样须与本模块逐字符一致，否则
 /// `start_process` 的 `Code.eq(process_key)` 查询恒不命中，表现为每次提交都
@@ -41,7 +41,7 @@ pub mod process_key {
     pub const PURCHASE_ORDER_APPROVAL: &str = "purchase_order_approval";
     /// 生产订单审批
     pub const PRODUCTION_ORDER_APPROVAL: &str = "production_order_approval";
-    /// 敏感数据导出审批（流程定义行由 m0105 迁移登记，出厂种子待 wt-bpm-approval 合入后补）
+    /// 敏感数据导出审批（流程定义行由 services/bpm_definition_seed.rs 出厂种子登记）
     pub const EXPORT_APPROVAL: &str = "export_approval";
 }
 
