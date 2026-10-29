@@ -274,8 +274,11 @@ export function usePrcProc(cb: PrcCallbacks) {
    *   amount 落库算式（quantity 乘 unit_price）逐分同值，保证入库面合计钩稽
    * - 税额预览 = 含税金额（inclusiveAmountFromLine 聚合，税率不进算式）减金额小计取差额，
    *   恒等式 净额小计 加 税额 == 含税金额 逐分成立；入库明细无税额列，本值仅编辑态展示
-   * 含税原文与税率未成对录入（或文本非法）时：编辑回显行按单价原值快照回退（库值不动），
-   * 新建行回到未采集（undefined），绝不预置 0 冒充算得值；缺值由提交门逐行点名拦截。
+   * 含税原文与税率未成对录入（或文本非法）时按录入腿意图三分：操作人本会话动过该行
+   * 价格录入腿（price_edited）即视为主动清空，unit_price 置 undefined（更新腿据此送
+   * 显式 null 清除库值，创建腿省略键），不静默沿用原值；没动过录入腿的回显行按单价
+   * 原值快照保持库值（打开编辑直接保存不得误清价格）；新建行回到未采集（undefined）。
+   * 三态一律不预置 0 冒充算得值；只填一头由提交门逐行点名拦截。
    */
   const calculateItemAmount = (item: ReceiptItem) => {
     const inclusiveUnit = parseDecimalInput(item.unit_price_with_tax);
@@ -290,6 +293,10 @@ export function usePrcProc(cb: PrcCallbacks) {
       rate >= 0;
     if (inputsUsable) {
       item.unit_price = netFromInclusive(inclusiveUnit, rate);
+    } else if (item.price_edited) {
+      // 主动清空：录入腿被编辑过但当前成对留空（或文本非法由提交门先拦），
+      // 派生净额回到未采集，让更新腿送显式 null 真正清除库值
+      item.unit_price = undefined;
     } else {
       const original = item.id != null ? priceOriginals.value.get(item.id) : undefined;
       item.unit_price = original == null ? undefined : original;
@@ -369,9 +376,9 @@ export function usePrcProc(cb: PrcCallbacks) {
     }
 
     // 含税口径录入门（与采购订单、报价、销售退货同一价税分离口径）：
-    // 含税单价与税率要么成对留空（本行价格不采集，创建省略单价键落 NULL、更新保持库值），
-    // 要么成对录入且合法。只填一头是半成品价格，禁止由已有值乘除反造另一侧凑数提交，
-    // 逐行点名拦下让操作人补齐。
+    // 含税单价与税率要么成对留空（本行无价格事实——创建腿省略单价键，更新腿未动过
+    // 录入腿的保持库值、动过录入腿的按主动清空送显式 null），要么成对录入且合法。
+    // 只填一头是半成品价格，禁止由已有值乘除反造另一侧凑数提交，逐行点名拦下让操作人补齐。
     const priceTextOf = (it: ReceiptItem) => (it.unit_price_with_tax ?? '').trim();
     const rateFilled = (it: ReceiptItem) => it.tax_rate !== undefined && it.tax_rate !== null;
     const invalidPriceIdx = validItems.findIndex(it => {
@@ -397,6 +404,24 @@ export function usePrcProc(cb: PrcCallbacks) {
     // 提交前按当前录入原文统一重算一遍派生腿：录入框事件在失焦时才写回，
     // 直接点提交按钮的行不能依赖控件事件时序，派生值必须与门判定同源
     validItems.forEach(calculateItemAmount);
+
+    // 主动清空价格的行逐行点名外显：操作人动过录入腿且成对留空的行，更新腿将送
+    // 显式 null 清除库值——这条意图必须可见，不许静默提交，也不许被沿用库值吞掉
+    const clearedRows: number[] = [];
+    validItems.forEach((it, idx) => {
+      if (
+        it.price_edited &&
+        it.unit_price === undefined &&
+        it.id != null &&
+        priceOriginals.value.get(it.id) != null
+      ) {
+        clearedRows.push(idx + 1);
+      }
+    });
+    if (clearedRows.length > 0) {
+      msg.warning('receiptPriceClearedNotice', { line: clearedRows[0] });
+      logger.warn(`[入库明细] 第 ${clearedRows.join('、')} 行价格被主动清空，保存后库值置空`);
+    }
 
     // 明细字段映射到后端 CreateReceiptItemRequest 契约（键名严格对齐 DTO：
     // material_id/material_code/material_name/batch_no/color_code/lot_no/grade/

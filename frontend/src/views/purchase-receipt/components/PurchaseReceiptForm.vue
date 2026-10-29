@@ -117,6 +117,7 @@
                 含税单价是本表价格的主输入（录入事实），el-input 承载输入框原文：
                 带加减号的步进控件是全项目禁项；空串=未采集，'0' 是人工显式声明的 0 价。
                 后端入库明细没有含税单价列，本值不上送，只经 usePrcProc 除法反算净额与税额。
+                任何编辑（含清空）都置 price_edited，让"主动清空"与"没碰"在提交腿可分辨。
               -->
               <el-input
                 :model-value="item.unit_price_with_tax"
@@ -126,11 +127,12 @@
                 @update:model-value="
                   (v: string) => {
                     item.unit_price_with_tax = v;
+                    item.price_edited = true;
                     emit('calc-amount', item);
                   }
                 "
               />
-              <!-- 税率与含税单价成对录入（百分数，13 表示 13%），后端无税率列、不上送，只进除法反算 -->
+              <!-- 税率与含税单价成对录入（百分数，13 表示 13%），后端无税率列、不上送，只进除法反算；同样置编辑标志 -->
               <NumericInput
                 v-model="item.tax_rate"
                 class="col-tax"
@@ -138,7 +140,12 @@
                 :min="0"
                 :max="999.9999"
                 :precision="4"
-                @change="emit('calc-amount', item)"
+                @change="
+                  () => {
+                    item.price_edited = true;
+                    emit('calc-amount', item);
+                  }
+                "
               />
               <!-- 以下三列均为派生只读：净额由除法反算、金额为数量乘净额（与后端落库同式）、税额为含税减净额取差额 -->
               <span class="col-net-price">{{ formatDerived(item.unit_price) }}</span>

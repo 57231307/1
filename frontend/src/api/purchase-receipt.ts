@@ -115,6 +115,15 @@ export interface ReceiptItem {
    * 不预置 0 冒充算得的税额。
    */
   tax_amount?: number;
+  /**
+   * 价格录入腿"本会话被操作人动过"标志（纯编辑态，不上送、不回显）：
+   * 含税单价或税率任一录入框被编辑过即为真。用途是把"主动清空价格"与"没碰价格"
+   * 分辨开——回显行的含税原文本来就是空串，没有本标志则两种意图不可区分，
+   * 清空意图会被静默沿用库值（价格永远清不掉）。传给谁：usePrcProc 的
+   * calculateItemAmount 回退分支与 handleSubmit 的清空点名；由 PurchaseReceiptForm
+   * 的含税与税率录入事件置位。
+   */
+  price_edited?: boolean;
   location_code?: string;
   notes?: string;
 }

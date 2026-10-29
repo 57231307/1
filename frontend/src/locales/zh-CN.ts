@@ -1553,6 +1553,7 @@ export default {
     receiptPriceWithTaxInvalid:
       '第 {line} 行的含税单价不是合法数字或为负数，请重新录入该行含税单价',
     receiptTaxRateRequired: '第 {line} 行已填含税单价但未录税率，请补录该行税率',
+    receiptPriceClearedNotice: '第 {line} 行已清空价格录入，保存后该行单价将被置空',
     receiptPriceWithTaxRequired: '第 {line} 行已录税率但未填含税单价，请补录该行含税单价',
     receiptItemAltQtyRequired:
       '第 {line} 行未录入辅助数量：入库创建契约该键必填（quantity_alt），请实测录入（实收为 0 可显式填 0）',

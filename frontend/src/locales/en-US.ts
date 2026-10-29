@@ -1567,6 +1567,8 @@ export default {
       'Line {line} has a tax-inclusive unit price that is not a valid non-negative number. Re-enter it.',
     receiptTaxRateRequired:
       'Line {line} has a tax-inclusive unit price but no tax rate. Enter the tax rate for that line.',
+    receiptPriceClearedNotice:
+      'Line {line} has its price inputs cleared. Saving will empty the unit price of that line.',
     receiptPriceWithTaxRequired:
       'Line {line} has a tax rate but no tax-inclusive unit price. Enter the tax-inclusive unit price for that line.',
     receiptItemAltQtyRequired:
