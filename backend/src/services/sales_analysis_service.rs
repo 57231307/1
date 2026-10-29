@@ -319,7 +319,8 @@ impl SalesAnalysisService {
     /// 口径（"实际额无法判定"，调用方出参渲染 null，禁止 0 兜底掩盖）；
     /// 稀疏桶缺失由 `sales_by_time` 语义决定，插 0 前已确认窗口覆盖该键。
     /// 金额线格式：复用点 Decimal 已固化为 f64（`dec_to_f64` 无损十进制字符串往返），
-    /// 此处按成交列 DECIMAL(14,2) 刻度以 round(2) 还原 Decimal，保持出参字符串线格式。
+    /// 此处以 `from_f64_retain` 还原后再按成交列 DECIMAL(14,2) 刻度定点，
+    /// 保持出参字符串线格式与库侧刻度一致。
     async fn fetch_actual_amounts(
         &self,
         periods: &[String],
@@ -353,9 +354,9 @@ impl SalesAnalysisService {
                 .collect();
             for key in keys {
                 let amount = bucket_amounts.get(key.as_str()).copied().unwrap_or(0.0);
-                match Decimal::from_f64_round(amount, 2) {
+                match Decimal::from_f64_retain(amount) {
                     Some(d) => {
-                        result.insert(key.clone(), d);
+                        result.insert(key.clone(), d.round_dp(2));
                     }
                     // 仅非有限值（inf/nan 级数据损坏）可达：留痕后不落键，
                     // 调用方按"键不存在＝实际额无法判定"渲染 null，不 0 兜底、不整列 500
