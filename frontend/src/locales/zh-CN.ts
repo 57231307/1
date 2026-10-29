@@ -45,6 +45,7 @@ export default {
     status: '状态',
     statusUnknown: '未知',
     valueMissing: '（缺值）',
+    valueInvalid: '（数据异常）',
 
     update: '更新',
 

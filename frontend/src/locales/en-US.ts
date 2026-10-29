@@ -42,6 +42,7 @@ export default {
     status: 'Status',
     statusUnknown: 'Unknown',
     valueMissing: '(missing)',
+    valueInvalid: '(invalid data)',
 
     update: 'Update',
 

@@ -15,7 +15,9 @@ const DECIMAL_WIRE_RE = /^-?\d+(\.\d+)?$/;
  * 可区分（禁止 value 真值判断后落 "¥0.00" 这类把缺值当 0 的掩盖写法）。
  * 传给谁，仅返回字符串给调用方渲染，不参与回写、不存储、不打印。
  * 数值字符串按后端定点结果原样加 ¥ 前缀透传，不再舍入；数值入参按两位定点显示。
- * 非数值入参是契约违背，记日志后抛错，不静默兜底。
+ * 非数值或非有限入参是契约违背：出参给"数据异常"占位（不伪造金额、不落 0），
+ * 同时按 error 级记日志带上原始值与期望形态。这里不在渲染期抛错——抛错会让整张
+ * 目标表随一个坏值消失，把单列失配放大成整块失明，用户与日志都拿不到定位线索。
  */
 export const formatCurrency = (value: string | number | null | undefined): string => {
   if (value === null || value === undefined || value === '') {
@@ -23,16 +25,17 @@ export const formatCurrency = (value: string | number | null | undefined): strin
   }
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
-      const message = `formatCurrency 收到非有限数值金额 "${String(value)}"`;
-      logger.error(message, { value });
-      throw new Error(message);
+      logger.error(`formatCurrency 收到非有限数值金额 "${String(value)}"`, { value });
+      return i18n.global.t('common.valueInvalid');
     }
     return `¥${value.toFixed(2)}`;
   }
   if (!DECIMAL_WIRE_RE.test(value)) {
-    const message = `formatCurrency 收到非法金额线格式 "${value}"，期望后端 Decimal 序列化字符串（如 "1250.00"）`;
-    logger.error(message, { value });
-    throw new Error(message);
+    logger.error(
+      `formatCurrency 收到非法金额线格式 "${value}"，期望后端 Decimal 序列化字符串（如 "1250.00"）`,
+      { value }
+    );
+    return i18n.global.t('common.valueInvalid');
   }
   return `¥${value}`;
 };
