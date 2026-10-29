@@ -7,6 +7,9 @@
 //   3. 失败片必须有 ≥1 条 `E2E-ASSERT-BEGIN`（断言原文进日志正文）与诊断制品
 //      e2e-diag-shard-<N>-<run>；缺任一即判红——"失败但取不出断言原文"的形态正是
 //      本判据要拦的（全局 setup 崩、超时 kill 前无附件都在此点名）。
+// 退出码语义：0 PASS；1 FAIL（点名缺哪一环）。本判据不设 2=SKIP——"失败片取不到证据"
+// 正是本判据要拦的违规形态本身；无 E2E job 的合法轮（tag/dispatch）由步骤 if 拦截，
+// 脚本一旦真跑就必须给出可判红的结论（三态语义在判据一~四与棘轮脚本保留，此处有意收口）。
 // 调用方：.github/workflows/ci-cd.yml job e2e-authenticity-guard 判据六步骤；
 //   仅在 needs.ci-e2e.result 为 success/failure（本轮真跑过 E2E）时执行。
 // 入参：--run <run_id>（缺省 env GITHUB_RUN_ID）、--repo <owner/name>（缺省 env GITHUB_REPOSITORY）、

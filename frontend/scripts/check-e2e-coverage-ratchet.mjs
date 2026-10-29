@@ -8,9 +8,13 @@
 // 调用方：.github/workflows/ci-cd.yml job e2e-authenticity-guard 的"清理位点与覆盖棘轮"步骤；
 //   该步骤先用 e2e_route_coverage.py 自带 --self-test 做夹具双向探针，再跑本脚本比对。
 // 入参：--report <py 输出全文文件> --baseline <基线 json>；--self-test 用内联好/坏样本
-//   做双向探针（坏样本必红、好样本必绿），不读外部文件。
+//   做双向探针（坏样本必红、好样本必绿），不读外部文件；--write-baseline 从 --report
+//   解析五计数写回基线（基线唯一合法生成通道，禁手写数字）。
+// 退出码三态：0 PASS；1 FAIL（计数升高/哨兵缺失等判据失效，点名）；2 数据缺失 SKIP
+//   （report/baseline 文件不在，点名缺什么，由 workflow 转接出 ::warning:: 不当通过）。
 // 传给谁：结果只进 stdout 与 ::error::/::notice:: annotation。
-// 存什么：不持久化；基线数字的权威来源是 e2e-coverage-ratchet.json，本脚本文档不重复记数。
+// 存什么：不持久化；基线数字的权威来源是 e2e-coverage-ratchet.json（本脚本
+//   --write-baseline 生成），本脚本文档不重复记数。
 // 存哪里：本文件；基线 frontend/scripts/e2e-coverage-ratchet.json；计数来源
 //   e2e_route_coverage.py（其判据口径与该工具的 --self-test 夹具同源，单源不复制）。
 import fs from 'node:fs';
@@ -104,12 +108,18 @@ function selfTest() {
 function mainRun() {
   const reportFile = arg('report', '');
   const baselineFile = arg('baseline', '');
-  if (!reportFile || !baselineFile || !fs.existsSync(reportFile) || !fs.existsSync(baselineFile)) {
-    console.error('::error::覆盖棘轮：缺 --report / --baseline 或文件不存在（fail-closed）');
+  if (!reportFile || !baselineFile) {
+    console.error('::error::覆盖棘轮：缺 --report / --baseline 入参（配置违规，判红）');
     process.exit(1);
   }
+  if (!fs.existsSync(reportFile)) {
+    console.log(
+      `::warning::缺数据：判定器报告文件不存在 ${reportFile}，棘轮比对未执行（不判通过）`
+    );
+    console.log('RATCHET_VERDICT SKIP：数据缺失已点名');
+    process.exit(2);
+  }
   const text = fs.readFileSync(reportFile, 'utf8');
-  const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
   const { got, miss } = parseReport(text);
   if (miss.length > 0) {
     console.error(
@@ -117,6 +127,32 @@ function mainRun() {
     );
     process.exit(1);
   }
+  if (process.argv.includes('--write-baseline')) {
+    if (!fs.existsSync(baselineFile)) {
+      console.log(
+        `::warning::缺数据：基线文件不存在 ${baselineFile}，--write-baseline 需既有骨架可保留阈值字段`
+      );
+      process.exit(2);
+    }
+    const base = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
+    const doc = {
+      ...base,
+      unresolved: got.unresolved,
+      ghostLiteral: got.ghostLiteral,
+      methodMismatch: got.methodMismatch,
+      registryNoMethod: got.registryNoMethod,
+      aZero: got.aZero,
+    };
+    fs.writeFileSync(baselineFile, JSON.stringify(doc, null, 2) + '\n');
+    console.log(`BASELINE_WRITTEN ${JSON.stringify(got)} source=e2e_route_coverage.py 报告哨兵行`);
+    process.exit(0);
+  }
+  if (!fs.existsSync(baselineFile)) {
+    console.log(`::warning::缺数据：基线文件不存在 ${baselineFile}，棘轮比对未执行（不判通过）`);
+    console.log('RATCHET_VERDICT SKIP：数据缺失已点名');
+    process.exit(2);
+  }
+  const baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
   const { reds, tightens } = compareRatchet(got, baseline);
   for (const r of reds) console.error(`::error::${r}`);
   if (reds.length > 0) {

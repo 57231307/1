@@ -10,7 +10,6 @@
 | `fix-prettier.sh` | 自动修复所有前端格式问题 | `bash scripts/ci/fix-prettier.sh` |
 | `setup-clippy-baseline.sh` | 建立/更新 clippy 警告基线 | `bash scripts/ci/setup-clippy-baseline.sh` |
 | `clippy-check.sh` | 本地复现 CI 的 clippy 严格检查 | `bash scripts/ci/clippy-check.sh` |
-| `check-e2e-shard-red-forensics.mjs` | E2E 真实性门禁的三条对账判据（空片与用例总数、零断言点名、skip 与 only），退出码 0/1/2 对应 PASS/FAIL/数据缺失 SKIP | `node scripts/ci/check-e2e-shard-red-forensics.mjs --mode shard-stats --artifacts <分片制品目录>`；基线生成 `node scripts/ci/check-e2e-shard-red-forensics.mjs --mode skip-only --write-baseline` |
 
 ## 典型工作流
 
