@@ -10808,7 +10808,6 @@ export default {
       columnProductName: 'Product Name',
       placeholderProduct: 'Select Product',
       columnQuantity: 'Quantity',
-      columnUnitPrice: 'Unit Price',
       columnUnitPriceWithTax: 'Unit Price (Tax Incl)',
       placeholderUnitPriceWithTax: 'Enter tax-inclusive unit price',
       columnNetPrice: 'Net Unit Price',

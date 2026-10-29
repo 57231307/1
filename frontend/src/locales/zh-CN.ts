@@ -10744,7 +10744,6 @@ export default {
       columnProductName: '产品名称',
       placeholderProduct: '选择产品',
       columnQuantity: '数量',
-      columnUnitPrice: '单价',
       columnUnitPriceWithTax: '含税单价',
       placeholderUnitPriceWithTax: '请输入含税单价',
       columnNetPrice: '不含税单价',
