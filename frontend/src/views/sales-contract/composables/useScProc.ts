@@ -32,6 +32,15 @@ const fmtContractAmount = (amount: string | null) =>
   formatCurrency(amount == null ? null : Number(amount));
 
 /**
+ * composable 内取 i18n 文案（非组件环境无 setup 作用域，走 i18n.global，
+ * 与本文件执行类型选项 actionForm.executeType* 的取法同源）。
+ * @param key 文案键；named 可选具名插值参数
+ * @returns 当前语言下的文案
+ */
+const tr = (key: string, named?: Record<string, string | number>): string =>
+  named === undefined ? i18n.global.t(key) : i18n.global.t(key, named);
+
+/**
  * 刷新回调
  * getQueryParams：导出时透传列表筛选条件（keyword/status/customer_id），保证导出与列表同口径
  */
@@ -117,10 +126,14 @@ export function useScProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 删除 */
+  /** 删除：确认框标题与按钮文案走 i18n（common.message.confirmTitle 与既有各域确认框同源） */
   const handleDelete = async (row: SalesContract) => {
     try {
-      await ElMessageBox.confirm('确认删除该合同？', '提示', { type: 'warning' });
+      await ElMessageBox.confirm(
+        tr('salesContract.proc.deleteConfirm'),
+        tr('common.message.confirmTitle'),
+        { type: 'warning' }
+      );
       await deleteSalesContract(row.id);
       msg.success('deleteSuccess');
       await refresh.getList();
@@ -132,25 +145,33 @@ export function useScProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 查看详情（弹出 ElMessageBox） */
+  /**
+   * 查看详情（弹出 ElMessageBox）：文案全部走 i18n（salesContract.proc.*），
+   * 状态行取 utils/sales-contract-status 权威词表（经 scFmts::getStatusLabel），不外显裸枚举。
+   * dangerouslyUseHTMLString 直渲 HTML，标签与字段值等全部插值点统一过 escapeHtml，
+   * 与打印腿（handlePrint 的 escapeHtml 口径）保持同一安全标准。
+   */
   const handleView = (row: SalesContract) => {
-    ElMessageBox.alert(
-      `<div>
-        <p><strong>合同编号：</strong>${row.contract_no}</p>
-        <p><strong>合同名称：</strong>${row.contract_name}</p>
-        <p><strong>客户：</strong>${row.customer_name || '-'}</p>
-        <p><strong>合同金额：</strong>${fmtContractAmount(row.total_amount)}</p>
-        <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
-        <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>
-        <p><strong>到期日期：</strong>${row.expiry_date || '-'}</p>
-        <p><strong>付款条件：</strong>${row.payment_terms || '-'}</p>
-        <p><strong>付款方式：</strong>${row.payment_method || '-'}</p>
-        <p><strong>交货日期：</strong>${row.delivery_date || '-'}</p>
-        <p><strong>交货地点：</strong>${row.delivery_location || '-'}</p>
-      </div>`,
-      '合同详情',
-      { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
-    );
+    const detailRow = (labelKey: string, value: string): string =>
+      `<p><strong>${escapeHtml(tr(labelKey))}: </strong>${escapeHtml(value)}</p>`;
+    const html = `<div>
+        ${detailRow('salesContract.proc.labelContractNo', row.contract_no)}
+        ${detailRow('salesContract.proc.labelContractName', row.contract_name)}
+        ${detailRow('salesContract.proc.labelCustomer', row.customer_name || '-')}
+        ${detailRow('salesContract.proc.labelTotalAmount', fmtContractAmount(row.total_amount))}
+        ${detailRow('salesContract.proc.labelSignedDate', row.signed_date || '-')}
+        ${detailRow('salesContract.proc.labelEffectiveDate', row.effective_date || '-')}
+        ${detailRow('salesContract.proc.labelExpiryDate', row.expiry_date || '-')}
+        ${detailRow('salesContract.proc.labelStatus', getStatusLabel(row.status))}
+        ${detailRow('salesContract.proc.labelPaymentTerms', row.payment_terms || '-')}
+        ${detailRow('salesContract.proc.labelPaymentMethod', row.payment_method || '-')}
+        ${detailRow('salesContract.proc.labelDeliveryDate', row.delivery_date || '-')}
+        ${detailRow('salesContract.proc.labelDeliveryLocation', row.delivery_location || '-')}
+      </div>`;
+    ElMessageBox.alert(html, tr('salesContract.proc.detailTitle'), {
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: tr('common.close'),
+    });
   };
 
   /** 打印当前列表 */
@@ -176,8 +197,10 @@ export function useScProc(refresh: RefreshCallbacks) {
       )
       .join('');
     const now = new Date().toISOString().split('T')[0];
+    // 打印页标题、表头与统计行全部走 i18n（salesContract.proc.*），静态文案也过 escapeHtml 统一口径
+    const docTitle = escapeHtml(tr('salesContract.proc.printDocTitle'));
     printWindow.document.write(`
-      <html><head><meta charset="utf-8"><title>销售合同列表</title>
+      <html><head><meta charset="utf-8"><title>${docTitle}</title>
       <style>
         @media print { @page { size: landscape; } }
         body { font-family: "Microsoft YaHei", sans-serif; font-size: 12px; }
@@ -187,10 +210,10 @@ export function useScProc(refresh: RefreshCallbacks) {
         th { background: #f5f5f5; }
         .meta { text-align: center; color: #666; font-size: 11px; }
       </style></head><body>
-      <h1>销售合同列表</h1>
-      <div class="meta">打印日期: ${now} | 共 ${list.length} 条</div>
+      <h1>${docTitle}</h1>
+      <div class="meta">${escapeHtml(tr('salesContract.proc.printDateLabel'))}: ${escapeHtml(now)} | ${escapeHtml(tr('salesContract.proc.printTotalLabel', { count: list.length }))}</div>
       <table>
-        <thead><tr><th>合同编号</th><th>合同名称</th><th>客户</th><th>金额</th><th>签订日期</th><th>状态</th></tr></thead>
+        <thead><tr><th>${escapeHtml(tr('salesContract.proc.thContractNo'))}</th><th>${escapeHtml(tr('salesContract.proc.thContractName'))}</th><th>${escapeHtml(tr('salesContract.proc.thCustomer'))}</th><th>${escapeHtml(tr('salesContract.proc.thAmount'))}</th><th>${escapeHtml(tr('salesContract.proc.thSignedDate'))}</th><th>${escapeHtml(tr('salesContract.proc.thStatus'))}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       </body></html>

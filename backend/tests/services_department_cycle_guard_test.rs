@@ -361,7 +361,13 @@ async fn delete_department_with_children_still_rejected() {
         .await
         .expect_err("存在子部门时删除必须被拒（既有防线）");
     assert!(
-        matches!(&err, AppError::BusinessError(m) if m.contains("子部门")),
+        // 业务拒绝族含可外显与不可外显两个变体（出参码同为 BUSINESS_ERROR、状态同为 400），
+        // 服务侧改走哪个变体都不该让这条防线失效，故两形态一并判；文案仍须点名"子部门"。
+        matches!(
+            &err,
+            AppError::BusinessError(m) | AppError::BusinessErrorDisplayable(m)
+                if m.contains("子部门")
+        ),
         "删除防线应维持既有业务错误: {err:?}"
     );
     assert_eq!(

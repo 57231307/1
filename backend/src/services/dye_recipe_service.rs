@@ -167,7 +167,11 @@ impl DyeRecipeService {
     /// 校验配方是否允许删除（已审核的配方不允许删除）
     pub fn validate_can_delete(status: Option<&str>) -> Result<(), AppError> {
         if status == Some(recipe_status::APPROVED) {
-            return Err(AppError::business("已审核的配方不允许删除，请先停用"));
+            // 删除腿状态门：已审核前置状态不满足删除条件，归业务族；
+            // 文案点名公开规则与出路（先停用），不含标识，可外显
+            return Err(AppError::business_displayable(
+                "已审核的配方不允许删除，请先停用",
+            ));
         }
         Ok(())
     }

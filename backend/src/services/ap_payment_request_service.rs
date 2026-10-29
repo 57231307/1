@@ -354,10 +354,11 @@ impl ApPaymentRequestService {
         ]
         .contains(&request.approval_status.as_str())
         {
-            return Err(AppError::business(format!(
-                "付款申请状态为{}，不可删除",
-                request.approval_status
-            )));
+            // 删除腿状态门：仅草稿/已驳回可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿或已驳回状态的付款申请可以删除",
+            ));
         }
 
         // 3. 先级联删除明细，再删除主表

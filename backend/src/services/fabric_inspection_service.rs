@@ -395,10 +395,11 @@ impl FabricInspectionService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != inspection_status::PENDING {
-            return Err(AppError::business(format!(
-                "仅待验布(pending)状态可删除，当前状态: {}",
-                model.status
-            )));
+            // 删除腿状态门：仅待验布可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅待验布状态的验布记录可以删除",
+            ));
         }
         let mut active: InspectionActiveModel = model.into();
         active.is_deleted = Set(true);
@@ -987,10 +988,11 @@ impl FabricDefectService {
             .ok_or_else(|| AppError::not_found("关联的验布记录不存在"))?;
 
         if inspection.status != inspection_status::INSPECTING {
-            return Err(AppError::business(format!(
-                "仅验布中(inspecting)状态可删除疵点，当前状态: {}",
-                inspection.status
-            )));
+            // 删除腿状态门：验布单非验布中即拒绝删疵点，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅验布中的验布记录可以删除疵点明细",
+            ));
         }
 
         DefectEntity::delete_by_id(id)

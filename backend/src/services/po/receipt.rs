@@ -62,10 +62,11 @@ impl PurchaseOrderService {
         user_id: i32,
     ) -> Result<(), AppError> {
         if order.order_status != status::purchase_order::DRAFT {
-            return Err(AppError::business(format!(
-                "订单状态不允许添加明细，当前状态：{}",
-                order.order_status
-            )));
+            // 状态门：仅草稿且创建人本人可添加明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的采购订单可以添加明细",
+            ));
         }
         if order.created_by != user_id {
             return Err(AppError::permission_denied(
@@ -157,10 +158,11 @@ impl PurchaseOrderService {
 
         // 3. 检查状态
         if order.order_status != crate::models::status::purchase_inventory::purchase_order::DRAFT {
-            return Err(AppError::business(format!(
-                "订单状态不允许修改明细，当前状态：{}",
-                order.order_status
-            )));
+            // 状态门：仅草稿可修改明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的采购订单可以修改明细",
+            ));
         }
 
         // 4. 检查权限
@@ -298,10 +300,11 @@ impl PurchaseOrderService {
 
         // 3. 检查状态
         if order.order_status != crate::models::status::purchase_inventory::purchase_order::DRAFT {
-            return Err(AppError::business(format!(
-                "订单状态不允许删除明细，当前状态：{}",
-                order.order_status
-            )));
+            // 删除腿状态门：仅草稿可删除明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的采购订单可以删除明细",
+            ));
         }
 
         // 4. 检查权限

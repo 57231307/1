@@ -74,6 +74,8 @@ pub mod oa_announcement;
 // P1 预留服务路由接入（消除 dead_code 警告）
 pub mod ai_model;
 pub mod contract_signature;
+// 合同模板体系域路由（模板主数据与条款项，根级直接资源 contract-templates）
+pub mod contract_template;
 pub mod customer_team_share;
 // P1 预留服务路由接入（批次 2-5，消除 dead_code 警告）
 pub mod environmental_tax;
@@ -456,6 +458,8 @@ fn build_erp_root_router() -> Router<AppState> {
         .merge(print_templates_routes())
         .merge(print_tasks_routes())
         .merge(print_targets_routes())
+        // 合同模板体系（模板主数据与条款项的读写腿）
+        .merge(contract_template::routes())
         .merge(data_import_routes())
         .merge(product_categories_alias())
         .merge(suppliers_select_alias())
