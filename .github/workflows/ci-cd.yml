@@ -3173,6 +3173,34 @@ jobs:
           fi
           exit $EXIT_CODE
 
+      - name: 打印分片基数映射与失败断言原文（取证面）
+        if: always()
+        working-directory: frontend
+        env:
+          FORENSICS_SHARD: ${{ matrix.shard }}
+          FORENSICS_LABEL: ${{ matrix.label }}
+        run: |
+          # 本步骤由 ci-e2e 分片 job 在跑测步骤结束后调用（if always），入参是上方 env
+          # 注入的 0 基分片号与 job 显示名。作用有二：其一，打印 0 基 shard、显示名内
+          # 1 基序号、轻量报告制品名与诊断制品名四者对应的自述行，按显示名反查制品时
+          # 以该行为准，避免取错一片把红读成全绿；其二，把 test-results 下每个
+          # error-context.md 的 Error details 段（断言原文）逐条打印进 job 日志正文，
+          # 可按 E2E-ASSERT 前缀 grep。跑测步骤的 pw:api 调试输出会淹没 reporter 的
+          # 失败摘要，日志正文没有可直接 grep 的断言行，本步骤不依赖 reporter 是否
+          # 生效；完整原始文件仍由轻量报告与诊断两个制品原样保留。输出只写日志，
+          # 不新增落盘文件。
+          echo "E2E-FORENSICS-MAP shard0based=${FORENSICS_SHARD} label=${FORENSICS_LABEL} reportArtifact=e2e-report-shard-${FORENSICS_SHARD} diagArtifact=e2e-diag-shard-${FORENSICS_SHARD}"
+          found=0
+          while IFS= read -r -d '' ctx; do
+            found=1
+            echo "E2E-ASSERT-BEGIN ${ctx}"
+            awk '/^# Error details/{flag=1;next} /^# /{flag=0} flag' "${ctx}"
+            echo "E2E-ASSERT-END ${ctx}"
+          done < <(find test-results -type f -name error-context.md -print0 2>/dev/null)
+          if [ "${found}" -eq 0 ]; then
+            echo "E2E-ASSERT-NONE 本片 test-results 内无 error-context.md：通过的分片本就没有失败附件；若本片判红仍见此行，说明失败发生在用例落附件之前（globalSetup 或超时 kill），请对照上方跑测步骤日志与 e2e-report-shard 制品"
+          fi
+
       - name: 收集后端日志
         if: always()
         run: |
@@ -4872,6 +4900,89 @@ jobs:
 
           print('✅ E2E 源码零伪造响应（CI 运行范围内全部基于真实后端链路）')
           PYEOF
+
+      # ==========================================================================
+      # 以下三条对账判据为本 job 追加步骤（空片对账，零断言点名，skip 与 only 对账），
+      # 前三步语义原样保留。判定逻辑集中在
+      # scripts/ci/check-e2e-shard-red-forensics.mjs，本 job 只做取数与三态转接，
+      # 退出码 0 为 PASS，1 为 FAIL（脚本已逐条点名，转接步骤只退 1 不降级成警告），
+      # 2 为数据缺失的 SKIP（脚本已点名缺失原因，转接步骤只出点名告警不静默放行）。
+      # ==========================================================================
+      - name: 下载 E2E 分片报告产物
+        # ci-e2e 的分片 job 每轮都按 if always 上传轻量报告制品，制品名以
+        # e2e-report-shard 开头并带分片号与本轮标识，内容含分片的 playwright-output
+        # 文本输出与退出码文件（上传路径公共祖先被剥离，文件平铺在各制品目录根部）。
+        # ci-e2e 结论非 success 的轮次（tag push 与手动 dispatch）没有分片产物可取，
+        # 本步按 needs 结论跳过，随后两个报告对账步骤以数据缺失记 SKIP 并点名，
+        # 不会假装通过；ci-e2e 结论为 success 而下载步报错时本步直接红，属真异常。
+        if: ${{ !cancelled() && needs.ci-e2e.result == 'success' }}
+        uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-report-shard-*
+          path: e2e-forensics-artifacts
+          merge-multiple: false
+
+      - name: 安装对账用 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 空片与用例总数对账
+        # 判据一，每片实际执行用例数必须大于 0，各片执行数之和不得低于分片数乘以
+        # 每片最小用例数 1 的结构性下限，下限由本次报告现场推得，不写死用例总数
+        # 常量，避免增删用例就要改 workflow。
+        # 取数口径，优先分片产物内 Playwright JSON 报告的 stats；取不到时退回解析
+        # playwright-output 文本末尾汇总行（passed failed flaky interrupted 之和为
+        # 执行数，skipped 单列，did not run 属未执行不计），两者同源于 Playwright
+        # 的同一份用例统计对象，细节写在脚本头注释。
+        # 某片既无 JSON 报告又解析不出汇总行时按空片嫌疑判红而不是 SKIP，
+        # 因为上游 success 意味着该片的跑测进程必然打印过汇总行。
+        if: ${{ !cancelled() }}
+        run: |
+          rc=0
+          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode shard-stats --artifacts e2e-forensics-artifacts || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::空片与用例总数对账记 SKIP（数据缺失，原因见上方脚本输出点名）"
+          elif [ "$rc" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: 零断言用例点名
+        # 判据二，报告里每个实际执行且通过的用例必须至少含一个断言节点。断言数取
+        # Playwright JSON 报告 steps 树中 category 为 assert 的节点数，Playwright 把
+        # expect 系列断言登记为 assert 类目节点，所以该计数能代表断言数。
+        # 本判据不向文本降级，因为文本输出没有逐用例步骤树；当前分片跑测未产出
+        # JSON 报告时本步按数据缺失记 SKIP 并点名缺口，分片跑测补出 json reporter
+        # 后本判据自动生效，把每个零断言用例逐条判红并点名文件与标题。
+        if: ${{ !cancelled() }}
+        run: |
+          rc=0
+          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode zero-assertion --artifacts e2e-forensics-artifacts || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::零断言用例点名记 SKIP（数据缺失，原因见上方脚本输出点名）"
+          elif [ "$rc" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: skip 与 only 对账
+        # 判据三，源码侧逐文件统计 frontend/e2e 内 test.skip( test.fixme( 与
+        # describe.skip( 的计数。两条硬判据，其一源码任意文件出现 .only( 直接
+        # 判红（only 泄漏会吞掉其余用例，属真红，不设基线）；其二 skip 类计数与
+        # scripts/ci/e2e-skip-only-baseline.json 基线比对且只降不升，超基线逐文件
+        # 点名文件名与超出数。基线只允许由脚本的 write-baseline 模式生成，不接受
+        # 手写数字。注释内的同名字样经脚本状态机剔除后不计，字符串内的保留并按
+        # 可疑计入。报告侧 skipped 合计一并打印供对账，不作硬判据，文本口径下它
+        # 只能拿到分片合计而不是逐文件数。本判据基于仓库源码，不依赖分片产物，
+        # 任何轮次都真跑。
+        if: ${{ !cancelled() }}
+        run: |
+          rc=0
+          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode skip-only --baseline scripts/ci/e2e-skip-only-baseline.json --artifacts e2e-forensics-artifacts || rc=$?
+          if [ "$rc" -eq 2 ]; then
+            echo "::warning::skip 与 only 对账记 SKIP（数据缺失，原因见上方脚本输出点名）"
+          elif [ "$rc" -ne 0 ]; then
+            exit 1
+          fi
 
   # ==========================================================================
   # Job 16e: 敏感权限审计覆盖（用户任务 1.4，2026-09-10）
