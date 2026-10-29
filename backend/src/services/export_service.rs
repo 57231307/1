@@ -197,7 +197,13 @@ impl ExportService {
 
         // 标题与抬头信息
         let mut y_pos = RECON_TITLE_Y_MM;
-        layer.use_text("应收账款对账单", 16.0, Mm(RECON_CONTENT_X_MM), Mm(y_pos), &font);
+        layer.use_text(
+            "应收账款对账单",
+            16.0,
+            Mm(RECON_CONTENT_X_MM),
+            Mm(y_pos),
+            &font,
+        );
         y_pos -= 10.0;
         for line in Self::reconciliation_info_lines(
             reconciliation_no,
@@ -206,7 +212,13 @@ impl ExportService {
             period_end,
             status,
         ) {
-            layer.use_text(line.as_str(), 10.0, Mm(RECON_CONTENT_X_MM), Mm(y_pos), &font);
+            layer.use_text(
+                line.as_str(),
+                10.0,
+                Mm(RECON_CONTENT_X_MM),
+                Mm(y_pos),
+                &font,
+            );
             y_pos -= RECON_ROW_STEP_MM;
         }
 

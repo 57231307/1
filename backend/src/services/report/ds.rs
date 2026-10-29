@@ -494,7 +494,8 @@ impl ReportEngineService {
                 .and_hms_opt(23, 59, 59)
                 .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
                 .and_utc();
-            select = select.filter(crate::models::sales_order::Column::OrderDate.between(start, end));
+            select =
+                select.filter(crate::models::sales_order::Column::OrderDate.between(start, end));
         }
         Ok(select.all(db).await?)
     }
