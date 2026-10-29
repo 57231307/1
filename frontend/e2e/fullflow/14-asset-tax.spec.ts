@@ -46,10 +46,77 @@ import {
   APP_ERROR_CODES,
 } from '../flow/helpers';
 
+/**
+ * 清理登记分两栏：
+ * - ASSET_CLEANUP 只登记本轮自建固定资产的 id（唯一键隔离在 seedAsset：asset_no 由
+ *   genCode 生成、带随机后缀写业务唯一列），清理走「在册撤态腿 → 回读终态 → 删除 →
+ *   回读断查无」硬序，任一步不符即判红，不经 tryCleanup 吞成 warn。
+ * - CLEANUP 保留其余实体（客户）的原登记与清理形态，本轮不动其清理语义。
+ * 固定资产不再登记 path：处置与删除的请求 URL 一律以字面量整串写在下面 afterEach 的调用点。
+ */
+const ASSET_CLEANUP: number[] = [];
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.slice().reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
+
+  // 本处用哪条在册腿：POST /fixed-assets/{id}/dispose。六要素——主体：本轮自建且仍存在的
+  // 固定资产行；动作：先走处置腿把 status 从处置前置词值撤到删除门白名单内的词值，再删；
+  // 对象：该资产主单（处置/折旧/盘点明细由后端删除时同事务逆序级联）；时机：afterEach，
+  // 即各用例把资产推进到活跃或盘亏置闲之后，处置腿前置恒可达；地点：本文件 afterEach；
+  // 后果：处置与删除都走 apiCall，非成功信封即抛出判红，不用 tryCleanup 兜底。
+  // 回读断什么：撤态后断 status 逐字等于处置腿写入方的落值（
+  // backend/src/services/fixed_asset_service.rs::dispose 落
+  // backend/src/models/status/finance.rs::fixed_asset.DISPOSED）；已是
+  // backend/src/models/status/general.rs::master_data.INACTIVE 的行（盘亏置闲）本就落在
+  // 删除门 backend/src/services/fixed_asset_service.rs::delete 的白名单内，不补走处置腿
+  // （其前置只认活跃态，硬走会把不该报的业务失败造出来）；落在白名单之外的词值直接判红，
+  // 不猜、不兜底。删完回读断这条记录确实查无（404 + NOT_FOUND），不留脏行。
+  for (const assetId of ASSET_CLEANUP.slice().reverse()) {
+    const current = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/fixed-assets/${assetId}`
+    );
+    const statusAtCleanup = String(current.status);
+    if (statusAtCleanup === 'active') {
+      const disp = await apiCall(page, 'POST', `/fixed-assets/${assetId}/dispose`, {
+        disposal_type: '变卖',
+        disposal_value: 30000,
+        disposal_date: '2026-06-30',
+        reason: 'E2E14 清理撤态',
+        buyer_info: 'E2E 清理买家',
+      });
+      expect(
+        disp.code,
+        `[14 清理] 资产 ${assetId} 处置腿应返回成功信封 200，实际信封=${JSON.stringify(disp)}`
+      ).toBe(200);
+      const afterDisp = await apiCallRaw<Record<string, unknown>>(
+        page,
+        'GET',
+        `/fixed-assets/${assetId}`
+      );
+      expectKeyValue(afterDisp, 'status', 'disposed', `[14 清理] 资产 ${assetId} 处置后回读`);
+    } else if (statusAtCleanup !== 'inactive' && statusAtCleanup !== 'disposed') {
+      throw new Error(
+        `[14 清理] 资产 ${assetId} 在清理时机落在删除门白名单之外的词值 "${statusAtCleanup}"，` +
+          `既不可处置也不可删除，判红不放过（不代发注定被挡的 DELETE 凑绿）`
+      );
+    }
+    const del = await apiCall(page, 'DELETE', `/fixed-assets/${assetId}`);
+    expect(
+      del.code,
+      `[14 清理] 资产 ${assetId} 删除应返回成功信封 200，实际信封=${JSON.stringify(del)}`
+    ).toBe(200);
+    const gone = await apiCallExpectFail(page, 'GET', `/fixed-assets/${assetId}`);
+    expect(gone.status, `[14 清理] 资产 ${assetId} 删除后应查无（404），实际=${gone.status}`).toBe(
+      404
+    );
+    expect(failureCode(gone), `[14 清理] 资产 ${assetId} 删除后回读的机器码应为 NOT_FOUND`).toBe(
+      'NOT_FOUND'
+    );
+  }
+  ASSET_CLEANUP.length = 0;
 });
 
 const DESENSITIZED_CONSTANTS = ['请求参数验证失败', '业务处理失败'];
@@ -105,8 +172,21 @@ async function seedAsset(
     ...overrides,
   });
   const id = requireId(a, '建资产');
-  CLEANUP.push({ path: `/fixed-assets/${id}`, label: 'fixed_asset' });
+  ASSET_CLEANUP.push(id);
   return a;
+}
+
+/**
+ * 用例内已把「处置 → 回读终态 → 删除 → 回读断查无」整套硬序走满并断过时，从清理队列摘牌，
+ * 避免 afterEach 对一个已确认不存在的行再发注定失败的撤态请求（那是造红，不是查错）。
+ * 只登记注销，不发请求，不吞任何已发生的失败。
+ */
+function releaseAssetCleanup(id: number): void {
+  const idx = ASSET_CLEANUP.indexOf(id);
+  if (idx < 0) {
+    throw new Error(`[14 清理] 资产 ${id} 未在清理队列中，登记与注销不配对，判红不放过`);
+  }
+  ASSET_CLEANUP.splice(idx, 1);
 }
 
 async function seedCustomer(page: import('@playwright/test').Page, tag: string): Promise<number> {
@@ -274,6 +354,8 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     const gone = await apiCallExpectFail(page, 'GET', `/fixed-assets/${id}`);
     expect(gone.status, '删除后 404').toBe(404);
     expect(failureCode(gone), '删除后机器码').toBe('NOT_FOUND');
+    // 本用例已把撤态腿与查无断言走满，清理队列摘牌（详见 releaseAssetCleanup 注释）。
+    releaseAssetCleanup(id);
   });
 
   test('14-04 盘点链：建计划→录入(consistent/shortage)→plan 进入 COUNTING→complete→资产 INACTIVE；重复 complete 被拒', async ({
@@ -422,7 +504,11 @@ test.describe('14 资产/坏账/催收/退税契约链', () => {
     // 在独立浏览器上下文内以该账号真实登录，得到与本会话互不干扰的审批人页面；一级、二级审批人
     // 同用此独立身份即可满足「审批人≠申请人」这一约束（后端不要求一二级审批人互异）。
     // 该账号的密码沿用建号主体密码（会话池里的 worker 密码与之同源同值，此处按建号约定取）。
-    const approver = await loginInIsolatedContext(browser, getAiTestUsername(), baseAdminPassword());
+    const approver = await loginInIsolatedContext(
+      browser,
+      getAiTestUsername(),
+      baseAdminPassword()
+    );
     try {
       await apiCall(approver.page, 'POST', `/bad-debts/writeoffs/${woId}/finance-approve`, {
         comment: 'E2E 财务通过',
