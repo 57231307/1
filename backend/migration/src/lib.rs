@@ -18,7 +18,6 @@
 //!   → m0104_add_document_no_partial_unique_four_tables
 //!   → sales_contract_source_order
 //!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop → print_template_default_slot
-//!   → print_template_default_slot（打印模板默认位库侧唯一门）
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
