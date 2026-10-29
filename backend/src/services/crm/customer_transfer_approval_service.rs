@@ -52,7 +52,7 @@ use crate::services::assignment_history_service::{
     AssignmentHistoryService, CreateAssignmentHistoryRequest,
 };
 use crate::services::audit_log_service::AuditLogService;
-use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest};
+use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest, TransferLeadResult};
 use crate::utils::data_scope::{
     DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
 };
@@ -156,13 +156,6 @@ impl From<customer_transfer_approval::Model> for TransferApprovalDto {
 pub struct CustomerTransferApprovalService {
     db: Arc<DatabaseConnection>,
     assign_service: CrmAssignService,
-}
-
-/// 执行转移的分派结果：真实新归属人用户名 + 本次是否写了客户行
-/// （客户行写了才需要在事务提交后失效客户读缓存）。
-struct TransferExecuted {
-    to_user_name: String,
-    transferred_customer_id: Option<i32>,
 }
 
 impl CustomerTransferApprovalService {
@@ -364,7 +357,7 @@ impl CustomerTransferApprovalService {
                 // 普通客户：执行转移与状态跃迁同事务——先在事务内转移成功、再落 approved
                 // 一并提交，任一失败整体回滚（旧形态先 commit approved 再转移，转移失败
                 // 留下"已批准未转移"半态，属独立缺陷，本处一并消除）
-                let executed = self
+                let (transfer_result, transferred_customer_id) = self
                     .execute_transfer_in(
                         &txn,
                         lead_id,
@@ -379,14 +372,14 @@ impl CustomerTransferApprovalService {
                     Set(customer_transfer_approval::STATUS_APPROVED.to_string());
                 active.completed_at = Set(Some(now));
                 // to_user_name 语义是**被转移人（第三方 to_user_id）**的展示名，唯一真实来源
-                // = 执行腿内已查得的新归属人真实用户名（与线索腿 transfer_lead_in 的
-                // TransferLeadResult.to_user_name 同源）。审批行与转移同事务一次落齐，
-                // 不造名、不落空、不顶替，也不再需要事后第二笔回写。
-                active.to_user_name = Set(Some(executed.to_user_name));
+                // = 执行腿透传的 TransferLeadResult.to_user_name（新归属人真实用户名，
+                // 线索腿由 transfer_lead_in 原样带回、客户腿在执行腿内查得）。审批行与
+                // 转移同事务一次落齐，不造名、不落空、不顶替，也不再需要事后第二笔回写。
+                active.to_user_name = Set(Some(transfer_result.to_user_name));
 
                 let updated = active.update(&txn).await?;
                 txn.commit().await?;
-                Self::invalidate_customer_cache(executed.transferred_customer_id).await;
+                Self::invalidate_customer_cache(transferred_customer_id).await;
 
                 info!(
                     "销售经理 {} 审批通过转移单 {}（普通客户，已完成转移，被转移人 {}）",
@@ -457,7 +450,7 @@ impl CustomerTransferApprovalService {
 
         if req.approved {
             // 总监通过：执行转移与状态跃迁同事务（先转移成功、再落 approved，一并提交）
-            let executed = self
+            let (transfer_result, transferred_customer_id) = self
                 .execute_transfer_in(
                     &txn,
                     lead_id,
@@ -470,13 +463,13 @@ impl CustomerTransferApprovalService {
                 .await?;
             active.approval_status = Set(customer_transfer_approval::STATUS_APPROVED.to_string());
             active.completed_at = Set(Some(now));
-            // to_user_name 与 manager_approve 同一口径：执行腿内已查得的真实新归属人
-            // 用户名随状态跃迁一次落齐（同事务、零事后回写），不在审批行造名。
-            active.to_user_name = Set(Some(executed.to_user_name));
+            // to_user_name 与 manager_approve 同一口径：执行腿透传的 TransferLeadResult
+            // 真实用户名随状态跃迁一次落齐（同事务、零事后回写），不在审批行造名。
+            active.to_user_name = Set(Some(transfer_result.to_user_name));
 
             let updated = active.update(&txn).await?;
             txn.commit().await?;
-            Self::invalidate_customer_cache(executed.transferred_customer_id).await;
+            Self::invalidate_customer_cache(transferred_customer_id).await;
 
             info!(
                 "总监 {} 审批通过转移单 {}（大客户，已完成转移，被转移人 {}）",
@@ -678,8 +671,13 @@ impl CustomerTransferApprovalService {
 
     /// 审批通过后的执行腿分派（单点判型，`manager_approve` 单级分支与 `director_approve`
     /// 通过分支共用；在调用方事务内执行，随审批状态跃迁同事务提交）。
+    /// 返回值 `(TransferLeadResult, Option<i32>)`：前者是被转移人真实姓名的透传载体
+    /// （两腿共用 `TransferLeadResult`，审批行写回只消费它的 `to_user_name`，契约锁
+    /// `tests/contract_wave6_crm_transfer_approval_to_user_name_test.rs` 钉的就是这一
+    /// 字面来源可追溯形态）；后者是本次执行腿是否写了客户行的信号（客户腿 Some 挂链
+    /// 客户号、线索腿 None），调用方据此在**事务提交后**失效客户读缓存。
     ///
-    /// 判型规则（用户终裁 A 形态，模块文档「二级分支」段同源）：
+    /// 判型规则（与模块文档「二级分支」段逐字同源）：
     /// - 来源线索为 CONVERTED 终态 → 转移**挂链客户归属**（`transfer_customer_owner_in`），
     ///   线索行零改动：`lead_status` 保持 CONVERTED、`converted_customer_id` 不清空、
     ///   转化腿"禁止从 CONVERTED 回退"门与本链无关且原样有效；
@@ -697,22 +695,26 @@ impl CustomerTransferApprovalService {
         operator_name: &str,
         reason: &str,
         ctx: &DataScopeContext,
-    ) -> Result<TransferExecuted, AppError> {
+    ) -> Result<(TransferLeadResult, Option<i32>), AppError> {
         let lead = CrmLeadEntity::find_by_id(lead_id)
             .one(&*self.db)
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
-            self.transfer_customer_owner_in(
-                txn,
-                &lead,
-                to_user_id,
-                operator_id,
-                operator_name,
-                reason,
-                ctx,
-            )
-            .await
+            let result = self
+                .transfer_customer_owner_in(
+                    txn,
+                    &lead,
+                    to_user_id,
+                    operator_id,
+                    operator_name,
+                    reason,
+                    ctx,
+                )
+                .await?;
+            // 客户腿执行成功即必写了客户行（挂链号为 NULL 时该腿已点名拒绝），
+            // 回传挂链客户号供调用方提交后失效客户读缓存
+            Ok((result, lead.converted_customer_id))
         } else {
             let req = TransferLeadRequest {
                 lead_id,
@@ -720,14 +722,12 @@ impl CustomerTransferApprovalService {
                 reason: reason.to_string(),
                 notes: Some("审批通过后自动执行".to_string()),
             };
+            // 线索腿的 TransferLeadResult 原样透传，不重构造；未写客户行，缓存失效信号为 None
             let result = self
                 .assign_service
                 .transfer_lead_in(txn, &req, operator_id, operator_name)
                 .await?;
-            Ok(TransferExecuted {
-                to_user_name: result.to_user_name,
-                transferred_customer_id: None,
-            })
+            Ok((result, None))
         }
     }
 
@@ -755,6 +755,8 @@ impl CustomerTransferApprovalService {
     /// 纳入归属字段，本腿必须同步接入。
     /// 只写 `owner_id`、`owner_assigned_at`（保护期既有语义列，转移即重新起算）、`updated_at`
     /// 三列；`department_id` 由 DB 触发器随 owner 变更自动维护，应用侧不写。
+    /// 返回与线索腿同形的 `TransferLeadResult`（透传载体）：`to_user_name` 即本腿内
+    /// `fetch_and_validate_new_owner` 查得的真实用户名，调用方据此回写审批行。
     async fn transfer_customer_owner_in(
         &self,
         txn: &DatabaseTransaction,
@@ -764,7 +766,7 @@ impl CustomerTransferApprovalService {
         operator_name: &str,
         reason: &str,
         ctx: &DataScopeContext,
-    ) -> Result<TransferExecuted, AppError> {
+    ) -> Result<TransferLeadResult, AppError> {
         // 建单门已保证 CONVERTED 准入线索必带挂链客户；走到这里仍为 NULL 即脏数据，
         // 点名拒绝（业务族、含 ID 脱敏），不静默不造值
         let customer_id = lead.converted_customer_id.ok_or_else(|| {
@@ -810,10 +812,19 @@ impl CustomerTransferApprovalService {
         }
         let now = chrono::Utc::now();
         let from_user_id = customer.owner_id;
-        let from_user_name: Option<String> = user::Entity::find_by_id(from_user_id)
+        // 原归属人展示名取自 users 的单次查得（与历史行同一来源，不造名）：查不到
+        // 用户行（公海 0 或悬空引用）即前置数据不完整，点名拒绝并整体回滚，与
+        // "挂链客户不存在"同一 fail-visible 口径——不放行一笔写不出原归属人的转移。
+        let from_user_name = user::Entity::find_by_id(from_user_id)
             .one(txn)
             .await?
-            .map(|u| u.username);
+            .map(|u| u.username)
+            .ok_or_else(|| {
+                AppError::business(format!(
+                    "客户 {} 的原归属人 {} 不可解析，客户归属转移不可执行",
+                    customer_id, from_user_id
+                ))
+            })?;
         let mut active: customer::ActiveModel = customer.into();
         active.owner_id = Set(to_user_id);
         active.owner_assigned_at = Set(Some(now));
@@ -830,7 +841,7 @@ impl CustomerTransferApprovalService {
                     lead_no: lead.lead_no.clone(),
                     company_name: Some(updated.customer_name.clone()),
                     from_user_id: Some(from_user_id),
-                    from_user_name,
+                    from_user_name: Some(from_user_name.clone()),
                     to_user_id: Some(new_owner.id),
                     to_user_name: Some(new_owner.username.clone()),
                     action: "TRANSFER".to_string(),
@@ -839,9 +850,14 @@ impl CustomerTransferApprovalService {
                 },
             )
             .await?;
-        Ok(TransferExecuted {
+        Ok(TransferLeadResult {
+            lead_id: lead.id,
+            lead_no: lead.lead_no.clone(),
+            from_user_id,
+            from_user_name,
+            to_user_id: new_owner.id,
             to_user_name: new_owner.username,
-            transferred_customer_id: Some(customer_id),
+            transferred_at: now,
         })
     }
 
