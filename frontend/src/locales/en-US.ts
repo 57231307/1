@@ -1541,6 +1541,12 @@ export default {
     reservationCreateSuccess: 'Stock reservation created successfully',
     bulkColorCreateSuccess: 'Bulk color approval created successfully',
     pleaseAddReturnDetail: 'Please add at least one return detail',
+    salesReturnRowPriceMissing:
+      'Line {line} is missing the tax-inclusive unit price. Enter it as shown on the invoice and retry.',
+    salesReturnRowPriceInvalid:
+      'Line {line} tax-inclusive unit price is not a valid decimal amount. Re-enter it as shown on the invoice.',
+    salesReturnRowTaxRateRequired:
+      'Line {line} has a tax-inclusive unit price. Enter its tax rate on the same line. 0 is an explicit no-invoice declaration.',
     predictionComplete: 'Prediction complete',
     optimizationSuggestionsGenerated: 'Optimization suggestions generated',
     detectionComplete: 'Detection complete',
@@ -10798,6 +10804,10 @@ export default {
       columnUnitPrice: 'Net Unit Price',
       columnAmount: 'Tax-Inclusive Amount',
       columnReason: 'Return Reason',
+      placeholderUnitPriceWithTax: 'Tax-inclusive unit price',
+      placeholderTaxPercent: 'Tax rate % (required with tax-incl price)',
+      labelUnitPriceWithTax: 'tax-inclusive unit price',
+      labelTaxPercent: 'tax rate',
 
       itemLoadFailed: 'Failed to fetch sales return items',
     },

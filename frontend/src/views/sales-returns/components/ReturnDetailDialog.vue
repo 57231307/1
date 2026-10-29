@@ -113,7 +113,7 @@
             <el-input
               v-model="newItem.unitPriceWithTax"
               inputmode="decimal"
-              placeholder="含税单价"
+              :placeholder="t('salesReturns.detailDialog.placeholderUnitPriceWithTax')"
               style="width: 130px"
             />
           </el-form-item>
@@ -121,7 +121,7 @@
             <el-input
               v-model="newItem.taxPercent"
               inputmode="decimal"
-              placeholder="税率%(录含税价必填)"
+              :placeholder="t('salesReturns.detailDialog.placeholderTaxPercent')"
               style="width: 180px"
             />
           </el-form-item>
@@ -207,12 +207,18 @@ const itemRules = computed<FormRules>(() => ({
   productId: numberInputRules({ label: '产品ID', required: true, min: 1, integer: true }),
   quantity: numberInputRules({ label: '退货数量', required: true, min: 1 }),
   unitPriceWithTax: numberInputRules({
-    label: '含税单价',
+    label: t('salesReturns.detailDialog.labelUnitPriceWithTax'),
     required: true,
     min: 0,
     precision: 2,
   }),
-  taxPercent: numberInputRules({ label: '税率', required: true, min: 0, max: 100, precision: 2 }),
+  taxPercent: numberInputRules({
+    label: t('salesReturns.detailDialog.labelTaxPercent'),
+    required: true,
+    min: 0,
+    max: 100,
+    precision: 2,
+  }),
 }));
 
 /**

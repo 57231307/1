@@ -542,18 +542,18 @@ export function useSr() {
       const rowNo = i + 1;
       if (incText === '') {
         if (formData.salesOrderId === null) {
-          ElMessage.error(`第 ${rowNo} 行缺少含税单价，请按票面含税单价录入后重试`);
+          msg.error('salesReturnRowPriceMissing', { line: rowNo });
           return false;
         }
         continue;
       }
       const inc = parseDecimalInput(incText);
       if (inc === undefined || !Number.isFinite(inc) || inc < 0) {
-        ElMessage.error(`第 ${rowNo} 行含税单价不是合法的十进制金额，请按票面重新填写`);
+        msg.error('salesReturnRowPriceInvalid', { line: rowNo });
         return false;
       }
       if (it.taxPercent === undefined || !Number.isFinite(it.taxPercent) || it.taxPercent < 0) {
-        ElMessage.error(`第 ${rowNo} 行已录含税单价，须同行填写税率（0 = 显式无票声明）`);
+        msg.error('salesReturnRowTaxRateRequired', { line: rowNo });
         return false;
       }
     }

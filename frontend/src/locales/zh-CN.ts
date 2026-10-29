@@ -1528,6 +1528,10 @@ export default {
     reservationCreateSuccess: '库存预留创建成功',
     bulkColorCreateSuccess: '大货批色申请已创建',
     pleaseAddReturnDetail: '请至少添加一条退货明细',
+    salesReturnRowPriceMissing: '第 {line} 行缺少含税单价，请按票面含税单价录入后重试',
+    salesReturnRowPriceInvalid: '第 {line} 行含税单价不是合法的十进制金额，请按票面重新填写',
+    salesReturnRowTaxRateRequired:
+      '第 {line} 行已录含税单价，须同行填写税率（0 为显式无票声明）',
     predictionComplete: '预测完成',
     optimizationSuggestionsGenerated: '优化建议生成完成',
     detectionComplete: '检测完成',
@@ -10731,6 +10735,10 @@ export default {
       columnUnitPrice: '不含税单价',
       columnAmount: '成交含税额',
       columnReason: '退货原因',
+      placeholderUnitPriceWithTax: '含税单价',
+      placeholderTaxPercent: '税率%(录含税价必填)',
+      labelUnitPriceWithTax: '含税单价',
+      labelTaxPercent: '税率',
 
       itemLoadFailed: '获取销售退货明细失败',
     },
