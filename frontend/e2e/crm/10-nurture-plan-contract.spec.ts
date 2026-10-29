@@ -5,27 +5,27 @@
 //   执行动作是一次性的状态跃迁（pending → executed，写 executed_at 与固定结果文案），
 //   已执行的计划不可重复执行；执行之前还要过所属线索的行级可见门与跨 owner 写门。
 // 被测端点与注册点：
-//   - POST /crm/leads/nurture-plans → handlers/crm_handler.rs:1525 create_nurture_plan
-//     → services/crm/lead.rs:1465 create_nurture_plan（status 固定 "pending"、executed_at/result
-//     显式置 None、created_by 注入操作人，见 :1470-1484）
-//   - GET  /crm/leads/nurture-plans → handlers/crm_handler.rs:1504 list_nurture_plans
+//   - POST /crm/leads/nurture-plans → handlers/crm_handler::create_nurture_plan
+//     → services/crm/lead::create_nurture_plan（status 固定 "pending"、executed_at/result
+//     显式置 None、created_by 注入操作人，写列口径见该函数体）
+//   - GET  /crm/leads/nurture-plans → handlers/crm_handler::list_nurture_plans
 //     （入参 NurturePlanQuery {lead_id, status}，带 lead_id 时先过线索可见门，
 //     data 是裸数组——list_nurture_plans 返回 Vec）
-//   - POST /crm/leads/nurture-plans/{id}/execute → handlers/crm_handler.rs:1536
-//     execute_nurture_plan（计划不存在→not_found，行级门 1547-1558）
-//     → services/crm/lead.rs:1606 execute_nurture_plan（非 pending 拒 :1617-1621，
-//     跃迁写 status/executed_at/result :1623-1627）
-// 入参（字段名逐字符对齐 CreateNurturePlanRequest，services/crm/lead.rs:1664）：
+//   - POST /crm/leads/nurture-plans/{id}/execute → handlers/crm_handler
+//     execute_nurture_plan（计划不存在→not_found，行级归属门）
+//     → services/crm/lead::execute_nurture_plan（非 pending 拒，
+//     跃迁写 status/executed_at/result）
+// 入参（字段名逐字符对齐 CreateNurturePlanRequest，services/crm/lead）：
 //   lead_id（必填，线索 id）、plan_name（必填，计划名，同时作本用例唯一标记）、
 //   nurture_type（必填，培育类型 email/sms/visit/call 一类）、trigger_condition（可空触发条件）、
 //   template_id（可空模板 id）、scheduled_at（可空计划执行时间，RFC3339）
 //   执行端点无请求体（handler 只取 Path(id)）。
-// 传给谁 / 存哪里：lead_nurture_plan 表（models/lead_nurture_plan.rs:7，列 id/lead_id/plan_name/
+// 传给谁 / 存哪里：lead_nurture_plan 表（models/lead_nurture_plan，列 id/lead_id/plan_name/
 //   nurture_type/trigger_condition/template_id/scheduled_at/executed_at/status/result/created_by/
 //   created_at，status 词表 pending/executed/failed/cancelled）；执行只改该行三列，不动线索行。
 //   成功信封 { code, message, data }；失败信封按 utils/error.rs：`business`（状态门）出
 //   400 + BUSINESS_ERROR + 脱敏常量 err_msg::BUSINESS_PUBLIC="业务处理失败"
-//   （utils/messages.rs:43，文案含状态 token 故不外显），`not_found` 出 404 + NOT_FOUND。
+//   （utils/messages，文案含状态 token 故不外显），`not_found` 出 404 + NOT_FOUND。
 //
 // 清理与隔离事实（必读）：
 //   lead_nurture_plan 没有 DELETE/PUT 端点（routes/crm.rs 该组只注册 GET/POST 与 POST execute），
@@ -42,7 +42,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 
-/** lead_nurture_plan 行（models/lead_nurture_plan.rs:8-40） */
+/** lead_nurture_plan 行（models/lead_nurture_plan） */
 interface NurturePlanRow {
   id: number;
   lead_id: number;
@@ -57,7 +57,7 @@ interface NurturePlanRow {
   created_by: number | null;
 }
 
-/** 培育计划状态词表（models/lead_nurture_plan.rs 注释与 services/crm/lead.rs:1617-1626 的字面量） */
+/** 培育计划状态词表（models/lead_nurture_plan.rs 注释与 services/crm/lead 的字面量） */
 const PLAN_STATUS_PENDING = 'pending';
 const PLAN_STATUS_EXECUTED = 'executed';
 
@@ -237,7 +237,7 @@ test.describe('10 线索培育计划创建与执行契约', () => {
     );
     expect(first.data.status).toBe(PLAN_STATUS_EXECUTED);
 
-    // services/crm/lead.rs:1617 的状态门用 AppError::business（文案含状态 token，
+    // services/crm/lead 的状态门用 AppError::business（文案含状态 token，
     // 按 utils/error.rs 安全边界保持脱敏）：只可断机器码与公开常量，不得断真实原因
     const fail = await apiCallExpectFail(
       page,
@@ -268,7 +268,7 @@ test.describe('10 线索培育计划创建与执行契约', () => {
     expect(fail.status, `不存在计划应恰为 404，实际 ${fail.status}`).toBe(404);
     expect(failureCode(fail), `应 NOT_FOUND，实际 code=${fail.code}`).toBe('NOT_FOUND');
 
-    // handler 的 find_by_id 门在任何写之前（crm_handler.rs:1543-1546）：
+    // handler 的 find_by_id 门在任何写之前（crm_handler）：
     // 该线索名下不得因为这个请求多出任何计划行
     const rows = await listPlansByLead(page, leadId);
     expect(rows, '自建线索名下应仍无任何计划行').toHaveLength(0);

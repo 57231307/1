@@ -14,44 +14,44 @@
 //   5) 增强入口 PUT /crm/customers/enhanced/{id} 落 customers 表行，先过行级可见门再过
 //      跨 owner 写门，customer_type 走唯一词表校验（校验在任何触库之前）。
 // 被测端点与注册点：
-//   - POST/GET /crm/leads/allocation-rules → handlers/crm_handler.rs:1464 create_allocation_rule /
-//     :1453 list_allocation_rules → services/crm/lead.rs:1435 create_allocation_rule（落
-//     lead_allocation_rule 行，缺省见 :1450-1452）
-//   - POST /crm/leads/calculate-channel-roi → handlers/crm_handler.rs:1440 calculate_channel_roi
-//     → services/crm/lead.rs:1347 calculate_channel_roi（统计口径与算式 1366-1420）
-//   - POST /crm/leads/{id}/auto-assign → handlers/crm_handler.rs:1475 auto_assign_lead
-//     （跨 owner 写门 1486-1494）→ services/crm/lead.rs:1481 auto_assign_lead
-//     （规则匹配 1490-1518，owner_id 改写 1522）
+//   - POST/GET /crm/leads/allocation-rules → handlers/crm_handler::create_allocation_rule 与
+//     crm_handler::list_allocation_rules → services/crm/lead::create_allocation_rule（落
+//     lead_allocation_rule 行，缺省口径见该函数体内的填充分支）
+//   - POST /crm/leads/calculate-channel-roi → handlers/crm_handler::calculate_channel_roi
+//     → services/crm/lead::calculate_channel_roi（统计口径与算式在函数体内）
+//   - POST /crm/leads/{id}/auto-assign → handlers/crm_handler::auto_assign_lead
+//     （跨 owner 写门）→ services/crm/lead::auto_assign_lead
+//     （规则匹配与 owner_id 改写均在函数体内）
 //   - POST/PUT/GET /crm/customer-credits 与 /crm/customer-credits/{id}
-//     → handlers/customer_credit_handler.rs:326 create_credit / :362 update_credit /
-//       :149 get_credit / :107 list_credits → services/customer_credit_limit.rs:22
-//       set_credit_rating（更新分支 37-52，创建分支 58-80）
-//   - PUT /crm/customers/enhanced/{id} → handlers/crm_customer_handler.rs:240 update_customer
-//     （词表校验 246-255，双门 269-283，落库 286-311）
+//     → handlers/customer_credit_handler::create_credit、customer_credit_handler::update_credit、
+//     customer_credit_handler::get_credit、customer_credit_handler::list_credits →
+//     services/customer_credit_limit::set_credit_rating（更新与创建两分支的缺省保持口径不同）
+//   - PUT /crm/customers/enhanced/{id} → handlers/crm_customer_handler::update_customer
+//     （先词表校验、再双门、最后落库，顺序在函数体内）
 // 入参（字段名逐字符对齐 handler 的 Deserialize 结构）：
-//   - 分配规则 CreateAllocationRuleRequest（services/crm/lead.rs:1649）：rule_name、rule_type、
+//   - 分配规则 CreateAllocationRuleRequest（services/crm/lead）：rule_name、rule_type、
 //     source_filter、industry_filter、region_filter、assigned_user_ids（JSON 数组）、
 //     weights（JSON）、daily_limit、priority、is_active
-//   - 渠道 ROI CalculateChannelRoiRequest（handlers/crm_handler.rs:1913）：source、
+//   - 渠道 ROI CalculateChannelRoiRequest（handlers/crm_handler）：source、
 //     start_date（YYYY-MM-DD）、end_date（YYYY-MM-DD）、cost（Decimal）
-//   - 单条自动分配 AutoAssignRequest（handlers/crm_handler.rs:1930）：source、industry（可空）
-//   - 信用创建 CreditRatingRequestDto（customer_credit_handler.rs:36）：customer_id、
+//   - 单条自动分配 AutoAssignRequest（handlers/crm_handler）：source、industry（可空）
+//   - 信用创建 CreditRatingRequestDto（customer_credit_handler）：customer_id、
 //     credit_level（≤20 字）、credit_score、credit_limit（Option<Decimal>，创建缺省 0）、
 //     credit_days、remark（≤500 字）
-//   - 信用更新 UpdateCreditDto（同文件:54）：credit_level / credit_score / credit_limit /
+//   - 信用更新 UpdateCreditDto（同在 customer_credit_handler）：credit_level / credit_score / credit_limit /
 //     credit_days / remark 五枚均可选
-//   - 增强客户更新 UpdateEnhancedCustomerRequest（crm_customer_handler.rs:223）：customer_name、
+//   - 增强客户更新 UpdateEnhancedCustomerRequest（crm_customer_handler）：customer_name、
 //     contact_person、contact_phone、contact_email、address、customer_type、tax_number
 //     （前端名 tax_number → 后端 tax_id）、credit_limit、bank_name、bank_account、status
 // 传给谁 / 存哪里：
-//   lead_allocation_rule、lead_source_roi（models/lead_source_roi.rs:8，列 source/period_start/
+//   lead_allocation_rule、lead_source_roi（models/lead_source_roi，列 source/period_start/
 //   period_end/cost/lead_count/converted_count/opportunity_count/order_count/revenue/
-//   conversion_rate/roi/created_at）、customer_credit_ratings（models/customer_credit.rs:9，
+//   conversion_rate/roi/created_at）、customer_credit_ratings（models/customer_credit，
 //   列 customer_id/customer_name/credit_level/credit_score/credit_limit/used_credit/
 //   available_credit/credit_days/status/created_by/…）、crm_lead.owner_id、customers 行。
 //   DECIMAL 出参是序列化字符串（未开 serde-float），用例只钉"字符串 + 数值相等"；
 //   GET /crm/leads/allocation-rules 的 data 是裸数组，GET /crm/customer-credits 的 data 是
-//   { items, total, page, page_size } 分页信封（customer_credit_handler.rs:101-107 自述四键齐全），
+//   { items, total, page, page_size } 分页信封（customer_credit_handler 自述四键齐全），
 //   GET /crm/customer-credits/{id} 的 data 是单对象。
 //
 // 清理与隔离事实（必读，未向后端新增任何删除端点）：
@@ -61,12 +61,12 @@
 //     本用例独有的随机串，信用行只按自建 customer_id 读；残留行不参与任何全局断言。
 //   - 规则用 priority=999999 排到激活规则首位，但作用面靠 source_filter 的唯一串收窄，
 //     不会劫持其他渠道的线索自动分配（lead_source 是无词表校验的自由文本，
-//     services/crm/lead.rs:61 仅缺省 OTHER，故可用唯一串精确绑定）。
+//     services/crm/lead 仅缺省 OTHER，故可用唯一串精确绑定）。
 //   - 信用"更新分支把未提交的 credit_level/credit_score/credit_days 覆写成缺省 B/60/30"
-//     （services/customer_credit_limit.rs:41-49，只有 credit_limit 做了保持原值）是既存缺陷：
+//     （services/customer_credit_limit，只有 credit_limit 做了保持原值）是既存缺陷：
 //     本片只断"提交了的列真的落库"与 available_credit 的算术，不把 B/60/30 当期望值钉死，
 //     以免将来修复时被测试锁住；缺陷本身交回研发处置。
-//   - 单条自动分配只改 owner_id，不改 lead_status（同文件 1522-1524 无 lead_status 赋值），
+//   - 单条自动分配只改 owner_id，不改 lead_status（auto_assign_lead 写列不含 lead_status），
 //     本片按此现状断 owner_id 改写并回读 lead_status 仍为提交值，属可回归的线格式记录。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
@@ -79,7 +79,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 
-/** lead_allocation_rule 行（services/crm/lead.rs:1441-1455 的写入列） */
+/** lead_allocation_rule 行（services/crm/lead 的写入列） */
 interface AllocationRuleRow {
   id: number;
   rule_name: string;
@@ -94,7 +94,7 @@ interface AllocationRuleRow {
   is_active: boolean;
 }
 
-/** lead_source_roi 行（models/lead_source_roi.rs:9-46） */
+/** lead_source_roi 行（models/lead_source_roi） */
 interface ChannelRoiRow {
   id: number;
   source: string;
@@ -110,7 +110,7 @@ interface ChannelRoiRow {
   roi: string;
 }
 
-/** CustomerCreditView（services/customer_credit_service.rs:43-59） */
+/** CustomerCreditView（services/customer_credit_service） */
 interface CreditView {
   id: number;
   customer_id: number;
@@ -150,7 +150,7 @@ interface CustomerRow {
 }
 
 const LEAD_STATUS_NEW = 'new';
-/** 规则优先级取极大值，保证本用例规则排在激活规则首位（services/crm/lead.rs:1492 按 priority 倒序） */
+/** 规则优先级取极大值，保证本用例规则排在激活规则首位（services/crm/lead 按 priority 倒序） */
 const E2E_RULE_PRIORITY = 999_999;
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
@@ -253,7 +253,7 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
     expect(created.data.priority).toBe(E2E_RULE_PRIORITY);
     expect(created.data.is_active).toBe(true);
 
-    // 缺省分支（lead.rs:1450-1452）：daily_limit/priority/is_active 未提交时取 0/0/true
+    // 缺省分支（lead）：daily_limit/priority/is_active 未提交时取 0/0/true
     const withDefaults = await apiCall<AllocationRuleRow>(
       page,
       'POST',
@@ -347,7 +347,7 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
       `/crm/leads/${lead.id}/auto-assign`,
       { source: sourceFilter, industry: null }
     );
-    // 命中规则后取 assigned_user_ids 的第一个元素（lead.rs:1518 简单轮询）
+    // 命中规则后取 assigned_user_ids 的第一个元素（lead 简单轮询）
     expect(
       assigned.data.assigned_user_id,
       `应分配到规则里第一个销售 ${other}，实际 ${assigned.data.assigned_user_id}`
@@ -388,7 +388,7 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
     expect(Number(created.data.available_credit), 'available 应等于 limit-used').toBe(500000);
     expect(created.data.credit_days).toBe(45);
     expect(created.data.status, '创建分支落 master_data::ACTIVE').toBe('active');
-    // 创建分支的 created_by 不在本用例断言之列：services/customer_credit_limit.rs:69-78 的
+    // 创建分支的 created_by 不在本用例断言之列：services/customer_credit_limit 的
     // ActiveModel 用 ..Default::default() 未写 created_by，操作人只进审计侧。
     // 该"创建行不记 created_by"作为既存缺口登记在回报里，不在测试里钉成期望值。
     const rowId = created.data.id;
@@ -446,8 +446,8 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
     });
     expect(created.data.credit_level).toBe('A');
 
-    // UpdateCreditDto 的 length(max=20)（customer_credit_handler.rs:55）经
-    // utils/error.rs:721 的 validation_displayable 通道外显字段自写文案
+    // UpdateCreditDto 的 length(max=20)（customer_credit_handler）经
+    // utils/error 的 validation_displayable 通道外显字段自写文案
     const tooLong = 'X'.repeat(21);
     const fail = await apiCallExpectFail(page, 'PUT', `/crm/customer-credits/${customer.id}`, {
       credit_level: tooLong,
@@ -479,7 +479,7 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
       credit_days: 30,
       remark: 'E2E 幽灵客户',
     });
-    // services/customer_credit_limit.rs:60-68 先查 customers 行，缺失即 not_found，
+    // services/customer_credit_limit 先查 customers 行，缺失即 not_found，
     // 不把驱动约束违例拍平成 500
     expect(fail.status, `不存在客户应恰为 404，实际 ${fail.status}`).toBe(404);
     expect(failureCode(fail), `应 NOT_FOUND，实际 code=${fail.code}`).toBe('NOT_FOUND');
@@ -530,7 +530,7 @@ test.describe('09 分配规则 / 渠道 ROI / 规则驱动自动分配 / 客户�
     expect(readback.status, '回读 status 应同为 inactive').toBe('inactive');
     expect(readback.contact_person).toBe('E2E 联系人甲');
 
-    // 词表门（crm_customer_handler.rs:246-255，校验在任何触库之前）：非法 customer_type 整笔拒
+    // 词表门（crm_customer_handler，校验在任何触库之前）：非法 customer_type 整笔拒
     const baselineType = await apiCallRaw<CustomerRow>(
       page,
       'GET',

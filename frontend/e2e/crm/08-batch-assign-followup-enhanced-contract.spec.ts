@@ -12,51 +12,51 @@
 //      不改源码、不为本用例新增端点。
 // 被测端点与注册点：
 //   - POST /crm/assignments/batch  backend/src/routes/crm.rs `/assignments/batch`
-//     → handlers/crm_assignment_handler.rs:131 batch_assign（先判后写门 147-178，
-//       逐行循环 run_batch_assign_loop:243，单行语义 assign_single_lead:272）
-//   - POST /crm/assignments/auto-assign → handlers/crm_assignment_handler.rs:354 auto_assign
-//     → services/crm/assign.rs:105 auto_assign_leads（空列表门 111，无效销售门 121）
+//     → handlers/crm_assignment_handler::batch_assign（先判后写门，
+//       逐行循环 run_batch_assign_loop，单行语义 assign_single_lead）
+//   - POST /crm/assignments/auto-assign → handlers/crm_assignment_handler auto_assign
+//     → services/crm/assign::auto_assign_leads（空列表门与无效销售门均在函数体开头）
 //   - POST/GET /crm/opportunities/{id}/follow-ups
-//     → handlers/crm_handler.rs:1669 create_opportunity_follow_up / :1654 list_opportunity_follow_ups
-//       → services/crm/opp.rs:1230 create_opportunity_follow_up
-//   - POST /crm/customers/enhanced → handlers/crm_customer_handler.rs:146 create_customer
-//     （入参 CreateLeadRequest，service 落 crm_lead::Model，写响应走线索侧字段权限 159-164）
+//     → handlers/crm_handler::create_opportunity_follow_up 与 crm_handler::list_opportunity_follow_ups
+//       → services/crm/opp::create_opportunity_follow_up
+//   - POST /crm/customers/enhanced → handlers/crm_customer_handler::create_customer
+//     （入参 CreateLeadRequest，service 落 crm_lead::Model，写响应走线索侧字段权限门）
 // 入参（字段名逐字符对齐 handler 的 Deserialize 结构）：
-//   - 批量分配 BatchAssignRequest（crm_assignment_handler.rs:37）：lead_ids: 线索 id 数组、
+//   - 批量分配 BatchAssignRequest（crm_assignment_handler）：lead_ids: 线索 id 数组、
 //     assignee_id: 目标销售用户 id、assignee_name: 目标销售展示名（自由文本，落分配历史 to_user_name）、
 //     notes: 可空备注
-//   - 自动分配 AutoAssignRequest（services/crm/assign.rs:28）：assignee_user_ids: 参与轮询的销售
+//   - 自动分配 AutoAssignRequest（services/crm/assign）：assignee_user_ids: 参与轮询的销售
 //     用户 id 数组（空即拒）、limit: 本次分配上限（缺省 100，钳到 1-1000）
-//   - 商机跟进 CreateOpportunityFollowUpRequest（services/crm/opp.rs:1329）：follow_up_type（
+//   - 商机跟进 CreateOpportunityFollowUpRequest（services/crm/opp）：follow_up_type（
 //     phone/email/visit/meeting/wechat 一类方式串）、content（跟进内容，必填）、
 //     follow_up_time（可选，缺省服务端取当前时间）、next_follow_up_date（可选，YYYY-MM-DD）
 //   - 增强客户创建 CreateLeadRequest：lead_no、company_name、contact_name、mobile_phone、
 //     lead_source、priority 等（与 POST /crm/leads 同一结构）
 // 传给谁 / 存哪里：
 //   crm_lead（批量分配改写 lead_status）、assignment_histories（批量分配落分配历史）、
-//   opportunity_follow_up（models/opportunity_follow_up.rs:7，列 id/opportunity_id/follow_up_type/
+//   opportunity_follow_up（models/opportunity_follow_up，列 id/opportunity_id/follow_up_type/
 //   content/follow_up_time/next_follow_up_date/user_id/user_name/created_at）。
 //   出参一律 { code, message, data } 成功信封；GET /crm/opportunities/{id}/follow-ups 的 data
 //   是裸数组（list_opportunity_follow_ups 返回 Vec）。
 //
 // 本片的取舍与红线登记（不靠改测试迁就源码）：
-//   - POST /crm/assignments/auto-assign 的**正向**不在本片写：services/crm/assign.rs:180
+//   - POST /crm/assignments/auto-assign 的**正向**不在本片写：services/crm/assign
 //     fetch_pending_leads 取的是全库 `lead_status='new'` 按 id 升序的前 limit 条，
 //     真实调用会把与本用例无关的他人待分配线索一并改 owner 与状态，且无法回滚，
 //     属跨用例副作用；故只写"空销售列表"与"指定销售全部无效"两道零写入门。
 //     这两条是业务态负例（在册方法、断具体机器码与外显文案，并回读哨兵线索证零落库），
 //     不等价于该端点正向契约已被行使，覆盖面上须按此判读。
-//   - 批量分配单行实现（crm_assignment_handler.rs:272 assign_single_lead）只把 lead_status
+//   - 批量分配单行实现（crm_assignment_handler::assign_single_lead）只把 lead_status
 //     置 assigned，**不改写 crm_lead.owner_id**（响应却按 assignee_id 记分配历史）。
 //     本片按"lead_status 真的落库"这条可回归的契约断言，不把 owner_id 未变当成期望值钉死，
 //     以免将来修复该缺陷时反向被测试锁住；缺陷本身交回研发处置。
 //   - 分配历史读取端点的出参形状未在本片取证，故不断历史行，避免影子断言。
 //   - PUT/POST /crm/recycle-rules 一族不在本片写：按派工只做取证，结论是——
-//     handlers/missing_handlers.rs:450 update_recycle_rule 真实调用
-//     services/crm/recycle_rule.rs:99 update_rule（find_by_id → not_found 门 → 逐列 if let Some
+//     handlers/missing_handlers update_recycle_rule 真实调用
+//     services/crm/recycle_rule update_rule（find_by_id → not_found 门 → 逐列 if let Some
 //     → update），GET/POST/PUT/DELETE 四方法均已在 frontend/scripts/route-snapshot.txt 在册，
-//     不是不可达空壳；days 受 validator 的 1-365 取值域门约束（recycle_rule.rs:44），
-//     失败经 utils/error.rs:719-722 的 validation_displayable 通道出 400 + VALIDATION_ERROR。
+//     不是不可达空壳；days 受 validator 的 1-365 取值域门约束（recycle_rule），
+//     失败经 utils/error 的 validation_displayable 通道出 400 + VALIDATION_ERROR。
 //   - 商机跟进记录没有 DELETE 端点（routes/crm.rs 该组只注册 GET/POST）：本卡严禁为凑绿
 //     新增删除端点，改为用例自建商机与唯一 content 标记，所有读位只按自建 id 过滤，
 //     残留行不影响任何断言。
@@ -71,7 +71,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 
-/** batch_assign 出参（crm_assignment_handler.rs:215-220 手写 json） */
+/** batch_assign 出参（crm_assignment_handler 手写 json） */
 interface BatchAssignResult {
   total: number;
   assigned: number;
@@ -79,7 +79,7 @@ interface BatchAssignResult {
   errors: string[];
 }
 
-/** opportunity_follow_up 行（models/opportunity_follow_up.rs:8-33） */
+/** opportunity_follow_up 行（models/opportunity_follow_up） */
 interface FollowUpRow {
   id: number;
   opportunity_id: number;
@@ -250,7 +250,7 @@ test.describe('08 批量分配 / 商机跟进 / 增强客户入口契约', () =>
       notes: null,
     });
 
-    // load_lead_map 对空 ids 直接返回空 map（crm_assignment_handler.rs:225），
+    // load_lead_map 对空 ids 直接返回空 map（crm_assignment_handler），
     // 循环不执行 ⇒ 四值全零；把它当 500 或"默认全量"都是回归
     expect(res.data.total).toBe(0);
     expect(res.data.assigned).toBe(0);
@@ -367,7 +367,7 @@ test.describe('08 批量分配 / 商机跟进 / 增强客户入口契约', () =>
     expect(created.data.lead_no, '出参应带线索域列 lead_no').toBe(leadNo);
     expect(created.data.company_name, '出参 company_name 应等于提交值').toBe(companyName);
 
-    // 域分裂事实钉桩：本端点落的是 crm_lead（crm_customer_handler.rs:152-154 create_lead），
+    // 域分裂事实钉桩：本端点落的是 crm_lead（crm_customer_handler create_lead），
     // 因此用线索详情端点回读同一个 id 必须能读到同一行
     const asLead = await apiCallRaw<LeadRow>(page, 'GET', `/crm/leads/${created.data.id}`);
     expect(asLead.id).toBe(created.data.id);
