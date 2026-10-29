@@ -3,6 +3,8 @@ import {
   loginViaUI,
   apiCall,
   apiCallRaw,
+  apiCallExpectFail,
+  failureCode,
   tryCleanup,
   ensureTestEntities,
   pickDyeableWarehouse,
@@ -484,6 +486,52 @@ test.describe.serial('P0 自动通知全链路：业务动作→通知产生验�
     await markReadAndAssert(page, payNotif.id, 'E');
     await deleteNotification(page, payNotif.id);
 
-    await tryCleanup(page, 'DELETE', `/ap/payment-requests/${requestId}`, '[31d-F]');
+    // 清理本行付款申请用哪条在册腿：POST /ap/payment-requests/{id}/reject。
+    // 六要素——主体：本用例自建的付款申请（单号由后端在建单事务内取号并落
+    // ap_payment_request.request_no 唯一列，本轮行天然与他人的行可区分，唯一键隔离保留）；
+    // 动作：拒绝；对象：该申请主单（明细由后端在删除时同事务逆序级联）；时机：本用例只
+    // submit 未 approve，提交腿把 approval_status 写为 APPROVING，清理时机正停在拒绝腿的
+    // 前置状态上，撤态腿可达；地点：本用例末尾，通知断言完成之后；后果：撤态与删除全部
+    // 走 apiCall，任一步返回非成功信封即抛出判红，不再用 tryCleanup 把失败吞成 warn。
+    // 回读断什么：先断该列真变成拒绝腿的落值 REJECTED（词值逐字取自
+    // backend/src/models/status/finance.rs::ap_payment_request.APPROVAL_REJECTED，与写入方
+    // backend/src/services/ap_payment_request_service.rs::reject 同源），该值落在删除门
+    // backend/src/services/ap_payment_request_service.rs::delete 的白名单内；删完再回读断
+    // 这条记录确实查无（404 + NOT_FOUND），不留脏行。
+    const beforeReject = await apiCallRaw<{ approval_status?: string }>(
+      page,
+      'GET',
+      `/ap/payment-requests/${requestId}`
+    );
+    expect(
+      beforeReject.approval_status,
+      `[31d-F] 清理前置应停在拒绝腿的前置状态 APPROVING（提交腿落值），实际=${beforeReject.approval_status}`
+    ).toBe('APPROVING');
+
+    const rejected = await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/reject`, {
+      reason: 'E2E 31d-F 清理拒绝',
+    });
+    expect(
+      rejected?.code,
+      `[31d-F] 拒绝腿应返回成功信封 200，实际信封：${JSON.stringify(rejected)}`
+    ).toBe(200);
+    const afterReject = await apiCallRaw<{ approval_status?: string }>(
+      page,
+      'GET',
+      `/ap/payment-requests/${requestId}`
+    );
+    expect(
+      afterReject.approval_status,
+      `[31d-F] 拒绝后 approval_status 应为拒绝腿落值 REJECTED，实际=${afterReject.approval_status}`
+    ).toBe('REJECTED');
+
+    const deleted = await apiCall(page, 'DELETE', `/ap/payment-requests/${requestId}`);
+    expect(
+      deleted?.code,
+      `[31d-F] 删除应返回成功信封 200，实际信封：${JSON.stringify(deleted)}`
+    ).toBe(200);
+    const gone = await apiCallExpectFail(page, 'GET', `/ap/payment-requests/${requestId}`);
+    expect(gone.status, `[31d-F] 删除后该付款申请应查无（404），实际=${gone.status}`).toBe(404);
+    expect(failureCode(gone), '[31d-F] 删除后回读的机器码应为 NOT_FOUND').toBe('NOT_FOUND');
   });
 });
