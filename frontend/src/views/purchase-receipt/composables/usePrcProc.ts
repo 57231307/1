@@ -266,6 +266,14 @@ export function usePrcProc(cb: PrcCallbacks) {
   };
 
   /**
+   * 读取行上的价格录入腿编辑标志：price_edited 是 PurchaseReceiptForm 行类型
+   * （PrcFormRow）的纯 UI 态标志，随表单整体回写流转，不进 api 契约类型，
+   * 故此处按结构收窄读取而不是在 ReceiptItem 上声明该键。
+   */
+  const isPriceEdited = (it: ReceiptItem): boolean =>
+    (it as { price_edited?: boolean }).price_edited === true;
+
+  /**
    * 重算明细行派生列（事件名沿用 calc-amount，index.vue 按该名接线）：
    * 含税单价与税率是录入事实，净额、金额小计与税额预览一律由 money.ts 唯一摊税实现派生，
    * 本函数不出现任何乘 (1 加税率) 造含税、乘税率造税额的算式。
@@ -293,7 +301,7 @@ export function usePrcProc(cb: PrcCallbacks) {
       rate >= 0;
     if (inputsUsable) {
       item.unit_price = netFromInclusive(inclusiveUnit, rate);
-    } else if (item.price_edited) {
+    } else if (isPriceEdited(item)) {
       // 主动清空：录入腿被编辑过但当前成对留空（或文本非法由提交门先拦），
       // 派生净额回到未采集，让更新腿送显式 null 真正清除库值
       item.unit_price = undefined;
@@ -410,7 +418,7 @@ export function usePrcProc(cb: PrcCallbacks) {
     const clearedRows: number[] = [];
     validItems.forEach((it, idx) => {
       if (
-        it.price_edited &&
+        isPriceEdited(it) &&
         it.unit_price === undefined &&
         it.id != null &&
         priceOriginals.value.get(it.id) != null

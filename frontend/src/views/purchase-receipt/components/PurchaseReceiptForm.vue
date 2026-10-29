@@ -255,6 +255,13 @@ interface OptItem {
 }
 
 // 表单类型
+// 编辑态行类型：契约行 ReceiptItem 之上加价格录入腿编辑标志 price_edited。
+// 本标志是纯 UI 态（不上送、不回显、也不进 api 契约类型——api-keys 门禁口径要求
+// 契约类型里的每个键都在后端有同名字段）：含税单价或税率录入框被操作人编辑过即置真，
+// usePrcProc 的 calculateItemAmount 回退分支与 handleSubmit 清空点名消费它，
+// 用以分辨"主动清空价格"与"没碰价格"。
+type PrcFormRow = ReceiptItem & { price_edited?: boolean };
+
 interface PurchaseReceiptFormModel {
   id?: number;
   receipt_no?: string;
@@ -262,7 +269,7 @@ interface PurchaseReceiptFormModel {
   supplier_id?: number;
   warehouse_id?: number;
   status?: string;
-  items?: ReceiptItem[];
+  items?: PrcFormRow[];
   [key: string]: unknown;
 }
 
