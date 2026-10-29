@@ -55,7 +55,7 @@ impl ExportService {
         use printpdf::*;
         let (doc, page1, layer1) =
             PdfDocument::new(data.title.as_str(), Mm(297.0), Mm(210.0), "Layer 1");
-        let layer = doc.get_page(page1).get_layer(layer1);
+        let mut layer = doc.get_page(page1).get_layer(layer1);
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
             .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
@@ -94,7 +94,7 @@ impl ExportService {
             y_pos -= 6.0;
             if y_pos < 20.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
-                let _layer = doc.get_page(new_page).get_layer(new_layer);
+                layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
             }
         }
@@ -430,4 +430,83 @@ pub struct ReconciliationPdfItem {
     pub document_no: String,
     pub amount: String,
     pub date: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 构造指定行数的 ExportData，内容只用 ASCII 避免内建字体编码限制
+    fn make_data(row_count: usize) -> ExportData {
+        ExportData {
+            title: "Test Report".into(),
+            headers: vec!["Col A".into(), "Col B".into(), "Col C".into()],
+            rows: (0..row_count)
+                .map(|i| vec![format!("A{}", i), format!("B{}", i), format!("C{}", i)])
+                .collect(),
+            summary: None,
+        }
+    }
+
+    /// 在字节序列中查找子串首次出现的位置
+    fn find_sub(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        haystack.windows(needle.len()).position(|w| w == needle)
+    }
+
+    /// 在字节序列中查找子串末次出现的位置
+    fn rfind_sub(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        haystack.windows(needle.len()).rposition(|w| w == needle)
+    }
+
+    /// 按 endstream 切分 PDF 字节流，返回含 BT 文本算子的内容流段数。
+    /// printpdf 0.7 的 save 默认不压缩内容流，因此 BT 可直接在原始字节中检索。
+    fn streams_with_bt(pdf: &[u8]) -> usize {
+        let endstream_kw = b"endstream";
+        let stream_kw = b"stream";
+        let bt_kw = b"BT";
+        let mut count = 0;
+        let mut pos = 0;
+        while let Some(idx) = find_sub(&pdf[pos..], endstream_kw) {
+            let segment = &pdf[pos..pos + idx];
+            if let Some(spos) = rfind_sub(segment, stream_kw) {
+                let after_stream = &segment[spos + stream_kw.len()..];
+                if find_sub(after_stream, bt_kw).is_some() {
+                    count += 1;
+                }
+            }
+            pos += idx + endstream_kw.len();
+        }
+        count
+    }
+
+    /// 翻页句柄修复的自证用例：60 行触发一次翻页，断言每一页的内容流都非空。
+    /// 若把 export_pdf 中翻页处的 `layer = ...` 改回 `let _layer = ...` 丢弃形态，
+    /// 新页内容流为空、不含 BT 算子，bt_stream_count 会降到 1，断言必红。
+    #[test]
+    fn export_pdf_page_break_produces_content_on_every_page() {
+        let data = make_data(60);
+        let bytes = ExportService::export_pdf(&data).expect("export_pdf 应成功返回字节流");
+
+        // PDF 魔数
+        assert!(bytes.starts_with(b"%PDF"), "返回值应以 PDF 魔数开头");
+
+        // 页数断言：/Type /Page 命中数减去 /Type /Pages 命中数等于实际页对象数
+        let text = String::from_utf8_lossy(&bytes);
+        let total_page_hits = text.matches("/Type /Page").count();
+        let pages_node_hits = text.matches("/Type /Pages").count();
+        let actual_pages = total_page_hits - pages_node_hits;
+        assert!(
+            actual_pages >= 2,
+            "60 行数据应触发翻页产生至少 2 页，实际页对象数 {}",
+            actual_pages
+        );
+
+        // 每页内容流都含 BT：把翻页句柄改回丢弃形态时新页流为空、此断言必红
+        let bt_stream_count = streams_with_bt(&bytes);
+        assert!(
+            bt_stream_count >= 2,
+            "每个翻页后的内容流都应含文本算子 BT，实际含 BT 的流段数 {}",
+            bt_stream_count
+        );
+    }
 }
