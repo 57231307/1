@@ -2,35 +2,31 @@
 //!
 //! ## 六要素
 //! - **功能**：为 `export_approval_request` 增加 BPM 关联、令牌哈希化与重试窗口所需列，
-//!   扩展 status CHECK 词表加 consumed/exhausted 两终态，并把 export_approval 的 BPM
-//!   流程定义登记到 `bpm_process_definition`，使导出审批成为 BPM 承载的一族单据。
+//!   扩展 status CHECK 词表加 consumed/exhausted 两终态，并为 token_hash 建部分唯一索引。
+//!   本迁移只做 schema；export_approval 的 BPM 流程定义行由 `services/bpm_definition_seed.rs`
+//!   的出厂种子在初始化链路与启动链路登记——审批人锚点必须是已存在的 admin 启用用户，
+//!   而迁移执行时该用户尚未创建（admin 用户由系统初始化链路建立，晚于迁移）。
 //! - **调用方**：顶层域 export_approval_lifecycle（台账名 m_export_approval_lifecycle）
 //!   的链尾聚合迁移；置于全链尾为新的顶层条目，复用库上属 pending 必然执行。依赖 system
-//!   建的 `bpm_process_definition`/`bpm_process_instance`/`users`/`roles` 与 finance 建并
-//!   由 v15 扩展的 `export_approval_request`（含 download_token/token_expires_at/
-//!   max_downloads/download_count 既有列），全部早于本域。
-//! - **入参**：无。状态词表与流程标识是本文件的编译期常量。
+//!   建的 `bpm_process_instance` 与 finance 建并由 v15 扩展的 `export_approval_request`
+//!   （含 download_token/token_expires_at/max_downloads/download_count 既有列），全部早于本域。
+//! - **入参**：无。状态词表是本文件的编译期常量。
 //! - **传给谁**：`SchemaManager` 的裸 SQL 连接。运行时读取方为
 //!   `services/export_approval_service.rs`（令牌生命周期）与 `services/bpm_ops/instance.rs`
-//!   的 start_process（按 process_key=export_approval 取 ACTIVE 定义）。
+//!   的 start_process（按 process_key=export_approval 取 ACTIVE 定义，定义行由出厂种子写入）。
 //! - **存什么**：新增列 token_hash/token_fingerprint/token_viewed/retry_count/
 //!   last_attempt_at/max_retries/token_consumed/token_consumed_at/bpm_instance_id；
-//!   以 chk_ear_status 固化 status 八值词表；向 bpm_process_definition 插入 export_approval
-//!   流程定义行（config 为按 risk_level 走一级或二级的节点图，审批人锚点取 admin 角色
-//!   最小启用用户 id）。
-//! - **存哪里**：PostgreSQL `public.export_approval_request`、`public.bpm_process_definition`。
+//!   以 chk_ear_status 固化 status 八值词表；建 idx_ear_token_hash 部分唯一索引。
+//! - **存哪里**：PostgreSQL `public.export_approval_request` 的列、约束与索引。
 //!
 //! ## 幂等与安全
 //! - 加列用 `ADD COLUMN IF NOT EXISTS`，索引与外键按 pg_constraint / IF NOT EXISTS 守卫，
-//!   流程定义插入用 `NOT EXISTS` 守卫，重跑等价。
+//!   重跑等价。
 //! - status CHECK 施加前按「先探测后约束」范式统计词表外存量并采样例值，非 0 即
 //!   RAISE EXCEPTION 点名中止，绝不借施加约束之机 UPDATE 造值圆场。
 //! - 历史明文令牌：不在本迁移中 UPDATE/DELETE 洗数据。新记录只写哈希，老行保留原列，
 //!   校验侧优先走哈希路径、哈希缺失则回退到原明文比对；老行在 token_expires_at 过后自然
 //!   失效，不留长期可利用的明文凭据面。
-//! - 系统未初始化（admin 角色或启用用户不存在）时流程定义插入命中 0 行并以 NOTICE 报出，
-//!   不伪造审批人；属合法部署时序（导出审批发起在 init 之后），start_process 侧另有缺定义
-//!   的失败可见文案兜底。
 
 use sea_orm_migration::prelude::*;
 
@@ -48,12 +44,10 @@ impl MigrationTrait for Migration {
         add_columns_for_token_lifecycle(manager).await?;
         apply_status_check_constraint(manager).await?;
         create_token_hash_index(manager).await?;
-        seed_export_approval_process_definition(manager).await?;
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        remove_export_approval_process_definition(manager).await?;
         drop_token_hash_index(manager).await?;
         revert_status_check_constraint(manager).await?;
         drop_new_columns(manager).await?;
@@ -162,93 +156,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "idx_ear_token_hash"
     Ok(())
 }
 
-/// 登记 export_approval BPM 流程定义（幂等，NOT EXISTS 守卫）
-///
-/// 节点链：start_event → user_task(一级审批) → [条件 risk_level] →
-/// 低风险直走 end_event，中/高/严重风险走 user_task(二级审批) → end_event。
-/// 审批人锚点取 admin 角色下 ID 最小的启用用户；系统未初始化（admin 或启用用户不存在）时
-/// 子查询命中 0 行、插入 0 行并以 NOTICE 报出，不伪造审批人。config 用 jsonb_build_object
-/// 组装，assignee_value 存 admin 用户 id（数字），与 bpm_ops::resolve_user_assignee 读取口径一致。
-async fn seed_export_approval_process_definition(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
-    let seed_visibility = r#"
-DO $$
-DECLARE
-    anchor INTEGER;
-    already INTEGER;
-BEGIN
-    SELECT COUNT(*) INTO already FROM "bpm_process_definition" WHERE "code" = 'export_approval';
-    SELECT u."id" INTO anchor
-      FROM "users" u JOIN "roles" r ON u."role_id" = r."id"
-     WHERE r."code" = 'admin' AND u."is_active" = TRUE
-     ORDER BY u."id" ASC LIMIT 1;
-    IF already > 0 THEN
-        RAISE NOTICE 'm_export_approval_lifecycle：export_approval 流程定义已存在，跳过登记（幂等路径）。';
-    ELSIF anchor IS NULL THEN
-        RAISE NOTICE 'm_export_approval_lifecycle：admin 角色或其启用用户尚不存在（系统未完成初始化），本次未登记 export_approval 流程定义；属合法部署时序，导出审批发起在 init 之后。';
-    ELSE
-        RAISE NOTICE 'm_export_approval_lifecycle：将登记 export_approval 流程定义，审批人锚点 admin 用户 id=%。', anchor;
-    END IF;
-END;
-$$;
-"#;
-    manager
-        .get_connection()
-        .execute_unprepared(seed_visibility)
-        .await?;
-
-    let sql = r#"
-INSERT INTO "bpm_process_definition"
-  ("name", "code", "description", "category", "version", "config", "status", "created_at", "updated_at")
-SELECT
-  '导出审批流程',
-  'export_approval',
-  '敏感数据导出审批的 BPM 流程链路，按风险等级走一级或二级审批',
-  'system',
-  'v1',
-  jsonb_build_object(
-    'nodes', jsonb_build_array(
-      jsonb_build_object('id', 'start', 'name', '提交审批', 'type', 'start_event'),
-      jsonb_build_object('id', 'l1_approve', 'name', '一级审批', 'type', 'user_task',
-                         'assignee_type', 'user', 'assignee_value', a."id"),
-      jsonb_build_object('id', 'l2_approve', 'name', '二级审批', 'type', 'user_task',
-                         'assignee_type', 'user', 'assignee_value', a."id"),
-      jsonb_build_object('id', 'end', 'name', '完成', 'type', 'end_event')
-    ),
-    'edges', jsonb_build_array(
-      jsonb_build_object('source', 'start', 'target', 'l1_approve'),
-      jsonb_build_object('source', 'l1_approve', 'target', 'end',
-                         'condition', '${risk_level} == ''low'''),
-      jsonb_build_object('source', 'l1_approve', 'target', 'l2_approve',
-                         'condition', '${risk_level} != ''low'''),
-      jsonb_build_object('source', 'l2_approve', 'target', 'end')
-    )
-  ),
-  'ACTIVE',
-  NOW(),
-  NOW()
-  FROM (
-    SELECT u."id"
-      FROM "users" u JOIN "roles" r ON u."role_id" = r."id"
-     WHERE r."code" = 'admin' AND u."is_active" = TRUE
-     ORDER BY u."id" ASC LIMIT 1
-  ) a
- WHERE NOT EXISTS (SELECT 1 FROM "bpm_process_definition" d WHERE d."code" = 'export_approval');
-"#;
-    manager.get_connection().execute_unprepared(sql).await?;
-    Ok(())
-}
-
 // ===== down 分步实现 =====
-
-async fn remove_export_approval_process_definition(
-    manager: &SchemaManager<'_>,
-) -> Result<(), DbErr> {
-    let sql = r#"
-DELETE FROM "bpm_process_definition" WHERE "code" = 'export_approval';
-"#;
-    manager.get_connection().execute_unprepared(sql).await?;
-    Ok(())
-}
 
 async fn drop_token_hash_index(manager: &SchemaManager<'_>) -> Result<(), DbErr> {
     let sql = r#"
