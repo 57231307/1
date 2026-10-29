@@ -1,4 +1,4 @@
-# layers=8 endpoints=1778
+# layers=8 endpoints=1806
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -122,6 +122,10 @@ DELETE	/api/v1/erp/sales/sales-prices/*	sales_price_handler::delete_price	sales
 DELETE	/api/v1/erp/sales/sales-returns/*	delete_sales_return	sales_return_handler
 DELETE	/api/v1/erp/sales/sales-returns/*/items/*	delete_return_item	sales_return_handler
 DELETE	/api/v1/erp/subjects/*	account_subject_handler::delete_subject	finance
+DELETE	/api/v1/erp/textile-export-requirements/*	textile_safety_master_handler::delete_export_requirement	textile_safety
+DELETE	/api/v1/erp/textile-limit-rules/*	textile_safety_master_handler::delete_limit_rule	textile_safety
+DELETE	/api/v1/erp/textile-submissions/*	textile_safety_handler::delete_submission	textile_safety
+DELETE	/api/v1/erp/textile-test-items/*	textile_safety_master_handler::delete_test_item	textile_safety
 DELETE	/api/v1/erp/users/*	user_handler::delete_user	iam
 DELETE	/api/v1/erp/vouchers/*	voucher_handler::delete_voucher	finance
 DELETE	/api/v1/erp/warehouses/*	warehouse_handler::delete	catalog
@@ -944,6 +948,13 @@ GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
 GET	/api/v1/erp/templates/meta/*	import_export_handler::describe_import_template	analytics
+GET	/api/v1/erp/textile-export-requirements	textile_safety_master_handler::list_export_requirements	textile_safety
+GET	/api/v1/erp/textile-limit-rules	textile_safety_master_handler::list_limit_rules	textile_safety
+GET	/api/v1/erp/textile-reports	textile_safety_report_handler::list_reports	textile_safety
+GET	/api/v1/erp/textile-reports/*	textile_safety_report_handler::get_report	textile_safety
+GET	/api/v1/erp/textile-submissions	textile_safety_handler::list_submissions	textile_safety
+GET	/api/v1/erp/textile-submissions/*	textile_safety_handler::get_submission	textile_safety
+GET	/api/v1/erp/textile-test-items	textile_safety_master_handler::list_test_items	textile_safety
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
 GET	/api/v1/erp/user-path	tracking_handler::get_user_path	analytics
 GET	/api/v1/erp/user/profile	user_handler::get_current_user_profile	mod
@@ -1599,6 +1610,13 @@ POST	/api/v1/erp/system-update/update	system_update_handler::download_and_update
 POST	/api/v1/erp/system-update/upload	system_update_handler::upload_and_update	system
 POST	/api/v1/erp/system-update/versions/*/download	system_update_handler::download_version_update	mod
 POST	/api/v1/erp/system-update/versions/*/install	system_update_handler::install_version_update	mod
+POST	/api/v1/erp/textile-export-requirements	textile_safety_master_handler::create_export_requirement	textile_safety
+POST	/api/v1/erp/textile-limit-rules	textile_safety_master_handler::create_limit_rule	textile_safety
+POST	/api/v1/erp/textile-reports	textile_safety_report_handler::create_report	textile_safety
+POST	/api/v1/erp/textile-reports/*/results	textile_safety_report_handler::upsert_results	textile_safety
+POST	/api/v1/erp/textile-submissions	textile_safety_handler::create_submission	textile_safety
+POST	/api/v1/erp/textile-submissions/*/items	textile_safety_handler::generate_items	textile_safety
+POST	/api/v1/erp/textile-test-items	textile_safety_master_handler::create_test_item	textile_safety
 POST	/api/v1/erp/unlock	login_security_handler::unlock_account	analytics
 POST	/api/v1/erp/user/avatar	user_handler::upload_avatar	mod
 POST	/api/v1/erp/users	user_handler::create_user	iam
@@ -1770,6 +1788,16 @@ PUT	/api/v1/erp/scheduling/*	scheduling_handler::adjust_schedule	mod
 PUT	/api/v1/erp/scheduling/tasks/*/adjust	scheduling_handler::adjust_schedule_task	mod
 PUT	/api/v1/erp/slow-queries/*/optimization	slow_query_handler::update_slow_query_optimization	system
 PUT	/api/v1/erp/subjects/*	account_subject_handler::update_subject	finance
+PUT	/api/v1/erp/textile-export-requirements/*	textile_safety_master_handler::update_export_requirement	textile_safety
+PUT	/api/v1/erp/textile-limit-rules/*	textile_safety_master_handler::update_limit_rule	textile_safety
+PUT	/api/v1/erp/textile-reports/*	textile_safety_report_handler::update_report	textile_safety
+PUT	/api/v1/erp/textile-reports/*/acceptance	textile_safety_report_handler::accept_report	textile_safety
+PUT	/api/v1/erp/textile-reports/*/judgement	textile_safety_report_handler::judge_report	textile_safety
+PUT	/api/v1/erp/textile-submissions/*	textile_safety_handler::update_submission	textile_safety
+PUT	/api/v1/erp/textile-submissions/*/child-checks	textile_safety_handler::upsert_child_checks	textile_safety
+PUT	/api/v1/erp/textile-submissions/*/judgement	textile_safety_handler::judge_submission	textile_safety
+PUT	/api/v1/erp/textile-submissions/*/status	textile_safety_handler::set_submission_status	textile_safety
+PUT	/api/v1/erp/textile-test-items/*	textile_safety_master_handler::update_test_item	textile_safety
 PUT	/api/v1/erp/user-notification-settings	user_notification_setting_handler::update_setting	analytics
 PUT	/api/v1/erp/user/profile	user_handler::update_current_user_profile	mod
 PUT	/api/v1/erp/users/*	user_handler::update_user	iam
