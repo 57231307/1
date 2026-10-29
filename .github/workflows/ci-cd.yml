@@ -7,22 +7,24 @@
 #   3. 失败时自动诊断（最近 commit、变更文件、错误上下文）
 #
 # 工作流拓扑：
-#   ci-info → [ci-fmt-rust, ci-static-checks, ci-lint-rust, ci-lint-fe, ci-type-check,
-#              ci-test-fe, security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原
-#              ci-audit/ci-deps）, ci-perf-bench, ci-build-rust, ci-build-fe]
-#            PR 时额外跑: [ci-build-test-artifacts → ci-test-rust(10分片)],
-#                         [ci-e2e（45 分片并行端到端）],
-#                         [ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）]
-#            → [package-release] → [github-release]
+#   ci-info → 常跑面 [ci-fmt-rust, ci-static-checks, ci-lint-rust, ci-lint-fe, ci-type-check,
+#              ci-build-rust, ci-build-fe]
+#            → 发布面 [security-vulnerability-scan（依赖漏洞+秘密+依赖图，合并原 ci-audit 与
+#              ci-deps）, ci-android-apk] → [package-release] → [github-release]
+#            → 测试面（13 个 job，一律由 ci-info 的 full_suite 输出放行）
+#              [ci-test-rust（先经 ci-build-test-artifacts，10 分片）, ci-test-rust-ignored,
+#               ci-test-fe, ci-perf-bench, ci-e2e（45 分片并行端到端）, role-permission-matrix,
+#               ci-dead-code-audit（Clippy 通过后跑，步骤见 actions/dead-code-audit）,
+#               ci-e2e-setup-wizard, feature-completeness-check, comment-convention-check,
+#               e2e-authenticity-guard, sensitive-audit-coverage, e2e-error-detection]
 #            → [ci-cleanup-retry]（收尾：needs 列出全部 job，动态扫描 toJSON(needs) 汇总判定）
 #
-# 发布门禁：E2E + Rust 测试 + 死代码审计在 PR 时验证，合并即视为通过。
-#   主线 push 不重复跑 Rust/前端测试（已在 PR 阶段验证），只做构建/格式/审计/发布；
-#   但主线 push 会跑 ci-e2e 的"核心链子集"分片（本文件的配置事实：job 级 if 放行
-#   push 到 main/master，选片由 ci-build-fe 的发射步骤按事件决定，判据见
-#   frontend/scripts/check-e2e-main-push-shards.mjs）。本条改动是否已在真实 run 上生效
-#   需由下一次 main push 的 run 自证，自证判据写在 e2e-authenticity-guard 的
-#   "main push 轮 ci-e2e 不得为 skipped"步骤里，不在此处替 run 下结论。
+# 触发口径（三种运行面）：
+#   PR 自动跑，是测试面唯一的自动执行位（Rust 测试、前端测试、E2E 全量分片、审计与真实性门禁）。
+#   主干 push 不触发。合并 PR 属自动动作，主线一律人工发起，见 on.push 与 ci-info 的
+#   plan-scope 步骤（手动运行默认 full_suite=true，即整条流水线连同发布链一起核一遍）。
+#   v* tag 推送仍自动跑，但属显式发版动作，按基本检查面加发布链执行，不带测试面。
+#   漏洞检测在能拦住事情的那一轮跑（PR 拦合并、发版轮拦发布），口径同上。
 #   所有 job timeout 统一 360 分钟（6 小时），E2E 45 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
@@ -31,9 +33,8 @@ name: CI/CD Pipeline - 严格构建验证 + 全面日志
 
 on:
   push:
-    branches:
-      - main
-      - master
+    # 主干 push 不再触发本流水线：合并 PR 属自动动作，而主线运行改由人工发起（口径见
+    # ci-info 的 plan-scope 步骤）。只保留 v* tag 这一条显式发版入口——打 tag 是人主动做的。
     tags:
       - 'v*'
     paths-ignore:
@@ -50,8 +51,13 @@ on:
     # 纯文档提交若被 paths-ignore 过滤则没有 run，检查会永久停在 pending
   workflow_dispatch:
     inputs:
+      full_suite:
+        description: '是否跑测试面（Rust 与前端测试、E2E、各类审计与真实性门禁）；关闭则只跑格式与静态与类型与构建'
+        required: false
+        type: boolean
+        default: true
       skip_release:
-        description: '跳过 release（用于调试）'
+        description: '跳过打包发布链（只验证不产出 release 二进制）'
         required: false
         type: boolean
         default: false
@@ -90,10 +96,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      # full_suite 是全流水线唯一的"跑不跑测试面"开关：只有 pull_request 为 true。
-      # 口径是所有测试都在 PR 里跑，主干 push 只做基本检查。
-      # 摘除测试后主干仍跑 格式 / 契约与静态门禁 / Clippy / ESLint / 类型 / 前后端构建 /
-      # 漏洞扫描 / 发布与打包链；重型测试 job 在主干上呈 skipped，聚合门按 success/skipped 放行。
+      # full_suite 是全流水线唯一的"跑不跑测试面"开关：pull_request 与手动全量运行为 true。
+      # 口径是所有测试都在 PR 里跑，主干不自动触发，主线要跑就由人发起一次手动运行。
+      # 关闭测试面时本轮仍跑 格式 / 契约与静态门禁 / Clippy / ESLint / 类型 / 前后端构建 /
+      # 发布与打包链（漏洞检测按发布面放行，见其 job 级 if）；13 个测试 job 呈 skipped，
+      # 聚合门按 success 与 skipped 放行。消费方是各测试 job 的 job 级 if，入参取事件名与
+      # 手动输入 full_suite，结果只写 GITHUB_OUTPUT，不落文件。
       full_suite: ${{ steps.plan-scope.outputs.full_suite }}
     steps:
       - name: 检出代码
@@ -105,15 +113,20 @@ jobs:
       - name: 判定本次运行的检查范围
         id: plan-scope
         env:
-          # 事件名经 env 传入而非直接内插进 run 体（与本仓"上下文不内插进 shell"的写法一致）
+          # 事件名与手动输入经 env 传入而非直接内插进 run 体（与本仓"上下文不内插进 shell"
+          # 的写法一致）；非 workflow_dispatch 事件下 FULL_SUITE_INPUT 取到空串，不参与判定
           EVENT_NAME: ${{ github.event_name }}
+          FULL_SUITE_INPUT: ${{ github.event.inputs.full_suite }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
             echo "full_suite=true" >> "$GITHUB_OUTPUT"
-            echo "范围=全套：PR 是测试面唯一的执行位（Rust 测试 / 前端测试 / E2E / 审计与真实性门禁）"
+            echo "范围=全套：PR 是测试面唯一的自动执行位（Rust 测试 / 前端测试 / E2E / 审计与真实性门禁）"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FULL_SUITE_INPUT" != "false" ]; then
+            echo "full_suite=true" >> "$GITHUB_OUTPUT"
+            echo "范围=全套：手动发起的主线运行按整条流水线核（合并 PR 后主干不再自动跑，这是主干唯一的自证位）"
           else
             echo "full_suite=false" >> "$GITHUB_OUTPUT"
-            echo "范围=基本：$EVENT_NAME 只跑格式、静态检查、lint、类型、构建与发布链"
+            echo "范围=基本：$EVENT_NAME（或手动运行显式关掉 full_suite）只跑格式、静态检查、lint、类型、构建与发布链"
           fi
 
       - name: 收集环境信息
@@ -1407,10 +1420,10 @@ jobs:
     # 预编译 job：禁用 sccache（冷缓存无加速）+ 并行度由 setup-rust 智能探测（防 OOM，用满最大上限）
     timeout-minutes: 360
     needs: ci-info
-    # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
+    # 只在 PR 与手动全量轮跑测试（主干不自动触发，PR 阶段已验证）
     # 本 job 是 dev profile 的编译中枢：nextest archive 与 clippy 阶段 1 共用同一份
-    # warm backend/target，所以它在 push 上也要跑（clippy 判定链在 PR 与 push 都要有输入）；
-    # 真正只在 PR 跑的是 archive 两步，已下移到步骤级 if。
+    # warm backend/target，所以它在所有事件上都要跑（clippy 判定链每轮都要有输入）；
+    # 测试面的 archive 两步改由步骤级 if 按 full_suite 开关放行。
     services:
       postgres:
         image: postgres:16-alpine
@@ -1449,13 +1462,15 @@ jobs:
           tool: nextest
 
       - name: 编译所有测试并打包为 archive
-        if: github.event_name == 'pull_request'
+        # 条件与测试面开关同源：ci-test-rust 的 10 个分片靠这份 archive 取二进制，
+        # 手动全量轮若仍按事件名只认 pull_request 就不产 archive，分片会整族在下载步判红。
+        if: needs.ci-info.outputs.full_suite == 'true'
         working-directory: backend
         run: |
           cargo nextest archive --archive-file nextest-archive.tar.zst
 
       - name: 上传 archive
-        if: github.event_name == 'pull_request'
+        if: needs.ci-info.outputs.full_suite == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nextest-archive
@@ -1527,7 +1542,7 @@ jobs:
     # 用于分片执行前对本 job 专属 postgres service 跑 migrate。
     # 没有已迁移 schema，setup_test_db() 指向的 PG 只是空库，"集成测试"仍是假覆盖。
     needs: [ci-info, ci-build-test-artifacts, ci-build-rust]
-    # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
+    # 只在 PR 与手动全量轮跑测试（主干不自动触发，PR 阶段已验证）
     if: needs.ci-info.outputs.full_suite == 'true'
     strategy:
       fail-fast: false
@@ -1968,7 +1983,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: ci-info
-    # 只在 PR 跑（口径见 ci-info 的 full_suite）：前端单测不在主干 push 重复执行
+    # 只在 PR 与手动全量轮跑（口径见 ci-info 的 full_suite），前端单测不在主线自动重复执行
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
@@ -2050,10 +2065,10 @@ jobs:
           retention-days: 90
 
 # ==============================================================================
-# Job 10.5: 性能基准回归监控（V15 批次 06 P1-10 修复）
+# Job 10.5: 性能基准回归监控
 # ==============================================================================
 # 设计原则：
-# - 仅在 main/master 分支与 tag 触发，不阻塞主 CI（informational job）
+# - 放行测试面的轮次执行（PR 与手动全量轮），不阻塞主 CI（informational job）
 # - 运行 cargo bench 收集 4 项关键 service 基准：库存核算 / 凭证生成 / 染整成本归集 / 产量工资
 # - 首次运行建立基线（target/criterion/），后续运行与基线对比，回归 > 10% 写入告警
 # - 报告作为 artifact 上传，供后续 PR 检索
@@ -2062,10 +2077,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: ci-info
-    # V15 批次 06 P1-10：informational job，continue-on-error 避免性能波动阻塞主 CI
+    # informational job，continue-on-error 避免性能波动阻塞主 CI
     # 性能回归 > 10% 会写入报告并标注，但不阻塞合并（避免硬件差异导致误报）
-    # 由"只在主干 push 跑"改为"只在 PR 跑"：性能基准属测试面，按现行分工一律在 PR 阶段验证，
-    # 主干 runner 只留基本检查，避免一次主干推送占住单机 runner 数小时。
+    # 性能基准属测试面，按现行分工一律在 PR 与手动全量轮验证（口径见 ci-info 的 full_suite），
+    # 主线不自动触发，避免一次主线运行占住单机 runner 数小时。
     if: needs.ci-info.outputs.full_suite == 'true'
     continue-on-error: true
     steps:
@@ -2331,8 +2346,8 @@ jobs:
     needs: ci-info
     outputs:
       # ci-e2e 的 strategy.matrix 消费本值。矩阵由下方"E2E 分片矩阵发射"步骤
-      # 按事件生成（pull_request 全量 45 片 / push 到 main-master 核心链子集），
-      # 判据与 fail-closed 语义见 frontend/scripts/check-e2e-main-push-shards.mjs 头注释。
+      # 按事件生成（pull_request 与手动全量轮为全量 45 片，其余轮由 ci-e2e 的 job 级 if
+      # 跳过），判据与 fail-closed 语义见 frontend/scripts/check-e2e-main-push-shards.mjs 头注释。
       e2e_shard_matrix: ${{ steps.e2e-shard-matrix.outputs.matrix }}
     steps:
       - name: 检出代码
@@ -2351,7 +2366,7 @@ jobs:
           # 失败即 ci-build-fe 红 → ci-e2e（needs ci-build-fe）不启动，假绿不可能发生。
           node scripts/check-e2e-shard-coverage.mjs
 
-      - name: E2E 分片矩阵发射（pull_request 全量 / main push 核心链子集）
+      - name: E2E 分片矩阵发射（放行测试面的轮次取全量 45 片）
         id: e2e-shard-matrix
         working-directory: frontend
         env:
@@ -2492,14 +2507,15 @@ jobs:
 
   # ==============================================================================
   # 安卓客户端 APK：以可复用工作流方式调用 android.yml（脚本只有一份，不复制第二套）
-  # 只在发布事件上跑（main push / v* tag），PR 轮不占并发额度。
+  # 只在发布事件（v* tag 与未跳过发布的手动运行）与 PR 上跑。
   # ==============================================================================
   ci-android-apk:
     name: 📱 安卓客户端 APK
     needs: ci-info
-    # 仅验证分支：把 pull_request 也放进来，好在一轮真 run 上验 workflow_call 与产物可达性。
-    # 本分支不进 main（正式车道里这一行只认 push main / v* tag）。
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')))
+    # PR 也放行，为的是安卓链（workflow_call 接线、权限与插件注入、产物可达性）在合并前就曝光问题；
+    # PR 轮 build_release 仍为 true，但发布事件才是要附进 Release 的那份签名产物。
+    # 主干 push 已不是本 workflow 的触发事件（合并 PR 不自动跑主线），故条件里不再列 main 分支。
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
     with:
       build_release: true
       # run_e2e 为字符串输入（false 字符串即跳过模拟器，直接触发判空不等于 false 恒跑）。
@@ -2521,18 +2537,19 @@ jobs:
       ci-lint-rust,
       ci-lint-fe,
       ci-type-check,
-      # ci-test-fe 已从本门摘除：前端测试只在 PR 跑（见 ci-info 的 full_suite 口径），
-      # 留在 needs 里会让主干 push 上本 job 因前端测试被 skip 而永不触发，发布链直接断。
+      # ci-test-fe 已从本门摘除：前端测试只在 PR 与手动全量轮跑（见 ci-info 的 full_suite 口径），
+      # 留在 needs 里会让发版轮因前端测试被 skip 而永不触发，发布链直接断。
       ci-build-rust,
       ci-build-fe,
-      # 发布必须被漏洞扫描拦住（用户批准的门禁加强）：核查 88f59a7c^ 的 package-release
-      # needs 清单证实，扫描类 job 从来就不在其中——即高危依赖/CVE 只会让 🛡️ job 自己红，
-      # 不会阻止 v* tag 产出 release 二进制。现补为前置。
+      # 发布必须被漏洞扫描拦住：本 job 的前置按"全部成功"求值，扫描判红即不产出二进制。
+      # 扫描的 job 级 if 与本 job 的发布条件同源（见 security-vulnerability-scan），凡本 job
+      # 要跑的那一轮扫描必然真实执行，不存在前置被跳过而发布照走、也不存在扫描红过仍出包。
       security-vulnerability-scan
     ]
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    # 发布事件两枚：显式发版的 v* tag，与人工发起且未跳过发布的手动运行。合并 PR 不再自动发布。
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
     permissions:
       contents: write
     outputs:
@@ -2623,7 +2640,9 @@ jobs:
     needs: [package-release, ci-android-apk]
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    # 与打包发布同一对发布事件（v* tag 与未跳过发布的手动运行）；两处条件必须同文，
+    # 否则一方跑另一方 skip，Release 会停在只有半成品资产的形态。
+    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
     permissions:
       contents: write
       pull-requests: read
@@ -2851,11 +2870,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: [ci-info, ci-build-fe, ci-build-rust]
-    # pull_request 全量 45 片；push 到 main/master 只跑核心链子集（片数与选片判据
-    # 由 ci-build-fe 的"E2E 分片矩阵发射"步骤按事件决定，见
-    # frontend/scripts/check-e2e-main-push-shards.mjs）。选片发生在矩阵层：未选中的
+    # 放行测试面的那一轮（PR 与手动全量轮）跑全量 45 片；tag push（refs/tags/v*）与
+    # 显式关掉 full_suite 的手动轮不在放行范围，整族呈 skipped（口径见 ci-info 的 plan-scope）。
+    # 片数与选片判据由 ci-build-fe 的"E2E 分片矩阵发射"步骤给出，见
+    # frontend/scripts/check-e2e-main-push-shards.mjs。选片发生在矩阵层：未选中的
     # 分片根本不生成 job，而不是生成后靠步骤级 if 空跑成 success（那是新的假绿形态）。
-    # tag push（refs/tags/v*）与 workflow_dispatch 不在放行范围内，维持 skipped。
     if: needs.ci-info.outputs.full_suite == 'true'
     strategy:
       fail-fast: false
@@ -2878,7 +2897,7 @@ jobs:
       # E2E_SHARD_MATRIX（45 条）。这里不再写静态 include：
       #   1. 静态 include 与下方 case 表是同一份切分的两处表达（原注释自陈
       #      "必须同步演进"），改矩阵时漏同步就静默少跑目录；
-      #   2. main push 轮需要按事件选片，选片只能是矩阵层的事，而 job 级 if 看不到
+      #   2. 不同事件要执行的片数不同，选片只能是矩阵层的事，而 job 级 if 看不到
       #      matrix、step 级 if 空跑又把 skipped 伪装成 success，两条路都不通。
       # 现在由 ci-build-fe 的"E2E 分片矩阵发射"步骤同源校验（登记集合与 case 表
       # 双向相等、目录真实存在、选片安全判据）后发射矩阵，整个 matrix 值由 fromJSON
@@ -3526,7 +3545,11 @@ jobs:
   #   3. 扫描器缺失 / 输出不可解析 / audit 命令异常退出（exit > 1）⇒ 按未执行处理，fail closed
   #   4. gitleaks 秘密泄露
   #   5. cargo tree --locked：Cargo.lock 与 Cargo.toml 漂移 ⇒ fail
-  # 事件范围取三者并集：原 ci-audit / ci-deps 无 if（全事件运行）⇒ 本 job 不设 if。
+  # 事件范围：PR（合并前的拦截位）与两枚发布事件（v* tag 与未跳过发布的手动运行，即
+  # package-release 与 github-release 的触发条件）执行，其余轮跳过。与发布条件同源是硬要求：
+  # 打包发布把本 job 列为前置，前置若在某轮被跳过，那一轮的发布链会整体不触发。
+  # 调用方是 ci-info 与打包发布；入参取检查范围输出与当前事件与引用，判定结论不外传，
+  # 只写 reports 目录下的审计、依赖图与全量三份产物并各自上传。
   # 产物：三个 artifact 名各自独立、目录互不覆盖
   #   reports/audit/ → dependency-audit-reports、reports/deps/ → dependency-trees、
   #   reports/ 全量 → security-scan-${run_id}。
@@ -3540,6 +3563,8 @@ jobs:
     # 三个原 job 各 30 分钟；合并后工作量为三者之和，上调窗口（只放宽时间预算，不影响判定）
     timeout-minutes: 60
     needs: ci-info
+    # 只在能拦住事情的轮次跑：PR 拦合并，发布事件拦出包（口径见上方事件范围说明）
+    if: needs.ci-info.outputs.full_suite == 'true' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
     steps:
       - name: 检出代码（含完整历史，gitleaks 需要）
         uses: actions/checkout@v5
@@ -3800,7 +3825,7 @@ jobs:
     name: 🧭 Setup 向导真实链路 E2E
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    # 只在 PR 跑（口径见 ci-info 的 full_suite）：真实链路 E2E 属测试面，主干 push 不重复
+    # 只在 PR 与手动全量轮跑（口径见 ci-info 的 full_suite），真实链路 E2E 属测试面
     if: needs.ci-info.outputs.full_suite == 'true'
     needs: [ci-info, ci-build-rust, ci-build-fe]
     services:
@@ -4032,7 +4057,7 @@ jobs:
     timeout-minutes: 15
     needs: ci-info
     # 只在 PR 跑（口径见 ci-info 的 full_suite）：注释形态与棘轮基线属提交门面，
-    # 在 PR 判负即拦住，主干 push 不重复执行；聚合门按 success/skipped 放行本 job 的 skip。
+    # 在 PR 判负即拦住，主线只在手动全量轮重复执行。聚合门按 success 与 skipped 放行本 job 的 skip。
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
@@ -4519,8 +4544,13 @@ jobs:
               return files
 
 
+          DIFF_NOT_APPLICABLE = 'diff-not-applicable'
+
+
           def resolve_base():
-              """返回 (base_rev|None, 说明)。None => 调用方按 fail-closed 判失败。"""
+              """返回 (base_rev|None|DIFF_NOT_APPLICABLE, 说明)。
+              None => 调用方按 fail-closed 判失败；DIFF_NOT_APPLICABLE => 本轮没有可比的
+              提交区间（手动运行），diff 档不判，由②的全量扫描与棘轮对账承担判定。"""
               event = os.environ.get('GATE_EVENT', '')
               if event == 'pull_request':
                   base_ref = os.environ.get('GATE_BASE_REF', '')
@@ -4552,8 +4582,12 @@ jobs:
                       return None, 'tag push 且不存在上一 tag，无真实 base'
                   return None, 'push 新建分支（event.before 全零/缺失），无历史 base'
               if event == 'workflow_dispatch':
-                  return None, ('workflow_dispatch 无事件 base——fail-closed：调试触发的'
-                                '"无新增行"不能作为通过论据，形态判定请走 PR')
+                  # 手动运行是主线现在的标准执行位（合并 PR 不再自动触发流水线），事件里既没有
+                  # before 也没有 base_ref，任何"上一提交"都是编出来的比较区间。这里交出"不适用"
+                  # 而不是 None：diff 档本轮确实无从判，但②的全量扫描与棘轮对账照旧判红，
+                  # 所以手动轮不是一轮免检，禁止为凑绿把 HEAD 当 base 自称零新增。
+                  return DIFF_NOT_APPLICABLE, ('workflow_dispatch 手动运行无提交区间可比——diff 档不适用，'
+                                                '本轮判定由②全量扫描与棘轮对账承担')
               return None, f'未知事件 {event!r}'
 
 
@@ -4750,7 +4784,11 @@ jobs:
               if MODE == 'ci':
                   base, why = resolve_base()
                   out(f'③ diff base 解析：{why}')
-                  if base is None:
+                  if base == DIFF_NOT_APPLICABLE:
+                      out('   硬红档 diff-only 本轮不判（手动运行没有可比提交区间）。'
+                          '主干这一轮的真实判据是②的全量扫描与棘轮对账，'
+                          '新增行形态判定的执行位是 PR')
+                  elif base is None:
                       m = ('fail-closed：无法取得 diff base => 判本步失败'
                            f'（禁止"拿不到就当作没有新增"）；原因：{why}')
                       out('::error::' + m)
@@ -4833,27 +4871,22 @@ jobs:
           echo "上游 E2E job（ci-e2e / setup-wizard / role-permission-matrix）本轮结论均为 success 或 skipped"
           echo "本轮事件=${{ github.event_name }} ref=${{ github.ref }}，ci-e2e 结论=${{ needs.ci-e2e.result }}（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
 
-      - name: main push 轮 ci-e2e 不得为 skipped
-        # 上一条动态步把 skipped 与 success 同计入通过，于是"ci-e2e 的 job 级 if 只放行
-        # pull_request"这种主线零 E2E 覆盖的形态在本门禁里不留任何红痕——实测证据
-        # main 的 run 4915 与 4916：整族 "🎭 E2E" job 结论为 skipped，本 job 仍 success。
-        # 这里按事件补一条判据：push 到 main/master 时 ci-e2e 必须 success，skipped 即判红。
-        # 语义只加不减：PR 轮与 tag push / workflow_dispatch 轮不受本步约束。
+      - name: 放行测试面的轮次 ci-e2e 不得为 skipped
+        # 上一条动态步把 skipped 与 success 同计入通过，于是"测试面开关已放行而 ci-e2e 整族
+        # skipped"这种零 E2E 覆盖仍全绿的形态在本门禁里不留任何红痕（曾实测于主线运行）。
+        # 本 job 的 job 级 if 已把运行范围锁在放行测试面的轮次，进来这一轮 ci-e2e 必然要真跑，
+        # 所以直接判 skipped 即红，不再按事件名分支。分片与用例数取证看 e2e-report-shard-* 产物。
         if: ${{ !cancelled() }}
         env:
           GATE_EVENT_NAME: ${{ github.event_name }}
           GATE_REF: ${{ github.ref }}
           CI_E2E_RESULT: ${{ needs.ci-e2e.result }}
         run: |
-          if [ "$GATE_EVENT_NAME" = "push" ] && { [ "$GATE_REF" = "refs/heads/main" ] || [ "$GATE_REF" = "refs/heads/master" ]; }; then
-            if [ "$CI_E2E_RESULT" != "success" ]; then
-              echo "::error::main push 轮 ci-e2e 结论=$CI_E2E_RESULT（应为 success）：核心链分片未真实执行，门禁退回 run 4915/4916 的 skipped 形态"
-              exit 1
-            fi
-            echo "main push 轮 ci-e2e 结论=success：核心链分片真实执行（分片与用例数取证看 e2e-report-shard-*/frontend-build-log 产物）"
-          else
-            echo "本轮事件=$GATE_EVENT_NAME ref=$GATE_REF，不属 main push 判据范围（tag push 与 workflow_dispatch 仍按 job 级 if 走 skipped）"
+          if [ "$CI_E2E_RESULT" = "skipped" ]; then
+            echo "::error::本轮已放行测试面（事件=$GATE_EVENT_NAME ref=$GATE_REF），ci-e2e 结论=skipped：E2E 根本没执行，禁止以 skipped 计入通过"
+            exit 1
           fi
+          echo "本轮事件=$GATE_EVENT_NAME ref=$GATE_REF，ci-e2e 结论=$CI_E2E_RESULT（非 skipped，E2E 真实执行）"
 
       - name: 静态校验——E2E 源码禁止 mock 拦截
         # 步骤级兜底：动态步在上游红时 exit 1，步骤默认 success() 会让本步又被吞——
@@ -4919,7 +4952,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: ci-info
-  # 只在 PR 跑（口径见 ci-info 的 full_suite）：敏感权限覆盖属审计面，不在主干 push 重复
+  # 只在 PR 与手动全量轮跑（口径见 ci-info 的 full_suite），敏感权限覆盖属审计面
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
@@ -5065,7 +5098,7 @@ jobs:
       ci-android-apk-probe,
       # ci-coverage-rust 已从本门摘除：它自陈"信息性收集（不阻塞 CI）"，却在这份 needs
       # 里把 PR 的收尾门压在一条 52.8min 的第二次全量测试执行后面。摘除后覆盖率仍在
-      # main push 上产出（数字进 Codecov 与 artifact），只是不再决定 PR 能否合并。
+      # 手动全量轮与每日定时任务上产出（数字进 Codecov 与 artifact），只是不再决定 PR 能否合并。
       ci-test-fe,
       ci-perf-bench,
       ci-build-rust,
