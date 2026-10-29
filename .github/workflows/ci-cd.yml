@@ -3173,6 +3173,34 @@ jobs:
           fi
           exit $EXIT_CODE
 
+      - name: 打印分片基数映射与失败断言原文（取证面）
+        if: always()
+        working-directory: frontend
+        env:
+          FORENSICS_SHARD: ${{ matrix.shard }}
+          FORENSICS_LABEL: ${{ matrix.label }}
+        run: |
+          # 本步骤由 ci-e2e 分片 job 在跑测步骤结束后调用（if always），入参是上方 env
+          # 注入的 0 基分片号与 job 显示名。作用有二：其一，打印 0 基 shard、显示名内
+          # 1 基序号、轻量报告制品名与诊断制品名四者对应的自述行，按显示名反查制品时
+          # 以该行为准，避免取错一片把红读成全绿；其二，把 test-results 下每个
+          # error-context.md 的 Error details 段（断言原文）逐条打印进 job 日志正文，
+          # 可按 E2E-ASSERT 前缀 grep。跑测步骤的 pw:api 调试输出会淹没 reporter 的
+          # 失败摘要，日志正文没有可直接 grep 的断言行，本步骤不依赖 reporter 是否
+          # 生效；完整原始文件仍由轻量报告与诊断两个制品原样保留。输出只写日志，
+          # 不新增落盘文件。
+          echo "E2E-FORENSICS-MAP shard0based=${FORENSICS_SHARD} label=${FORENSICS_LABEL} reportArtifact=e2e-report-shard-${FORENSICS_SHARD} diagArtifact=e2e-diag-shard-${FORENSICS_SHARD}"
+          found=0
+          while IFS= read -r -d '' ctx; do
+            found=1
+            echo "E2E-ASSERT-BEGIN ${ctx}"
+            awk '/^# Error details/{flag=1;next} /^# /{flag=0} flag' "${ctx}"
+            echo "E2E-ASSERT-END ${ctx}"
+          done < <(find test-results -type f -name error-context.md -print0 2>/dev/null)
+          if [ "${found}" -eq 0 ]; then
+            echo "E2E-ASSERT-NONE 本片 test-results 内无 error-context.md：通过的分片本就没有失败附件；若本片判红仍见此行，说明失败发生在用例落附件之前（globalSetup 或超时 kill），请对照上方跑测步骤日志与 e2e-report-shard 制品"
+          fi
+
       - name: 收集后端日志
         if: always()
         run: |
