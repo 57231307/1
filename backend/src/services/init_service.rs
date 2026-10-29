@@ -189,6 +189,12 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "customers",
     "customer-credits",
     "five-dimension",
+    // 客户转移审批流（/crm/transfer-approvals 族）：URL 第四段 transfer-approvals 即派生
+    // 资源名（crm 为模块前缀、该段不在消歧映射表内，保留原名）。建单、详情、取消、经理审批、
+    // 总监审批五面共用本资源名，动作键分别为 create/read/cancel/manager-approve/
+    // director-approve，后两者由 PATH_ACTION_KEYWORDS 派生、与建单 create 键分离
+    // （SoD 职责分锁，见 init_service_ops/permission.rs 销售域分组）。
+    "transfer-approvals",
     // ===== 物流与贸易域 =====
     "logistics",
     "ship-orders",

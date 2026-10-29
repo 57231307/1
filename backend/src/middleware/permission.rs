@@ -228,6 +228,11 @@ pub fn extract_segment3(path: &str) -> Option<&str> {
 /// `concession`/`rejudge` = 采购收货的让步接收与复检改判（POST
 /// /purchase/receipts/{id}/concession|rejudge）：二者是独立于"建单/审批"的处置权，
 /// 末段是动作而非收货单 ID，故须登记为本表关键字以派生独立键。
+/// `manager-approve`/`director-approve` = 客户转移审批链的经理审批与总监审批（POST
+/// /crm/transfer-approvals/{id}/manager-approve|director-approve）：两腿此前末段不在本表，
+/// 按方法塌缩成 create 键，导致持建单键者同时能建单、能经理审批、能总监审批，
+/// 二级职责分离形同虚设。登记为关键字后两腿各派生独立键，与建单键分离；
+/// 键名一律经 `assignable_actions()` 与本表同源导出，禁止手拼字符串造键。
 const PATH_ACTION_KEYWORDS: &[&str] = &[
     "print",
     "export",
@@ -243,6 +248,8 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
     "reveal",
     "concession",
     "rejudge",
+    "manager-approve",
+    "director-approve",
 ];
 
 /// 从路径末段提取动作关键字，非关键字返回 None
@@ -370,7 +377,11 @@ pub fn method_to_action(method: &Method) -> String {
 ///
 /// 权限中间件的键派生只可能产出这三组动作，目录与派生同源 ⇒ 目录里勾不出来的
 /// 键运行时也派生不出来，反之亦然，杜绝"目录/鉴权两套动作词表"漂移。
-pub(crate) fn assignable_actions() -> Vec<&'static str> {
+/// 可见性 `pub` 的必要性：审批腿动作键的目录同源锁
+/// （`tests/contract_wave17_transfer_approval_leg_keys_test.rs`）要判的就是**这一份**
+/// 导出集；放开入口让测试直接驱动生产同源数据，不在 tests/ 侧另抄关键字副本
+/// （同 `all_role_permission_definition_groups` 与 `find_unregistered_matrix_resources` 的口径）。
+pub fn assignable_actions() -> Vec<&'static str> {
     let mut actions: Vec<&'static str> = Vec::new();
     for action in METHOD_DERIVED_ACTIONS
         .iter()
