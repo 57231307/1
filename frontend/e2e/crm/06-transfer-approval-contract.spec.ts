@@ -4,27 +4,27 @@
 //   客户转移审批是「申请 → 销售经理审批 →（大客户才有的）总监审批」的多级流，
 //   申请落库即 pending / current_level=1，审批动作只允许在 pending 且层级匹配的单据上发生，
 //   拒绝与取消都不执行实际转移（线索 owner_id 必须保持原值）。
-// 被测端点与注册点（backend/src/routes/crm.rs:293-319 `crm_transfer_approvals()`，
+// 被测端点与注册点（backend/src/routes/crm `crm_transfer_approvals()`，
 //   nest 前缀 /api/v1/erp/crm）：
 //   - POST   /crm/transfer-approvals                handler customer_transfer_approval_handler::create_approval
 //   - GET    /crm/transfer-approvals/{id}           customer_transfer_approval_handler::get_approval
 //   - POST   /crm/transfer-approvals/{id}/cancel    customer_transfer_approval_handler::cancel_approval
 //   - POST   /crm/transfer-approvals/{id}/manager-approve  customer_transfer_approval_handler::manager_approve
 //   规则实现：backend/src/services/crm/customer_transfer_approval_service.rs
-//   （create_approval:159 / validate_create_request:208 / fetch_and_validate_lead:218 /
-//     ensure_no_pending_approval:244 / build_approval_active:266 / manager_approve:304 /
-//     cancel_approval:458 / get_pending_approval:603）
+//   （create_approval / validate_create_request / fetch_and_validate_lead /
+//     ensure_no_pending_approval / build_approval_active / manager_approve /
+//     cancel_approval / get_pending_approval）
 // 入参（请求体字段，逐字符对齐 handler 的 CreateTransferApprovalRequest / ApproveRequest）：
 //   - 创建：lead_id（必填，线索 id）、to_user_id（必填，新归属人用户 id）、reason（必填，
 //     申请原因；`reason.trim().is_empty()` 即拒，故纯空白同样非法）
 //   - 审批：approval_id、comment、approved；approval_id 被路径参数覆盖
-//     （handler:114 与 handler:144 `req.approval_id = id;`），故用例故意在体内提交一个不存在的
+//     （handler 与 handler `req.approval_id = id;`），故用例故意在体内提交一个不存在的
 //     approval_id 来钉这条覆盖语义：若覆盖失效，请求会打到不存在的单据上并 404 判红。
 // 传给谁 / 存哪里：落库表 customer_transfer_approvals
-//   （backend/migration/src/domain/v15/mod.rs:2666 建表），审批通过的普通客户分支会再调
+//   （backend/migration/src/domain/v15/mod 建表），审批通过的普通客户分支会再调
 //   CrmAssignService::transfer_lead 改 crm_lead.owner_id；本文件所有用例只走「拒绝 / 取消」
 //   分支，不触发转移，因此不留归属漂移。
-// 出参形状：成功信封 { code, message, data }，data 即 TransferApprovalDto（service:82-105）；
+// 出参形状：成功信封 { code, message, data }，data 即 TransferApprovalDto（service）；
 //   失败信封 { code, message, trace_id, timestamp }，机器码与文案口径按 utils/error.rs：
 //   `validation_displayable`→400+VALIDATION_ERROR+原文外显，
 //   `business_displayable`→400+BUSINESS_ERROR+原文外显。
@@ -36,7 +36,7 @@
 //   - 列表位断言一律带 applicant_id=本 worker 用户 + status=pending，并用 total 的
 //     前后相等证「零写入」，items 再按自建 lead_id 过滤；
 //   - 用例自建的线索用 DELETE /crm/leads/{id} 清理；该表 lead_id 列在 DDL 里没有外键约束
-//     （v15/mod.rs:2668 仅 INTEGER NOT NULL），故删线索不会被审批单挡住，留下的审批单行
+//     （v15/mod 仅 INTEGER NOT NULL），故删线索不会被审批单挡住，留下的审批单行
 //     指向已删除的 lead_id（这一条是既存的引用完整性缺口，本卡只登记不修）。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
@@ -49,7 +49,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 
-/** TransferApprovalDto 的出参字段子集（service:82-105，字段名逐字符对齐 Rust 侧） */
+/** TransferApprovalDto 的出参字段子集（service，字段名逐字符对齐 Rust 侧） */
 interface ApprovalRow {
   id: number;
   approval_no: string;
@@ -74,13 +74,13 @@ interface ApprovalRow {
   completed_at: string | null;
 }
 
-/** list_approvals 出参（handler:62-65 手写 { items, total }，非 PaginatedResponse） */
+/** list_approvals 出参（handler 手写 { items, total }，非 PaginatedResponse） */
 interface ApprovalList {
   items: ApprovalRow[];
   total: number;
 }
 
-/** 审批状态词表：models/customer_transfer_approval.rs:15-21 的字面量，逐字符照抄 */
+/** 审批状态词表：models/customer_transfer_approval 的字面量，逐字符照抄 */
 const APPROVAL_STATUS_PENDING = 'pending';
 const APPROVAL_STATUS_REJECTED = 'rejected';
 const APPROVAL_STATUS_CANCELLED = 'cancelled';
@@ -179,7 +179,7 @@ test.describe('06 客户转移审批流契约', () => {
 
     const created = await seedApproval(page, leadId, other, reason);
 
-    // 单据号由 DocumentNumberGenerator.generate_no(prefix="TA") 产出（service:172-178），
+    // 单据号由 DocumentNumberGenerator.generate_no(prefix="TA") 产出（service），
     // 形态为 TA+YYYYMMDD+3 位流水，用例只钉「以 TA 开头 + 非空」，不钉当日日期避免跨零点抖动
     expect(
       created.approval_no.startsWith('TA'),
@@ -194,7 +194,7 @@ test.describe('06 客户转移审批流契约', () => {
     expect(created.from_user_id, 'from_user_id 应取线索当前归属人').toBe(me);
     expect(created.to_user_id, 'to_user_id 应等于提交的新归属人').toBe(other);
     expect(created.reason, 'reason 应原样落库，不做 trim 之外的加工').toBe(reason);
-    // 审批链字段在创建时全部为空（build_approval_active:290-296）
+    // 审批链字段在创建时全部为空（build_approval_active）
     expect(created.manager_approver_id).toBeNull();
     expect(created.manager_comment).toBeNull();
     expect(created.manager_approved_at).toBeNull();
@@ -235,7 +235,7 @@ test.describe('06 客户转移审批流契约', () => {
     expect(cancelled.data.approval_status, '取消后应落终态 cancelled').toBe(
       APPROVAL_STATUS_CANCELLED
     );
-    // cancel_approval 只改 approval_status 与 updated_at（service:479-481）：
+    // cancel_approval 只改 approval_status 与 updated_at（service）：
     // 审批人与 completed_at 必须仍是空，不得被取消动作冒充成「已审批完成」
     expect(cancelled.data.manager_approver_id).toBeNull();
     expect(cancelled.data.completed_at).toBeNull();
@@ -269,7 +269,7 @@ test.describe('06 客户转移审批流契约', () => {
 
     const created = await seedApproval(page, leadId, other, `E2E 拒绝用例原因 ${leadNo}`);
     const comment = `E2E 经理拒绝意见 ${leadNo}`;
-    // approval_id 故意填一个不存在的值：handler:114 用路径参数覆盖，
+    // approval_id 故意填一个不存在的值：handler 用路径参数覆盖，
     // 一旦覆盖失效本请求就会命中不存在的单据（404），本用例即判红
     const rejected = await apiCall<ApprovalRow>(
       page,
@@ -289,7 +289,7 @@ test.describe('06 客户转移审批流契约', () => {
       typeof rejected.data.manager_approved_at,
       `manager_approved_at 应写入时间戳，实际 ${JSON.stringify(rejected.data.manager_approved_at)}`
     ).toBe('string');
-    // 拒绝分支不写 completed_at、不进总监层（service:371-383）
+    // 拒绝分支不写 completed_at、不进总监层（service）
     expect(rejected.data.completed_at).toBeNull();
     expect(rejected.data.current_level).toBe(1);
     expect(rejected.data.director_approver_id).toBeNull();

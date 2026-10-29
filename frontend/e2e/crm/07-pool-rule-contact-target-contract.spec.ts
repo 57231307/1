@@ -12,23 +12,23 @@
 //      提交的 remarks 会覆盖 dimension_name，未提交的 status 回落 master_data::ACTIVE。
 // 被测端点与注册点：
 //   - POST/GET /crm/pool/rules、PUT/DELETE /crm/pool/rules/{id}
-//     backend/src/routes/crm.rs:283-289 → handlers/crm_pool_handler.rs
-//     （create_pool_rule:391 取值域门 / update_pool_rule:445 / delete_pool_rule:464 / list_pool_rules:381）
-//     规则实现 services/crm/pool.rs（list_rules:310 order by id asc / create_rule:319 固定 is_enabled=true /
-//     update_rule:345 局部更新，缺 id → not_found / delete_rule:373 硬删）
+//     backend/src/routes/crm → handlers/crm_pool_handler.rs
+//     （create_pool_rule 取值域门 / update_pool_rule / delete_pool_rule / list_pool_rules）
+//     规则实现 services/crm/pool.rs（list_rules order by id asc / create_rule 固定 is_enabled=true /
+//     update_rule 局部更新，缺 id → not_found / delete_rule 硬删）
 //   - POST /crm/customers/{cid}/contacts、GET /crm/customers/{cid}/contacts、
 //     PUT|DELETE /crm/customers/{cid}/contacts/{contactId}
-//     backend/src/routes/crm.rs:242-247 → handlers/crm_customer_handler.rs
-//     （create_contact:432 / update_contact:456 / delete_contact:479 / list_contacts:405）
-//     实现 services/customer_ops/contact.rs（list_customer_contacts:25 排序 is_primary desc, name asc /
-//     create_customer_contact:40 / update_customer_contact:75 / apply_contact_updates:109 /
-//     clear_primary_contacts_txn:145 / delete_customer_contact:135）
+//     backend/src/routes/crm → handlers/crm_customer_handler.rs
+//     （create_contact / update_contact / delete_contact / list_contacts）
+//     实现 services/customer_ops/contact.rs（list_customer_contacts 排序 is_primary desc, name asc /
+//     create_customer_contact / update_customer_contact / apply_contact_updates /
+//     clear_primary_contacts_txn / delete_customer_contact）
 //   - POST /crm/sales-analysis/targets、GET /crm/sales-analysis/targets、
 //     PUT /crm/sales-analysis/targets/{period}
-//     backend/src/routes/crm.rs:202-212 → handlers/sales_analysis_handler.rs
-//     （create_target:165 / get_targets:146 / update_sales_target:221）
-//     实现 services/sales_analysis_service.rs（get_targets:263 order by id desc /
-//     create_target:285 / update_target:468）
+//     backend/src/routes/crm → handlers/sales_analysis_handler.rs
+//     （create_target / get_targets / update_sales_target）
+//     实现 services/sales_analysis_service.rs（get_targets order by id desc /
+//     create_target / update_target）
 // 入参（字段名逐字符对齐 handler 的 Deserialize 结构）：
 //   - 公海规则创建：name（规则名，同时作本用例唯一标记）、rule_type（protection_period /
 //     claim_limit / max_holdings 三值之一）、rule_value（整数，负数被拒）、customer_type
@@ -47,8 +47,8 @@
 //   sales_statistics（statistic_type='target'/period/dimension_type/dimension_id/dimension_name/total_amount）。
 //   出参一律 PaginatedResponse 之外的信封形状：GET /crm/pool/rules 与
 //   GET /crm/customers/{cid}/contacts 与 GET /crm/sales-analysis/targets 的 data 都是**裸数组**。
-//   联系人读写出口经 crm_customer_handler.rs:98 `apply_customer_field_permission` 统一脱敏，
-//   utils/field_mask.rs:101-104 对 admin 直接原样放行——本 worker 是 admin 会话，
+//   联系人读写出口经 crm_customer_handler::apply_customer_field_permission 统一脱敏，
+//   utils/field_mask 对 admin 直接原样放行——本 worker 是 admin 会话，
 //   故 phone/email 断言按明文钉；换成非 admin 角色时这两列会变掩码，断言面须随之收窄。
 //   DECIMAL 出参是序列化字符串（未开 serde-float），用例只钉「字符串 + 数值相等」，
 //   不在测试内二次舍入来凑库侧口径。
@@ -71,7 +71,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 
-/** customer_pool_rule::Model 出参（models/customer_pool_rule.rs:27-52） */
+/** customer_pool_rule::Model 出参（models/customer_pool_rule） */
 interface PoolRuleRow {
   id: number;
   name: string;
@@ -82,7 +82,7 @@ interface PoolRuleRow {
   notes: string | null;
 }
 
-/** customer_contact::Model 出参（models/customer_contact.rs:16-36） */
+/** customer_contact::Model 出参（models/customer_contact） */
 interface ContactRow {
   id: number;
   customer_id: number;
@@ -95,7 +95,7 @@ interface ContactRow {
   created_by: number | null;
 }
 
-/** sales_analysis::Model 出参（models/sales_analysis.rs:11-24），DECIMAL 列为字符串 */
+/** sales_analysis::Model 出参（models/sales_analysis），DECIMAL 列为字符串 */
 interface SalesTargetRow {
   id: number;
   statistic_type: string;
@@ -106,7 +106,7 @@ interface SalesTargetRow {
   total_amount: string;
 }
 
-/** SalesTargetDto 出参（models/dto/sales_analysis_dto.rs:62-70），computed 字段非落库值 */
+/** SalesTargetDto 出参（models/dto/sales_analysis_dto），computed 字段非落库值 */
 interface SalesTargetDto {
   id: number;
   period: string;
@@ -204,7 +204,7 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
       false
     );
     expect(updated.data.notes).toBe('改后备注');
-    // update_rule 不触碰未提交的列（services/crm/pool.rs:357-366 三处 if let Some）
+    // update_rule 不触碰未提交的列（services/crm/pool 三处 if let Some）
     expect(updated.data.name, '局部更新不得改动 name').toBe(ruleName);
     expect(updated.data.rule_type, '局部更新不得改动 rule_type').toBe('claim_limit');
     expect(updated.data.customer_type, '局部更新不得改动 customer_type').toBe('all');
@@ -372,7 +372,7 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     expect(rowSecond, '列表应含乙联系人').toBeTruthy();
     expect(rowFirst!.is_primary, `每客户最多一个主联系人：甲应被降为 false`).toBe(false);
     expect(rowSecond!.is_primary).toBe(true);
-    // list_customer_contacts 排序口径：is_primary desc, name asc（services/customer_ops/contact.rs:31-32）
+    // list_customer_contacts 排序口径：is_primary desc, name asc（services/customer_ops/contact）
     const primaries = afterSecond.filter(item => item.is_primary);
     expect(primaries, '主联系人应唯一').toHaveLength(1);
     expect(afterSecond[0].id, '主联系人应排在列表首位').toBe(second.data.id);

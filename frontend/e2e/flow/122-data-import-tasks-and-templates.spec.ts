@@ -16,34 +16,34 @@ import {
  * 守的是什么：`/data-import/*` 面把提交值真正落库/落内存存储并能逐键读回，
  * 任务状态机（running → cancelled → running → cancelled）按 handler 显式门控拒绝非法迁移，
  * 而不是只证可达。全部判据来自 backend 源码实核：
- * - GET /data-import/templates（import_export_handler.rs:392 list_import_templates）：
- *   出参为内存预置的内置模板数组（builtin_import_template_records，:451 起，
+ * - GET /data-import/templates（import_export_handler::list_import_templates）：
+ *   出参为内存预置的内置模板数组（builtin_import_template_records，
  *   import_type 取 products/customers/inventory，template_code 形如 IMP_PRODUCTS）。
- * - GET /data-import/templates/{id}（:554）：id 不存在返回 404，机器码 NOT_FOUND
+ * - GET /data-import/templates/{id}：id 不存在返回 404，机器码 NOT_FOUND
  *   （AppError::not_found 脱敏族，出参文案为固定常量，不含 id 明细）。
- * - PUT /data-import/templates/{id}（:568）：仅覆盖请求体出现的列，未出现的保持原值；
+ * - PUT /data-import/templates/{id}：仅覆盖请求体出现的列，未出现的保持原值；
  *   更新后 GET 回读必须见新值。本用例只改 description 并在用例尾部还原原文，
- *   不删不建——模板存储为进程级内存（OnceLock<Mutex<Vec>>，:426），内置条目删后无法重建。
- * - DELETE /data-import/templates/{id}（:614）：删除不存在的 id 返回 404 NOT_FOUND。
- *   成功腿不测：面内无 POST 创建腿（路由注册 routes/mod.rs:354-391 只有 GET/PUT/DELETE），
+ *   不删不建——模板存储为进程级内存（OnceLock<Mutex<Vec>>，），内置条目删后无法重建。
+ * - DELETE /data-import/templates/{id}：删除不存在的 id 返回 404 NOT_FOUND。
+ *   成功腿不测：面内无 POST 创建腿（路由注册 routes/mod 只有 GET/PUT/DELETE），
  *   删除内置模板会破坏同进程其他并发用例对模板列表的读取，属"只能测负例"的真实残量。
- * - GET|POST /data-import/templates/{id}/download（:635）：响应是 xlsx 文件体
+ * - GET|POST /data-import/templates/{id}/download：响应是 xlsx 文件体
  *   （Content-Type 为 spreadsheetml.sheet，Content-Disposition 带 {import_type}_template.xlsx），
  *   魔数按 ZIP 容器判前两点 0x50 0x4B（xlsx 是 zip 包）。
- * - POST /data-import/tasks（:720）：multipart 提取 template_id 与 file 名；
+ * - POST /data-import/tasks：multipart 提取 template_id 与 file 名；
  *   缺 template_id → 400 BAD_REQUEST（AppError::bad_request 脱敏族）；
  *   template_id 指向不存在模板 → 404 NOT_FOUND；
- *   成功创建 import_tasks 表行，初始状态 running（services/import_export_ops/task.rs:36），
+ *   成功创建 import_tasks 表行，初始状态 running（services/import_export_ops/task），
  *   出参含 task_code=IMP-{id 补零 6 位}、file_name 回显、total_rows=0（最小实现登记文件名）。
- * - GET /data-import/tasks（:399）：DTO 列 id/import_type/status/total_rows/imported_rows/
+ * - GET /data-import/tasks：DTO 列 id/import_type/status/total_rows/imported_rows/
  *   failed_rows/created_at（ImportTaskItem），新建任务必出现在列表。
- * - GET /data-import/tasks/{id}（:789）：详情回显 template_id、file_name、状态。
- * - POST /data-import/tasks/{id}/cancel（:807）：仅 running 可取消，否则 400 BUSINESS_ERROR；
+ * - GET /data-import/tasks/{id}：详情回显 template_id、file_name、状态。
+ * - POST /data-import/tasks/{id}/cancel：仅 running 可取消，否则 400 BUSINESS_ERROR；
  *   取消后状态 cancelled。
- * - POST /data-import/tasks/{id}/retry（:844）：running/success 拒绝（400 BUSINESS_ERROR），
+ * - POST /data-import/tasks/{id}/retry：running/success 拒绝（400 BUSINESS_ERROR），
  *   cancelled 放行并重置为 running。
- * - GET /data-import/tasks/{id}/error-log（:878）：出参 task_id/task_code/status/filename/content，
- *   failed_rows=0 时 content 为空串（build_import_task_error_log :704）。
+ * - GET /data-import/tasks/{id}/error-log：出参 task_id/task_code/status/filename/content，
+ *   failed_rows=0 时 content 为空串（build_import_task_error_log）。
  *
  * 隔离与自清：任务行没有删除端点（面内无 DELETE /tasks/{id}），用例把任务推到 cancelled
  * 终态后保留行；所有任务 id 由本用例自建自读，不依赖其他 spec 先验状态。
@@ -184,7 +184,7 @@ test.describe.serial('122 data-import 任务与模板真实契约回读', () => 
       description: updatedDescription,
     });
     expect(updated.description).toBe(updatedDescription);
-    // 未提交列保持原值（update_import_template :585 起逐列 Some 才覆盖）
+    // 未提交列保持原值（update_import_template 起逐列 Some 才覆盖）
     expect(updated.import_type).toBe(before.import_type);
     expect(updated.template_code).toBe(before.template_code);
 
@@ -210,7 +210,7 @@ test.describe.serial('122 data-import 任务与模板真实契约回读', () => 
       'X-CSRF-Token': csrf,
     };
 
-    // GET 与 POST 同挂一个 handler（routes/mod.rs:366 下载路由双方法）；
+    // GET 与 POST 同挂一个 handler（routes/mod 下载路由双方法）；
     // 两条腿各写死字面调用——方法经循环变量传 fetch 时，覆盖判定器按字面量取不到 POST 位点
     const getRes = await page.request.get(
       `${API_BASE}${API_PREFIX}/data-import/templates/1/download`,

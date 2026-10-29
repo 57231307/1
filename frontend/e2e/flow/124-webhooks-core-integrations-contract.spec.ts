@@ -14,37 +14,37 @@ import {
  *
  * 守的是什么：webhook 行的落库回读、软删语义、执行状态持久化、SSRF 守卫的显式拒绝分支、
  * callback 的签名鉴权门与发送端点先于出网的所有参校分支。判据来自 handler 与服务层源码实核：
- * - POST /webhooks（webhook_handler.rs:58）：CreateWebhookRequest{name,url,events[],secret?}；
+ * - POST /webhooks（webhook_handler）：CreateWebhookRequest{name,url,events[],secret?}；
  *   出参 WebhookResponse{id,name,url,events(逗号拼接串),is_active}，不回显 secret。
- *   URL 先过 ssrf_guard::validate_url（utils/ssrf_guard.rs:33）：非 http/https → 400 点名
+ *   URL 先过 utils/ssrf_guard::validate_url：非 http/https → 400 点名
  *   「URL 协议不允许：ftp（仅允许 http/https）」（validation_displayable 可外显）；
  *   loopback/内网/元数据 → 400 VALIDATION_ERROR（validation 脱敏族，只钉状态与机器码）。
- * - GET /webhooks（webhook_service.rs:103）：仅 is_active=true 且（系统级或本人）可见，
+ * - GET /webhooks（webhook_service）：仅 is_active=true 且（系统级或本人）可见，
  *   软删后行不出现在列表。
- * - GET /webhooks/{id}/logs（webhook_handler.rs:232）：新建行 last_triggered_at/last_status
+ * - GET /webhooks/{id}/logs（webhook_handler）：新建行 last_triggered_at/last_status
  *   均为 null、retry_count 0、max_retry_count 5（MAX_RETRY_COUNT）；触发过测试后
  *   last_status 落入 FAILED/ERROR/FAILED_PERMANENT/SUCCESS 终态族且 last_triggered_at 非空
  *   （mark_webhook_sending 先置 SENDING 并持久化 last_payload，persist_final_status 收终态）。
- * - POST /webhooks/{id}/test（:117）：10 次/分钟限流；出参 response_body 恒被改写为
+ * - POST /webhooks/{id}/test：10 次/分钟限流；出参 response_body 恒被改写为
  *   「出于安全原因，已隐藏响应内容」（SSRF 缓解，与网络结果无关，可断字面量）；
  *   禁用的 webhook 触发 → 400 BUSINESS_ERROR（ensure_webhook_active）。
- * - POST /webhooks/{id}/retry（:153）：无 last_payload 时 → 400 BUSINESS_ERROR；
+ * - POST /webhooks/{id}/retry：无 last_payload 时 → 400 BUSINESS_ERROR；
  *   test 之后 last_payload 已持久化，retry 走成功信封（重投原始 payload）。
- * - DELETE /webhooks/{id}（:89）：软删（service 置 is_active=false），删除响应文案「删除成功」；
+ * - DELETE /webhooks/{id}：软删（service 置 is_active=false），删除响应文案「删除成功」；
  *   删后 logs 仍可读且 is_active=false（库侧可回读的软删事实）。
- * - 集成面（webhook_integration_handler.rs）：create（:120）直写 webhook 表且 platform 回显入参；
- *   list（:85）只见 is_active=true 且 platform 恒为 GENERIC；update（:180）部分字段覆盖、
- *   非所有者 403（本用例只动自建行）；delete（:163）复用软删。
- *   test-integration（:426）与核心面 test 同出参改写规则。
- * - callback（:375）：先取 X-Webhook-Signature 头，缺失 → 401；非法 hex 与不匹配签名均 401
+ * - 集成面（webhook_integration_handler.rs）：create直写 webhook 表且 platform 回显入参；
+ *   list只见 is_active=true 且 platform 恒为 GENERIC；update部分字段覆盖、
+ *   非所有者 403（本用例只动自建行）；delete复用软删。
+ *   test-integration与核心面 test 同出参改写规则。
+ * - callback：先取 X-Webhook-Signature 头，缺失 → 401；非法 hex 与不匹配签名均 401
  *   （unauthorized 脱敏族，只钉 401+UNAUTHORIZED）。签名密钥 state.webhook_secret 仅服务端持有，
  *   e2e 无法也不应伪造出合法签名——合法签名 200 腿豁免（无密钥），签名门本身即该端点的鉴权契约。
- * - wechat/dingtalk 发送（:241/:306）：出网前的确定性分支全部钉死——content 空串 400 BAD_REQUEST、
+ * - wechat/dingtalk 发送（services/webhook_service::trigger_webhook 的两个渠道分支）：出网前的确定性分支全部钉死——content 空串 400 BAD_REQUEST、
  *   message_type 非 text/markdown 400 BAD_REQUEST、integration 不存在 404 NOT_FOUND。
  *   200-SENT 成功腿豁免：需真实出公网（CI 无外网），禁止以「200 通过」式假断言凑绿。
  *
  * 出站 URL 一律用 TEST-NET-3 保留段（203.0.113.0/24，RFC 5737）：IP 字面量让 validate_url
- * 跳过 DNS 解析（ssrf_guard.rs:62-72），任何环境都不可路由，投递必失败——
+ * 跳过 DNS 解析（ssrf_guard），任何环境都不可路由，投递必失败——
  * 因此「test/retry 之后 last_status 属失败族」是跨环境确定断言，不断具体失败子族。
  */
 
@@ -174,7 +174,7 @@ test.describe.serial('124 webhooks 核心面与集成面真实契约', () => {
     expect(freshLog.retry_count).toBe(0);
     expect(freshLog.max_retry_count).toBe(5);
 
-    // 从未触发过时 last_payload，重试必须被拒（批次 251 的显式业务门）
+    // 从未触发过时 last_payload，重试必须被拒（handler 侧显式业务门）
     const retryBeforeTest = await apiCallExpectFail(page, 'POST', `/webhooks/${created.id}/retry`);
     expect(retryBeforeTest.status).toBe(400);
     expect(retryBeforeTest.code).toBe(APP_ERROR_CODES.BUSINESS_ERROR);

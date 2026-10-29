@@ -4,43 +4,43 @@ import { APP_ERROR_CODES, loginViaUI, apiCall, apiCallRaw, apiCallExpectFail } f
 /**
  * 125 ar-reconciliations-enhanced 面全链真实契约（生成、明细、发送、确认、争议、解决、账龄、PDF、结果列表、自动对账）
  *
- * 守的是什么：enhanced 前缀（routes/finance.rs:966 起 16 条在册端点）不是 base 面的空镜像——
- * handler 层 ar_reconciliation_enhanced_handler.rs:8 仅 `pub use` 转发到
+ * 守的是什么：enhanced 前缀（routes/finance 起 16 条在册端点）不是 base 面的空镜像——
+ * handler 层 ar_reconciliation_enhanced_handler 仅 `pub use` 转发到
  * ar_reconciliation_handler，因此每条用例都打 enhanced 前缀真实路径，并对同一行做
  * base 面读回（GET /ar-reconciliations/{id}）比对 reconciliation_no/customer_id 一致，
  * 钉住「前缀可达且语义与 base 同源」。全部判据来自 handler 与服务层源码实核：
- * - POST /generate（ar_reconciliation_handler.rs:614）：customer_id 不存在 → 404 NOT_FOUND
- *   （vfy_ops/reconciliation.rs:40 显式客户存在性检查）；合法入参新建行初始状态 draft、
- *   period_start/period_end 回显入参日期、notes 持久化（批次 109 P1-1 接入）。
- * - GET /{id}/details（:518）：出参 {reconciliation: Model, details: [...]}
- *   （services/ar/mod.rs:154 ReconciliationWithDetails），回读同一行。
- * - POST /{id}/confirm/send（:737）：send 状态门「只有草稿状态的对账单可以发送」
- *   （recon_ops/lifecycle.rs:68）→ draft 放行转 sent，重复发送 400 BUSINESS_ERROR。
- * - POST /{id}/confirm（:545，OptionalJson 合法缺体）：customer_confirm 状态门
- *   （vfy_ops/confirm.rs:105）confirmed 再确认 → 400 BUSINESS_ERROR；
+ * - POST /generate（ar_reconciliation_handler）：customer_id 不存在 → 404 NOT_FOUND
+ *   （vfy_ops/reconciliation 显式客户存在性检查）；合法入参新建行初始状态 draft、
+ *   period_start/period_end 回显入参日期、notes 持久化（字段已接入落库）。
+ * - GET /{id}/details：出参 {reconciliation: Model, details: [...]}
+ *   （services/ar/mod ReconciliationWithDetails），回读同一行。
+ * - POST /{id}/confirm/send：send 状态门「只有草稿状态的对账单可以发送」
+ *   （recon_ops/lifecycle）→ draft 放行转 sent，重复发送 400 BUSINESS_ERROR。
+ * - POST /{id}/confirm（，OptionalJson 合法缺体）：customer_confirm 状态门
+ *   （vfy_ops/confirm）confirmed 再确认 → 400 BUSINESS_ERROR；
  *   sent → confirmed 且 confirmed_by_customer=true。
- * - POST /confirmations（:789）：同一状态门的别名腿，对已 confirmed 行 → 400 BUSINESS_ERROR。
- * - GET /confirmations（:759）：固定 status=confirmed 过滤的分页列表，新建 confirmed 行必入选。
- * - PUT /confirmations/{id}/status（:816）：update_status 白名单六值
- *   （draft/sent/confirmed/disputed/closed/cancelled，lifecycle.rs:238 起）；
+ * - POST /confirmations：同一状态门的别名腿，对已 confirmed 行 → 400 BUSINESS_ERROR。
+ * - GET /confirmations：固定 status=confirmed 过滤的分页列表，新建 confirmed 行必入选。
+ * - PUT /confirmations/{id}/status：update_status 白名单六值
+ *   （draft/sent/confirmed/disputed/closed/cancelled，lifecycle 起）；
  *   白名单外值 → 400 BUSINESS_ERROR；remark 写入 notes 列并回读。
- * - POST /{id}/dispute（:579）：confirmed 行不可提争议（confirm.rs:120 状态门）→ 400；
+ * - POST /{id}/dispute：confirmed 行不可提争议（confirm 状态门）→ 400；
  *   draft 行放行 → disputed，dispute_reason 回显 reason 原文。
- * - GET /disputes（:846）：固定 status=disputed 过滤列表，新建 disputed 行必入选。
- * - GET /disputes/{id}（:922）：按对账单主键读回争议行本体。
- * - PUT /disputes/{id}/resolve（:941）：resolve_dispute 默认 target_status="resolved"，
+ * - GET /disputes：固定 status=disputed 过滤列表，新建 disputed 行必入选。
+ * - GET /disputes/{id}：按对账单主键读回争议行本体。
+ * - PUT /disputes/{id}/resolve：resolve_dispute 默认 target_status="resolved"，
  *   但该值不在 update_status 白名单内 → 缺省 status 的调用必 400 BUSINESS_ERROR（现状契约，
  *   疑似源码缺陷已另单交接，不在测试侧放宽）；显式传白名单值 confirmed → 200 并真实改写状态。
- * - POST /disputes（:873）：缺 reconciliation_id → 400 BAD_REQUEST；
- *   customer_id 与对账单归属不一致 → 400 BAD_REQUEST（批次 109 P3 一致性校验）；
+ * - POST /disputes：缺 reconciliation_id → 400 BAD_REQUEST；
+ *   customer_id 与对账单归属不一致 → 400 BAD_REQUEST（归属一致性校验）；
  *   合法引用 draft 行 → disputed。
- * - POST /auto-match（:457）：start_date/end_date 为 NaiveDate 必填，
+ * - POST /auto-match：start_date/end_date 为 NaiveDate 必填，
  *   出参数组 + message「自动对账完成，共处理 N 个客户」整句模式。
- * - GET /auto-reconcile/results（:707）：分页信封 {list,total,page,page_size}，
+ * - GET /auto-reconcile/results：分页信封 {list,total,page,page_size}，
  *   customer_id 过滤下自建三单必全部入选。
- * - GET /aging-report（:490）：AgingReport{analysis_date,total_receivable(DECIMAL 出参字符串),
+ * - GET /aging-report：AgingReport{analysis_date,total_receivable(DECIMAL 出参字符串),
  *   customer_summaries,overall_buckets} 结构真实成立。
- * - GET /{id}/pdf（:648）：出参 content_type=application/pdf、size>0、
+ * - GET /{id}/pdf：出参 content_type=application/pdf、size>0、
  *   base64_content 非空且以 JVBERi0（"%PDF-" 的 base64 前缀）开头——文件魔数级证据，
  *   不是「有响应即通过」。
  *

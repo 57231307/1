@@ -6,36 +6,36 @@ import { APP_ERROR_CODES, loginViaUI, apiCallRaw, apiCall, apiCallExpectFail } f
  *
  * 守的是什么：`/advanced/*` 面缺参时的点名校验、可选体时的回落默认值、
  * 以及 2xx 出参的字段级形状，全部判据来自 handler 源码实核，不测可达性：
- * - GET /advanced/reports/templates（handlers/advanced/analytics.rs:27 list_report_templates）：
+ * - GET /advanced/reports/templates（handlers/advanced/analytics::list_report_templates）：
  *   出参为引擎预置模板（services/report/tpl.rs 九个固定 id），每条含
  *   template_name/template_code/category/description/created_at，
  *   description 由代码拼为「包含 N 个列: …」前缀，逐条断该前缀真实成立。
- * - POST /advanced/reports/execute（:67）：入参 template_code 必填；未知 id 走
- *   get_template 的 not_found（services/report/tpl.rs:955 附近）→ 404 + NOT_FOUND；
+ * - POST /advanced/reports/execute：入参 template_code 必填；未知 id 走
+ *   get_template 的 not_found（services/report/tpl 附近）→ 404 + NOT_FOUND；
  *   已知 sales_summary 返回 columns（{key,label} 数组）、data 行数组与 total_count。
- * - POST /advanced/reports/export（:127）：format 经 ExportFormat::parse 白名单
+ * - POST /advanced/reports/export：format 经 ExportFormat::parse 白名单
  *   （csv/excel/pdf/json，非法值 bad_request → 400 BAD_REQUEST）；
  *   csv 出参 data.status/format/size_bytes/record_count（format 回显请求值）。
- * - POST /advanced/ai/recommendations（rec.rs:21，OptionalJson）：缺体回落
+ * - POST /advanced/ai/recommendations（rec，OptionalJson）：缺体回落
  *   recommendation_type="all"、limit=10；limit 入参真实生效——传 1 时返回条数 ≤ 1，
  *   忽略 limit 的实现会让该断言变红。
- * - POST /advanced/ai/anomaly-detection（decide.rs:21，Json 强提取器）：
+ * - POST /advanced/ai/anomaly-detection（decide，Json 强提取器）：
  *   data_type 为必填非 Option——缺体/缺字段经请求解码通道报 400 + VALIDATION_ERROR，
  *   文案为固定公开常量（utils/error.rs REQUEST_DECODING_PUBLIC，不含字段名，
  *   serde 原文只进 WARN）；合法体返回条目数组，severity 收窄到 critical/warning/info 三值。
- * - POST /advanced/ai/quality-prediction（quality_pred.rs:33）：window_days 越界
+ * - POST /advanced/ai/quality-prediction（quality_pred）：window_days 越界
  *   （0 或 >365）→ 400 + 点名文案「时间窗口 window_days 必须在 1-365 之间」
  *   （validation_displayable，可外显）；inspection_type 超 32 字符 → 点名文案含 32；
  *   合法空体 {window_days 缺省} 时出参 window_days 恒为 90、inspection_type 为 "all"，
  *   trend 落在「上升|平稳|下降|无数据」、risk_level 落在「低|中|高」。
- * - POST /advanced/ai/recipe-optimization（recipe_opt.rs:47）：color_no/fabric_type
+ * - POST /advanced/ai/recipe-optimization（recipe_opt）：color_no/fabric_type
  *   空串 → 400 点名「色号 color_no 不能为空」/「布类 fabric_type 不能为空」；
  *   k=0 强制退化路径（handler 注释与 service 文档同源）→ source 恒为 "fallback"，
  *   recommended_params 四字段为数值。
- * - POST /advanced/ai/sales-forecast（forecast.rs:24）：product_id 缺失 → 400 点名
+ * - POST /advanced/ai/sales-forecast（forecast）：product_id 缺失 → 400 点名
  *   「预测请求缺少物料ID」；合法 product_id（取种子产品第一行，只读复用）→ period 回显、
  *   confidence 为 0-100 整数、detail 为数组。
- * - POST /advanced/ai/inventory-optimization（forecast.rs:92，OptionalJson）：
+ * - POST /advanced/ai/inventory-optimization（forecast，OptionalJson）：
  *   summary 由代码拼为「检测到 N 个产品需要补货，M 个产品库存积压」整句，
  *   断整句模式；items 每行 product_name 非空（主数据无名称的行被后端剔除，见同名函数）。
  *
@@ -315,7 +315,7 @@ test.describe.serial('123 advanced 族九端点契约配对（缺参点名 400 �
     expect(noProduct.message).toBe('预测请求缺少物料ID');
 
     const productId = await firstProductId(page);
-    // 合法入参必 2xx：handler 对 forecast_sales 的 Err 分支原样上抛（forecast.rs:79-85），
+    // 合法入参必 2xx：handler 对 forecast_sales 的 Err 分支原样上抛（forecast），
     // 若服务层坏了本行即判红——这正是 apiCall 对失败信封 throw 的用武之地
     const body = await apiCallRaw<SalesForecastBody>(page, 'POST', '/advanced/ai/sales-forecast', {
       period: '3m',

@@ -5,7 +5,7 @@
 //   PUT    /purchase/suppliers/{id}/contacts/{cid}        update_supplier_contact
 //   DELETE /purchase/suppliers/{id}/contacts/{cid}        delete_supplier_contact
 //   POST   /purchase/suppliers/{id}/status                toggle_supplier_status（enable=true/false）
-// 契约来源：backend/src/routes/purchase.rs:342/369/373/378、supplier_handler.rs:25/181/237/266/290、
+// 契约来源：backend/src/routes/purchase/369/373/378、supplier_handler/181/237/266/290、
 //   supplier_service.rs（create_supplier 仅需唯一 supplier_name、toggle 落 is_enabled + status=
 //   master_data::ACTIVE('active')/INACTIVE('inactive')）。
 // 脱敏事实：list_suppliers（含 /suppliers/select）对非 admin 掩 mobile_phone/email（field_mask.rs）；

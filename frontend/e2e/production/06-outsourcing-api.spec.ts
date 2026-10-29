@@ -7,10 +7,10 @@
 //   POST   /outsourcing-vouchers                   创建委外凭证（create_outsourcing_voucher）
 //   GET    /outsourcing-vouchers/by-no/{no}        按凭证号查询（get_outsourcing_voucher_by_no）
 //   DELETE /outsourcing-vouchers/{id}              删除未过账凭证（delete_outsourcing_voucher）
-// 契约来源：backend/src/routes/production.rs:404-434、outsourcing_handler.rs、
+// 契约来源：backend/src/routes/production、outsourcing_handler.rs、
 //   services/outsourcing_ops/{order,order_item,voucher}.rs、types.rs；
 //   状态机 draft→issued→processing→received→settled→closed，任意非 closed→cancelled
-//   （models/status/wage_energy_chemical_business.rs:248-277）。
+//   （models/status/wage_energy_chemical_business）。
 //   金额列为 rust_decimal，出参序列化为字符串（如 "25.5000"），断言前 Number() 归一。
 // 本批未纳入的邻近 outsourcing 端点（留后续批次，非豁免）：
 //   outsourcing-orders/*/print、outsourcing-receipts/*/print（docx 下载族，需按二进制
