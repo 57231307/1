@@ -86,8 +86,35 @@ export interface ReceiptItem {
   /** 主单位（取自产品档案，不手工录入） */
   unit_master?: string;
   unit_alt?: string;
+  /**
+   * 不含税单价（净额口径）：入库面价格录入统一以含税单价为事实，本值由 money.ts 的
+   * netFromInclusive 按除法反算派生（与采购订单、报价、销售退货同一套实现），
+   * 创建与更新请求上送的就是它，后端 purchase_receipt_item.unit_price 存净额、
+   * amount 由服务端按数量乘本值重算。回显时它是库里已落库的净额原值。
+   */
   unit_price?: number;
+  /** 行金额（净额小计）：后端落库权威值为 quantity 乘 unit_price，编辑态由派生腿预览同值 */
   amount?: number;
+  /**
+   * 含税单价录入原文（价税分离的录入事实，编辑态价格主输入）：本表行模型同时充当
+   * 表单模型（usePrc 的 PrcForm.items 复用本类型），空串表示未填写，'0' 是人工显式
+   * 声明的合法值（样布赠品行）。后端 purchase_receipt_item 没有含税单价列，本键
+   * 不上送，只在编辑态供除法反算净额与税额预览消费；调用方见 usePrcProc 的
+   * calculateItemAmount 与 PurchaseReceiptForm 的含税单价录入列。
+   */
+  unit_price_with_tax?: string;
+  /**
+   * 行级税率（百分数口径，13 表示 13%）：与含税单价成对录入的录入事实，
+   * undefined 表示未填写，0 为合法的"无票"声明。后端入库明细无税率列，本键不上送，
+   * 只参与前端除法反算（netFromInclusive 的税率入参），缺它时含税单价不予反算。
+   */
+  tax_rate?: number;
+  /**
+   * 行级税额预览（派生只读）：含税金额减净额小计取差额（与净额恒钩稽），
+   * 仅编辑态展示，后端入库明细无税额列、不上送。未采集价格时为 undefined（无值），
+   * 不预置 0 冒充算得的税额。
+   */
+  tax_amount?: number;
   location_code?: string;
   notes?: string;
 }
@@ -130,6 +157,11 @@ export interface CreateReceiptItemRequest {
   quantity_alt: number;
   unit_master: string;
   unit_alt?: string;
+  /**
+   * 不含税单价（净额口径）：由含税单价录入事实按行税率除法反算（money.ts 的
+   * netFromInclusive）后上送，键省略表示价格未采集（后端落 NULL）。显式录入的 0
+   * 是合法值必须原样上送，禁止用 `|| undefined` 把 0 塌成缺键。
+   */
   unit_price?: number;
   location_code?: string;
   package_no?: string;

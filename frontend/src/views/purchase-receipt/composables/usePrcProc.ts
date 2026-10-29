@@ -18,6 +18,12 @@ import {
   PURCHASE_RECEIPT_INSPECTION_STATUS,
 } from '@/utils/purchase-receipt-status';
 import {
+  inclusiveAmountFromLine,
+  netFromInclusive,
+  parseDecimalInput,
+  roundToCent,
+} from '@/utils/money';
+import {
   createReceiptItem,
   updateReceiptItem,
   deleteReceiptItem,
@@ -82,6 +88,34 @@ function normalizeReceiptItemForForm(it: ReceiptItem): ReceiptItem {
     quantity_alt: toOptionalDecimal(it.quantity_alt, 'quantity_alt', it.line_no),
     unit_price: toOptionalDecimal(it.unit_price, 'unit_price', it.line_no),
     amount: toOptionalDecimal(it.amount, 'amount', it.line_no),
+    // 含税单价与税率是录入事实、后端入库明细无对应列，回显必然缺席：录入原文归空串
+    // （el-input 绑定不接受 undefined 之外的假值），价格主输入留空由人工重新录入，
+    // 禁止由库里净额乘 (1 加税率) 反造含税回填——那是被禁的第二套口径。
+    unit_price_with_tax: '',
+    tax_rate: undefined,
+    tax_amount: undefined,
+  };
+}
+
+/**
+ * 新建明细行的空白模型：价格三列（含税单价原文、税率、净额与税额派生）一律未采集态，
+ * 不预置 0——预置 0 会把"没录价"伪装成"显式声明 0 价"，两者在成本台账里不可区分；
+ * 0 只能由人工在含税单价录入框显式敲出。辅量同理保持 undefined（实测为 0 才可填 0）。
+ * 调用方：openAddDialog 首行与 addItem 追加分录行。
+ */
+function emptyReceiptItem(): ReceiptItem {
+  return {
+    product_id: 0,
+    quantity: 0,
+    unit_price_with_tax: '',
+    tax_rate: undefined,
+    unit_price: undefined,
+    tax_amount: undefined,
+    amount: undefined,
+    batch_no: '',
+    color_code: '',
+    lot_no: '',
+    grade: '',
   };
 }
 
@@ -135,28 +169,17 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 打开新增对话框（预生成单号供参考，后端保存时以最终生成为准） */
   const openAddDialog = () => {
     cb.dialogTitle = msg.translate('addReceiptTitle');
-    // 编辑态残留（已删行 / 辅量原值表）随新建作废
+    // 编辑态残留（已删行 / 辅量原值表 / 单价原值表）随新建作废
     removedItemIds.value = [];
     altQtyOriginals.value.clear();
+    priceOriginals.value.clear();
     cb.form = {
       receipt_no: '',
       receipt_date: new Date().toISOString().split('T')[0],
       supplier_id: undefined,
       warehouse_id: undefined,
       status: 'draft',
-      items: [
-        {
-          product_id: 0,
-          quantity: 0,
-          // 辅量不预置 0：0 是「实测为 0」，未录入必须保持未采集（undefined）
-          unit_price: 0,
-          amount: 0,
-          batch_no: '',
-          color_code: '',
-          lot_no: '',
-          grade: '',
-        },
-      ],
+      items: [emptyReceiptItem()],
     };
     cb.dialogVisible = true;
     // 预生成单号展示（generatePurchaseReceiptNo，后端保存时最终生成）
@@ -187,6 +210,13 @@ export function usePrcProc(cb: PrcCallbacks) {
           .filter(i => i.id != null)
           .map(i => [i.id as number, i.quantity_alt == null ? null : i.quantity_alt])
       );
+      // 记录各行不含税单价原值：编辑态操作人不重新录入含税单价时，提交保持库值；
+      // 录入后又清空含税原文时，派生腿按此原值回退，不把已落库价格塌成 null 假清空
+      priceOriginals.value = new Map(
+        items
+          .filter(i => i.id != null)
+          .map(i => [i.id as number, i.unit_price == null ? null : i.unit_price])
+      );
       cb.form = { ...(res.data as unknown as PrcForm), items };
       cb.dialogVisible = true;
     } catch (error) {
@@ -211,17 +241,7 @@ export function usePrcProc(cb: PrcCallbacks) {
   /** 添加明细 */
   const addItem = () => {
     if (!cb.form.items) cb.form.items = [];
-    cb.form.items.push({
-      product_id: 0,
-      quantity: 0,
-      // 辅量保持未采集（undefined）：预置 0 会把「没量过」伪装成「量过且为 0」
-      unit_price: 0,
-      amount: 0,
-      batch_no: '',
-      color_code: '',
-      lot_no: '',
-      grade: '',
-    });
+    cb.form.items.push(emptyReceiptItem());
   };
 
   /** 删除明细（编辑态记录已删除的明细 ID，提交时走 deleteReceiptItem） */
@@ -231,6 +251,12 @@ export function usePrcProc(cb: PrcCallbacks) {
    * number=库里已采集值；null=该行原本未采集。提交时与当前值对比重建三态。
    */
   const altQtyOriginals = ref<Map<number, number | null>>(new Map());
+  /**
+   * 编辑态各行不含税单价「原值」快照（openEditDialog 写入）：
+   * number=库里已落库净额；null=该行原本未采集价格。含税单价录入腿被清空时
+   * 派生值按此回退，避免把"没重新录价"演变成"把库值清成 NULL"的静默丢价。
+   */
+  const priceOriginals = ref<Map<number, number | null>>(new Map());
   const removeItem = (index: number) => {
     if ((cb.form.items || []).length > 1) {
       const removed = cb.form.items![index];
@@ -239,9 +265,48 @@ export function usePrcProc(cb: PrcCallbacks) {
     }
   };
 
-  /** 计算明细金额 */
+  /**
+   * 重算明细行派生列（事件名沿用 calc-amount，index.vue 按该名接线）：
+   * 含税单价与税率是录入事实，净额、金额小计与税额预览一律由 money.ts 唯一摊税实现派生，
+   * 本函数不出现任何乘 (1 加税率) 造含税、乘税率造税额的算式。
+   * - 不含税单价 = 含税单价按税率除法反算（netFromInclusive，与后端 utils tax 同源）
+   * - 金额小计 = 数量乘不含税单价收敛到分，与后端 purchase_receipt_ops/items.rs 的
+   *   amount 落库算式（quantity 乘 unit_price）逐分同值，保证入库面合计钩稽
+   * - 税额预览 = 含税金额（inclusiveAmountFromLine 聚合，税率不进算式）减金额小计取差额，
+   *   恒等式 净额小计 加 税额 == 含税金额 逐分成立；入库明细无税额列，本值仅编辑态展示
+   * 含税原文与税率未成对录入（或文本非法）时：编辑回显行按单价原值快照回退（库值不动），
+   * 新建行回到未采集（undefined），绝不预置 0 冒充算得值；缺值由提交门逐行点名拦截。
+   */
   const calculateItemAmount = (item: ReceiptItem) => {
-    item.amount = (item.quantity || 0) * (item.unit_price || 0);
+    const inclusiveUnit = parseDecimalInput(item.unit_price_with_tax);
+    const rate = item.tax_rate;
+    const inputsUsable =
+      inclusiveUnit !== undefined &&
+      Number.isFinite(inclusiveUnit) &&
+      inclusiveUnit >= 0 &&
+      rate !== undefined &&
+      rate !== null &&
+      Number.isFinite(rate) &&
+      rate >= 0;
+    if (inputsUsable) {
+      item.unit_price = netFromInclusive(inclusiveUnit, rate);
+    } else {
+      const original = item.id != null ? priceOriginals.value.get(item.id) : undefined;
+      item.unit_price = original == null ? undefined : original;
+    }
+    if (item.unit_price === undefined) {
+      // 价格未采集：净额小计与税额预览回到无值，不写 0 伪装"算得零"
+      item.amount = undefined;
+      item.tax_amount = undefined;
+      return;
+    }
+    item.amount = roundToCent((item.quantity || 0) * item.unit_price);
+    if (inputsUsable && inclusiveUnit !== undefined) {
+      const inclusiveLine = inclusiveAmountFromLine(inclusiveUnit, item.quantity);
+      item.tax_amount = roundToCent(inclusiveLine - item.amount);
+    } else {
+      item.tax_amount = undefined;
+    }
   };
 
   /**
@@ -303,6 +368,36 @@ export function usePrcProc(cb: PrcCallbacks) {
       return;
     }
 
+    // 含税口径录入门（与采购订单、报价、销售退货同一价税分离口径）：
+    // 含税单价与税率要么成对留空（本行价格不采集，创建省略单价键落 NULL、更新保持库值），
+    // 要么成对录入且合法。只填一头是半成品价格，禁止由已有值乘除反造另一侧凑数提交，
+    // 逐行点名拦下让操作人补齐。
+    const priceTextOf = (it: ReceiptItem) => (it.unit_price_with_tax ?? '').trim();
+    const rateFilled = (it: ReceiptItem) => it.tax_rate !== undefined && it.tax_rate !== null;
+    const invalidPriceIdx = validItems.findIndex(it => {
+      const text = priceTextOf(it);
+      if (text === '') return false;
+      const parsed = parseDecimalInput(text);
+      return parsed === undefined || !Number.isFinite(parsed) || parsed < 0;
+    });
+    if (invalidPriceIdx >= 0) {
+      msg.warning('receiptPriceWithTaxInvalid', { line: invalidPriceIdx + 1 });
+      return;
+    }
+    const missingRateIdx = validItems.findIndex(it => priceTextOf(it) !== '' && !rateFilled(it));
+    if (missingRateIdx >= 0) {
+      msg.warning('receiptTaxRateRequired', { line: missingRateIdx + 1 });
+      return;
+    }
+    const missingPriceIdx = validItems.findIndex(it => priceTextOf(it) === '' && rateFilled(it));
+    if (missingPriceIdx >= 0) {
+      msg.warning('receiptPriceWithTaxRequired', { line: missingPriceIdx + 1 });
+      return;
+    }
+    // 提交前按当前录入原文统一重算一遍派生腿：录入框事件在失焦时才写回，
+    // 直接点提交按钮的行不能依赖控件事件时序，派生值必须与门判定同源
+    validItems.forEach(calculateItemAmount);
+
     // 明细字段映射到后端 CreateReceiptItemRequest 契约（键名严格对齐 DTO：
     // material_id/material_code/material_name/batch_no/color_code/lot_no/grade/
     // line_no/quantity/quantity_alt/unit_master/unit_price）。
@@ -322,7 +417,10 @@ export function usePrcProc(cb: PrcCallbacks) {
       // 非空断言：创建路径的辅量已由上方拦截保证已采集（quantity_alt 必填键，禁止 ?? 0 伪装）
       quantity_alt: it.quantity_alt!,
       unit_master: it.unit_master!,
-      unit_price: it.unit_price || undefined,
+      // unit_price 是含税单价按税率除法反算的净额派生值（calculateItemAmount 产出）：
+      // 已录价行（含显式 0 价）原样上送，未录价行省略键（后端落 NULL）——
+      // 此前 `|| undefined` 把人工显式声明的 0 价塌成缺键，正是本门要消灭的伪装形态。
+      ...(it.unit_price !== undefined ? { unit_price: it.unit_price } : {}),
     });
 
     // 更新明细映射到后端 UpdateReceiptItemRequest 三态契约（RFC 7386）：
@@ -380,6 +478,7 @@ export function usePrcProc(cb: PrcCallbacks) {
         }
         removedItemIds.value = [];
         altQtyOriginals.value.clear();
+        priceOriginals.value.clear();
         msg.success('updateSuccess');
       } else {
         // 建单：显式组装 CreatePurchaseReceiptRequest，不再把整个 cb.form（含 id/status/receipt_no

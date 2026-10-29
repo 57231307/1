@@ -2,13 +2,14 @@
   PurchaseReceiptForm.vue - 采购入库新增/编辑对话框
   拆分自 purchaseReceipt/index.vue（P14 批 2 I-3 第 4 批）
   P9-3 批次 F Pattern A 重构：本地 ref 镜像 + watch 防循环 + emit 整体覆盖父组件
-  行为完全保持一致（仅结构重构）
+  价税分离口径：含税单价为主输入（录入事实），净额单价、税额预览与金额小计为派生只读列，
+  反算算式全部走 usePrcProc 与 money.ts 的唯一实现，本组件只接线不复算
 -->
 <template>
   <el-dialog
     :model-value="visible"
     :title="title"
-    width="1080px"
+    width="1280px"
     :aria-label="title"
     @update:model-value="(v: boolean) => emit('update:visible', v)"
   >
@@ -64,7 +65,14 @@
               {{ t('purchaseReceipt.form.itemsHeader.quantityAlt') }}
             </span>
             <span class="col-unit">{{ t('purchaseReceipt.form.itemsHeader.unit') }}</span>
-            <span class="col-price">{{ t('purchaseReceipt.form.itemsHeader.price') }}</span>
+            <span class="col-price">
+              {{ t('purchaseReceipt.form.itemsHeader.priceWithTax') }}
+            </span>
+            <span class="col-tax">{{ t('purchaseReceipt.form.itemsHeader.taxRate') }}</span>
+            <span class="col-net-price">{{ t('purchaseReceipt.form.itemsHeader.netPrice') }}</span>
+            <span class="col-tax-amount">
+              {{ t('purchaseReceipt.form.itemsHeader.taxAmount') }}
+            </span>
             <span class="col-amount">{{ t('purchaseReceipt.form.itemsHeader.amount') }}</span>
             <span class="col-action">{{ t('purchaseReceipt.form.itemsHeader.action') }}</span>
           </div>
@@ -105,23 +113,37 @@
               />
               <!-- 主单位取自产品档案，不可手工录入（后端 unit_master 为必填契约字段） -->
               <span class="col-unit">{{ item.unit_master || '-' }}</span>
-              <el-input-number
-                :model-value="item.unit_price"
-                :precision="2"
+              <!--
+                含税单价是本表价格的主输入（录入事实），el-input 承载输入框原文：
+                带加减号的步进控件是全项目禁项；空串=未采集，'0' 是人工显式声明的 0 价。
+                后端入库明细没有含税单价列，本值不上送，只经 usePrcProc 除法反算净额与税额。
+              -->
+              <el-input
+                :model-value="item.unit_price_with_tax"
                 class="col-price"
+                inputmode="decimal"
+                :placeholder="t('purchaseReceipt.form.placeholder.unitPriceWithTax')"
                 @update:model-value="
-                  (v: number | undefined) => {
-                    item.unit_price = v ?? 0;
+                  (v: string) => {
+                    item.unit_price_with_tax = v;
                     emit('calc-amount', item);
                   }
                 "
               />
-              <el-input-number
-                :model-value="item.amount"
-                :precision="2"
-                class="col-amount"
-                readonly
+              <!-- 税率与含税单价成对录入（百分数，13 表示 13%），后端无税率列、不上送，只进除法反算 -->
+              <NumericInput
+                v-model="item.tax_rate"
+                class="col-tax"
+                optional
+                :min="0"
+                :max="999.9999"
+                :precision="4"
+                @change="emit('calc-amount', item)"
               />
+              <!-- 以下三列均为派生只读：净额由除法反算、金额为数量乘净额（与后端落库同式）、税额为含税减净额取差额 -->
+              <span class="col-net-price">{{ formatDerived(item.unit_price) }}</span>
+              <span class="col-tax-amount">{{ formatDerived(item.tax_amount) }}</span>
+              <span class="col-amount">{{ formatDerived(item.amount) }}</span>
               <el-button
                 v-if="(localForm.items || []).length > 1"
                 size="small"
@@ -201,8 +223,20 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReceiptItem } from '@/api/purchase-receipt';
+import NumericInput from '@/components/NumericInput.vue';
+import { formatDecimalAmount } from '@/utils/money';
 
 const { t } = useI18n({ useScope: 'global' });
+
+/**
+ * 派生只读列的统一展示（净额单价、税额预览、金额小计三列共用）：
+ * 无值（价格未采集或未录税率）显示占位符而不是 0，避免把"没算"看成"算得 0"；
+ * 有值走 money.ts 的 formatDecimalAmount 统一千分位与两位小数。
+ * 入参是 usePrcProc 的 calculateItemAmount 除法反算产物，只读展示给收货人核对，
+ * 本组件不对它们做任何乘除税率运算，也不作为权威值上送（金额由后端按数量乘净额重算）。
+ */
+const formatDerived = (value: number | undefined): string =>
+  value === undefined ? '--' : formatDecimalAmount(value);
 
 // 选项类型（产品选项额外带产品档案主数据：编码/名称/主单位）
 interface OptItem {
@@ -361,13 +395,26 @@ const onSubmit = async () => {
 }
 .col-product {
   flex: 2;
+  min-width: 160px;
   margin-right: 10px;
 }
 .col-qty,
 .col-price,
+.col-net-price,
 .col-amount {
   width: 100px;
   margin-right: 10px;
+}
+.col-tax,
+.col-tax-amount {
+  width: 84px;
+  margin-right: 10px;
+}
+.col-net-price,
+.col-tax-amount,
+.col-amount {
+  line-height: 32px;
+  white-space: nowrap;
 }
 .col-unit {
   width: 56px;
@@ -397,6 +444,9 @@ const onSubmit = async () => {
   .col-product,
   .col-qty,
   .col-price,
+  .col-tax,
+  .col-net-price,
+  .col-tax-amount,
   .col-amount,
   .col-unit {
     flex: 0 0 100%;
@@ -404,7 +454,10 @@ const onSubmit = async () => {
     min-width: 0;
   }
 
-  .col-unit {
+  .col-unit,
+  .col-net-price,
+  .col-tax-amount,
+  .col-amount {
     line-height: 1.5;
   }
 

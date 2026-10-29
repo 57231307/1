@@ -1563,6 +1563,12 @@ export default {
     receiptItemMasterMissing:
       'Line {line} is missing material code/name/master unit: the master unit comes from the product master, maintain it on the product and reselect it',
     lotNoRequiredForColor: 'Lines with a color code must also record a lot number',
+    receiptPriceWithTaxInvalid:
+      'Line {line} has a tax-inclusive unit price that is not a valid non-negative number. Re-enter it.',
+    receiptTaxRateRequired:
+      'Line {line} has a tax-inclusive unit price but no tax rate. Enter the tax rate for that line.',
+    receiptPriceWithTaxRequired:
+      'Line {line} has a tax rate but no tax-inclusive unit price. Enter the tax-inclusive unit price for that line.',
     receiptItemAltQtyRequired:
       'Line {line} has no auxiliary quantity: quantity_alt is a required key in the receipt creation contract — record the measured value (enter 0 explicitly if the measured alt qty is 0)',
     addReceiptTitle: 'Add Receipt',
@@ -9892,13 +9898,17 @@ export default {
         lotNo: 'Lot no. (required when color set)',
         grade: 'Grade (optional)',
         quantityAlt: 'Blank = not measured',
+        unitPriceWithTax: 'Enter tax-inclusive unit price',
       },
       itemsHeader: {
         product: 'Product',
         quantity: 'Quantity',
         quantityAlt: 'Alt Qty',
         unit: 'Unit',
-        price: 'Price',
+        priceWithTax: 'Unit Price (Tax Incl)',
+        taxRate: 'Tax Rate (%)',
+        netPrice: 'Net Unit Price',
+        taxAmount: 'Tax Amount',
         amount: 'Amount',
         batch: 'Batch No.',
         colorNo: 'Color No.',

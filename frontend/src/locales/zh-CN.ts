@@ -1550,6 +1550,10 @@ export default {
     receiptItemMasterMissing:
       '第 {line} 行缺少物料编码/名称/主单位：主单位来自产品档案，请先在产品档案维护计量单位后重新选择该产品',
     lotNoRequiredForColor: '已填色号的行必须录入缸号',
+    receiptPriceWithTaxInvalid:
+      '第 {line} 行的含税单价不是合法数字或为负数，请重新录入该行含税单价',
+    receiptTaxRateRequired: '第 {line} 行已填含税单价但未录税率，请补录该行税率',
+    receiptPriceWithTaxRequired: '第 {line} 行已录税率但未填含税单价，请补录该行含税单价',
     receiptItemAltQtyRequired:
       '第 {line} 行未录入辅助数量：入库创建契约该键必填（quantity_alt），请实测录入（实收为 0 可显式填 0）',
     addReceiptTitle: '新增入库单',
@@ -9827,13 +9831,17 @@ export default {
         lotNo: '缸号(色号非空必填)',
         grade: '等级(可选)',
         quantityAlt: '留空=未采集',
+        unitPriceWithTax: '请输入含税单价',
       },
       itemsHeader: {
         product: '产品',
         quantity: '数量',
         quantityAlt: '辅助数量',
         unit: '主单位',
-        price: '单价',
+        priceWithTax: '含税单价',
+        taxRate: '税率(%)',
+        netPrice: '不含税单价',
+        taxAmount: '税额',
         amount: '金额',
         batch: '批次号',
         colorNo: '色号',
