@@ -28,6 +28,8 @@ import {
   fetchAvailableDyedPieces,
 } from './helpers';
 import { pickListArray } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -128,6 +130,8 @@ async function ownProduct(
     name: `E2E生产链${tag}${code}`,
     unit,
     category_id: ctx.productCategoryIds[0],
+    // 生产/染色链按工单与缸号推进，不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const id = requireId(created, `建产品 ${code}`);
   CLEANUP.push({ path: `/products/${id}`, label: `product#${id}` });

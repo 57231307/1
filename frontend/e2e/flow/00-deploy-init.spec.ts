@@ -10,6 +10,9 @@ import {
   genDyeLotNo,
   ensureTestEntities,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用，
+// 禁止散落中文面值（面值漂移即静默失真，grep 面值找站点是假绿盲区）。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版）', () => {
   test.beforeEach(async ({ page }) => {
@@ -118,7 +121,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         category_id: ctx.productCategoryIds[0] || 1,
         specification: '65%棉35%涤 40S 133x72 150cm 200g/m2 平纹 防水',
         unit: '米',
-        product_type: '坯布',
+        product_type: PRODUCT_TYPE.greige,
         fabric_composition: '65%棉 35%涤',
         yarn_count: '40S',
         density: '133x72',
@@ -152,7 +155,7 @@ test.describe.serial('Shard 0: 部署初始化 + 基础数据（面料规格版�
         category_id: ctx.productCategoryIds[1] || ctx.productCategoryIds[0] || 1,
         specification: '65%棉35%涤 40S 133x72 150cm 200g/m2 平纹 防水',
         unit: '米',
-        product_type: '成品布',
+        product_type: PRODUCT_TYPE.finished,
         fabric_composition: '65%棉 35%涤',
         yarn_count: '40S',
         density: '133x72',

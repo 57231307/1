@@ -164,7 +164,10 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   const handleProductSelect = (index: number) => {
     const product = products().find(p => p.id === createForm.value.items[index].product_id);
     if (product) {
-      createForm.value.items[index].unit_price = product.price ?? undefined;
+      // 出参 price 是 DECIMAL 字符串（NULL→null）：有值才 Number 归一，缺值留空交 items 必填校验拦
+      const rawPrice = product.price;
+      createForm.value.items[index].unit_price =
+        rawPrice == null || rawPrice === '' ? undefined : Number(rawPrice);
       calculateSubtotal(createForm.value.items[index]);
     }
     // 换产品时清色号和已解析映射

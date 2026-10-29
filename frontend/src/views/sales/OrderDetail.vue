@@ -7,7 +7,14 @@
   <div class="order-detail-page">
     <div class="page-header">
       <h2 class="page-title">{{ t('sales.orderDetail.title') }}</h2>
-      <el-button @click="router.push('/sales')">{{ t('sales.orderDetail.back') }}</el-button>
+      <div class="header-actions">
+        <!-- 转合同入口：与列表行操作同源门控（已审核起活跃态 + 持 sales-contracts:create）。
+             重复转换在对话框内按 preview.existing_contract 提示，这里不预判。 -->
+        <el-button v-if="canConvertContract" type="primary" @click="convertDialogVisible = true">
+          {{ t('sales.table.convertContract') }}
+        </el-button>
+        <el-button @click="router.push('/sales')">{{ t('sales.orderDetail.back') }}</el-button>
+      </div>
     </div>
 
     <el-card v-loading="loading">
@@ -111,6 +118,12 @@
         </el-table-column>
       </el-table>
     </el-card>
+
+    <ConvertToContractDialog
+      v-model:visible="convertDialogVisible"
+      :order-id="order?.id ?? null"
+      @success="onConvertSuccess"
+    />
   </div>
 </template>
 
@@ -119,21 +132,51 @@ import { computed, ref, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { getSalesOrderById, type SalesOrder } from '@/api/sales';
-import { salesStatusLabelKey, salesStatusTagType } from '@/utils/sales-status';
+import {
+  SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES,
+  salesStatusLabelKey,
+  salesStatusTagType,
+} from '@/utils/sales-status';
 import { logAuxLoadFailure } from '@/utils/logger';
+import { useUserStore } from '@/store/user';
+import { hasRoutePermission } from '@/router';
+import { PERMISSIONS } from '@/constants/permissions';
+import ConvertToContractDialog from './ConvertToContractDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
+const userStore = useUserStore();
 
 const order = ref<SalesOrder | null>(null);
 const loading = ref(false);
+const convertDialogVisible = ref(false);
 
 /** 状态文案：词表外的值由 utils/sales-status 抛错暴露，不再回显裸枚举；详情未加载时无状态可显示 */
 const statusLabel = computed(() => {
   const key = salesStatusLabelKey(order.value?.status);
   return key ? t(key) : '';
 });
+
+// 转合同入口可见性与后端转换门同源：仅「已审核起活跃态」且持 sales-contracts:create 才给入口，
+// 与列表行操作共用 utils/sales-status 的同一集合常量。重复转换在对话框内按 preview 提示。
+const canConvertContract = computed(() => {
+  const status = order.value?.status;
+  if (!status) return false;
+  if (!(SALES_ORDER_CONVERTIBLE_TO_CONTRACT_STATUSES as readonly string[]).includes(status)) {
+    return false;
+  }
+  return hasRoutePermission(
+    PERMISSIONS.SALES_CONTRACT_CREATE,
+    userStore.userInfo?.permissions || []
+  );
+});
+
+/** 转换成功（草稿合同已建）：跳到销售合同页继续审阅/提交审批 */
+function onConvertSuccess(contractId: number) {
+  void contractId;
+  router.push('/sales-contract');
+}
 
 onMounted(async () => {
   loading.value = true;
@@ -164,6 +207,11 @@ onMounted(async () => {
   font-size: 20px;
   color: #303133;
   margin: 0;
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 .items-table {
   margin-top: 16px;

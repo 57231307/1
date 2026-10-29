@@ -16,6 +16,7 @@
 //! 3. 过滤已删除数据（is_deleted=false）
 
 use crate::services::import_export_service::{ExportQuery, ImportExportService};
+use crate::services::product_service::ProductService;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
 use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect};
@@ -38,12 +39,18 @@ impl ImportExportService {
         }
     }
 
-    /// 导出产品数据
+    /// 导出产品数据（数据导入中心 products 导出面）。
+    /// 列集合与列序来自产品导入权威表（services::product_ops::import_export::product_import_columns），
+    /// 与模板面和 /excel 导入腿同源：导出即同一套列，回填再导不会因列集漂移缺面料三列。
+    /// 行值取 ProductService::build_product_csv_row（与 /products/export 同一份取值形态，键为表头文本）。
+    /// 尾挂 ID 与 创建时间 两个信息列：导入腿按权威表列序 zip，尾部多余单元格不消费；
+    /// 位置绝不允许前置（前置会整体错位读列，同 crm 线索腿列序契约）。
     async fn export_products(
         &self,
         query: &ExportQuery,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         use crate::models::product::{Column as ProductCol, Entity as ProductEntity};
+        use crate::services::product_ops::import_export::product_import_columns;
 
         let mut db_query = ProductEntity::find().filter(ProductCol::IsDeleted.eq(false));
 
@@ -73,28 +80,22 @@ impl ImportExportService {
         let limit = ImportExportService::get_export_limit(query);
         let products = db_query.limit(limit).all(&*self.db).await?;
 
-        let headers = vec![
-            "ID".to_string(),
-            "产品编码".to_string(),
-            "产品名称".to_string(),
-            "单位".to_string(),
-            "标准单价".to_string(),
-            "状态".to_string(),
-            "创建时间".to_string(),
-        ];
+        let columns = product_import_columns();
+        let mut headers: Vec<String> = columns.iter().map(|c| c.title.to_string()).collect();
+        headers.push("ID".to_string());
+        headers.push("创建时间".to_string());
 
         let data: Vec<Vec<String>> = products
             .into_iter()
             .map(|p| {
-                vec![
-                    p.id.to_string(),
-                    p.code,
-                    p.name,
-                    p.unit,
-                    p.standard_price.map(|p| p.to_string()).unwrap_or_default(),
-                    p.status,
-                    p.created_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-                ]
+                let row_map = ProductService::build_product_csv_row(&p);
+                let mut vals: Vec<String> = columns
+                    .iter()
+                    .map(|c| row_map.get(c.title).cloned().unwrap_or_default())
+                    .collect();
+                vals.push(p.id.to_string());
+                vals.push(p.created_at.format("%Y-%m-%d %H:%M:%S").to_string());
+                vals
             })
             .collect();
 

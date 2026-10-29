@@ -8,25 +8,27 @@ import {
   submitDialog,
   formItemByExactLabel,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
- * 106 产品米数单入口的提交形态回读锁。
+ * 106 产品米数下线与规格派生提交形态回读锁。
  *
- * 本 spec 判红产品米数单入口裁定的两个后续缺陷方向。
- * 其一，改动每匹米数后提交，GET 详情回读两列都是新值，证明前端单入口与后端
- * 同值双写端到端真的落库。
- * 其二，清空每匹米数后提交，GET 详情回读两列都是 NULL，证明用户的清空不会被
- * 静默吞成“键缺席不更新”。清空必须送显式 null（RFC 7386 三态），请求体里键
- * 必须在场且值为 null，回读必须真空，请求体形态与落库结果两侧断言都不可省。
+ * 裁定口径（产品档案规格与每匹米数收口工单）：每卷米数是照抄假字段，整列下线由
+ * m0109 探测式迁移收口；每匹米数保留为换算默认值但退出产品表单采集面；
+ * 规格提交与显示统一为「幅宽 cm 星号 克重 g」字面拼接。
  *
- * 检测力自证。若前端退回把清空做成省略键，106-02 在请求体键在场断言即红。
- * 若后端退回单层两态（显式 null 与键缺席不可区分），106-02 请求体绿但回读仍
- * 断到旧值立即红。若同值双写被摘掉，106-01 回读每卷米数读不到新值立即红，
- * 且 106-02 预置回读每卷米数即红。每种退化各有检测点，不互相重叠。
+ * 本 spec 判红的缺陷方向。
+ * 其一，表单若回潮出现米数输入（每匹或每卷），106-01 的米数控件零存在断言即红。
+ * 其二，提交端若不再拼规格或拼成数值乘法，106-01 的请求体与回读规格断言即红
+ * （显示端拼了而提交端存空也在红面内，断的是请求体与落库回读两侧）。
+ * 其三，表单若把米数键重新塞回载荷，106-01 的键缺席断言即红；
+ * 键缺席同时是历史每匹米数保持语义的前半段，回读仍为预置值即后半段成立。
+ * 其四，幅宽清空若塌回“保持原值”，106-02 的请求体显式 null 或回读 NULL 断言即红。
+ * 每种退化各有检测点，不互相重叠。
  *
  * 约束。不拦截前端请求路由、不做 mock，全程真实 UI 提交加真实 API 回读。
- * 编辑弹窗的米数输入为 el-input-number，precision 为 4，故显示带四位小数，
- * 断言一律 Number 归一后比较。清空经 value-on-clear 归一为 null。
+ * 数字输入为 el-input 文本形态（全项目禁带加减步进控件），断言按字符串与 Number 归一。
  *
  * 页面路由 product。端点（相对 baseURL）products 与 products 加 id 路径段。
  */
@@ -38,21 +40,23 @@ interface SeededProduct {
   name: string;
 }
 
-async function seedProductWithYardage(
+/** 直连 API 建非面料类产品避开必录门，可带每匹米数与幅宽克重，返回主键与名称 */
+async function seedProduct(
   page: Page,
   tag: string,
-  metersPerPiece: string
+  extra: Record<string, unknown>
 ): Promise<SeededProduct> {
   const cats = await apiCallRaw<{ items?: Row[] }>(page, 'GET', '/product-categories');
   const categoryId = Number(cats?.items?.[0]?.id);
   expect(categoryId, '[106] 须有已种入的分类作建档必填来源').toBeGreaterThan(0);
 
-  const name = `E2E106米数产品_${tag}`;
+  const name = `E2E106米数下线产品_${tag}`;
   const created = await apiCallRaw<Row>(page, 'POST', '/products', {
     name,
     category_id: categoryId,
     unit: '米',
-    meters_per_piece: metersPerPiece,
+    product_type: PRODUCT_TYPE.auxiliary,
+    ...extra,
   });
   const id = Number(created?.id);
   expect(id, `[106] 产品建档应返回主键：${JSON.stringify(created).slice(0, 200)}`).toBeGreaterThan(
@@ -84,7 +88,7 @@ async function captureUiSubmit(
   return { status: resp.status(), body: JSON.parse(String(raw)) as Row, bodyRaw: String(raw) };
 }
 
-function metersInput(dialog: Locator, labelText: string): Locator {
+function inputOf(dialog: Locator, labelText: string): Locator {
   return formItemByExactLabel(dialog, labelText).locator('input').first();
 }
 
@@ -100,32 +104,36 @@ async function openEditDialog(page: Page, productName: string): Promise<Locator>
   return waitForDialog(page);
 }
 
-test.describe('106 产品米数单入口提交形态回读', () => {
+test.describe('106 产品米数下线与规格派生提交形态回读', () => {
   test.beforeEach(async ({ page }) => {
     await loginViaUI(page);
   });
 
-  test('106-01 改值后提交，两列同值落库并回读为新值', async ({ page }) => {
-    const { id, name } = await seedProductWithYardage(page, genCode('E106A'), '60');
+  test('106-01 表单无米数输入，规格按幅宽星号克重拼接提交并落库回读', async ({ page }) => {
+    const { id, name } = await seedProduct(page, genCode('E106A'), {
+      meters_per_piece: '60',
+    });
     try {
-      // 前置钉桩：创建只带每匹米数，后端同值双写已把两列都落成 60
       const seeded = await apiCallRaw<Row>(page, 'GET', `/products/${id}`);
       expect(Number(seeded.meters_per_piece), '[106-01] 预置回读每匹米数应为 60').toBe(60);
-      expect(Number(seeded.meters_per_roll), '[106-01] 预置回读每卷米数应被同源带成 60').toBe(60);
 
       const dlg = await openEditDialog(page, name);
-      const pieceInput = metersInput(dlg, '每匹米数');
-      const rollInput = metersInput(dlg, '每卷米数');
-      await expect
-        .poll(async () => Number(await pieceInput.inputValue()), { timeout: 10_000 })
-        .toBe(60);
 
-      await pieceInput.fill('120');
-      await pieceInput.press('Tab');
-      // 只读带出列应同步显示新值（这一步红说明单入口带出链路断了）
-      await expect
-        .poll(async () => Number(await rollInput.inputValue()), { timeout: 10_000 })
-        .toBe(120);
+      // 米数采集面零存在：任何标签含每卷米数或每匹米数的表单项出现即红
+      for (const label of ['每卷米数', '每匹米数']) {
+        await expect
+          .poll(async () => formItemByExactLabel(dlg, label).count(), { timeout: 10_000 })
+          .toBe(0);
+      }
+
+      const widthInput = inputOf(dlg, '幅宽(cm)');
+      const gramInput = inputOf(dlg, '克重(g/m²)');
+      await widthInput.fill('160');
+      await gramInput.fill('180');
+
+      // 显示端派生串：两项齐备后规格框应显示字面拼接值（星号是连接符，不是乘积 28800）
+      const specInput = inputOf(dlg, '规格');
+      await expect.poll(() => specInput.inputValue(), { timeout: 10_000 }).toBe('160cm*180g');
 
       const cap = await captureUiSubmit(
         page,
@@ -135,41 +143,54 @@ test.describe('106 产品米数单入口提交形态回读', () => {
       );
       expect(
         cap.status,
-        `[106-01] 改值提交必须被后端接受（HTTP 恰 200），实际 status=${cap.status} body=${cap.bodyRaw}`
+        `[106-01] 提交必须被后端接受（HTTP 恰 200），实际 status=${cap.status} body=${cap.bodyRaw}`
       ).toBe(200);
-      expect(cap.body.meters_per_piece, `[106-01] 请求体每匹米数应为新值 120，实际 ${cap.bodyRaw}`).toBe(
-        120
-      );
-      expect(cap.body.meters_per_roll, `[106-01] 请求体每卷米数应同源带出 120，实际 ${cap.bodyRaw}`).toBe(
-        120
-      );
-
-      const fresh = await apiCallRaw<Row>(page, 'GET', `/products/${id}`);
-      expect(Number(fresh.meters_per_piece), '回读每匹米数应为新值 120').toBe(120);
       expect(
-        Number(fresh.meters_per_roll),
-        '回读每卷米数必须同值落库为 120，读不到或读到旧值即同值双写被摘'
-      ).toBe(120);
+        cap.body.specification,
+        `[106-01] 请求体规格应为字面拼接串 160cm*180g，实际 ${cap.bodyRaw}`
+      ).toBe('160cm*180g');
+      for (const retired of ['meters_per_piece', 'meters_per_roll']) {
+        expect(
+          Object.prototype.hasOwnProperty.call(cap.body, retired),
+          `[106-01] 产品表单不应再把 ${retired} 塞回提交载荷，实际=${cap.bodyRaw}`
+        ).toBe(false);
+      }
+
+      // 落库回读：规格为拼接串；每匹米数键未随请求发送，历史值必须保持（三态键缺席语义）
+      const fresh = await apiCallRaw<Row>(page, 'GET', `/products/${id}`);
+      expect(fresh.specification, '回读规格应为提交端拼出的字面串').toBe('160cm*180g');
+      expect(
+        Number(fresh.meters_per_piece),
+        '请求不带每匹米数时历史值必须保持为 60（表单摘除不改写存量）'
+      ).toBe(60);
+      expect(
+        fresh.meters_per_roll,
+        '出参不应再携带每卷米数键（读 undefined 即键已退场）'
+      ).toBeUndefined();
     } finally {
       await tryCleanup(page, 'DELETE', `/products/${id}`, '[106-01] 产品');
     }
   });
 
-  test('106-02 清空后提交，请求体两键显式 null 且回读两列为空', async ({ page }) => {
-    const { id, name } = await seedProductWithYardage(page, genCode('E106B'), '80');
+  test('106-02 清空幅宽后提交，请求体显式 null 且回读为空，规格回落手工形态', async ({ page }) => {
+    const { id, name } = await seedProduct(page, genCode('E106B'), {
+      meters_per_piece: '80',
+      width: '160',
+      gram_weight: '180',
+    });
     try {
       const dlg = await openEditDialog(page, name);
-      const pieceInput = metersInput(dlg, '每匹米数');
-      const rollInput = metersInput(dlg, '每卷米数');
-      // 前置钉桩：回显与只读带出都到位，清空动作才有对照面
+      const widthInput = inputOf(dlg, '幅宽(cm)');
       await expect
-        .poll(async () => Number(await rollInput.inputValue()), { timeout: 10_000 })
-        .toBe(80);
+        .poll(async () => Number(await widthInput.inputValue()), { timeout: 10_000 })
+        .toBe(160);
 
-      await pieceInput.fill('');
-      await pieceInput.press('Tab');
-      await expect.poll(() => pieceInput.inputValue(), { timeout: 10_000 }).toBe('');
-      await expect.poll(() => rollInput.inputValue(), { timeout: 10_000 }).toBe('');
+      await widthInput.fill('');
+      await widthInput.press('Tab');
+
+      // 派生不可算时规格框回落显示回显的历史规格，不再挂拼接值
+      const specInput = inputOf(dlg, '规格');
+      await expect.poll(() => specInput.inputValue(), { timeout: 10_000 }).not.toBe('160cm*180g');
 
       const cap = await captureUiSubmit(
         page,
@@ -177,36 +198,24 @@ test.describe('106 产品米数单入口提交形态回读', () => {
         () => submitDialog(dlg, /保存/),
         '[106-02] 清空提交'
       );
-      // 请求体形态断言：清空必须送显式 null，做成省略键就是“清空不生效”的前端半段
       expect(
-        Object.prototype.hasOwnProperty.call(cap.body, 'meters_per_piece'),
-        `[106-02] 清空后的每匹米数必须以显式 null 键在场（省略键在后端是保持原值），实际=${cap.bodyRaw}`
+        Object.prototype.hasOwnProperty.call(cap.body, 'width'),
+        `[106-02] 清空后的幅宽必须以显式 null 键在场（省略键在后端是保持原值），实际=${cap.bodyRaw}`
       ).toBe(true);
-      expect(cap.body.meters_per_piece, '清空后的每匹米数请求值应为 null').toBeNull();
-      expect(
-        Object.prototype.hasOwnProperty.call(cap.body, 'meters_per_roll'),
-        `[106-02] 清空后的每卷米数同样必须键在场且为 null，实际=${cap.bodyRaw}`
-      ).toBe(true);
-      expect(cap.body.meters_per_roll, '清空后的每卷米数请求值应为 null').toBeNull();
+      expect(cap.body.width, '清空后的幅宽请求值应为 null').toBeNull();
       expect(
         cap.status,
         `[106-02] 清空的提交必须被后端接受（HTTP 恰 200），实际 status=${cap.status} body=${cap.bodyRaw}`
       ).toBe(200);
 
-      // 落库结果断言：后端若把显式 null 塌回“不更新”，这里仍读到旧值立即红
       const fresh = await apiCallRaw<Row>(page, 'GET', `/products/${id}`);
       expect(
-        fresh.meters_per_piece,
-        `回读每匹米数必须为 NULL，仍为旧值即清空塌成了保持原值（实际 ${JSON.stringify(
-          fresh.meters_per_piece
-        )}）`
+        fresh.width,
+        `回读幅宽必须为 NULL，仍为旧值即清空塌成了保持原值（实际 ${JSON.stringify(fresh.width)}）`
       ).toBeNull();
-      expect(
-        fresh.meters_per_roll,
-        `回读每卷米数必须为 NULL，两列同源不得一清一留（实际 ${JSON.stringify(
-          fresh.meters_per_roll
-        )}）`
-      ).toBeNull();
+      expect(Number(fresh.meters_per_piece), '每匹米数未被本次请求触碰，历史值 80 必须保持').toBe(
+        80
+      );
     } finally {
       await tryCleanup(page, 'DELETE', `/products/${id}`, '[106-02] 产品');
     }

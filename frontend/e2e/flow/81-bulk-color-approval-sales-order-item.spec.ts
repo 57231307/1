@@ -48,6 +48,8 @@ import {
   tryCleanup,
   verifyEndpointHealthy,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /** 列表条目（data.items 单元）：仅声明本 spec 据后端契约要断言的键，键名与后端序列化逐字符一致 */
 interface BulkColorListRow {
@@ -165,6 +167,8 @@ async function createOwnProduct(page: Page, tag: string, categoryId: number): Pr
     code: `E2E81${tag}`,
     category_id: categoryId,
     unit: 'm',
+    // 批色销售明细宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const id = Number(resp.data?.id);
   expect(id, `自建产品失败：${JSON.stringify(resp.data)}`).toBeGreaterThan(0);
