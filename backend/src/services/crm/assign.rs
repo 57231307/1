@@ -79,7 +79,10 @@ pub struct TransferLeadResult {
     pub lead_id: i32,
     pub lead_no: String,
     pub from_user_id: i32,
-    pub from_user_name: String,
+    /// 原归属人展示名。None 表达"原归属人不可解析出展示名"的形态（审批链客户腿
+    /// 可能遇到公海 0 或悬空引用；线索腿取自 crm_lead.owner_name 列恒为 Some）。
+    /// 调用方遇 None 不得以空串或造名顶替——本字段语义是"有真名才展示"。
+    pub from_user_name: Option<String>,
     pub to_user_id: i32,
     pub to_user_name: String,
     pub transferred_at: chrono::DateTime<chrono::Utc>,
@@ -444,7 +447,8 @@ impl CrmAssignService {
             lead_id: updated.id,
             lead_no: updated.lead_no,
             from_user_id,
-            from_user_name,
+            // 线索腿的原归属人展示名取自 crm_lead.owner_name 实列，Some 即真名
+            from_user_name: Some(from_user_name),
             to_user_id: new_owner.id,
             to_user_name: new_owner.username,
             transferred_at: now,
@@ -648,7 +652,8 @@ impl CrmAssignService {
             lead_id: updated.id,
             lead_no: updated.lead_no,
             from_user_id,
-            from_user_name,
+            // 抢单腿的原归属人展示名同样取自 crm_lead.owner_name 实列，Some 即真名
+            from_user_name: Some(from_user_name),
             to_user_id: claimer.id,
             to_user_name: claimer.username,
             transferred_at: now,

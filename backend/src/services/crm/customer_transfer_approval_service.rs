@@ -756,7 +756,9 @@ impl CustomerTransferApprovalService {
     /// 只写 `owner_id`、`owner_assigned_at`（保护期既有语义列，转移即重新起算）、`updated_at`
     /// 三列；`department_id` 由 DB 触发器随 owner 变更自动维护，应用侧不写。
     /// 返回与线索腿同形的 `TransferLeadResult`（透传载体）：`to_user_name` 即本腿内
-    /// `fetch_and_validate_new_owner` 查得的真实用户名，调用方据此回写审批行。
+    /// `fetch_and_validate_new_owner` 查得的真实用户名，调用方据此回写审批行；
+    /// `from_user_name` 为 None 表示原归属人不可解析出展示名（公海或悬空引用），
+    /// 该形态维持既有放行语义，不是拒绝条件。
     async fn transfer_customer_owner_in(
         &self,
         txn: &DatabaseTransaction,
@@ -812,19 +814,14 @@ impl CustomerTransferApprovalService {
         }
         let now = chrono::Utc::now();
         let from_user_id = customer.owner_id;
-        // 原归属人展示名取自 users 的单次查得（与历史行同一来源，不造名）：查不到
-        // 用户行（公海 0 或悬空引用）即前置数据不完整，点名拒绝并整体回滚，与
-        // "挂链客户不存在"同一 fail-visible 口径——不放行一笔写不出原归属人的转移。
-        let from_user_name = user::Entity::find_by_id(from_user_id)
+        // 原归属人展示名取自 users 的单次查得（与历史行同一来源，不造名）。
+        // 公海（owner_id=0）与悬空引用查不到用户行时取 None——表达"无原归属人
+        // 展示名"的空值形态，维持既有放行语义（历史行照旧落 NULL、转移照常提交）；
+        // 对这类形态的收紧属独立工单，不在本审批链夹带走。
+        let from_user_name: Option<String> = user::Entity::find_by_id(from_user_id)
             .one(txn)
             .await?
-            .map(|u| u.username)
-            .ok_or_else(|| {
-                AppError::business(format!(
-                    "客户 {} 的原归属人 {} 不可解析，客户归属转移不可执行",
-                    customer_id, from_user_id
-                ))
-            })?;
+            .map(|u| u.username);
         let mut active: customer::ActiveModel = customer.into();
         active.owner_id = Set(to_user_id);
         active.owner_assigned_at = Set(Some(now));
@@ -841,7 +838,7 @@ impl CustomerTransferApprovalService {
                     lead_no: lead.lead_no.clone(),
                     company_name: Some(updated.customer_name.clone()),
                     from_user_id: Some(from_user_id),
-                    from_user_name: Some(from_user_name.clone()),
+                    from_user_name: from_user_name.clone(),
                     to_user_id: Some(new_owner.id),
                     to_user_name: Some(new_owner.username.clone()),
                     action: "TRANSFER".to_string(),
@@ -854,6 +851,7 @@ impl CustomerTransferApprovalService {
             lead_id: lead.id,
             lead_no: lead.lead_no.clone(),
             from_user_id,
+            // 原归属人不可解析（公海 0 或悬空引用）时如实带 None，不拒绝、不造名、不空串顶替
             from_user_name,
             to_user_id: new_owner.id,
             to_user_name: new_owner.username,
