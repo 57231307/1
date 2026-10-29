@@ -832,24 +832,4 @@ impl ContractTemplateService {
         }
         Ok(row)
     }
-
-    /// 当前启用版查询：给合同创建腿与打印腿按 (contract_type, party_side) 取 active 版。
-    /// 同组至多一版由门钉住，这里取不到即点名“该类别该立场没有启用模板”。
-    pub async fn get_active_version(
-        &self,
-        contract_type_token: &str,
-        party_side_token: &str,
-    ) -> Result<contract_template::Model, AppError> {
-        contract_template::Entity::find()
-            .filter(contract_template::Column::ContractType.eq(contract_type_token))
-            .filter(contract_template::Column::PartySide.eq(party_side_token))
-            .filter(contract_template::Column::Status.eq(contract_template_status::ACTIVE))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| {
-                AppError::business_displayable(format!(
-                    "该合同类别与立场目前没有启用版模板（{contract_type_token}/{party_side_token}），请先启用经法务复核的模板版本"
-                ))
-            })
-    }
 }
