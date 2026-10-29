@@ -11,6 +11,7 @@ import {
   getSalesTrendData as fetchSalesTrendData,
   type ProductRanking,
   type CustomerRanking,
+  type SalesStats,
   type SalesTrendGranularity,
   type SalesTarget,
   type SalesTrendResult,
@@ -19,17 +20,20 @@ import { logAuxLoadFailure } from '@/utils/logger';
 
 /** 销售分析主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useSa = () => {
-  // 统计数据（键名与后端 SalesOverviewStats 的蛇形出参逐一对应；两枚金额与比率字段
-  // 初值是空串而不是 0，取数前显示缺值占位，不用 0 冒充"本月成交为零"）
-  const stats = reactive({
+  // 统计数据（键名与后端 SalesOverviewStats 的蛇形出参逐一对应；类型同样取该契约，
+  // 避免这里再抄一份会漂移的声明）。初值口径：
+  // month_amount 取数前是无值可显，用空串占位，显示层走缺值文案，不用 0 冒充"本月成交为零"；
+  // gross_profit_rate 与四枚 trend 后端为可空出参（null＝无除法口径/上月桶不可比），
+  // 初值同为 null，取数失败或后端未返回该键时保持 null，禁止回落 0（0 会被读成"持平/零毛利"）。
+  const stats = reactive<SalesStats>({
     month_orders: 0,
     month_amount: '',
-    gross_profit_rate: '',
+    gross_profit_rate: null,
     active_customers: 0,
-    order_trend: 0,
-    amount_trend: 0,
-    profit_trend: 0,
-    customer_trend: 0,
+    order_trend: null,
+    amount_trend: null,
+    profit_trend: null,
+    customer_trend: null,
   });
 
   // 趋势分桶粒度（后端按粒度对 sales_orders 现算分桶；键名与查询词表同为 granularity）

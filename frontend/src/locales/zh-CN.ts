@@ -10307,6 +10307,7 @@ export default {
       labelMonthAmount: '本月销售额',
       labelGrossProfitRate: '毛利率',
       labelActiveCustomers: '活跃客户数',
+      trendNoData: '暂无可比数据',
     },
     customerRank: {
       cardTitle: '客户销售排名',

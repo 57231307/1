@@ -10368,6 +10368,7 @@ export default {
       labelMonthAmount: 'Monthly Sales Amount',
       labelGrossProfitRate: 'Gross Profit Rate',
       labelActiveCustomers: 'Active Customers',
+      trendNoData: 'No comparable data',
     },
     customerRank: {
       cardTitle: 'Customer Sales Rank',
