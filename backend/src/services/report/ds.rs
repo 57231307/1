@@ -12,7 +12,7 @@
 use chrono::Utc;
 // 批次 357 v13 复审 baseline 清零：移除 unused import ActiveModelTrait
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Instant;
 use tracing::info;
 
@@ -28,6 +28,21 @@ use super::{
     AggregateRequest, AggregateResult, AggregationType, DEFAULT_CACHE_TTL_SECONDS, DataSource,
     ExecuteReportRequest, ReportData, ReportEngineService, ReportMetadata,
 };
+
+/// 销售汇总的单个期间聚合桶
+///
+/// 功能 承载一个期间内的销售额合计、订单数与去重客户集合，是汇总行的原料。
+/// 调用方 仅本文件的 group_sales_orders_by_period 与 query_sales_summary_report。
+/// 入参 由聚合过程逐单累加，period 是已格式化的期间键。
+/// 传给谁 交给 query_sales_summary_report 装配成报表行。
+/// 存什么 期间键、DECIMAL 销售额合计、u64 订单数与客户 ID 集合。
+/// 存哪里 不落库，只活在单次查询的内存里。
+struct SalesPeriodAggregate {
+    period: String,
+    total_amount: rust_decimal::Decimal,
+    order_count: u64,
+    customer_ids: HashSet<i32>,
+}
 
 impl ReportEngineService {
     /// 通用数据聚合
@@ -343,7 +358,7 @@ impl ReportEngineService {
 
         // 加载数据
         let data = match req.template_id.as_str() {
-            "sales_summary" => self.query_sales_report(&template, &req).await?,
+            "sales_summary" => self.query_sales_summary_report(&template, &req).await?,
             "inventory_status" => self.query_inventory_report(&template, &req).await?,
             "top_products" | "customer_analysis" | "profit_analysis" => {
                 self.query_sales_report(&template, &req).await?
@@ -365,6 +380,154 @@ impl ReportEngineService {
         }
 
         Ok(data)
+    }
+
+    /// 查询销售汇总报表
+    ///
+    /// 功能 按期间聚合销售订单，行键取自模板声明的四个列键，使列与行同一来源装配，
+    /// 汇总模板不再返回明细行。期间由 group_by 粒度决定，销售额按期间累加，
+    /// 订单数按订单行计数，客户数按客户去重计数。
+    /// 调用方 execute_report 在 template_id 为 sales_summary 时分派到本函数。
+    /// 入参 template 取模板声明的列、数据源与 group_by 参数默认值，
+    /// req 取日期范围与调用方提交的 group_by 参数值。
+    /// 传给谁 聚合行装进 ReportData.rows，交给报表执行 handler 的 data 字段
+    /// 与 report/exp 的各格式导出器消费，并整体进本模块的进程内缓存。
+    /// 存什么 每行四键，period 是期间字符串，total_amount 是 DECIMAL 线格式字符串，
+    /// order_count 与 customer_count 是整数。
+    /// 存哪里 不落库，只作为报表结果随 generate_cache_key 的键进内存缓存。
+    pub async fn query_sales_summary_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let period_fmt = Self::resolve_sales_summary_period(template, req)?;
+        let orders = Self::fetch_sales_summary_orders(&*self.db, req.date_range.as_ref()).await?;
+        let groups = Self::group_sales_orders_by_period(&orders, period_fmt);
+
+        let rows: Vec<serde_json::Value> = groups
+            .into_values()
+            .map(|agg| {
+                serde_json::json!({
+                    "period": agg.period,
+                    "total_amount": agg.total_amount.to_string(),
+                    "order_count": agg.order_count,
+                    "customer_count": agg.customer_ids.len(),
+                })
+            })
+            .collect();
+
+        Ok(ReportData {
+            columns: template.columns.clone(),
+            total_rows: rows.len() as u64,
+            rows,
+            generated_at: Utc::now(),
+            summary: None,
+            metadata: ReportMetadata {
+                data_source: template.data_source.clone(),
+                query_time_ms: 0,
+                cache_hit: false,
+                parameters: req.parameters.clone(),
+            },
+        })
+    }
+
+    /// 解析销售汇总的期间粒度
+    ///
+    /// 功能 先取调用方提交的 group_by，缺失时回落模板自身声明的默认粒度，
+    /// 把词表 day、week、month、year 映射成期间格式化串。
+    /// 调用方 仅本文件的 query_sales_summary_report。
+    /// 入参 req.parameters 里的 group_by 字符串与模板 parameters 中同名参数的默认值。
+    /// 传给谁 返回的格式化串交给 group_sales_orders_by_period 做期间格式化。
+    /// 存什么 不存数据，词表外的取值按校验族点名拒绝，不静默换成别的粒度。
+    /// 存哪里 不落库，结果只在本次请求内使用。
+    fn resolve_sales_summary_period(
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<&'static str, AppError> {
+        let requested = req
+            .parameters
+            .as_ref()
+            .and_then(|params| params.get("group_by"))
+            .and_then(|value| value.as_str())
+            .or_else(|| {
+                template
+                    .parameters
+                    .iter()
+                    .find(|param| param.name == "group_by")
+                    .and_then(|param| param.default_value.as_ref())
+                    .and_then(|value| value.as_str())
+            });
+
+        match requested {
+            Some("day") | None => Ok("%Y-%m-%d"),
+            Some("week") => Ok("%G-W%V"),
+            Some("month") => Ok("%Y-%m"),
+            Some("year") => Ok("%Y"),
+            Some(other) => Err(AppError::validation_displayable(format!(
+                "分组方式 group_by 仅支持 day、week、month、year，收到 {}",
+                other
+            ))),
+        }
+    }
+
+    /// 读取销售汇总所需的销售订单行
+    ///
+    /// 功能 按订单日范围取 sales_orders 原始行，范围缺失时取全表。
+    /// 调用方 仅本文件的 query_sales_summary_report。
+    /// 入参 数据库连接与可选日期范围（起止为 NaiveDate）。
+    /// 传给谁 订单行交给 group_sales_orders_by_period 聚合。
+    /// 存什么 不存数据，边界值非法时按校验族点名拒绝。
+    /// 存哪里 不落库，查询结果只在内存里向上传递。
+    async fn fetch_sales_summary_orders(
+        db: &DatabaseConnection,
+        date_range: Option<&super::DateRange>,
+    ) -> Result<Vec<crate::models::sales_order::Model>, AppError> {
+        let mut select = SalesOrderEntity::find();
+        if let Some(range) = date_range {
+            let start = range
+                .start
+                .and_hms_opt(0, 0, 0)
+                .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
+                .and_utc();
+            let end = range
+                .end
+                .and_hms_opt(23, 59, 59)
+                .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
+                .and_utc();
+            select = select.filter(crate::models::sales_order::Column::OrderDate.between(start, end));
+        }
+        Ok(select.all(db).await?)
+    }
+
+    /// 按期间聚合销售订单
+    ///
+    /// 功能 用同一格式化串把订单日折成期间键，按期间累加销售额与订单数并按客户去重，
+    /// 结果按期间键升序输出，行序不再随数据库返回序漂移。
+    /// 调用方 仅本文件的 query_sales_summary_report。
+    /// 入参 销售订单行切片与期间格式化串。
+    /// 传给谁 聚合桶交给 query_sales_summary_report 装配报表行。
+    /// 存什么 每个期间一条，含期间键、销售额合计、订单数与客户集合。
+    /// 存哪里 不落库，聚合结果只进报表结果对象。
+    fn group_sales_orders_by_period(
+        orders: &[crate::models::sales_order::Model],
+        period_fmt: &'static str,
+    ) -> BTreeMap<String, SalesPeriodAggregate> {
+        let mut groups: BTreeMap<String, SalesPeriodAggregate> = BTreeMap::new();
+        for order in orders {
+            let period = order.order_date.format(period_fmt).to_string();
+            let entry = groups
+                .entry(period.clone())
+                .or_insert_with(|| SalesPeriodAggregate {
+                    period,
+                    total_amount: rust_decimal::Decimal::ZERO,
+                    order_count: 0_u64,
+                    customer_ids: HashSet::new(),
+                });
+            entry.total_amount += order.total_amount;
+            entry.order_count += 1;
+            entry.customer_ids.insert(order.customer_id);
+        }
+        groups
     }
 
     /// 查询销售报表
