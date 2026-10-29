@@ -34,7 +34,7 @@
 
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
-    PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
