@@ -19,14 +19,14 @@ import {
  *   先按 industry_type 升序再按 metric_name 升序）。
  * - POST /industry-benchmarks 建基准，benchmark_name/industry_type/metric_name/metric_value 必填；
  *   可选 unit(String) data_source(String) data_year(i32) is_active(bool) remark(String)。
- *   is_active 由 handler:45 unwrap_or(true) 兜底，unit/data_source/data_year/remark 缺省 null。
+ *   is_active 由 handler create_industry_benchmark unwrap_or(true) 兜底，unit/data_source/data_year/remark 缺省 null。
  * - GET /industry-benchmarks/{id} 复用 list_industry_benchmarks 处理（handler 不提取路径 id），
  *   返回与 GET /industry-benchmarks 相同的全量启用列表。本用例仍向该路径发请求以满足端点覆盖。
  * - PUT /industry-benchmarks/{id} 部分更新，只覆盖请求体里出现的列，未出现的列保持原值；
  *   id 不存在返回 404 且码为 NOT_FOUND。
  * - DELETE /industry-benchmarks/{id} 硬删除（SeaORM active.delete），删后按 id 不再出现在列表中。
  *
- * 调用方：routes/finance.rs:1211-1224 注册，handler 在 handlers/industry_benchmark_handler.rs。
+ * 调用方：routes/finance.rs 的 industry_benchmarks 路由函数注册，handler 在 handlers/industry_benchmark_handler.rs。
  * 入参：CreateIndustryBenchmarkDto 必填 benchmark_name(String) industry_type(String)
  *   metric_name(String) metric_value(Decimal(14,4))；
  *   可选 unit(String) data_source(String) data_year(i32) is_active(bool) remark(String)。

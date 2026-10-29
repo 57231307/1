@@ -27,7 +27,7 @@ import {
  *   id 不存在返回 404 且码为 NOT_FOUND。
  * - DELETE /aging-alert-rules/{id} 硬删除，删后按 id 再查返回 404。
  *
- * 调用方：routes/finance.rs:1161-1173 注册，handler 在 handlers/aging_alert_rule_handler.rs。
+ * 调用方：routes/finance.rs 的 aging_alert_rules 路由函数注册，handler 在 handlers/aging_alert_rule_handler.rs。
  * 入参：CreateAlertRuleDto 必填 rule_name(String) rule_code(String) aging_bucket(String)
  *   threshold_days(i32) alert_level(String) notify_method(String)；可选 threshold_amount(Decimal)
  *   notify_roles(Vec<String>) is_active(bool) remarks(String)。
@@ -127,7 +127,7 @@ test.describe.serial('122 账龄预警规则增删改查读回', () => {
     const id = created.data.id;
     deferCleanup(cleanup, 'DELETE', `/aging-alert-rules/${id}`, `aar-list-${tag}`);
 
-    // 本链页码基数 0（handler:120 unwrap_or(0)），page=0 取首页。
+    // 本链页码基数 0（list_rules unwrap_or(0)），page=0 取首页。
     const listed = await apiCall<{
       items: AlertRuleRow[];
       total: number;

@@ -29,7 +29,7 @@ import {
  * - DELETE /asset-categories/{id} 软删除（service 设 is_active=false），
  *   删后按 id 再查仍返回 200 但 is_active 为 false。
  *
- * 调用方：routes/finance.rs:1179-1192 注册，handler 在 handlers/asset_category_handler.rs。
+ * 调用方：routes/finance.rs 的 asset_categories 路由函数注册，handler 在 handlers/asset_category_handler.rs。
  * 入参：CreateCategoryDto 必填 category_code(String) category_name(String)；
  *   可选 parent_id(i32) default_useful_life(i32) default_depreciation_method(String)
  *   default_salvage_rate(Decimal) description(String)。
@@ -115,7 +115,7 @@ test.describe.serial('124 资产分类增删改查读回', () => {
     const id = created.data.id;
     deferCleanup(cleanup, 'DELETE', `/asset-categories/${id}`, `ac-list-${tag}`);
 
-    // 本链页码基数 1（handler:113 unwrap_or(1).max(1)），page=1 取首页。
+    // 本链页码基数 1（list_categories unwrap_or(1).max(1)），page=1 取首页。
     const listed = await apiCall<{
       items: CategoryRow[];
       total: number;
