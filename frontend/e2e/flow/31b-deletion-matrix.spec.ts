@@ -11,6 +11,8 @@ import {
   tryCleanup,
 } from './helpers';
 import { pickListArray, type ListShapeKey } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * P0 删除系统覆盖矩阵（2026-09-11 用户指令："需要系统覆盖所有需要删除/停用测试的功能"）
@@ -258,7 +260,11 @@ test.describe('P0 删除矩阵：全资源 API 创建→删除→回读验证', 
         standard_price: 25.5,
         cost_price: 18,
         status: 'active',
-        product_type: 'fabric',
+        // 面料类三键同全（幅宽/克重/面料成分缺任一即被后端面料必录门 400），
+        // 类型取值经单源常量引用，词表演进时不随中文面值漂移。
+        product_type: PRODUCT_TYPE.finished,
+        width: 150,
+        gram_weight: 180,
         fabric_composition: '100%涤纶',
         description: 'P0产品描述',
       },

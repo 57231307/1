@@ -1,5 +1,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCallRaw } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * BUG-008 产品新建覆盖
@@ -43,6 +45,8 @@ test.describe('产品新建持久化与分类种子', () => {
       name: `e2e-prod-${Date.now().toString().slice(-6)}`,
       category_id: categoryId,
       unit: '米',
+      // 建档持久覆盖用例取非面料类型免带面料三键，取值经单源常量引用
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const id = Number(created?.id);
     expect(id, `产品建档应返回主键：${JSON.stringify(created).slice(0, 160)}`).toBeGreaterThan(0);

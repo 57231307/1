@@ -14,6 +14,8 @@ import {
   APP_ERROR_CODES,
   type ApiFailureResult,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 67 业务拒绝的文案对用户可见（提交被拒时，用户必须看到真实拒绝原因）
@@ -162,6 +164,8 @@ async function seedProduct(page: Page, tag: string): Promise<number> {
     code,
     name: `67号${tag}布_${code}`,
     unit: 'm',
+    // 拒绝文案宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const id = Number(res.data?.id);
   expect(id, `[67] 产品创建应回 id：${JSON.stringify(res)}`).toBeGreaterThan(0);

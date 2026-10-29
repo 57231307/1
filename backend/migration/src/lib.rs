@@ -17,6 +17,7 @@
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
 //!   → m0104_add_document_no_partial_unique_four_tables
 //!   → sales_contract_source_order
+//!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -137,19 +138,29 @@
 //!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
 //!    建表（四表表定义见 v15 域），置于链尾为新的顶层条目：链尾晚于 v15 执行，
 //!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
-//! 26. sales_contract_source_order: 销售合同与合同明细的两列溯源与四列行级金额与色号扩展
+//! 26. product_spec_extension_columns: 产品主档规格扩展列。products 加
+//!    width_needle_included_cm 与 weight_tolerance 与 spandex_percent 与 usage 与
+//!    safety_category，product_colors 加 color_fastness_grade，全部可空无默认。独立顶层域
+//!    是因为并入 business 域会在复用库被台账整体跳过、补列全部缺席；两张表由 business 域
+//!    先建，置于链尾必然晚于建表
+//! 27. product_vocab_check: 上述扩展列的取值词表收口域，晚于加列域，形如先加列、再点名、
+//!    再收约束；全部先探测后约束的失败可见写法，域内绝不 UPDATE 或 DELETE 业务数据
+//! 28. product_roll_column_drop: 产品每卷米数列的探测式下线域，晚于代码面摘除读写
+//!    （先改代码，再收列形态）；脏值存在时 RAISE EXCEPTION 点名中止不洗数据，
+//!    down 只回空壳不回填历史值
+//! 29. sales_contract_source_order: 销售合同与合同明细的两列溯源与四列行级金额与色号扩展
 //!    （source_order_id 与 source_order_item_id 外键随源单删除置空，折扣率与折扣额与税率与
 //!    税额四列和行级色号列，两表各一条检索索引）；新增列一律可空无默认，历史合同保持空值
 //!    即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据；置于链尾为新的顶层条目，
 //!    依赖 system 与 business 与 v15 建好的合同两表与销售订单两表，台账名取域名
 //!    m_sales_contract_source_order
-//! 27. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
+//! 30. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
 //!    追加一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
 //!    供详情腿单义回查必填标记；up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、
 //!    不建外键、不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码)
-//!    唯一行回落，多义如实给空值不伪造。为什么另立独立域 contract_template_schema 已在复用测试库上入账，
+//!    唯一行回落，多义如实给空值不伪造。为什么另立独立域已在复用测试库上入账，
 //!    域内新增子迁移在复用库上永不重放，只有让新域名处于 pending 才能被 migrate run 拾起；
-//!    挂在链尾 contract_template_schema 之后，只依赖该域 m0117 建的快照表
+//!    挂在链尾 contract_template_schema 之后，只依赖该域建的快照表
 
 pub use sea_orm_migration::prelude::*;
 
@@ -199,6 +210,13 @@ impl MigratorTrait for Migrator {
             Box::new(domain::contract_template_schema::Migration),
             Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
             Box::new(domain::sales_contract_source_order::Migration),
+            // 产品主档规格扩展列，链尾独立域（products 与 product_colors 由 business 域先建）
+            Box::new(domain::product_spec_extension_columns::Migration),
+            // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）
+            Box::new(domain::product_vocab_check::Migration),
+            // 产品每卷米数列探测式下线，晚于代码面摘除读写（先改代码，再收列形态）
+            Box::new(domain::product_roll_column_drop::Migration),
+            // 合同条款快照来源指针，链尾独立域，只依赖 contract_template_schema 建的快照表
             Box::new(domain::contract_clause_snapshot_provenance::Migration),
         ]
     }

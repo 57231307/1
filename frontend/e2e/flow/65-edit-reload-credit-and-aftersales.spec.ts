@@ -1,5 +1,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, ensureTestEntities, genCode } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 65 定制订单售后工单「编辑-重开回读」闭环（用户点名缺陷族：创建时填写了完整内容，
@@ -113,6 +115,8 @@ test.describe.serial('65 售后工单编辑-重开回读闭环', () => {
       code: prodCode,
       name: `65号售后闭环布_${prodCode}`,
       unit: 'm',
+      // 售后闭环宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const productId = Number(createdProd.data?.id);
     expect(productId, `自建产品应返回 id：${JSON.stringify(createdProd)}`).toBeGreaterThan(0);
