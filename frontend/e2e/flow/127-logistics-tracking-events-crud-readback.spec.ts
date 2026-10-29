@@ -92,7 +92,7 @@ test.describe.serial('127 物流跟踪端点族读写回', () => {
   });
 
   // 为每组用例建一条运单并注册清理
-  async function seedWaybill(page: import('@playwright/test').Page, tag: string): number {
+  async function seedWaybill(page: import('@playwright/test').Page, tag: string): Promise<number> {
     const ctx = getCtx();
     expect(ctx.salesOrderId, '前置：EntityContext.salesOrderId 缺失').toBeTruthy();
     const wb = await apiCall<WaybillRow>(page, 'POST', '/logistics', {
