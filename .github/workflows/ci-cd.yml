@@ -89,12 +89,32 @@ jobs:
     name: 📋 环境信息
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      # full_suite 是全流水线唯一的"跑不跑测试面"开关：只有 pull_request 为 true。
+      # 口径是所有测试都在 PR 里跑，主干 push 只做基本检查。
+      # 摘除测试后主干仍跑 格式 / 契约与静态门禁 / Clippy / ESLint / 类型 / 前后端构建 /
+      # 漏洞扫描 / 发布与打包链；重型测试 job 在主干上呈 skipped，聚合门按 success/skipped 放行。
+      full_suite: ${{ steps.plan-scope.outputs.full_suite }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
         with:
           # 仅需最近 10 个 commit 用于环境信息展示（git log --oneline -5），无需完整历史
           fetch-depth: 10
+
+      - name: 判定本次运行的检查范围
+        id: plan-scope
+        env:
+          # 事件名经 env 传入而非直接内插进 run 体（与本仓"上下文不内插进 shell"的写法一致）
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "full_suite=true" >> "$GITHUB_OUTPUT"
+            echo "范围=全套：PR 是测试面唯一的执行位（Rust 测试 / 前端测试 / E2E / 审计与真实性门禁）"
+          else
+            echo "full_suite=false" >> "$GITHUB_OUTPUT"
+            echo "范围=基本：$EVENT_NAME 只跑格式、静态检查、lint、类型、构建与发布链"
+          fi
 
       - name: 收集环境信息
         run: |
@@ -1506,9 +1526,9 @@ jobs:
     # ci-build-rust 提供 release `bingxi` CLI（backend-binary 产物），
     # 用于分片执行前对本 job 专属 postgres service 跑 migrate。
     # 没有已迁移 schema，setup_test_db() 指向的 PG 只是空库，"集成测试"仍是假覆盖。
-    needs: [ci-build-test-artifacts, ci-build-rust]
+    needs: [ci-info, ci-build-test-artifacts, ci-build-rust]
     # 仅 PR 时运行测试，主线 push 不跑（已在 PR 阶段验证）
-    if: github.event_name == 'pull_request'
+    if: needs.ci-info.outputs.full_suite == 'true'
     strategy:
       fail-fast: false
       # 智能并行：GitHub 免费 runner 单 repo 并发上限 20，10 个分区用 max-parallel 20 一轮跑完大半
@@ -1740,8 +1760,8 @@ jobs:
     name: 🧪 Rust 集成测试（ignored 真库用例）
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    needs: [ci-build-test-artifacts, ci-build-rust]
-    if: github.event_name == 'pull_request'
+    needs: [ci-info, ci-build-test-artifacts, ci-build-rust]
+    if: needs.ci-info.outputs.full_suite == 'true'
     services:
       postgres:
         image: postgres:16-alpine
@@ -1948,6 +1968,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     needs: ci-info
+    # 只在 PR 跑（口径见 ci-info 的 full_suite）：前端单测不在主干 push 重复执行
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -2042,7 +2064,9 @@ jobs:
     needs: ci-info
     # V15 批次 06 P1-10：informational job，continue-on-error 避免性能波动阻塞主 CI
     # 性能回归 > 10% 会写入报告并标注，但不阻塞合并（避免硬件差异导致误报）
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+    # 由"只在主干 push 跑"改为"只在 PR 跑"：性能基准属测试面，按现行分工一律在 PR 阶段验证，
+    # 主干 runner 只留基本检查，避免一次主干推送占住单机 runner 数小时。
+    if: needs.ci-info.outputs.full_suite == 'true'
     continue-on-error: true
     steps:
       - name: 检出代码
@@ -2497,7 +2521,8 @@ jobs:
       ci-lint-rust,
       ci-lint-fe,
       ci-type-check,
-      ci-test-fe,
+      # ci-test-fe 已从本门摘除：前端测试只在 PR 跑（见 ci-info 的 full_suite 口径），
+      # 留在 needs 里会让主干 push 上本 job 因前端测试被 skip 而永不触发，发布链直接断。
       ci-build-rust,
       ci-build-fe,
       # 发布必须被漏洞扫描拦住（用户批准的门禁加强）：核查 88f59a7c^ 的 package-release
@@ -2825,13 +2850,13 @@ jobs:
     name: "🎭 E2E: ${{ matrix.label }}"
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    needs: [ci-build-fe, ci-build-rust]
+    needs: [ci-info, ci-build-fe, ci-build-rust]
     # pull_request 全量 45 片；push 到 main/master 只跑核心链子集（片数与选片判据
     # 由 ci-build-fe 的"E2E 分片矩阵发射"步骤按事件决定，见
     # frontend/scripts/check-e2e-main-push-shards.mjs）。选片发生在矩阵层：未选中的
     # 分片根本不生成 job，而不是生成后靠步骤级 if 空跑成 success（那是新的假绿形态）。
     # tag push（refs/tags/v*）与 workflow_dispatch 不在放行范围内，维持 skipped。
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+    if: needs.ci-info.outputs.full_suite == 'true'
     strategy:
       fail-fast: false
       max-parallel: 8
@@ -3283,8 +3308,8 @@ jobs:
     name: 🔐 角色权限矩阵 (${{ matrix.role_group }}/6)
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    needs: [ci-build-fe, ci-build-rust]
-    if: github.event_name == 'pull_request'
+    needs: [ci-info, ci-build-fe, ci-build-rust]
+    if: needs.ci-info.outputs.full_suite == 'true'
     strategy:
       fail-fast: false
       max-parallel: 3
@@ -3739,8 +3764,8 @@ jobs:
     timeout-minutes: 360
     # Clippy 通过后跑：与 ci-lint-rust 同 tools/同 cargo- 缓存 key（含 backend/target），
     # 依赖 crate 不必重编，只有本 crate 因剥离 #![allow(dead_code)] 必须重编一次
-    needs: ci-lint-rust
-    if: github.event_name == 'pull_request'
+    needs: [ci-info, ci-lint-rust]
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -3775,7 +3800,9 @@ jobs:
     name: 🧭 Setup 向导真实链路 E2E
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: [ci-build-rust, ci-build-fe]
+    # 只在 PR 跑（口径见 ci-info 的 full_suite）：真实链路 E2E 属测试面，主干 push 不重复
+    if: needs.ci-info.outputs.full_suite == 'true'
+    needs: [ci-info, ci-build-rust, ci-build-fe]
     services:
       postgres:
         image: postgres:16-alpine
@@ -3897,6 +3924,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: ci-info
+    # 只在 PR 跑（口径见 ci-info 的 full_suite）：功能完整性校验要联网取外部资料，不占主干 runner
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -4780,12 +4809,12 @@ jobs:
     name: 🚨 E2E 真实性门禁
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [ci-e2e, ci-e2e-setup-wizard, role-permission-matrix]
+    needs: [ci-info, ci-e2e, ci-e2e-setup-wizard, role-permission-matrix]
     # !cancelled()：默认 success() 语义让本 job 在上游 E2E 红的轮次整体 skip，
     # 而"防伪全绿"的门禁恰恰最需要在上游红时执行（run #4671 实证盲区；同型修复
     # 先例 571878e7 给前端静态门禁子步加 !cancelled()）。语义不放宽：动态步对
     # 上游非 success 依旧自行 exit 1 点名，只是不再被 skip 吞掉。
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.ci-info.outputs.full_suite == 'true' }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -4887,6 +4916,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: ci-info
+  # 只在 PR 跑（口径见 ci-info 的 full_suite）：敏感权限覆盖属审计面，不在主干 push 重复
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
@@ -4957,6 +4988,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: ci-info
+  # 只在 PR 跑（口径见 ci-info 的 full_suite）：本 job 读 e2e 产物做功能错误检测
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
