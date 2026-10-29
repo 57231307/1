@@ -1,6 +1,7 @@
 use crate::models::sales_contract;
 use crate::models::sales_contract_item;
 use crate::models::status::contract;
+use crate::models::status::contract_type;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::number_generator::DocumentNumberGenerator;
@@ -143,10 +144,14 @@ impl SalesContractService {
         Self { db }
     }
 
-    /// 根据合同类型和金额计算印花税
-    /// - 购销合同（sale / purchase_sale）：总金额 * 0.3‰
-    /// - 加工承揽合同（processing / processing_contract）：总金额 * 0.5‰
-    /// - 其他类型：不计算
+    /// 根据合同类型和金额计算印花税（档位与合同类型词表逐一对应）
+    /// - 现行词表三型（购销、框架、补充）均为购销性质：总金额 * 0.3‰
+    /// - 存量兼容读：销售订单转合同对话框当前提交小写三值且库内存量同为
+    ///   小写形态，此处逐字面量并列匹配，不做大小写归一兜底；写侧取值以
+    ///   models::status 合同类型词表为准，转单对话框选项对齐大写后本兼容臂摘除
+    /// - 原加工承揽档（processing 与 processing_contract）与 purchase_sale 取值
+    ///   不在销售合同类型取值域内，前端两腿与迁移腿均无法产生，属永不生效
+    ///   档位，已拆除；若库中存在该形态直连脏值，重算后印花税为空，交数据面点名
     ///
     /// 可见性 pub(crate)：手工建单（本文件 create）与销售订单转合同
     /// （sales_contract_convert_service）两条链路共用同一印花税算法，税率与
@@ -156,8 +161,10 @@ impl SalesContractService {
         total_amount: Decimal,
     ) -> Option<Decimal> {
         let rate = match contract_type? {
-            "sale" | "purchase_sale" => Decimal::new(3, 4), // 0.0003 = 0.3‰
-            "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
+            contract_type::SALES | contract_type::FRAMEWORK | contract_type::SUPPLEMENT => {
+                Decimal::new(3, 4) // 0.0003 = 0.3‰
+            }
+            "sale" | "framework" | "supplement" => Decimal::new(3, 4), // 0.3‰，转单腿存量小写兼容读
             _ => return None,
         };
         Some(total_amount * rate)
