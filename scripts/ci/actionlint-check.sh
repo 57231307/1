@@ -32,6 +32,10 @@
 #
 # 前置（run 模式）：runner 有 curl/sha256sum/tar；actionlint 不存在时按固定版本下载并做
 #   sha256 完整性核对，下载或校验不过当场判红，绝不退化成"取不到就跳过检查"。
+#   下载与解包全部发生在仓库外的按 run 唯一临时目录（优先 /e/tmp，其次 $TMPDIR 或 /tmp），
+#   只从归档中提取 actionlint 一个成员；解包前后对仓库根做清单差集断言，任何新增即判红，
+#   防止归档成员（README/LICENSE/docs/man 等）落到仓库根覆盖既有文件。临时目录由脚本
+#   退出路径统一清理。
 # ==============================================================================
 set -uo pipefail
 
@@ -212,6 +216,35 @@ EOF
 }
 
 # ------------------------------------------------------------------ 取发现文本（run 模式）
+# fetch_work_dir：在仓库外创建按 run 唯一的下载解包目录。
+# 调用方：ensure_actionlint。入参：无。返回：stdout 输出目录绝对路径，失败返回 1。
+# 目录内只放下载归档、校验清单与提取出的可执行文件，脚本退出时由 trap 删除。
+fetch_work_dir() {
+    local base
+    if [ -d /e/tmp ]; then
+        base=/e/tmp
+    else
+        base="${TMPDIR:-/tmp}"
+    fi
+    mktemp -d "${base%/}/actionlint-fetch.XXXXXX"
+}
+
+# assert_repo_root_unchanged：对仓库根目录名做前后快照差集断言。
+# 调用方：ensure_actionlint 解包之后。入参：$1=解包前的清单文件。
+# 差集非空时把新增项逐行打印并返回 1，空则返回 0。
+assert_repo_root_unchanged() {
+    local before_list="$1" after_list rc=0
+    after_list="$(mktemp)"
+    ls -A . > "$after_list"
+    if ! LC_ALL=C diff "$before_list" "$after_list" > /dev/null; then
+        echo "::error::仓库根出现非预期新增（下载解包泄漏进工作树），新增项如下："
+        LC_ALL=C diff "$before_list" "$after_list" || true
+        rc=1
+    fi
+    rm -f "$before_list" "$after_list"
+    return "$rc"
+}
+
 ensure_actionlint() {
     if [ -x "$ACTIONLINT_BIN" ]; then
         return 0
@@ -219,14 +252,31 @@ ensure_actionlint() {
     local VER="$ACTIONLINT_VERSION"
     local BASE="https://github.com/rhysd/actionlint/releases/download/v${VER}"
     local TGZ="actionlint_${VER}_linux_amd64.tar.gz"
-    curl -sSfL --retry 3 -o "$TGZ" "$BASE/$TGZ" \
-        || { echo "::error::actionlint 下载失败（固定版本 $VER），拒绝跳过检查"; return 1; }
-    curl -sSfL --retry 3 -o actionlint-checksums.txt "$BASE/actionlint_${VER}_checksums.txt" \
-        || { echo "::error::actionlint 校验清单下载失败，拒绝跳过检查"; return 1; }
-    sha256sum --ignore-missing -c actionlint-checksums.txt \
-        || { echo "::error::actionlint 产物 sha256 完整性校验未通过"; return 1; }
-    tar -xzf "$TGZ"
-    chmod +x ./actionlint
+    local WORK_DIR
+    WORK_DIR="$(fetch_work_dir)" \
+        || { echo "::error::无法在仓库外创建下载解包临时目录"; return 1; }
+    # shellcheck disable=SC2064
+    trap "rm -rf '$WORK_DIR'" EXIT
+    local ROOT_SNAPSHOT
+    ROOT_SNAPSHOT="$(mktemp)"
+    ls -A . > "$ROOT_SNAPSHOT"
+    (
+        cd "$WORK_DIR" || exit 1
+        curl -sSfL --retry 3 -o "$TGZ" "$BASE/$TGZ" \
+            || { echo "::error::actionlint 下载失败（固定版本 $VER），拒绝跳过检查"; exit 1; }
+        curl -sSfL --retry 3 -o actionlint-checksums.txt "$BASE/actionlint_${VER}_checksums.txt" \
+            || { echo "::error::actionlint 校验清单下载失败，拒绝跳过检查"; exit 1; }
+        sha256sum --ignore-missing -c actionlint-checksums.txt \
+            || { echo "::error::actionlint 产物 sha256 完整性校验未通过"; exit 1; }
+        tar -xzf "$TGZ" actionlint \
+            || { echo "::error::actionlint 归档提取失败"; exit 1; }
+        chmod +x ./actionlint
+    ) || return 1
+    ACTIONLINT_BIN="$WORK_DIR/actionlint"
+    # 存在性用 -s 判而非 -x：Windows MSYS 挂载下 chmod 执行位可能不生效，而本步骤真正
+    # 的调用点在下方 run 模式，可执行性问题会以 actionlint 退出码 >1 被"拒绝判绿"分支兜住。
+    [ -s "$ACTIONLINT_BIN" ] || { echo "::error::actionlint 可执行文件未就位"; return 1; }
+    assert_repo_root_unchanged "$ROOT_SNAPSHOT" || return 1
     return 0
 }
 
