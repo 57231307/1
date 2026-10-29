@@ -27,6 +27,11 @@ pub struct Model {
     /// 特殊色号加价（元/米）
     #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
     pub extra_cost: Decimal,
+    /// 色牢度等级（可空即未考核或未录入）。取 GB 18401 定案的九档（含半级 1 与 1-2 与 2
+    /// 与 2-3 与 3 与 3-4 与 4 与 4-5 与 5），词表源 models::status::general::color_fastness。
+    /// 耐唾液项目只对 A 类产品考核、本色漂白与扎染蜡染等传统手工着色不考核色牢度，
+    /// 这两条条件判据留在应用层与检验判定侧，不由本列表达。
+    pub color_fastness_grade: Option<String>,
     /// 是否激活
     pub is_active: bool,
     /// 创建时间

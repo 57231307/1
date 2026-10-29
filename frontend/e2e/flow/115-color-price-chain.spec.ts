@@ -8,6 +8,8 @@ import {
   failureCode,
   genCode,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 115 色卡价格族建价 改价 批量调价 审批 删除 首个真契约覆盖
@@ -173,6 +175,8 @@ async function seedHostProductColor(
     code: `115P${tag}`,
     category_id: categoryId,
     unit: 'm',
+    // 色价链按色号计价，不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const productId = Number(product.id);
   expect(
