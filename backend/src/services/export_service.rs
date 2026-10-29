@@ -46,7 +46,7 @@ impl ExportService {
         use printpdf::*;
         let (doc, page1, layer1) =
             PdfDocument::new(data.title.as_str(), Mm(297.0), Mm(210.0), "Layer 1");
-        let layer = doc.get_page(page1).get_layer(layer1);
+        let mut layer = doc.get_page(page1).get_layer(layer1);
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
             .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
@@ -85,7 +85,7 @@ impl ExportService {
             y_pos -= 6.0;
             if y_pos < 20.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
-                let _layer = doc.get_page(new_page).get_layer(new_layer);
+                layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
             }
         }
@@ -266,4 +266,74 @@ pub struct ReconciliationPdfItem {
     pub document_no: String,
     pub amount: String,
     pub date: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // 统计 PDF 字节里的内容流总数与含文本算子的内容流数。
+    // 判据取自 printpdf 序列化事实：本用例只用内建字体且走默认合规级别，文档内不产出
+    // XMP、ICC 或字体文件流，唯一的内容流对象就是逐页合并流，故内容流总数等于页数；
+    // 每层无论有无内容都会被补 BDC 与 q … Q EMC 包裹，所以空页并非零字节流，
+    // 但空页没有文本算子，而文本以十六进制写入（字母 T 非十六进制字符），
+    // 故 "BT" 只可能来自 begin_text_section 落的算子字面量，据此可判某页是否真画了字。
+    // 调用方 仅本测试模块。
+    fn stream_text_stats(pdf: &[u8]) -> (usize, usize) {
+        let open = b"stream\n";
+        let close = b"\nendstream";
+        let mut total = 0usize;
+        let mut with_text = 0usize;
+        let mut rest = pdf;
+        while let Some(end) = find_seq(rest, close) {
+            total += 1;
+            let region = &rest[..end];
+            if let Some(start) = rfind_seq(region, open) {
+                let body = &region[start + open.len()..];
+                if find_seq(body, b"BT").is_some() {
+                    with_text += 1;
+                }
+            }
+            rest = &rest[end + close.len()..];
+        }
+        (total, with_text)
+    }
+
+    fn find_seq(hay: &[u8], needle: &[u8]) -> Option<usize> {
+        hay.windows(needle.len()).position(|w| w == needle)
+    }
+
+    fn rfind_seq(hay: &[u8], needle: &[u8]) -> Option<usize> {
+        hay.windows(needle.len()).rposition(|w| w == needle)
+    }
+
+    #[test]
+    fn export_pdf_paging_draws_rows_on_the_new_page() {
+        let headers = vec!["ColA".to_string(), "ColB".to_string(), "ColC".to_string()];
+        let rows: Vec<Vec<String>> = (0..60)
+            .map(|i| vec![format!("R{i}A"), format!("R{i}B"), format!("R{i}C")])
+            .collect();
+        let data = ExportData {
+            title: "PagingCheck".to_string(),
+            headers,
+            rows,
+            summary: None,
+        };
+
+        let pdf = ExportService::export_pdf(&data).expect("PDF 生成不应失败");
+        let (total_streams, streams_with_text) = stream_text_stats(&pdf);
+
+        // 60 行按每页 y 步长恰好触发一次分页，应产出两页内容流。
+        assert_eq!(total_streams, 2, "60 行应恰好产出 2 页内容流");
+        // 关键判据 每页内容流都必须含文本算子，缺陷里新页句柄被丢弃、后续行仍画回第一页，
+        // 新页只剩 BDC 与 q … Q EMC 而无 BT，使含文本流数少于总页数。
+        assert_eq!(
+            streams_with_text, total_streams,
+            "每页内容流都应含文本算子，出现无字页说明分页时把行画回了第一页"
+        );
+        assert!(
+            streams_with_text >= 2,
+            "除第一页外的第二页内容流须含文本算子"
+        );
+    }
 }
