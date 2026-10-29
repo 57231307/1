@@ -1,0 +1,8 @@
+{
+  "schema": "e2e-authenticity-baseline/1",
+  "skipMarkers": 4,
+  "onlyMax": 0,
+  "flakyWarnThreshold": 8,
+  "realHttp2xxMinPerShard": 1,
+  "zeroAssertionExempt": []
+}

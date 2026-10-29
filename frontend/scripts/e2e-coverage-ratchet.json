@@ -1,0 +1,8 @@
+{
+  "schema": "e2e-coverage-ratchet/1",
+  "unresolved": 277,
+  "ghostLiteral": 99,
+  "methodMismatch": 31,
+  "registryNoMethod": 0,
+  "aZero": 639
+}

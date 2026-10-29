@@ -3040,7 +3040,7 @@ jobs:
             # 保留 tee 直连输出（此前行为），不套 watchdog。
             # 退出码必须取 playwright 而非 tee：`$?` 在管道后拿到的是管道末端 tee 的
             # 状态（恒 0），会把失败分片判成绿。
-            timeout 2400 npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+            timeout 2400 npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard=$((SHARD - 19))/5 --reporter=line,scripts/e2e-assert-reporter.mjs e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
             EXIT_CODE=${PIPESTATUS[0]}
           elif [ "$SHARD" -le 29 ]; then
             # 分片 25-29: traversal 全量遍历 + 端点矩阵（5 片）
@@ -3112,7 +3112,10 @@ jobs:
             run_shard() {
               local out=reports/playwright-output-r$1.txt
               # SPEC_TARGETS 故意不加引号：extras 分支要把它当多个独立参数展开
-              npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard="${SHARD_NO}/${SHARD_TOTAL}" ${SPEC_TARGETS} > "$out" 2>&1 &
+              # --reporter 覆盖 config 的 html+line：line 保人读、e2e-assert-reporter 落
+              # e2e-assert-stats.json（真实性门禁判据一/二/三/四的取数面）；html 报告
+              # 早已不上传（重复膨胀主因），去掉不损失任何产物。
+              npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard="${SHARD_NO}/${SHARD_TOTAL}" --reporter=line,scripts/e2e-assert-reporter.mjs ${SPEC_TARGETS} > "$out" 2>&1 &
               local pw_pid=$!
               local last_size=0 stall=0
               while kill -0 "$pw_pid" 2>/dev/null; do
@@ -3277,6 +3280,7 @@ jobs:
             frontend/reports/frontend.log
             frontend/reports/playwright-output*.txt
             frontend/reports/seed-failures*.json
+            frontend/reports/e2e-assert-stats.json
           retention-days: 30
 
       - name: 打包失败诊断产物（仅失败片，压缩为单归档）
@@ -4796,12 +4800,26 @@ jobs:
           if-no-files-found: ignore
 
   # ==========================================================================
-  # Job 16d: E2E 真实性门禁（用户任务 1.3，2026-09-10）
+  # Job 16d: E2E 真实性门禁（用户任务 1.3，2026-09-10；判据扩充：用户任务 #170）
   # ！！！ 未经人工确定本 job 不可随意变更（DO-NOT-MODIFY-WITHOUT-HUMAN-APPROVAL）！！！
-  # 置于全部 E2E job 之后，双重校验：
+  # 本 job 的七判据扩充由用户 2026-10 新提第 8 项（看板任务 #170）明确授权，落 PR #1103。
+  # 置于全部 E2E job 之后，从"看结论"扩到"看证据"，共七条判据：
   # 1. 动态：ci-e2e / ci-e2e-setup-wizard / role-permission-matrix 全部 success
-  # 2. 静态：扫描 e2e 源码禁止 mock 模式（page.route+fulfill 拦截响应 /
+  # 2. main push 轮 ci-e2e 不得为 skipped
+  # 3. 静态：扫描 e2e 源码禁止 mock 模式（page.route+fulfill 拦截响应 /
   #    mock 数据注入 / localStorage 假 token）——违反 E2E 真实数据强制 IR
+  # 4. 空片：每片 executed>0，分组齐片时 Σexecuted 必须等于 --list 登记矩阵期望数
+  # 5. 零断言：passed 用例无任何 expect 步骤即点名判红（豁免只走基线清单）
+  # 6. skip/only 泄漏与 flaky：源码 test.only( 超基线即红、test.skip( 计数只降不升，
+  #    重试后才过的用例数超阈值发告警
+  # 7. 真请求：每片跑测日志的 pw:api `← 2xx` 计数达到下限，后端没起来被 catch 吞成
+  #    通过的形态在此现形
+  #    （4-7 判据取数为 e2e-assert-reporter.mjs 的分片上报与跑测日志产物）
+  # 另三条独立判据同在本 job：清理位点与覆盖下限棘轮（判据五/七，e2e_route_coverage.py
+  # 五计数 + A 零覆盖数只降不升）、失败片取证真实性（判据六：0 基映射行 + 断言原文
+  # 进日志 + diag 制品三者齐备，缺任一判红）。
+  # 全部判定器先过 --self-test 反向夹具双向探针（好样本必绿、每类坏样本必红），
+  # 探针不绿本 job 直接判红——没有检测能力的门禁比没有门禁更危险。
   # 任一失败 → 本 job fail。
   # ==========================================================================
   e2e-authenticity-guard:
@@ -4901,88 +4919,68 @@ jobs:
           print('✅ E2E 源码零伪造响应（CI 运行范围内全部基于真实后端链路）')
           PYEOF
 
-      # ==========================================================================
-      # 以下三条对账判据为本 job 追加步骤（空片对账，零断言点名，skip 与 only 对账），
-      # 前三步语义原样保留。判定逻辑集中在
-      # scripts/ci/check-e2e-shard-red-forensics.mjs，本 job 只做取数与三态转接，
-      # 退出码 0 为 PASS，1 为 FAIL（脚本已逐条点名，转接步骤只退 1 不降级成警告），
-      # 2 为数据缺失的 SKIP（脚本已点名缺失原因，转接步骤只出点名告警不静默放行）。
-      # ==========================================================================
-      - name: 下载 E2E 分片报告产物
-        # ci-e2e 的分片 job 每轮都按 if always 上传轻量报告制品，制品名以
-        # e2e-report-shard 开头并带分片号与本轮标识，内容含分片的 playwright-output
-        # 文本输出与退出码文件（上传路径公共祖先被剥离，文件平铺在各制品目录根部）。
-        # ci-e2e 结论非 success 的轮次（tag push 与手动 dispatch）没有分片产物可取，
-        # 本步按 needs 结论跳过，随后两个报告对账步骤以数据缺失记 SKIP 并点名，
-        # 不会假装通过；ci-e2e 结论为 success 而下载步报错时本步直接红，属真异常。
-        if: ${{ !cancelled() && needs.ci-e2e.result == 'success' }}
+      - name: 反向夹具双向探针（判定器检测能力自证）
+        # 三条产物判据脚本各自的 --self-test：好样本必绿、每类坏样本必红。
+        # 自证在任何产物下载之前跑——判定器本身坏了就到此为止，后面的"绿"不作数。
+        if: ${{ !cancelled() }}
+        run: |
+          node frontend/scripts/check-e2e-authenticity.mjs --self-test
+          node frontend/scripts/check-e2e-coverage-ratchet.mjs --self-test
+          node frontend/scripts/check-e2e-forensics.mjs --self-test
+
+      - name: 下载分片上报产物（判据四至七的取数面）
+        # 仅在 ci-e2e 真跑过的轮次下载（success/failure）；skipped 轮（tag/dispatch）
+        # 没有分片产物可比对，按既有语义交由动态步与 main-push 步把关。
+        if: ${{ !cancelled() && (needs.ci-e2e.result == 'success' || needs.ci-e2e.result == 'failure') }}
         uses: actions/download-artifact@v4
         with:
           pattern: e2e-report-shard-*
-          path: e2e-forensics-artifacts
-          merge-multiple: false
+          path: artifacts/shards
 
-      - name: 安装对账用 Node.js
-        uses: actions/setup-node@v4
+      - name: 下载分组计数基准（frontend-build-log 内的 e2e-shard-group-counts.json）
+        if: ${{ !cancelled() && (needs.ci-e2e.result == 'success' || needs.ci-e2e.result == 'failure') }}
+        uses: actions/download-artifact@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          name: frontend-build-log
+          path: artifacts/build
 
-      - name: 空片与用例总数对账
-        # 判据一，每片实际执行用例数必须大于 0，各片执行数之和不得低于分片数乘以
-        # 每片最小用例数 1 的结构性下限，下限由本次报告现场推得，不写死用例总数
-        # 常量，避免增删用例就要改 workflow。
-        # 取数口径，优先分片产物内 Playwright JSON 报告的 stats；取不到时退回解析
-        # playwright-output 文本末尾汇总行（passed failed flaky interrupted 之和为
-        # 执行数，skipped 单列，did not run 属未执行不计），两者同源于 Playwright
-        # 的同一份用例统计对象，细节写在脚本头注释。
-        # 某片既无 JSON 报告又解析不出汇总行时按空片嫌疑判红而不是 SKIP，
-        # 因为上游 success 意味着该片的跑测进程必然打印过汇总行。
-        if: ${{ !cancelled() }}
+      - name: 空片与零断言与 skip-only 泄漏与真请求四判据
+        # 判据一 executed>0 且分组齐片时 Σexecuted==期望；判据二 passed 零断言点名；
+        # 判据三 only 恒零 + skip 棘轮 + flaky 阈值告警；判据四 每片 pw:api 2xx 下限。
+        # 缺上报文件/缺对账基准一律 fail-closed 判红，不做"没数据就当通过"。
+        if: ${{ !cancelled() && (needs.ci-e2e.result == 'success' || needs.ci-e2e.result == 'failure') }}
         run: |
-          rc=0
-          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode shard-stats --artifacts e2e-forensics-artifacts || rc=$?
-          if [ "$rc" -eq 2 ]; then
-            echo "::warning::空片与用例总数对账记 SKIP（数据缺失，原因见上方脚本输出点名）"
-          elif [ "$rc" -ne 0 ]; then
-            exit 1
-          fi
+          node frontend/scripts/check-e2e-authenticity.mjs \
+            --artifacts artifacts/shards \
+            --counts artifacts/build/frontend/reports/e2e-shard-group-counts.json \
+            --repo . \
+            --baseline frontend/scripts/e2e-authenticity-baseline.json
 
-      - name: 零断言用例点名
-        # 判据二，报告里每个实际执行且通过的用例必须至少含一个断言节点。断言数取
-        # Playwright JSON 报告 steps 树中 category 为 assert 的节点数，Playwright 把
-        # expect 系列断言登记为 assert 类目节点，所以该计数能代表断言数。
-        # 本判据不向文本降级，因为文本输出没有逐用例步骤树；当前分片跑测未产出
-        # JSON 报告时本步按数据缺失记 SKIP 并点名缺口，分片跑测补出 json reporter
-        # 后本判据自动生效，把每个零断言用例逐条判红并点名文件与标题。
+      - name: 清理位点与覆盖下限棘轮（只降不升）
+        # 判据五（未解析/幽灵/方法不符/矩阵缺方法）与判据七（A 零覆盖）共用
+        # e2e_route_coverage.py 的五枚真实计数；先跑工具自带 --self-test 夹具探针，
+        # 再对 baseline json 做棘轮比对，判红时把报告前 200 行（含点名文件行位）打进日志。
         if: ${{ !cancelled() }}
+        env:
+          PYTHONIOENCODING: utf-8
         run: |
-          rc=0
-          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode zero-assertion --artifacts e2e-forensics-artifacts || rc=$?
-          if [ "$rc" -eq 2 ]; then
-            echo "::warning::零断言用例点名记 SKIP（数据缺失，原因见上方脚本输出点名）"
-          elif [ "$rc" -ne 0 ]; then
-            exit 1
-          fi
+          python3 frontend/scripts/e2e_route_coverage.py --self-test "$RUNNER_TEMP/cov_selftest"
+          python3 frontend/scripts/e2e_route_coverage.py . > /tmp/e2e-route-coverage-report.txt
+          node frontend/scripts/check-e2e-coverage-ratchet.mjs \
+            --report /tmp/e2e-route-coverage-report.txt \
+            --baseline frontend/scripts/e2e-coverage-ratchet.json \
+            || { echo '---- 判定器报告前 200 行（点名明细）'; head -200 /tmp/e2e-route-coverage-report.txt; exit 1; }
 
-      - name: skip 与 only 对账
-        # 判据三，源码侧逐文件统计 frontend/e2e 内 test.skip( test.fixme( 与
-        # describe.skip( 的计数。两条硬判据，其一源码任意文件出现 .only( 直接
-        # 判红（only 泄漏会吞掉其余用例，属真红，不设基线）；其二 skip 类计数与
-        # scripts/ci/e2e-skip-only-baseline.json 基线比对且只降不升，超基线逐文件
-        # 点名文件名与超出数。基线只允许由脚本的 write-baseline 模式生成，不接受
-        # 手写数字。注释内的同名字样经脚本状态机剔除后不计，字符串内的保留并按
-        # 可疑计入。报告侧 skipped 合计一并打印供对账，不作硬判据，文本口径下它
-        # 只能拿到分片合计而不是逐文件数。本判据基于仓库源码，不依赖分片产物，
-        # 任何轮次都真跑。
-        if: ${{ !cancelled() }}
+      - name: 失败片取证真实性判据
+        # 判据六：每个 🎭 E2E job 必须有轻量报告制品残留；失败/cancel 片必须
+        # 日志含 0 基映射行且与矩阵位一致、含 E2E-ASSERT-BEGIN 断言原文、有 diag 制品。
+        # 取数走 jobs/artifacts/jobs-logs 三类端点（302 到对象存储不透传凭据）；
+        # 403/token 缺失按 fail-closed 判红，不接受"取不到=没问题"。
+        if: ${{ !cancelled() && (needs.ci-e2e.result == 'success' || needs.ci-e2e.result == 'failure') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
-          rc=0
-          node scripts/ci/check-e2e-shard-red-forensics.mjs --mode skip-only --baseline scripts/ci/e2e-skip-only-baseline.json --artifacts e2e-forensics-artifacts || rc=$?
-          if [ "$rc" -eq 2 ]; then
-            echo "::warning::skip 与 only 对账记 SKIP（数据缺失，原因见上方脚本输出点名）"
-          elif [ "$rc" -ne 0 ]; then
-            exit 1
-          fi
+          node frontend/scripts/check-e2e-forensics.mjs
 
   # ==========================================================================
   # Job 16e: 敏感权限审计覆盖（用户任务 1.4，2026-09-10）

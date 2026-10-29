@@ -20,8 +20,12 @@
 //
 // 用法（在任意目录均可，路径以脚本自身位置解析）：
 //   node scripts/check-e2e-shard-coverage.mjs [--workflow <path>] [--min-shard-list <n>]
+// 附带产出：三层校验全过时的分组期望数落盘 frontend/reports/e2e-shard-group-counts.json，
+//   随 frontend-build-log 产物上传，供 e2e-authenticity-guard 的判据一做"Σ各片 executed==
+//   分组 --list 期望数"对账；校验失败不落盘，旧文件不冒充本轮事实。
 // 退出码：0=全覆盖通过；1=任一层校验失败。
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   DEFAULT_WORKFLOW_PATH,
@@ -179,11 +183,13 @@ if (errors.length === 0) {
   const universe = playwrightList([]);
   const seenInGroups = new Set();
   let groupTotal = 0;
+  const groupCounts = {};
   for (const [key, g] of groups) {
     const ids = playwrightList(g.targets);
     if (!ids) continue;
     groupTotal += ids.length;
     for (const id of ids) seenInGroups.add(id);
+    groupCounts[key] = { targets: g.targets, total: g.total, expected: ids.length };
     note(`  组 ${key} → ${ids.length} 条`);
   }
   if (universe) {
@@ -199,6 +205,23 @@ if (errors.length === 0) {
     if (missing.length)
       fail(`C. ${missing.length} 条用例存在于 testMatch 全集但从未被任何分片分配（静默丢覆盖）`);
     if (extra.length) fail(`C. ${extra.length} 条被分片分配的用例不在全集内`);
+  }
+  // 三层全过才落盘：判据一（check-e2e-authenticity.mjs）拿本文件做"Σ各片 executed ==
+  // 分组 --list 期望数"的对账基准；errors 非空时不落盘，避免旧计数冒充本轮事实。
+  if (errors.length === 0 && universe) {
+    const countsDir = path.join(FRONTEND_DIR, 'reports');
+    mkdirSync(countsDir, { recursive: true });
+    writeFileSync(
+      path.join(countsDir, 'e2e-shard-group-counts.json'),
+      JSON.stringify({
+        schema: 'e2e-shard-group-counts/1',
+        universeTotal: universe.length,
+        groups: groupCounts,
+      })
+    );
+    note(
+      `分组期望数已落盘 frontend/reports/e2e-shard-group-counts.json（${Object.keys(groupCounts).length} 组）`
+    );
   }
 }
 
