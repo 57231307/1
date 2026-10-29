@@ -8,6 +8,8 @@ import {
   genCode,
   tryCleanup,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 99 采购单据族首个真契约覆盖（两取号口 明细删口带总额重算 对照表对象口 质检统计口 黑名单清单口）
@@ -90,6 +92,11 @@ test.describe.serial('99 采购单据族链', () => {
       code: `99P${tag}`,
       category_id: categoryId,
       unit: 'm',
+      // 夹具名即「坯」：按坯布收货语义取单源坯布类型，面料三键随类型同全
+      product_type: PRODUCT_TYPE.greige,
+      width: 160,
+      gram_weight: 210,
+      fabric_composition: '100%棉',
     });
     const productId = Number(product.id);
     expect(productId > 0, `产品自建失败 ${JSON.stringify(product)}`).toBe(true);

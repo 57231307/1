@@ -8,6 +8,9 @@ import {
   ensureStockInWarehouse,
 } from './helpers';
 import { pickListArray } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用，
+// 详情回读断言也比对该常量值，两侧同门不各抄一份面值。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * P0 级数据持久性验证（2026-09-10 用户指令）
@@ -57,6 +60,7 @@ async function ensureSharedEntities(page: import('@playwright/test').Page): Prom
     unit: '米',
     standard_price: 5,
     status: 'active',
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   shared.prodId = prod?.data?.id;
   const sup = await apiCall<{ id?: number }>(page, 'POST', '/purchase/suppliers', {
@@ -103,7 +107,11 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       cost_price: 18.0,
       description: 'P0测试产品描述——非必填项也全部填写',
       status: 'active',
-      product_type: 'fabric',
+      // 面料类三键同全（幅宽/克重/面料成分缺任一即被后端面料必录门 400），
+      // 类型取值经单源常量引用；原 'fabric' 属词表外面值，建单即被取值域校验拒绝。
+      product_type: PRODUCT_TYPE.finished,
+      width: 150,
+      gram_weight: 180,
       fabric_composition: '100%涤纶',
     };
 
@@ -159,7 +167,9 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
     expect(Number(detail?.standard_price), `详情 standard_price 应为 25.5`).toBeCloseTo(25.5);
     expect(Number(detail?.cost_price), `详情 cost_price 应为 18.0`).toBeCloseTo(18.0);
     expect(detail?.description, '详情 description 应一致').toBe(payload.description);
-    expect(detail?.product_type, '详情 product_type 应为 fabric').toBe('fabric');
+    expect(detail?.product_type, `详情 product_type 应为 ${PRODUCT_TYPE.finished}`).toBe(
+      PRODUCT_TYPE.finished
+    );
     expect(detail?.fabric_composition, '详情 fabric_composition 应为 100%涤纶').toBe('100%涤纶');
     console.log('[P0-产品] ✅ 全字段创建→回读→二次访问逐字段比对全通过');
   });
@@ -527,6 +537,7 @@ test.describe.serial('P0 数据持久性：全字段填写→创建→回读→�
       code: uniqueKey('P0-MAT-'),
       standard_price: 10,
       status: 'active',
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const matId = mat?.data?.id;
     expect(supId, `[P0-采购订单] 前置供应商创建未返回 id（POST /purchase/suppliers）`).toBeTruthy();
