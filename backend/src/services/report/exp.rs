@@ -64,7 +64,7 @@ impl ReportEngineService {
             .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
         let now = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
         Self::draw_pdf_header(&layer, &font, template_name, &now);
-        let _final_y = Self::draw_pdf_table(&doc, &layer, &font, data);
+        let _final_y = Self::draw_pdf_table(&doc, page1, layer1, &font, data);
         Self::draw_pdf_footer(&layer, &font, data.total_rows as usize);
         let buffer = Self::save_pdf_to_buffer(doc)?;
         info!(
@@ -102,11 +102,13 @@ impl ReportEngineService {
     /// PDF 导出：绘制表头与表格内容（含分页），返回最终 y 坐标
     fn draw_pdf_table(
         doc: &printpdf::PdfDocumentReference,
-        layer: &printpdf::PdfLayerReference,
+        first_page: printpdf::PdfPageIndex,
+        first_layer: printpdf::PdfLayerIndex,
         font: &printpdf::IndirectFontRef,
         data: &ReportData,
     ) -> f32 {
         use printpdf::*;
+        let mut layer = doc.get_page(first_page).get_layer(first_layer);
         let mut y_pos = 250.0_f32;
         let col_width = 35.0_f32;
         // 表头
@@ -137,7 +139,7 @@ impl ReportEngineService {
             // 分页
             if y_pos < 20.0 {
                 let (new_page, new_layer) = doc.add_page(Mm(297.0), Mm(210.0), "Layer 1");
-                let _layer = doc.get_page(new_page).get_layer(new_layer);
+                layer = doc.get_page(new_page).get_layer(new_layer);
                 y_pos = 280.0;
             }
         }
