@@ -389,3 +389,8 @@ pub mod log_archive_service;
 // batch-13 P3: 审计日志审查服务
 pub mod audit_review_service;
 pub mod test_common;
+// 纺织品安全合规域（GB 18401 与 GB 31701 限值判定、送检单流程、第三方报告完整性门）
+pub mod textile_safety_limit_judge;
+pub mod textile_safety_submission_service;
+pub mod textile_safety_report_service;
+pub mod textile_safety_master_service;

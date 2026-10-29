@@ -95,6 +95,8 @@ pub mod device_connection;
 pub mod period_adjustment;
 // V15 P2 B08-12：出口商检 + 产地证路由
 pub mod export_inspection_routes;
+// 纺织品安全合规域（送检单、第三方报告、限值矩阵与出口要求主数据）
+pub mod textile_safety;
 #[path = "static.rs"]
 pub mod static_routes;
 pub mod search_api;
@@ -537,6 +539,8 @@ pub fn create_router(state: AppState) -> Router<()> {
         .nest("/api/v1/erp/period-adjustments", period_adjustment::routes())
         // V15 P2 B08-12：出口商检路由
         .nest("/api/v1/erp/export-inspections", export_inspection_routes::routes())
+        // 纺织品安全合规域路由（GB 18401 与 GB 31701 送检、第三方报告完整性门、判定表与出口要求主数据）
+        .nest("/api/v1/erp", textile_safety::routes())
         .nest("/api/v1/erp/purchase", purchase::routes())
         .nest("/api/v1/erp/finance", finance::routes(state.clone()))
         .nest("/api/v1/erp", finance::sub_routes())

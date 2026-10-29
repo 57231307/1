@@ -244,3 +244,7 @@ pub mod sku_mapping_handler;
 pub mod supplier_product_handler;
 // 供应商商品色号目录 handler（supplier-product-colors，对照表依赖的父级数据）
 pub mod supplier_product_color_handler;
+// 纺织品安全合规域处理器（送检单、第三方报告、主数据）
+pub mod textile_safety_handler;
+pub mod textile_safety_report_handler;
+pub mod textile_safety_master_handler;

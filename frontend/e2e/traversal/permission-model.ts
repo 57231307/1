@@ -157,6 +157,13 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
   // purchases:read 的角色整片误判 denied。router 若改动这些门控，防漂移门禁会判红并要求人工复核。
   purchase: 'purchases:read',
   quality: ['quality-standards:read', 'quality-inspections:read'],
+  // 纺织品安全两页补录（人工评审值取自 router 现值逐元素同态：单枚数组键形态
+  // 与 production 同例。后端权限矩阵侧两枚 read 由 qc_manager 的全集授权与
+  // quality_inspector 的显式 read 授权覆盖，admin 走运行期通配注入，快照只钉
+  // router 要求侧，不另造通配表达；登记本两条为把新增功能页钉进防回潮锚，
+  // 此后任一侧门控改动都会被防漂移门禁点名）
+  'textile-safety': ['textile-submissions:read'],
+  'textile-safety-master': ['textile-test-items:read'],
   production: ['production-orders:read'],
   // BPM 四页门控取后端真实派生键（bpm 是 URL 模块前缀，第四段经 RESOURCE_NAME_MAP 消歧）：
   // /bpm 开页需要待办列表或全局监控面之一，/bpm/approval 需要待办列表或审批执行入口之一。

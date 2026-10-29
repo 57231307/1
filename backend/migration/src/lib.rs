@@ -148,6 +148,16 @@
 //! 28. product_roll_column_drop: 产品每卷米数列的探测式下线域，晚于代码面摘除读写
 //!    （先改代码，再收列形态）；脏值存在时 RAISE EXCEPTION 点名中止不洗数据，
 //!    down 只回空壳不回填历史值
+//! 26. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
+//!    CHECK 收口、m0112 GB 18401 与 GB 31701 限值矩阵与出口市场要求播种，建表、CHECK、
+//!    播种次序固定于域 mod.rs）。新建顶层域，与既有七张检验表零交集，送检单仅以
+//!    product_id 外键只读关联 system 建的 products；置于链尾为新的顶层条目，复用库上
+//!    属 pending 必然执行
+//! 27. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
+//!    两支同域迁移（m0113a 严格只读逐值点名先于 m0113b 守卫施加 CHECK，口径照
+//!    wage_energy_vocab_check 的 m0102 与 m0103 两段式），权威词表 models::status::
+//!    purchase_inventory::purchase_inspection_result，NULL 为完成质检前合法初值，
+//!    守卫拒绝不在迁移里 UPDATE 洗数据；置于链尾为新的顶层条目，晚于 business 建列
 
 pub use sea_orm_migration::prelude::*;
 
@@ -203,6 +213,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::product_vocab_check::Migration),
             // 产品每卷米数列探测式下线，晚于代码面摘除读写（先改代码，再收列形态）
             Box::new(domain::product_roll_column_drop::Migration),
+            Box::new(domain::textile_safety::Migration),
+            Box::new(domain::purchase_inspection_result_check::Migration),
         ]
     }
 }

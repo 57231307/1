@@ -90,6 +90,12 @@
 //!   与税额四列和行级色号列，两表各补一条检索索引；新增列一律可空且不带默认，历史合同保持
 //!   空值即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据。置于链尾为新的顶层
 //!   条目，台账名取域名 m_sales_contract_source_order
+//! - textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 词表 CHECK 收口、
+//!   m0112 GB 18401 与 GB 31701 限值矩阵与出口要求播种）；新建顶层域，与既有七张检验表零
+//!   交集，仅外键只读关联 products（依赖 system 建表，置于链尾为新的顶层条目）
+//! - purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口两支
+//!   同域迁移（m0113a 严格只读逐值点名、m0113b 守卫后施加 CHECK），词表权威在
+//!   models::status::purchase_inventory::purchase_inspection_result；置于链尾为新的顶层条目
 
 pub mod system;
 pub mod business;
@@ -135,3 +141,5 @@ pub mod product_spec_extension_columns;
 pub mod product_vocab_check;
 // 产品每卷米数列探测式下线域，晚于代码面下线（先改代码摘除读写，再收列形态）。
 pub mod product_roll_column_drop;
+pub mod textile_safety;
+pub mod purchase_inspection_result_check;

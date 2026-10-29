@@ -196,6 +196,15 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     // 出口商检单：运行时权限键 `export-inspections:{read,create,update,print}` 由 URL 段
     // 推导（seg3=export-inspections 为直接资源），必须在此登记否则矩阵授权行运行期永不命中。
     "export-inspections",
+    // 纺织品安全合规域：运行时权限键 `textile-submissions:{read,create,update,delete}`、
+    // `textile-reports:{read,create,update}`、`textile-test-items:{read,create,update,delete}`、
+    // `textile-limit-rules:{read,create,update,delete}`、`textile-export-requirements:{read,create,update,delete}`
+    // 均由 seg3 直接资源推导，判据同上。
+    "textile-submissions",
+    "textile-reports",
+    "textile-test-items",
+    "textile-limit-rules",
+    "textile-export-requirements",
     // ===== 人力资源域 =====
     "employees",
     // ===== 安全环保域 =====

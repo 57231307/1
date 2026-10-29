@@ -481,6 +481,8 @@ export default {
       fabricInspections: '验布管理',
       chemicals: '染化料管理',
       exportCompliance: '外贸合规中心',
+      textileSafety: '纺织品安全送检',
+      textileSafetyMaster: '纺织品安全判定主数据',
       supplierEnhanced: '供应商 360',
       crmEnhanced: 'CRM 高级分析',
       customerCollab: '合同签署与客户协作',
