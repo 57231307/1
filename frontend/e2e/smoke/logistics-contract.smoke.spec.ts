@@ -9,6 +9,7 @@
 import { test, expect } from '../diagnose-fixture';
 import type { APIRequestContext } from '@playwright/test';
 import { gotoWithRetry } from './_goto';
+import { openScopedDropdown, dropdownItems } from '../flow/ui-helpers';
 
 // 与前端 src/api/request.ts 同源的相对路径：请求经 vite/preview 的 /api/ 代理转发到后端，
 // 与产品真实链路一致，也避免在测试里重复配置后端地址
@@ -94,12 +95,14 @@ test.describe('物流运单状态与列表契约', () => {
 
   test('页面状态筛选下拉只列出三个真实状态', async ({ page }) => {
     await gotoWithRetry(page, '/logistics');
-    const statusSelect = page.locator('.el-form-item', { hasText: '状态' }).first();
-    await statusSelect.locator('.el-select').click();
-    // 同一时刻只有一个下拉展开，可见项即状态选项
-    const dropdown = page.locator('.el-select-dropdown:visible');
-    await expect(dropdown).toBeVisible({ timeout: 30_000 });
-    const texts = await dropdown.locator('.el-select-dropdown__item:visible').allTextContents();
+    const statusSelect = page
+      .locator('.el-form-item', { hasText: '状态' })
+      .first()
+      .locator('.el-select')
+      .first();
+    // 面板由 helper 按该状态字段 aria-controls 钉定归属并等可见（替代旧「任一可见面板」）
+    const dropdown = await openScopedDropdown(statusSelect, page, { timeout: 30_000 });
+    const texts = await dropdownItems(dropdown).allTextContents();
     expect(texts.map(text => text.trim())).toEqual(['运输中', '已送达', '已签收']);
   });
 });

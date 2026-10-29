@@ -21,9 +21,7 @@ import {
   genCode,
   tryCleanup,
 } from '../flow/helpers';
-import { pickSelectIn } from '../flow/ui-helpers';
-// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
-import { PRODUCT_TYPE } from '../../src/constants/product-type';
+import { pickSelectIn, openScopedDropdown, dropdownItems } from '../flow/ui-helpers';
 
 /** GET /products/{id} 回读的产品主档切片（编码为前端契约别名键，别名由后端 append_frontend_aliases 补齐） */
 interface ProductMaster {
@@ -61,10 +59,7 @@ async function createIdentifiableProduct(
     name: `E2E带出产品${code}`,
     unit: '米',
     category_id: getCtx().productCategoryIds[0],
-    // 报价带出主档的面料产品：带克重与幅宽做米↔公斤换算，取面料相容类型（成品布），
-    // 三键（幅宽/克重/面料成分）由入参与本键同全，取值经单源常量引用。
     specification,
-    product_type: PRODUCT_TYPE.finished,
     fabric_composition: composition,
     gram_weight: gramWeight,
     width,
@@ -78,15 +73,16 @@ async function createIdentifiableProduct(
 /** 在明细表第一行的产品下拉里输入编码做服务端搜索并选中；搜索请求命中即钉住防截断链路 */
 async function selectProductByCode(page: Page, itemsTable: Locator, code: string) {
   const productSelect = itemsTable.locator('.el-select').first();
-  await productSelect.click();
-  await productSelect.locator('input').first().fill(code);
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
-  const option = dropdown.locator('.el-select-dropdown__item').filter({ hasText: code }).first();
+  // 面板按该字段 input 的 aria-controls 归属钉定，fill 编码触发服务端搜索；
+  // spec 内不写页面级裸面板词元，收口口径见 ui-helpers 区块 openScopedDropdown 注释
+  const panel = await openScopedDropdown(productSelect, page, { query: code, fill: true });
+  const option = dropdownItems(panel).filter({ hasText: code }).first();
   await expect(option, `服务端搜索应命中新建产品编码 ${code}（防分页截断链路）`).toBeVisible({
     timeout: 15000,
   });
   await option.click();
-  await dropdown.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  // 点完面板收起属动画收尾（选项已确认可见并点击成功），此处 .catch 不掩盖定位失败
+  await panel.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
 }
 
 /** 悬停产品下拉并点击清空图标（element-plus clearable 的清除按钮类名为 el-select__clear） */

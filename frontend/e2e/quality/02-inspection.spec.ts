@@ -10,7 +10,6 @@ import {
   failureCode,
   APP_ERROR_CODES,
   genCode,
-  tryCleanup,
 } from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui-helpers';
 
@@ -28,11 +27,11 @@ import { pickSelectIn, fillFieldByLabel, formItemByExactLabel } from '../flow/ui
  * 台账 UI 的「处理」按钮已改指 process-result + row.id（DefectTab.vue），正例核心判据
  * =「本行被更新且台账行数不变」。
  */
-const CLEANUP: Array<{ path: string; label: string }> = [];
-test.afterEach(async ({ page }) => {
-  for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
-  CLEANUP.length = 0;
-});
+// 隔离策略说明（本套件自建数据不清理，依赖唯一键隔离判定）。后端对质检记录明细端点
+// 只注册了查询与更新，没有删除或状态终止腿，历史用例向该未注册端点发清理请求恒被路由
+// 拒绝且被吞掉，实际从未生效。现改为质检记录编号带时间戳与随机后缀写入业务唯一列，
+// 台账回读只按本轮 record_id 等值过滤，残留行不会被后续任何断言引用。
+// 本文件各 test 为调用方，入参为 page，数据经质检族端点写入质检记录表与不合格品台账表。
 
 /** 台账行出参（unqualified_product::Model 直出的本用例所需键） */
 interface DefectRow {
@@ -72,10 +71,8 @@ async function seedDefect(
     }
   );
   if (!record.data?.id) throw new Error(`建质检记录失败：${JSON.stringify(record)}`);
-  CLEANUP.push({
-    path: `/production/quality-inspection/records/${record.data.id}`,
-    label: 'quality_record',
-  });
+  // 此处不登记清理路径。质检记录编号经 genCode 生成唯一后缀写入业务唯一列 inspection_no，
+  // 后续台账回读只按本轮 record_id 等值过滤，残留行不参与任何判定。
 
   // 由不合格记录派生 unqualified_product（缺陷列表条目）；开单响应回整行 Model
   const defect = await apiCall<DefectRow>(

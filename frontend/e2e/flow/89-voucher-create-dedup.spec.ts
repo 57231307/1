@@ -1,6 +1,10 @@
 import { test, expect, type Locator, type Page } from '../diagnose-fixture';
 import { apiCallRaw, BASE_URL, API_PREFIX, loginViaUI, tryCleanup } from './helpers';
-import { pickSelectIn } from './ui-helpers';
+import {
+  pickSelectIn,
+  openScopedDropdown,
+  dropdownItems,
+} from './ui-helpers';
 
 /**
  * 凭证新建连点防重锁
@@ -59,16 +63,13 @@ async function gotoVoucherList(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
 }
 
-/** 分录行内的科目下拉不在 el-form-item 里，只能按行作用域点开面板取首项 */
+/** 分录行内的科目下拉不在 el-form-item 里，按行作用域打开该字段自己的面板取首项（helper 钉归属） */
 async function pickFirstSubjectInRow(row: Locator, page: Page): Promise<void> {
-  const wrapper = row.locator('.el-select__wrapper').first();
-  await wrapper.click();
-  const panel = page.locator('.el-select__popper').last();
-  await expect(panel, '科目下拉面板应出现').toBeVisible({ timeout: 10000 });
-  const option = panel.locator('.el-select-dropdown__item').first();
-  await option.waitFor({ state: 'visible', timeout: 10000 });
+  const panel = await openScopedDropdown(row, page, { timeout: 10_000 });
+  const option = dropdownItems(panel).first();
+  await option.waitFor({ state: 'visible', timeout: 10_000 });
   await option.click();
-  await panel.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  await panel.waitFor({ state: 'hidden', timeout: 5_000 }).catch(() => {});
 }
 
 async function fillAmount(control: Locator, value: string): Promise<void> {

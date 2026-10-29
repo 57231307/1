@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL, ensureTestEntities } from './helpers';
+import { openScopedDropdown, dropdownItems } from './ui-helpers';
 
 test.describe('批量操作与弹窗确认', () => {
   test.beforeEach(async ({ page }) => {
@@ -180,22 +181,22 @@ test.describe('批量操作与弹窗确认', () => {
     await supplierSelect.waitFor({ state: 'visible', timeout: 5000 });
     const selectVisible = await supplierSelect.isVisible();
     if (selectVisible) {
-      await supplierSelect.click();
-      await page.waitForTimeout(500);
-
-      // 验证下拉选项出现（只统计可见 dropdown 的 item，页面可能有隐藏 dropdown 实例）。
+      // 打开该字段自己的候选面板（flow/ui-helpers 点 wrapper、按 aria-controls 钉定归属
+      // 并等面板可见，替代旧「点 .el-select + 盲等 500ms + 取任一可见面板」）。
       // 供应商列表依赖前置数据，空列表=前置数据缺失，必须失败暴露
-      const dropdownItems = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
-      const itemCount = await dropdownItems.count();
+      const dropdown = await openScopedDropdown(supplierSelect, page);
+      const optionItems = dropdownItems(dropdown);
+      await optionItems.first().waitFor({ state: 'visible', timeout: 5_000 });
+      const itemCount = await optionItems.count();
       expect(itemCount, '[下拉级联] 供应商下拉无选项（前置供应商数据缺失）').toBeGreaterThan(0);
       {
         // Element Plus 2.14 单选下拉：选中项文本渲染在 .el-select__wrapper 内
         // （.el-select__selected-item / .el-select__placeholder 首个节点常是隐藏的
         // 空占位，textContent 恒 ""）。正确契约：先记录被点击选项的文本，选中后断言
         // wrapper 回显包含该文本——精确锚定"选中的正是这一项"，而非读到空也放过。
-        const chosenLabel = ((await dropdownItems.first().textContent()) ?? '').trim();
+        const chosenLabel = ((await optionItems.first().textContent()) ?? '').trim();
         expect(chosenLabel, '[下拉级联] 首项选项文本为空').toBeTruthy();
-        await dropdownItems.first().click();
+        await optionItems.first().click();
 
         // 等待选中态渲染（wrapper 文本回填所选供应商名）后再读，避免读到过渡空态。
         const wrapper = supplierSelect.locator('.el-select__wrapper').first();

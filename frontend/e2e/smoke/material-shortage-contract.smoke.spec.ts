@@ -13,6 +13,7 @@
 import { test, expect } from '../diagnose-fixture';
 import type { APIRequestContext } from '@playwright/test';
 import { gotoWithRetry } from './_goto';
+import { openScopedDropdown, dropdownItems, expectDropdownClosed } from '../flow/ui-helpers';
 
 // 与前端 src/api/request.ts 同源：经 vite/preview 的 /api/ 代理转发到后端
 const API_PREFIX = '/api/v1/erp';
@@ -195,26 +196,20 @@ test.describe('缺料预警取值与列表契约', () => {
     const selects = page.locator('.filter-bar .el-select');
     await expect(selects.first()).toBeVisible({ timeout: 30_000 });
     // 收起时必须等浮层真的消失：Element Plus 的下拉面板是 teleport 到 body 的浮层，
-    // 上一轮 run 里 Escape 后面板未收起就点第二个 select，点击落在浮层上，
-    // 读到的仍是级别面板的 4 项，被误判成"状态下拉列错了取值"。
-    const collapsed = page.locator('.el-select-dropdown:visible');
+    // Escape 后面板未收起就点第二个 select，点击会落在浮层上。现由 helper 把面板钉到
+    // 各字段自己名下（级别面板读级别字段的面板，不会读到状态字段的面板），
+    // 切换前仍用 expectDropdownClosed 确认浮层确已收起。
 
-    await selects.first().click();
-    const levelDropdown = collapsed;
-    await expect(levelDropdown).toBeVisible({ timeout: 30_000 });
-    const levelTexts = await levelDropdown
-      .locator('.el-select-dropdown__item:visible')
-      .allTextContents();
+    const levelPanel = await openScopedDropdown(selects.first(), page, { timeout: 30_000 });
+    const levelTexts = await dropdownItems(levelPanel).allTextContents();
     expect(levelTexts.map(text => text.trim())).toEqual(['紧急', '严重', '一般', '正常']);
     await page.keyboard.press('Escape');
-    await expect(collapsed).toHaveCount(0);
+    await expectDropdownClosed(page);
 
-    await selects.nth(1).click();
-    // 先确认打开的是状态面板（5 项），再逐项比对文案，避免读到未收起的上一个面板
-    await expect(collapsed.locator('.el-select-dropdown__item:visible')).toHaveCount(5);
-    const statusTexts = await collapsed
-      .locator('.el-select-dropdown__item:visible')
-      .allTextContents();
+    const statusPanel = await openScopedDropdown(selects.nth(1), page, { timeout: 30_000 });
+    // 先确认打开的是状态面板（5 项），再逐项比对文案
+    await expect(dropdownItems(statusPanel)).toHaveCount(5);
+    const statusTexts = await dropdownItems(statusPanel).allTextContents();
     expect(statusTexts.map(text => text.trim())).toEqual([
       '已识别',
       '已发起采购申请',
@@ -222,7 +217,22 @@ test.describe('缺料预警取值与列表契约', () => {
       '采购已入库',
       '已解除',
     ]);
+    // 文案与 value 双比对：选中「已解除」后发起查询，列表请求必须按规范取值词
+    // resolved 下推（文案→取值绑定真实生效，而不是只列对文案却发错查询参数）。
+    // 视图选项由 constants/shortage 的 SHORTAGE_ALERT_STATUS_VALUES 与
+    // msFmts.getStatusText 单源生成，本断言钉的就是这条绑定链。
+    // 等待先于点击注册：点查询后列表请求数毫秒内即完成，先点后等必然错过 request 事件。
+    const listReqPromise = page.waitForRequest(
+      r =>
+        r.url().includes('/material-shortage/list') &&
+        new URL(r.url()).searchParams.get('status') === 'resolved',
+      { timeout: 15_000 }
+    );
+    await dropdownItems(statusPanel).filter({ hasText: '已解除' }).first().click();
+    await page.locator('.filter-bar button').filter({ hasText: '查询' }).first().click();
+    const listReq = await listReqPromise;
+    expect(listReq, '选中「已解除」点查询后应发出 status=resolved 的列表请求').toBeTruthy();
     await page.keyboard.press('Escape');
-    await expect(collapsed).toHaveCount(0);
+    await expectDropdownClosed(page);
   });
 });

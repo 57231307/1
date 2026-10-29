@@ -7,7 +7,7 @@ import {
   BROWSER_NETWORK_NOISE,
   tryCleanup,
 } from './helpers';
-import { safeGoto } from './ui-helpers';
+import { safeGoto, openScopedDropdown, dropdownItems } from './ui-helpers';
 
 // 覆盖前端改动：供应商 360 页头由要求手填供应商数字主键改为按名称与编码向服务端远程搜索的选择器。
 // 用 UI 真实操作锁定三件事：页头不再出现数字主键输入项；关键字真的触发服务端搜索并把候选带回；
@@ -85,17 +85,12 @@ async function assertPickerPlaceholder(page: Page): Promise<void> {
   ).toBeGreaterThan(0);
 }
 
-async function openAndSearch(page: Page, keyword: string): Promise<void> {
-  const input = pickerInput(page);
-  await input.click();
-  // fill 会整体替换输入内容，配合 remote 属性即真实触发一次服务端搜索，而不是在前端筛
-  await input.fill(keyword);
-}
-
-async function visibleDropdown(page: Page) {
-  const dropdown = page.locator('.el-select-dropdown:visible').last();
-  await expect(dropdown, '关键字搜索后候选面板应可见').toBeVisible();
-  return dropdown;
+/**
+ * 点开页头选择器并整体替换输入关键字（fill 触发 remote-method 的一次服务端搜索），
+ * 返回该字段自己的候选面板（flow/ui-helpers 按 aria-controls 钉定归属，不取任一可见面板）。
+ */
+async function openAndSearch(page: Page, keyword: string) {
+  return openScopedDropdown(pickerShell(page), page, { query: keyword, fill: true });
 }
 
 test.describe('供应商 360 名称选择器端到端', () => {
@@ -138,9 +133,8 @@ test.describe('供应商 360 名称选择器端到端', () => {
 
     // 2) 输入唯一名称的部分字符，断言候选真的由服务端返回
     const partial = supplierA.name.slice(4);
-    await openAndSearch(page, partial);
-    const dropdown = await visibleDropdown(page);
-    const matched = dropdown.locator('.el-select-dropdown__item').filter({ hasText: partial });
+    const dropdown = await openAndSearch(page, partial);
+    const matched = dropdownItems(dropdown).filter({ hasText: partial });
     await expect(matched.first(), `下拉应出现含部分名称「${partial}」的供应商选项`).toBeVisible({
       timeout: 15_000,
     });
@@ -188,22 +182,20 @@ test.describe('供应商 360 名称选择器端到端', () => {
     });
 
     const partialA = supplierA.name.slice(6);
-    await openAndSearch(page, partialA);
-    const dropdownA = await visibleDropdown(page);
+    const dropdownA = await openAndSearch(page, partialA);
     await expect(
-      dropdownA.locator('.el-select-dropdown__item').filter({ hasText: partialA }).first()
+      dropdownItems(dropdownA).filter({ hasText: partialA }).first()
     ).toBeVisible({ timeout: 15_000 });
 
     // 换成 B 的关键字：整体替换输入，服务端按新关键字返回，旧关键字的候选不得残留
     const partialB = supplierB.name.slice(6);
-    await openAndSearch(page, partialB);
-    const dropdownB = await visibleDropdown(page);
+    const dropdownB = await openAndSearch(page, partialB);
     await expect(
-      dropdownB.locator('.el-select-dropdown__item').filter({ hasText: partialB }).first(),
+      dropdownItems(dropdownB).filter({ hasText: partialB }).first(),
       `换关键字后应命中「${partialB}」`
     ).toBeVisible({ timeout: 15_000 });
     await expect(
-      dropdownB.locator('.el-select-dropdown__item').filter({ hasText: partialA }),
+      dropdownItems(dropdownB).filter({ hasText: partialA }),
       '换关键字后上一批候选不得残留，残留即候选不是按当前输入独立持有'
     ).toHaveCount(0);
   });
