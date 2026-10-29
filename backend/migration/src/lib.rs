@@ -18,7 +18,8 @@
 //!   → m0104_add_document_no_partial_unique_four_tables
 //!   → sales_contract_source_order
 //!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
-//!   → sales_contract_source_order → export_approval_lifecycle
+//!   → contract_clause_snapshot_provenance → print_template_default_slot
+//!   → textile_safety → purchase_inspection_result_check → export_approval_lifecycle
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -35,6 +36,8 @@
 //!         / m_purchase_greige_read_grant
 //!         / m_customer_credit_name_backfill / m_customer_credit_remark_column
 //!         / m_customer_credit_family_grant
+//!         其后四枚链尾登记为 m_status_vocab_check 与 m_wage_energy_vocab_check
+//!         与 m_contract_template_schema 与 m_print_template_default_slot
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -149,25 +152,49 @@
 //! 28. product_roll_column_drop: 产品每卷米数列的探测式下线域，晚于代码面摘除读写
 //!    （先改代码，再收列形态）；脏值存在时 RAISE EXCEPTION 点名中止不洗数据，
 //!    down 只回空壳不回填历史值
-//! 29. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
+//! 29. sales_contract_source_order: 销售合同与合同明细的两列溯源与四列行级金额与色号扩展
+//!    （source_order_id 与 source_order_item_id 外键随源单删除置空，折扣率与折扣额与税率与
+//!    税额四列和行级色号列，两表各一条检索索引）；新增列一律可空无默认，历史合同保持空值
+//!    即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据；置于链尾为新的顶层条目，
+//!    依赖 system 与 business 与 v15 建好的合同两表与销售订单两表，台账名取域名
+//!    m_sales_contract_source_order
+//! 30. contract_clause_snapshot_provenance: 合同条款快照来源指针独立域——给 contract_clauses
+//!    追加一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
+//!    供详情腿单义回查必填标记；up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、
+//!    不建外键、不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码)
+//!    唯一行回落，多义如实给空值不伪造。为什么另立独立域已在复用测试库上入账，
+//!    域内新增子迁移在复用库上永不重放，只有让新域名处于 pending 才能被 migrate run 拾起；
+//!    挂在链尾 contract_template_schema 之后，只依赖该域建的快照表
+//! 31. print_template_default_slot: 打印模板默认位库侧唯一门——给 print_templates 按
+//!    单据类型 doc_type 建"启用且默认至多一行"的部分唯一索引
+//!    uq_print_template_active_default，索引谓词 WHERE is_default AND status='active'
+//!    与出件解析 load_active_default_template 的三条件过滤逐字符同源（键 doc_type
+//!    即解析查找键，写入侧建/改/设默认三处竞位清理同口径）；建索引前只读探测存量
+//!    违例，命中即 RAISE EXCEPTION 点名中止，不 UPDATE 不 DELETE 洗数据，人工口径
+//!    与解析同源保留每 doc_type id 最小一行；同支更正 is_default 列注释，如实描述
+//!    互斥域是 doc_type 而非 module。置于链尾为新的顶层条目（并入已应用的
+//!    print_subsystem 域会被台账跳过，索引与注释永不落地），依赖 print_subsystem 的
+//!    m0098 建表，早于本域执行，down 撤索引并还原建表注释原文
+//! 32. textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 取值列词表
 //!    CHECK 收口、m0112 GB 18401 与 GB 31701 限值矩阵与出口市场要求播种，建表、CHECK、
 //!    播种次序固定于域 mod.rs）。新建顶层域，与既有七张检验表零交集，送检单仅以
 //!    product_id 外键只读关联 system 建的 products；置于链尾为新的顶层条目，复用库上
 //!    属 pending 必然执行
-//! 30. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
+//! 33. purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口
 //!    两支同域迁移（m0113a 严格只读逐值点名先于 m0113b 守卫施加 CHECK，口径照
 //!    wage_energy_vocab_check 的 m0102 与 m0103 两段式），权威词表 models::status::
 //!    purchase_inventory::purchase_inspection_result，NULL 为完成质检前合法初值，
 //!    守卫拒绝不在迁移里 UPDATE 洗数据；置于链尾为新的顶层条目，晚于 business 建列
-//! 31. export_approval_lifecycle: 导出审批令牌生命周期改造域（m0105）——给
+//! 34. export_approval_lifecycle: 导出审批令牌生命周期改造域（m0105）——给
 //!    export_approval_request 幂等加 token_hash/token_fingerprint/token_viewed/retry_count/
 //!    last_attempt_at/max_retries/token_consumed/token_consumed_at/bpm_instance_id 九列 +
 //!    bpm_instance_id 外键指向 bpm_process_instance(ON DELETE SET NULL) + token_hash 部分唯一
-//!    索引；status CHECK 以同约束名扩 consumed、exhausted 两终态；向 bpm_process_definition
-//!    登记 code=export_approval 的 ACTIVE 流程定义（按 risk_level 走一级或二级，审批人锚点取
-//!    admin 角色最小启用用户，系统未初始化时跳过不造值）。迁移内绝不 UPDATE/DELETE 历史明文令牌，
+//!    索引；status CHECK 以同约束名扩 consumed、exhausted 两终态。本域只改 schema，
+//!    code=export_approval 的流程定义行不在迁移里登记，改由 services/bpm_definition_seed.rs 的
+//!    出厂种子在初始化链路与启动链路写入 bpm_process_definition，因审批人锚点必须是已存在的
+//!    admin 启用用户，而迁移执行时该用户尚未创建。迁移内绝不 UPDATE/DELETE 历史明文令牌，
 //!    老行按 token_expires_at 自然过期、校验侧对 token_hash IS NULL 回退明文比对。依赖 system
-//!    建的 bpm_process_definition/bpm_process_instance/users/roles 与 finance 建并 v15 扩展的
+//!    建的 bpm_process_instance 与 finance 建并 v15 扩展的
 //!    export_approval_request 全部早于本域；置于全链尾为新的顶层条目，复用库上必然执行。
 
 pub use sea_orm_migration::prelude::*;
@@ -224,6 +251,9 @@ impl MigratorTrait for Migrator {
             Box::new(domain::product_vocab_check::Migration),
             // 产品每卷米数列探测式下线，晚于代码面摘除读写（先改代码，再收列形态）
             Box::new(domain::product_roll_column_drop::Migration),
+            // 合同条款快照来源指针，链尾独立域，只依赖 contract_template_schema 建的快照表
+            Box::new(domain::contract_clause_snapshot_provenance::Migration),
+            Box::new(domain::print_template_default_slot::Migration),
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),

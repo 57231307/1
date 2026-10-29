@@ -19,16 +19,17 @@ import { logAuxLoadFailure } from '@/utils/logger';
 
 /** 销售分析主业务 composable（返回 reactive 包装的字段，父组件可直接 .字段 解包） */
 export const useSa = () => {
-  // 统计数据
+  // 统计数据（键名与后端 SalesOverviewStats 的蛇形出参逐一对应；两枚金额与比率字段
+  // 初值是空串而不是 0，取数前显示缺值占位，不用 0 冒充"本月成交为零"）
   const stats = reactive({
-    monthOrders: 0,
-    monthAmount: 0,
-    grossProfitRate: 0,
-    activeCustomers: 0,
-    orderTrend: 0,
-    amountTrend: 0,
-    profitTrend: 0,
-    customerTrend: 0,
+    month_orders: 0,
+    month_amount: '',
+    gross_profit_rate: '',
+    active_customers: 0,
+    order_trend: 0,
+    amount_trend: 0,
+    profit_trend: 0,
+    customer_trend: 0,
   });
 
   // 趋势分桶粒度（后端按粒度对 sales_orders 现算分桶；键名与查询词表同为 granularity）

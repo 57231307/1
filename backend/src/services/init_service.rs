@@ -242,6 +242,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "audit-logs",
     "slow-queries",
     "print-templates",
+    // 合同模板体系读写腿（模板主数据与条款项，routes/contract_template.rs 根级挂载）：
+    // URL 段即权威资源名，与 path_utils 直接资源表同词登记；未登记则派生死键、全员 403。
+    // 动作面只消费 read/create/update/delete/approve 五个已派生动作，不扩动作词表也不新增授予。
+    "contract-templates",
     // 打印任务提交/查询、打印目标管理：与 print-templates 同族的根级直接资源，未登记则路由派生键
     // 命中不了任何授权行、对非超管恒 fail-closed 403。
     "print-tasks",

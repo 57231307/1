@@ -46,6 +46,11 @@ pub mod textile_safety;
 // 届时按真实消费面再开，消费方经 status::contract_template 模块名访问。
 pub mod contract_template;
 
+// 合同类型大写词表（SALES/PURCHASE/FRAMEWORK/SUPPLEMENT），两侧 contract_type 列取值的
+// 唯一同源。本模块以短路径 status::contract_type 被消费方直接引用，不做 glob 再导出：
+// 其成员无 status::<CONST> 形态的外部消费者，多余再导出会新增 unused_imports 告警。
+pub mod contract_type;
+
 pub use bpm_crm_contract::*;
 pub use export_inspection::*;
 pub use finance::*;
