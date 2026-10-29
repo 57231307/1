@@ -48,7 +48,10 @@ fn assert_displayable_gate_contract(err: AppError, keywords: &[&str]) {
         "出参 message 不得回退为脱敏常量，实际={msg}"
     );
     for kw in keywords {
-        assert!(msg.contains(kw), "出参 message 应点名业务原因「{kw}」，实际={msg}");
+        assert!(
+            msg.contains(kw),
+            "出参 message 应点名业务原因「{kw}」，实际={msg}"
+        );
     }
 }
 
