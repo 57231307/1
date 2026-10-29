@@ -110,7 +110,12 @@ async fn seed_approval(
 }
 
 /// 零漂移回读。线索仍在 且 该线索名下审批行数与状态原样未动
-async fn assert_untouched(db: &sea_orm::DatabaseConnection, lead_id: i32, expect_rows: u64) {
+async fn assert_untouched(
+    db: &sea_orm::DatabaseConnection,
+    lead_id: i32,
+    expect_rows: u64,
+    expect_status: &str,
+) {
     let lead = crm_lead::Entity::find_by_id(lead_id).one(db).await.unwrap();
     assert!(
         lead.is_some(),
@@ -124,6 +129,16 @@ async fn assert_untouched(db: &sea_orm::DatabaseConnection, lead_id: i32, expect
     assert_eq!(
         kept, expect_rows,
         "拒删路径不得改动审批引用行（lead_id={lead_id}）"
+    );
+    let kept_in_status = customer_transfer_approval::Entity::find()
+        .filter(customer_transfer_approval::Column::LeadId.eq(lead_id))
+        .filter(customer_transfer_approval::Column::ApprovalStatus.eq(expect_status))
+        .count(db)
+        .await
+        .unwrap();
+    assert_eq!(
+        kept_in_status, expect_rows,
+        "拒删路径不得改动审批行状态（lead_id={lead_id}，期望状态 {expect_status}）"
     );
 }
 
@@ -157,7 +172,7 @@ async fn delete_lead_with_pending_approval_rejected_and_rows_untouched() {
     assert_eq!(err.error_code(), "BUSINESS_ERROR");
     assert_eq!(err.to_string(), format!("业务错误：{REFUSED_MSG}"));
 
-    assert_untouched(&db, 30, 1).await;
+    assert_untouched(&db, 30, 1, customer_transfer_approval::STATUS_PENDING).await;
 }
 
 /// 终态审批（approved、rejected、cancelled）同样拒删。审批历史要留痕，
@@ -187,7 +202,7 @@ async fn delete_lead_with_terminal_state_approval_still_rejected() {
         );
         assert_eq!(err.error_code(), "BUSINESS_ERROR");
         assert_eq!(err.to_string(), format!("业务错误：{REFUSED_MSG}"));
-        assert_untouched(&db, lead_id, 1).await;
+        assert_untouched(&db, lead_id, 1, status).await;
     }
 }
 
@@ -239,7 +254,7 @@ async fn delete_lead_is_scoped_by_lead_id_not_whole_table() {
             .is_none(),
         "无直接引用的线索应被真实硬删"
     );
-    assert_untouched(&db, 61, 1).await;
+    assert_untouched(&db, 61, 1, customer_transfer_approval::STATUS_PENDING).await;
 }
 
 // =========================================================
