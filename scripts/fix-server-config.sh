@@ -106,7 +106,7 @@ echo "════════════════════════�
 echo " 4. 等待新二进制部署完成（CI v2026.66.918+ 发布）"
 echo "═══════════════════════════════════════════════════════════════"
 echo "请先确认 GitHub Actions run #775 已完成并发布新版本："
-echo "  https://github.com/57231307/1/actions/runs/27052828219"
+echo "  https://github.com/57231307/bingxi-erp/actions/runs/27052828219"
 echo "确认发布后回车继续（Ctrl+C 取消）"
 read
 

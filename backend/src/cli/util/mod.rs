@@ -26,8 +26,13 @@ use clap::Subcommand;
 /// 服务名称 (systemd service name)
 pub(crate) const SERVICE_NAME: &str = "bingxi";
 
-/// GitHub 仓库
-pub(crate) const GITHUB_REPO: &str = "57231307/1";
+/// GitHub 仓库展示名（面向人的 Releases 页/下载 URL 用；改名后按实名寻址，
+/// 旧 slug 是公开可释放抢注的空位，不许再依赖改名重定向）
+pub(crate) const GITHUB_REPO_SLUG: &str = "57231307/bingxi-erp";
+
+/// GitHub 仓库 API 寻址段（`/repositories/{id}/...` 数字 id 寻址，改名/迁移均不失效；
+/// 与 `services::system_update_service::GITHUB_REPO_API` 同值同口径）
+pub(crate) const GITHUB_REPO_API: &str = "repositories/1144218350";
 
 /// 更新下载 / API 加速镜像清单 = 运维显式环境变量 `UPDATE__MIRRORS`（逗号分隔）
 /// ∪（默认档）内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]，与后端 `config.update.mirrors`
@@ -281,7 +286,7 @@ pub(crate) fn status_icon(ok: bool) -> &'static str {
 pub(crate) fn build_release_url(version: &str) -> String {
     format!(
         "https://github.com/{}/releases/download/{}/release-{}.tar.gz",
-        GITHUB_REPO, version, version
+        GITHUB_REPO_SLUG, version, version
     )
 }
 

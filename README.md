@@ -1,6 +1,6 @@
 # Bingxi Management Platform
 
-[![Build Status](https://github.com/57231307/1/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/1/actions/workflows/ci-cd.yml)
+[![Build Status](https://github.com/57231307/bingxi-erp/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/57231307/bingxi-erp/actions/workflows/ci-cd.yml)
 [![License](https://img.shields.io/badge/license-Proprietary-blue)](<>)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -352,7 +352,7 @@ Bingxi Management Platform 是一套面向**纺织（面料/染整）行业**的
 ### 2. 克隆项目
 
 ```bash
-git clone https://github.com/57231307/1.git
+git clone https://github.com/57231307/bingxi-erp.git
 cd 1
 ```
 
@@ -626,8 +626,8 @@ cargo bench --features bench
 
 感谢所有为 Bingxi Management Platform 做出贡献的开发者！
 
-<a href="https://github.com/57231307/1/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=57231307/1" />
+<a href="https://github.com/57231307/bingxi-erp/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=57231307/bingxi-erp" />
 </a>
 
 ---
@@ -676,5 +676,5 @@ Copyright © 2026 成都秉羲布艺商行. 保留所有权利。
 
 ## 联系我们
 
-- **GitHub Issues**：[https://github.com/57231307/1/issues](https://github.com/57231307/1/issues)
-- **GitHub Discussions**：[https://github.com/57231307/1/discussions](https://github.com/57231307/1/discussions)
+- **GitHub Issues**：[https://github.com/57231307/bingxi-erp/issues](https://github.com/57231307/bingxi-erp/issues)
+- **GitHub Discussions**：[https://github.com/57231307/bingxi-erp/discussions](https://github.com/57231307/bingxi-erp/discussions)

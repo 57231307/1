@@ -370,7 +370,7 @@ if !yes {
 
 2. **版本获取**（自动从 GitHub Release 最新）：
    - `upgrade.rs:38-39`：`get_latest_version()` 调用 `fetch_with_mirrors`
-   - `upgrade.rs:168-176`：`get_latest_version` 函数，请求 `repos/57231307/1/releases/latest`
+   - `upgrade.rs:168-176`：`get_latest_version` 函数，请求 `repos/57231307/bingxi-erp/releases/latest`
    - `upgrade.rs:172`：解析 `tag_name` 字段
 
 3. **版本指定**（`--version`）：

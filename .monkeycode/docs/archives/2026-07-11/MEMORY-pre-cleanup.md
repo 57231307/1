@@ -211,7 +211,7 @@
 2. **建分支**：`git checkout -b fix/batchNNN-描述`（从最新 main 拉取）
 3. **实现**：修改代码，遵循编码规范（中文注释、无硬编码、无死代码）
 4. **提交**：`git commit`（heredoc 格式中文 commit message）+ `git push origin 分支`
-5. **创建 PR**：GitHub API `POST /repos/57231307/1/pulls`（head: 修复分支, base: main）
+5. **创建 PR**：GitHub API `POST /repos/57231307/bingxi-erp/pulls`（head: 修复分支, base: main）
 6. **监控 CI**：`GET /commits/{sha}/check-runs`，等待 15 项全绿（13 success + 2 skipped 为正常）
    - 失败时：拉取 annotations → 修复 → 重新 push → 继续监控
 7. **合并**：CI 全绿后 `PUT /pulls/{num}/merge`（squash 方式）

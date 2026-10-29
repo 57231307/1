@@ -40,7 +40,7 @@ else
     echo "错误：请设置 BINGXI_SSH_KEY（推荐，SSH 密钥认证）或 BINGXI_SSH_PASS（密码，过渡回退）环境变量" >&2
     exit 1
 fi
-REPO="57231307/1"
+REPO="57231307/bingxi-erp"
 
 # 加速地址
 MIRRORS=(

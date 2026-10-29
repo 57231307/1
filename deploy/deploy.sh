@@ -731,7 +731,7 @@ case "$1" in
         UPDATE_PACKAGE="/tmp/bingxi-erp-update.tar.gz"
         
         # 获取最新版本号
-        VERSION_URL="https://api.github.com/repos/57231307/1/releases/latest"
+        VERSION_URL="https://api.github.com/repos/57231307/bingxi-erp/releases/latest"
         VERSION_MIRRORS=(
             "https://ghp.ci/"
             "https://gh-proxy.com/"
@@ -755,7 +755,7 @@ case "$1" in
         if [ "$version_success" != true ]; then
             echo "无法获取最新版本信息"
             echo "请手动更新："
-            echo "  1. 从 https://github.com/57231307/1/releases 下载最新发布包"
+            echo "  1. 从 https://github.com/57231307/bingxi-erp/releases 下载最新发布包"
             echo "  2. 上传到服务器 /tmp/bingxi-erp-update.tar.gz"
             echo "  3. 再次运行 bingxi update"
             exit 1
@@ -786,7 +786,7 @@ case "$1" in
         fi
         
         # 下载发布包
-        DOWNLOAD_URL="https://github.com/57231307/1/releases/download/${TAG_NAME}/release-${TAG_NAME#v}.tar.gz"
+        DOWNLOAD_URL="https://github.com/57231307/bingxi-erp/releases/download/${TAG_NAME}/release-${TAG_NAME#v}.tar.gz"
         DOWNLOAD_MIRRORS=(
             "https://ghp.ci/"
             "https://gh-proxy.com/"
@@ -821,7 +821,7 @@ case "$1" in
         else
             echo "更新包下载失败"
             echo "请手动更新："
-            echo "  1. 从 https://github.com/57231307/1/releases 下载最新发布包"
+            echo "  1. 从 https://github.com/57231307/bingxi-erp/releases 下载最新发布包"
             echo "  2. 上传到服务器 /tmp/bingxi-erp-update.tar.gz"
             echo "  3. 再次运行 bingxi update"
             exit 1

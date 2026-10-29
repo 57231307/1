@@ -30,7 +30,7 @@ Bingxi Management Platform 是一个面向面料纺织行业的现代化企业�
 
 ```bash
 # 克隆仓库
-git clone https://github.com/57231307/1.git
+git clone https://github.com/57231307/bingxi-erp.git
 cd 1
 
 # 后端依赖安装

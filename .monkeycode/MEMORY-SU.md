@@ -139,7 +139,7 @@
      - 发现问题立即修正，修正后重新自审
      - 自审通过才能进入步骤 5 提交
 5. **提交**：`git commit`（heredoc 格式中文 commit message）+ `git push origin 分支`
-6. **创建 PR**：GitHub API `POST /repos/57231307/1/pulls`（head: 修复分支, base: main）
+6. **创建 PR**：GitHub API `POST /repos/57231307/bingxi-erp/pulls`（head: 修复分支, base: main）
 7. **监控 CI**：`GET /commits/{sha}/check-runs`，等待 15 项全绿（13 success + 2 skipped 为正常）
    - 失败时：拉取 annotations → 修复 → 重新 push → 继续监控
 8. **合并**：CI 全绿后 `PUT /pulls/{num}/merge`（squash 方式）

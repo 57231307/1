@@ -44,7 +44,7 @@
 
 如遇违反行为准则的情况，请通过以下方式举报：
 
-- **GitHub Issue**：[https://github.com/57231307/1/issues](https://github.com/57231307/1/issues)
+- **GitHub Issue**：[https://github.com/57231307/bingxi-erp/issues](https://github.com/57231307/bingxi-erp/issues)
 - **邮箱**：conduct@bingxi-erp.example.com
 
 ---
@@ -60,7 +60,7 @@ git clone https://github.com/YOUR_USERNAME/1.git
 cd 1
 
 # 添加 upstream 远程
-git remote add upstream https://github.com/57231307/1.git
+git remote add upstream https://github.com/57231307/bingxi-erp.git
 
 # 验证远程
 git remote -v
@@ -830,11 +830,11 @@ MAJOR.MINOR.PATCH
 
 ### GitHub
 
-- **Issues**：[https://github.com/57231307/1/issues](https://github.com/57231307/1/issues)
+- **Issues**：[https://github.com/57231307/bingxi-erp/issues](https://github.com/57231307/bingxi-erp/issues)
   - Bug 报告
   - 功能请求
   - 安全漏洞（私密）
-- **Discussions**：[https://github.com/57231307/1/discussions](https://github.com/57231307/1/discussions)
+- **Discussions**：[https://github.com/57231307/bingxi-erp/discussions](https://github.com/57231307/bingxi-erp/discussions)
   - 一般讨论
   - 问题求助
   - 想法分享
@@ -865,7 +865,7 @@ MAJOR.MINOR.PATCH
 - 🌐 国际化翻译
 - 💡 功能建议
 
-查看 [good first issue](https://github.com/57231307/1/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) 标签。
+查看 [good first issue](https://github.com/57231307/bingxi-erp/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) 标签。
 
 ### Q: PR 创建后多久会被 Review？
 

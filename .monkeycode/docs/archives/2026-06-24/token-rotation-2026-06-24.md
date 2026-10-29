@@ -4,7 +4,7 @@
 
 发现 GitHub Token（`ghu_` 前缀）明文存储在本地 `.git/config`：
 ```
-origin  https://x-access-token:<REDACTED>@github.com/57231307/1
+origin  https://x-access-token:<REDACTED>@github.com/57231307/bingxi-erp
 ```
 
 > **本指南不含真实 Token**：如需查看具体 Token 字符串，请直接查看本地 `.git/config`。
@@ -15,7 +15,7 @@ origin  https://x-access-token:<REDACTED>@github.com/57231307/1
 |---|---|
 | 认证用户 | 57231307 (id: 59329781) |
 | 仓库权限 | **admin**（全部仓库） |
-| 影响仓库 | 57231307/1, 57231307/2 |
+| 影响仓库 | 57231307/bingxi-erp, 57231307/2 |
 | Token 类型 | Personal Access Token (PAT) |
 | 风险等级 | 🔴 **高危**：admin 权限意味着可推送任意代码、修改 release、删除 PR |
 
@@ -53,7 +53,7 @@ export GITHUB_TOKEN="ghu_NEW_TOKEN_HERE"
 
 git remote URL 改为读取环境变量：
 ```bash
-git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/57231307/1.git"
+git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/57231307/bingxi-erp.git"
 ```
 
 ## 🔄 替代认证方式（更安全）
@@ -69,7 +69,7 @@ git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/572
 
 3. 修改 remote URL：
    ```bash
-   git remote set-url origin git@github.com:57231307/1.git
+   git remote set-url origin git@github.com:57231307/bingxi-erp.git
    ```
 
 4. 验证：
@@ -101,12 +101,12 @@ gh auth status
    cp .git/config .git/config.bak
 
    # 移除 .git/config 中的 token
-   git remote set-url origin https://github.com/57231307/1.git
+   git remote set-url origin https://github.com/57231307/bingxi-erp.git
 
    # 切换到新认证方式（SSH 或 新 token）
-   git remote set-url origin git@github.com:57231307/1.git
+   git remote set-url origin git@github.com:57231307/bingxi-erp.git
    # 或
-   git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/57231307/1.git
+   git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/57231307/bingxi-erp.git
 
    # 验证
    git fetch origin

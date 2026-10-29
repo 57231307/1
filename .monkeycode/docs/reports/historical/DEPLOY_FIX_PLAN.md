@@ -142,14 +142,14 @@ MIRRORS=(
 
 ```bash
 # 获取最新 Release 信息
-API_URL="https://api.github.com/repos/57231307/1/releases/latest"
+API_URL="https://api.github.com/repos/57231307/bingxi-erp/releases/latest"
 ```
 
 ### 3.2 下载加速
 
 ```bash
 # 原始下载地址
-DOWNLOAD_URL="https://github.com/57231307/1/releases/download/vX.X.X/bingxi-erp-X.X.X.zip"
+DOWNLOAD_URL="https://github.com/57231307/bingxi-erp/releases/download/vX.X.X/bingxi-erp-X.X.X.zip"
 
 # 镜像地址
 MIRRORS=(
@@ -172,7 +172,7 @@ done
 
 ```bash
 # CLI update 命令使用加速地址下载 install.sh
-UPDATE_URL="https://ghp.ci/https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+UPDATE_URL="https://ghp.ci/https://raw.githubusercontent.com/57231307/bingxi-erp/main/快速部署/install.sh"
 curl -fsSL --http1.1 --ipv4 --retry 3 "$UPDATE_URL" | sudo bash -s update
 ```
 
@@ -465,7 +465,7 @@ case "$1" in
     6|update)
         echo "开始更新..."
         UPDATE_SCRIPT="/tmp/bingxi-update.sh"
-        UPDATE_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        UPDATE_URL="https://raw.githubusercontent.com/57231307/bingxi-erp/main/快速部署/install.sh"
         if download_with_mirror "$UPDATE_URL" "$UPDATE_SCRIPT"; then
             sudo bash "$UPDATE_SCRIPT" update
             rm -f "$UPDATE_SCRIPT"

@@ -4,7 +4,9 @@
 //! - 公共类型定义（`LocalRelease` / `LocalUpdateCheckResult` / `GitHubRelease` /
 //!   `GitHubAsset` / `UpdateCheckResult` / `UpdateStatus` / `UpdateError`）
 //! - `SystemUpdateService` struct 定义 + `new` 构造器 + `Default` 实现
-//! - 常量 `GITHUB_REPO` / `GITHUB_API_URL`（`pub(crate)`，供 ops 子模块访问）
+//! - 常量 `GITHUB_REPO_API` / `GITHUB_API_URL`（`pub(crate)`，供 ops 子模块访问；
+//!   API 走 `/repositories/{id}/...` 数字 id 寻址，公开仓库旧 slug 可被释放抢注，
+//!   改名重定向不可依赖）
 //! - 纯函数：`parse_version` / `extract_zip_entry` / `set_safe_permissions` /
 //!   `validate_download_url` / `validate_asset_name`（`pub(crate)` 供 ops 子模块调用）
 //! - 单元测试模块
@@ -28,7 +30,7 @@ use std::sync::Arc;
 use thiserror::Error;
 
 // GitHub 仓库与 API 地址（pub(crate) 供 github 子模块 `fetch_latest_release` 访问）
-pub(crate) const GITHUB_REPO: &str = "57231307/1";
+pub(crate) const GITHUB_REPO_API: &str = "repositories/1144218350";
 pub(crate) const GITHUB_API_URL: &str = "https://api.github.com";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

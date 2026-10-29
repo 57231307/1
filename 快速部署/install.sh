@@ -4,7 +4,7 @@
 
 set -e
 
-REPO="57231307/1"
+REPO="57231307/bingxi-erp"
 DEPLOY_DIR="/opt/bingxi-erp"
 BACKEND_DIR="$DEPLOY_DIR/backend"
 FRONTEND_DIR="/opt/bingxi-erp/frontend/dist"
@@ -179,7 +179,7 @@ case "$1" in
     6|update)
         echo "开始更新..."
         UPDATE_SCRIPT="/tmp/bingxi-update.sh"
-        UPDATE_URL="https://raw.githubusercontent.com/57231307/1/main/快速部署/install.sh"
+        UPDATE_URL="https://raw.githubusercontent.com/57231307/bingxi-erp/main/快速部署/install.sh"
         if download_with_mirror "$UPDATE_URL" "$UPDATE_SCRIPT"; then
             sudo bash "$UPDATE_SCRIPT" update
             rm -f "$UPDATE_SCRIPT"

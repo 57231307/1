@@ -35,10 +35,10 @@ export DB_PASSWORD="your_db_password"
 #### 1. 下载发布包
 ```bash
 # 获取最新版本
-VERSION=$(curl -s https://api.github.com/repos/57231307/1/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+VERSION=$(curl -s https://api.github.com/repos/57231307/bingxi-erp/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
 
 # 下载（使用加速镜像）
-wget https://ghproxy.net/https://github.com/57231307/1/releases/download/${VERSION}/release-${VERSION}.tar.gz -O /tmp/release.tar.gz
+wget https://ghproxy.net/https://github.com/57231307/bingxi-erp/releases/download/${VERSION}/release-${VERSION}.tar.gz -O /tmp/release.tar.gz
 ```
 
 #### 2. 上传到服务器
@@ -232,5 +232,5 @@ bingxi upgrade
 
 ## 📞 技术支持
 
-- 项目地址：https://github.com/57231307/1
-- 问题反馈：https://github.com/57231307/1/issues
+- 项目地址：https://github.com/57231307/bingxi-erp
+- 问题反馈：https://github.com/57231307/bingxi-erp/issues

@@ -176,8 +176,10 @@ fn validate_official_digest_url_rejects_non_official_https_hosts() {
 #[test]
 fn validate_download_url_official_https_ok_in_default_config() {
     assert!(
-        validate_download_url("https://github.com/57231307/1/releases/download/v1.0.0/pkg.tar.gz")
-            .is_ok(),
+        validate_download_url(
+            "https://github.com/57231307/bingxi-erp/releases/download/v1.0.0/pkg.tar.gz"
+        )
+        .is_ok(),
         "官方 github.com https 下载应放行（默认配置）"
     );
     assert!(
