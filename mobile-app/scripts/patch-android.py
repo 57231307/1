@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""在 cargo tauri android init 生成的工程上注入权限与打印插件。
+"""在 cargo tauri android init 生成的工程上注入权限、打印插件与启动图标。
 
 调用方 .github/workflows/android.yml 的 注入安卓权限与打印插件 步。
 入参 无参数，工作目录为 mobile-app。
 做什么 1) 向 AndroidManifest.xml 补齐联网/相机/经典蓝牙/文件读写权限与可选用硬件声明
       2) 把 android/BluetoothPrintPlugin.kt 与 android/SystemPrintPlugin.kt 复制进
          生成工程的 com.bingxi.erp 包目录
-      3) 逐项断言注入结果，模板变化时判红而不是静默跳过。
+      3) 把 生成应用图标 步产出的 src-tauri/icons/android 五档 mipmap 复制进生成工程的
+         res 目录，覆盖模板默认图标；图标源缺失或清单图标锚点漂移即判红，不静默跳过
+      4) 逐项断言注入结果，模板变化时判红而不是静默跳过。
 存哪里 只改 CI 现场生成的 src-tauri/gen/android，不改版本库里的模板。
 """
 
+import hashlib
 import re
 import shutil
 import sys
@@ -18,6 +21,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "src-tauri/gen/android/app/src/main/AndroidManifest.xml"
 PACKAGE_DIR = ROOT / "src-tauri/gen/android/app/src/main/java/com/bingxi/erp"
+ICON_SOURCE_DIR = ROOT / "src-tauri/icons/android"
+RES_DIR = ROOT / "src-tauri/gen/android/app/src/main/res"
+
+# 五档密度三件套，与 cargo tauri icon 的安卓输出同名同目，缺一即断链判红。
+ICON_DENSITIES = ["mipmap-hdpi", "mipmap-mdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]
+ICON_FILES = ["ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"]
 
 # 源文件, 文件名, 必含的类定义, 必含的命令，缺任一项说明模板与壳侧代码已脱节。
 PLUGINS = [
@@ -159,9 +168,48 @@ def copy_plugins() -> None:
         print(f"打印插件已复制到 {destination}")
 
 
+def inject_icons() -> None:
+    if not RES_DIR.is_dir():
+        fail(f"生成的工程缺 res 目录：{RES_DIR}，cargo tauri android init 是否成功")
+    text = MANIFEST.read_text(encoding="utf-8")
+    if 'android:icon="@mipmap/ic_launcher"' not in text:
+        fail(
+            "AndroidManifest.xml 的 android:icon 不再是 @mipmap/ic_launcher，"
+            "Tauri 模板图标锚点已变，需人工校准注入目标"
+        )
+    if not ICON_SOURCE_DIR.is_dir():
+        fail(
+            f"缺图标生成产物目录 {ICON_SOURCE_DIR}，"
+            "生成应用图标步未运行、未先于本步、或输出目录不是 src-tauri/icons"
+        )
+    digest_for_log = ""
+    for density in ICON_DENSITIES:
+        source_dir = ICON_SOURCE_DIR / density
+        target_dir = RES_DIR / density
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for file_name in ICON_FILES:
+            source_path = source_dir / file_name
+            if not source_path.is_file():
+                fail(
+                    f"缺图标产物 {source_path}，生成应用图标步产物不完整，"
+                    "该步必须运行 cargo tauri icon app-icon.png -o src-tauri/icons 且先于构建"
+                )
+            target_path = target_dir / file_name
+            shutil.copyfile(source_path, target_path)
+            source_bytes = source_path.read_bytes()
+            target_bytes = target_path.read_bytes()
+            if source_bytes != target_bytes:
+                fail(f"图标复制后字节不一致：{target_path}")
+            if density == "mipmap-xxxhdpi" and file_name == "ic_launcher.png":
+                digest_for_log = hashlib.sha256(target_bytes).hexdigest()
+    print(f"五档 mipmap 共 {len(ICON_DENSITIES) * len(ICON_FILES)} 枚图标已注入生成工程，模板默认图已被覆盖")
+    print(f"xxxhdpi ic_launcher.png sha256 {digest_for_log}")
+
+
 def main() -> None:
     patch_manifest()
     copy_plugins()
+    inject_icons()
 
 
 if __name__ == "__main__":
