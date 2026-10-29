@@ -653,8 +653,10 @@ impl SalesAnalysisService {
     /// 正常用户路径不触发该拒绝。dimension_name 列只保留 create 侧写入的起止日期语义，
     /// PUT 两处不再挪用该列存备注。
     /// 查找定行口径：PUT 端点只以周期键定位，无维度入参，故本腿只认总体目标行
-    /// （statistic_type=target 且 dimension_type=overall 且 dimension_id 为空），
-    /// 与新建分支写入的维度口径一致；维度目标行不可经本端点寻址，也不被静默代改。
+    /// （statistic_type=target 且 dimension_type=overall 且 dimension_id 为空）。
+    /// 新建腿落库的行 dimension_id 恒非空（其 target_id 为必填入参），与本腿查询不相交：
+    /// 维度目标行与经新建腿落库的总体行都不可经本端点寻址，也不被静默代改。
+    /// 本腿 0 行分支新建的总体行只写周期、类型两键与目标额，存同一目标表。
     /// 命中基数显式判定：0 行走新建（沿用 upsert 语义）；1 行走更新；
     /// 多于 1 行返回可展示业务错误并点名周期与行数，不再依赖单行查询的驱动层异常。
     pub async fn update_target(
