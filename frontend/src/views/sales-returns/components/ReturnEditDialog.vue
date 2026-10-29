@@ -479,7 +479,8 @@ const validateCells = (): boolean => {
  * 派生只读列的显示腿（不含税单价）。
  * 入参，row 是本表一行；含税原文有效时按本行税率除法反算（money.ts 的 netFromInclusive，
  * 与后端 utils/tax.rs 同源），实时反映未提交的编辑；含税留空时回落行上既有派生值
- * （带出与回显放上的后端权威数）。出参是两位小数文本，无值显示占位符而不是 0。
+ * （带出与回显放上的后端权威数）。回落腿用严格有限性判定：显式录入的 0（赠品行）
+ * 必须显形 0.00，只有无值（undefined、null、NaN）才显示占位符，不用真值判把"录 0"看成"没值"。
  * 传给谁：不含税单价列模板。本函数只算展示，提交面仍以父级 calculateTotal 收敛后的
  * 行模型为准，两处调同一枚 money.ts 原语，不存在第二套公式。
  */
@@ -496,14 +497,15 @@ const displayNetPrice = (row: ReturnFormItem): string => {
   ) {
     return formatDecimalAmount(netFromInclusive(inc, rate));
   }
-  return row.unitPrice ? formatDecimalAmount(row.unitPrice) : '--';
+  return Number.isFinite(row.unitPrice) ? formatDecimalAmount(row.unitPrice) : '--';
 };
 
 /**
  * 派生只读列的显示腿（行成交含税额）。
  * 入参，row 是本表一行；含税原文有效时按「含税聚合金额在含税侧减行折扣」现算
  * （money.ts 的 dealInclusiveFromLine，与后端 line_split 的 deal_inclusive 同口径），
- * 含税留空时回落行上 amount（带出与回显放上的后端 total_amount）。
+ * 含税留空时回落行上 amount（带出与回显放上的后端 total_amount）。回落腿与净额列同为
+ * 严格有限性判定，0 价行显形 0.00，无值才显示占位符。
  * 传给谁：行金额列模板。绝不写 数量 乘 不含税单价 的第二套合计。
  */
 const displayAmount = (row: ReturnFormItem): string => {
@@ -519,7 +521,7 @@ const displayAmount = (row: ReturnFormItem): string => {
   ) {
     return formatDecimalAmount(dealInclusiveFromLine(inc, row.quantity, row.discountPercent));
   }
-  return row.amount ? formatDecimalAmount(row.amount) : '--';
+  return Number.isFinite(row.amount) ? formatDecimalAmount(row.amount) : '--';
 };
 
 const onSubmit = async () => {
