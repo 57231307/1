@@ -201,11 +201,6 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   // ===== quality 域 =====
   { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },
   { id: 'quality-standards', route: '/quality-standards', domain: 'quality', tier: 'A', listApi: '/quality-standards' },
-  // 纺织品安全合规域两页登记（真遍历腿：42d 的 quality 组按本两条 visit+白屏判据，
-  // listApi 由探针 strict 真探；写侧业务链由显式 spec e2e/flow/121-textile-safety-judgement-chain-readback.spec.ts 承担，
-  // 两页渲染与新建入口断言亦在该 spec，与本登记互不替代）。
-  { id: 'textile-safety', route: '/textile-safety', domain: 'quality', tier: 'B', listApi: '/textile-submissions' },
-  { id: 'textile-safety-master', route: '/textile-safety-master', domain: 'quality', tier: 'B', listApi: '/textile-test-items' },
 
   // ===== bpm 域 =====
   { id: 'bpm', route: '/bpm', domain: 'bpm', tier: 'C', noCreate: true },

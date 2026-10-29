@@ -16,8 +16,6 @@
     "/sales-analysis",
     "/sales-contract",
     "/sales-price",
-    "/sales-returns",
-    "/textile-safety",
-    "/textile-safety-master"
+    "/sales-returns"
   ]
 }
