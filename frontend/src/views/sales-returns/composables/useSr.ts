@@ -525,6 +525,12 @@ export function useSr() {
       return false;
     }
 
+    // 提交前逐行兜底重算派生列（对齐采购入库腿 usePrcProc 的做法）：含税与税率录入框
+    // 绑的是控件事件（change 在失焦时才写回），直接点提交按钮的行不能依赖事件时序，
+    // 否则显示腿按当前原文现算而提交腿用旧派生值，送后端撞单价钩稽门 400。
+    // applyDerivedRowPrices 幂等且只走 money.ts 除法单源，重复调用不改变收敛值。
+    formData.items.forEach(item => applyDerivedRowPrices(item));
+
     // 行有效性点名拦截（含税口径）：含税原文一旦有值就必须可解析且税率同行——
     // 否则前端算不出与后端钩稽一致的不含税派生值，送上去必然 400；
     // 无关联订单的行含税单价是唯一录入事实，缺它没有任何可还原的来源，直接拒。
