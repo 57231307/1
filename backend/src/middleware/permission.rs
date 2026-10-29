@@ -266,7 +266,9 @@ const PATH_ACTION_SEGMENT_MAP: &[(&str, &str)] = &[
 /// `extract_resource_info` 扫描记录 ID 时跳过动作段（动作段不是 ID 也不是资源）。
 fn is_path_action_segment(segment: &str) -> bool {
     PATH_ACTION_KEYWORDS.contains(&segment)
-        || PATH_ACTION_SEGMENT_MAP.iter().any(|(seg, _)| *seg == segment)
+        || PATH_ACTION_SEGMENT_MAP
+            .iter()
+            .any(|(seg, _)| *seg == segment)
 }
 
 /// 从路径末段提取动作码：先查 `PATH_ACTION_SEGMENT_MAP`（连字符末段映射为
