@@ -534,7 +534,7 @@ async fn clause_input_gates_name_every_violation() {
     .expect("播种条款库探针行失败");
     let lib_id = {
         use bingxi_backend::models::clause_library as lib;
-        use sea_orm::{ColumnTrait as _, EntityTrait as _};
+        use sea_orm::{ColumnTrait as _, EntityTrait as _, QueryFilter as _};
         let row = lib::Entity::find()
             .filter(lib::Column::ClauseCode.eq("payment_and_invoice"))
             .one(&db)
@@ -664,7 +664,7 @@ async fn header_tristate_and_vocab_filters() {
             a,
             UpdateTemplateHeaderRequest {
                 title: Some(Some("改过的标题".to_string())),
-                effective_from: Some(Some(chrono::NaiveDate::from_ymd_opt(2026, 12, 1))),
+                effective_from: Some(chrono::NaiveDate::from_ymd_opt(2026, 12, 1)),
                 remark: Some(None),
             },
             9101,
