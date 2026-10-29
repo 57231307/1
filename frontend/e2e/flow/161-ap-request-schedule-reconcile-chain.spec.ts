@@ -39,8 +39,9 @@
  * （本 worker 会话为 admin，十万以下放行）。
  * 付款计划（ap_payment_service.rs 的 get_payment_schedule）：只取 approval_status 为 APPROVED
  * 且 expected_payment_date 在起止闭区间内的申请，按日期升序分桶，输出 payment_date、
- * total_amount、payment_count 三键；start_date 与 end_date 是非 Option 入参，缺参死在
- * axum Query 抽取层，本仓未覆盖该 Rejection，出参是 400 纯文本、不带统一信封的机器码。
+ * total_amount、payment_count 三键；start_date 与 end_date 是非 Option 的 NaiveDate 入参，
+ * 缺参死在 axum Query 抽取层后由 middleware/trace_context.rs 的 normalize_extractor_rejection
+ * 收口为统一信封：400 配 code=VALIDATION_ERROR 与固定公开规则文案（serde 原文只进日志）。
  * 对账单生成（ap_reconciliation_ops/crud.rs 的 generate_reconciliation）：本期应付取
  * invoice_date 在区间内且状态不在 CANCELLED 与 DRAFT 内的应付单合计，本期付款取
  * payment_date 在区间内且状态 CONFIRMED 的付款单合计，期初取区间起之前同排除口径的未付合计，
@@ -482,7 +483,7 @@ test.describe.serial('161 付款申请链路 对账汇总与发票关联契约�
     expect(noItemsGone.status, '清理后无明细申请应 404').toBe(404);
   });
 
-  test('161-03 付款计划只取已审批且期望付款日落闭区间，缺起止参数走抽取器纯文本拒绝', async ({
+  test('161-03 付款计划只取已审批且期望付款日落闭区间，缺起止参数走抽取器拒绝收口为 VALIDATION_ERROR 信封', async ({
     page,
   }) => {
     const tag = genCode('E161C');
@@ -553,22 +554,30 @@ test.describe.serial('161 付款申请链路 对账汇总与发票关联契约�
     expect(leftEdge.length, '左端点等值必须命中').toBe(1);
     eqAmount(leftEdge[0].total_amount, cents('1200.00'), '左端点命中桶金额');
 
-    // 缺 start_date 与 end_date：非 Option 入参死在 Query 抽取层，400 且无统一信封机器码
+    // 缺 start_date 与 end_date：非 Option 入参死在 Query 抽取层，被收口为统一信封
     const missingRange = await apiCallExpectFail(page, 'GET', '/ap/payments/schedule');
     expect(missingRange.status, `缺起止参数应 400，实际 ${JSON.stringify(missingRange)}`).toBe(400);
     expect(
       failureCode(missingRange),
-      `缺参拒绝不得伪装成 AppError 机器码，实际 ${JSON.stringify(missingRange)}`
-    ).toBeUndefined();
+      `缺参拒绝机器码应为 VALIDATION_ERROR，实际 ${JSON.stringify(missingRange)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      missingRange.message,
+      `缺参拒绝文案应为固定公开规则串，实际 ${JSON.stringify(missingRange.message)}`
+    ).toBe(
+      '请求格式不正确：请求体或查询参数存在缺失的必填字段、字段类型错误或内容类型错误，请修正后重试'
+    );
 
-    // 只给一个端点同样被抽取层拒（两个日期入参都是必填）
+    // 只给一个端点同样被抽取层拒（两个日期入参都是必填），拒绝形态与全缺同信封
     const halfRange = await apiCallExpectFail(
       page,
       'GET',
       `/ap/payments/schedule?supplier_id=${supplierId}&start_date=${expectedDate}`
     );
     expect(halfRange.status, `缺区间止应 400，实际 ${JSON.stringify(halfRange)}`).toBe(400);
-    expect(failureCode(halfRange), '缺区间止不落 AppError 信封').toBeUndefined();
+    expect(failureCode(halfRange), '缺区间止机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
 
     // 已审批申请在 HTTP 面上没有删除通道（删除门只放行草稿与被拒），本用例如实不清理
     const deleteBlocked = await apiCallExpectFail(
@@ -933,6 +942,9 @@ test.describe.serial('161 付款申请链路 对账汇总与发票关联契约�
       `/ap/invoices/${invoiceId}/relations`
     );
     expect(relationsFinal.length, '被拒付款单不得进关联集合').toBe(1);
+    // 残留口径：付款单族在 backend/src/routes/finance.rs 只注册查询、创建、更新与 confirm，
+    // 没有删除通道；已确认付款单与结清（PAID）票均留在库，本用例如实不清理，
+    // 关联与账龄出口按专属供应商过滤，唯一 tag 保证不与其它用例互污
   });
 
   test('161-07 核销列表分页四键与钳位与三类过滤在无核销数据时都是空集而非补零行', async ({
@@ -981,13 +993,15 @@ test.describe.serial('161 付款申请链路 对账汇总与发票关联契约�
     );
     expect(ranged.total, '日期区间过滤在无数据时必须空集').toBe(0);
 
-    // 非法日期同样死在 Query 抽取层：400 纯文本、不经过统一失败信封
+    // 非法日期串即使字段是 Option<NaiveDate> 也在抽取层反序列化失败，收口为统一信封
     const badDate = await apiCallExpectFail(
       page,
       'GET',
       `/ap/verifications?supplier_id=${supplierId}&start_date=2001-13-01`
     );
     expect(badDate.status, `非法核销起始日应 400，实际 ${JSON.stringify(badDate)}`).toBe(400);
-    expect(failureCode(badDate), '非法日期不落 AppError 信封').toBeUndefined();
+    expect(failureCode(badDate), '非法核销起始日机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
   });
 });

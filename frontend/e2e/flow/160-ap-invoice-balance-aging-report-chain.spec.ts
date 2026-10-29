@@ -49,10 +49,13 @@
  *
  * 入参拒绝形态（按代码事实钉，不按直觉）。报表口的日期入参在
  * backend/src/handlers/ap_report_handler.rs 与 ap_payment_handler.rs 的查询结构体里是
- * 非 Option 类型，缺参或日期串解析失败发生在 axum Query 抽取器的反序列化层，本仓未覆盖该
- * Rejection，出参是 HTTP 400 的纯文本、不经过 AppError 信封，因此断言钉「400 且失败体取不到
- * 字符串机器码」，不虚构 VALIDATION_ERROR；能进入 handler 的非法月份（month 取 13）才走
- * service 的 bad_request 通道，出参是 400 配 BAD_REQUEST 与文案「无效的日期参数」。
+ * 非 Option 的 NaiveDate 类型，缺参或日期串解析失败发生在 axum Query 抽取器的反序列化层，
+ * 该纯文本拒绝由 middleware/trace_context.rs 的 normalize_extractor_rejection 收口为
+ * 统一失败信封：HTTP 400 配 code=VALIDATION_ERROR，文案恒为 backend/src/utils/error.rs
+ * 的公开规则常量 REQUEST_DECODING_PUBLIC（serde 原文只进服务端日志不外显）；因此断言钉
+ * 「400 且机器码 VALIDATION_ERROR 且文案逐字为该公开规则串」。能进 handler 的非法月份
+ * （month 取 13）走 service 的 bad_request 通道，出参是 400 配 BAD_REQUEST，文案是
+ * backend/src/utils/messages.rs 的脱敏常量「请求参数错误」而非 service 原文。
  * 同族说明见 backend/src/handlers/purchase_receipt_handler.rs 的日期解析函数注释。
  *
  * 假绿防线。每个用例先为本 worker 另建专属供应商再在其名下造数，使按 supplier_id 过滤的
@@ -485,6 +488,8 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     expect(String(unchanged.approved_at), '重复审核后审批时间不被覆盖').toBe(
       String(approvedA.approved_at)
     );
+    // 残留口径：删除门只放行 DRAFT（backend/src/services/ap_invoice_ops/crud.rs），
+    // AUDITED 夹具票在 HTTP 面上无删除通道，本用例如实不清理，靠专属供应商与唯一 tag 隔离
   });
 
   test('160-03 报表账龄恒六桶并按序补零，占比算法与基准日迁移和单口账龄互证', async ({ page }) => {
@@ -595,9 +600,11 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     expect(requireCount(shiftedNotDue.invoice_count, '迁移后未到期桶张数')).toBe(1);
     eqAmount(shiftedNotDue.total_amount, cents('1000.00'), '迁移后未到期桶金额');
     eqAmount(shifted.total_unpaid_amount, cents('4000.00'), '基准日不改未付合计');
+    // 残留口径：AUDITED 夹具票无删除通道（删除门只放行 DRAFT），本用例如实不清理，
+    // 聚合出口按专属供应商过滤，唯一 tag 保证不与其它用例互污
   });
 
-  test('160-04 应付日报按 invoice_date 与 due_date 精确命中，缺参与非法日期走抽取器纯文本拒绝', async ({
+  test('160-04 应付日报按 invoice_date 与 due_date 精确命中，缺参与非法日期走抽取器拒绝收口为 VALIDATION_ERROR 信封', async ({
     page,
   }) => {
     const tag = genCode('E160D');
@@ -660,24 +667,38 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     eqAmount(dailyPrev.new_invoice_amount, cents('0.00'), '前一日的新增金额');
 
     // 缺 report_date：非 Option 的日期字段在 Query 抽取层反序列化失败，
-    // 本仓未覆盖该 Rejection，出参是 400 纯文本、取不到统一信封的字符串机器码
+    // 拒绝体已被 trace_context 收口为统一信封：400 + VALIDATION_ERROR + 固定公开规则文案
     const missingDate = await apiCallExpectFail(page, 'GET', '/ap/reports/daily');
     expect(missingDate.status, `缺 report_date 应 400，实际 ${JSON.stringify(missingDate)}`).toBe(
       400
     );
     expect(
       failureCode(missingDate),
-      `缺参拒绝不得伪装成 AppError 机器码，实际 ${JSON.stringify(missingDate)}`
-    ).toBeUndefined();
+      `缺参拒绝机器码应为 VALIDATION_ERROR，实际 ${JSON.stringify(missingDate)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      missingDate.message,
+      `缺参拒绝文案应为固定公开规则串，实际 ${JSON.stringify(missingDate.message)}`
+    ).toBe(
+      '请求格式不正确：请求体或查询参数存在缺失的必填字段、字段类型错误或内容类型错误，请修正后重试'
+    );
 
-    // 非法日期串同样死在反序列化层（月份十三无法解析为日期）
+    // 非法日期串同样死在反序列化层（月份十三无法解析为日期），收口后同为 VALIDATION_ERROR 信封
     const badDate = await apiCallExpectFail(
       page,
       'GET',
       '/ap/reports/daily?report_date=2001-13-01'
     );
     expect(badDate.status, `非法日期应 400，实际 ${JSON.stringify(badDate)}`).toBe(400);
-    expect(failureCode(badDate), '非法日期同样不落 AppError 信封').toBeUndefined();
+    expect(failureCode(badDate), '非法日期机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    expect(
+      badDate.message,
+      `非法日期文案应为固定公开规则串，实际 ${JSON.stringify(badDate.message)}`
+    ).toBe(
+      '请求格式不正确：请求体或查询参数存在缺失的必填字段、字段类型错误或内容类型错误，请修正后重试'
+    );
   });
 
   test('160-05 统计报表期间与分组同主聚合互证，月报月界与期初期末，非法月份走 BAD_REQUEST 信封', async ({
@@ -759,10 +780,12 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
       `倒序区间分组必须空数组，实际 ${JSON.stringify(reversed.by_status)}`
     ).toBe(0);
 
-    // 缺 start_date：与日报同族，死在 Query 抽取层，400 无机器码
+    // 缺 start_date：与日报同族，死在 Query 抽取层后被收口为统一信封：400 + VALIDATION_ERROR
     const missingStart = await apiCallExpectFail(page, 'GET', '/ap/reports/statistics');
     expect(missingStart.status, `缺期间起应 400，实际 ${JSON.stringify(missingStart)}`).toBe(400);
-    expect(failureCode(missingStart), '缺期间起不落 AppError 信封').toBeUndefined();
+    expect(failureCode(missingStart), '缺期间起机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
 
     // 月报：月界由年月推得，期初取月首前、期末取不晚于月末，两余额差即本月净额
     const { year, month } = yearMonthOf(today);
@@ -800,7 +823,8 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     eqAmount(emptyMonth.opening_balance, cents('0.00'), '无数据月月初余额');
     eqAmount(emptyMonth.closing_balance, cents('0.00'), '无数据月月末余额');
 
-    // month 取十三能过反序列化层，进 service 的月界计算被判无效日期：400 配 BAD_REQUEST
+    // month 取十三能过反序列化层，进 service 的月界计算被判无效日期：400 配 BAD_REQUEST，
+    // 出参文案是 messages.rs 的 BAD_REQUEST_PUBLIC 脱敏常量，service 原文「无效的日期参数」不外显
     const badMonth = await apiCallExpectFail(
       page,
       'GET',
@@ -810,14 +834,19 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     expect(failureCode(badMonth), '非法月份机器码应为 BAD_REQUEST').toBe(
       APP_ERROR_CODES.BAD_REQUEST
     );
-    expect(badMonth.message, `非法月份文案实际 ${JSON.stringify(badMonth.message)}`).toBe(
-      '无效的日期参数'
-    );
+    expect(
+      badMonth.message,
+      `非法月份文案应为脱敏常量，实际 ${JSON.stringify(badMonth.message)}`
+    ).toBe('请求参数错误');
 
-    // 缺 year：整条查询串不合法，死在抽取层
+    // 缺 year：整条查询串不合法，死在抽取层后被收口为统一信封：400 + VALIDATION_ERROR
     const missingYear = await apiCallExpectFail(page, 'GET', '/ap/reports/monthly?month=6');
     expect(missingYear.status, `缺年份应 400，实际 ${JSON.stringify(missingYear)}`).toBe(400);
-    expect(failureCode(missingYear), '缺年份不落 AppError 信封').toBeUndefined();
+    expect(failureCode(missingYear), '缺年份机器码应为 VALIDATION_ERROR').toBe(
+      APP_ERROR_CODES.VALIDATION_ERROR
+    );
+    // 残留口径：AUDITED 夹具票无删除通道（删除门只放行 DRAFT），本用例如实不清理，
+    // 统计与月报出口按专属供应商过滤，唯一 tag 保证不与其它用例互污
   });
 
   test('160-06 取消票退出口径并留在库：余额与账龄剔除而状态分布照计，已取消与已审核票无删除腿', async ({
