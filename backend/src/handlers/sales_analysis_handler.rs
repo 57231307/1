@@ -184,14 +184,19 @@ pub async fn create_target(
     Ok(Json(ApiResponse::success(target)))
 }
 
-/// GET /api/v1/erp/sales-analysis/stats - 销售概览统计
+/// GET /api/v1/erp/sales-analysis/stats - 销售概览统计。
+/// 数据源为现算 `sales_orders` 月桶（service 复用 BI 聚合，不再读零写入方的
+/// `sales_statistics`）；按登录者数据范围过滤并透传共享缓存（写法同
+/// `get_targets`/`update_sales_target` 先例），出参序列化后原样返回。
 pub async fn get_stats(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    info!("正在获取销售概览统计");
+    info!("用户 {} 正在获取销售概览统计", auth.user_id);
     let service = SalesAnalysisService::new(state.db.clone());
-    let stats = service.get_overview_stats().await?;
+    let stats = service
+        .get_overview_stats(auth.to_data_scope_context(), state.cache.clone())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(stats)?)))
 }
 
