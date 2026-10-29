@@ -59,6 +59,19 @@ pub struct Model {
     pub structure: Option<String>,
     /// 后整理：防水/防油/阻燃
     pub finish: Option<String>,
+    /// 带针幅宽（cm，含针边）。与 width（有效幅宽，净幅，不含针边）两列独立可空，
+    /// 开幅与预缩交付参考用本列；克重与米数换算一律以 width 为源，本列不参与换算。
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub width_needle_included_cm: Option<Decimal>,
+    /// 克重公差（±g/m²，非负）。目标值存 gram_weight，本列记允许偏差幅度，NULL 为未录入。
+    #[sea_orm(column_type = "Decimal(Some((10, 2)))")]
+    pub weight_tolerance: Option<Decimal>,
+    /// 氨纶含量（百分比，0 到 100）。弹性要求的行业口径，与 fabric_composition 成分文本并存，
+    /// 本列供过滤与换算。
+    #[sea_orm(column_type = "Decimal(Some((5, 2)))")]
+    pub spandex_percent: Option<Decimal>,
+    /// 用途（自由文本，如 服装面料/家纺/产业用）。本批不收口为词表 CHECK，分布见迁移点名日志。
+    pub usage: Option<String>,
     /// 最小起订量（米）
     #[sea_orm(column_type = "Decimal(Some((12, 2)))")]
     pub min_order_quantity: Option<Decimal>,
@@ -66,12 +79,9 @@ pub struct Model {
     pub lead_time: Option<i32>,
     /// 每匹米数（匹↔米换算元数据）：单一真源的换算入参，供「约/按匹」换算视图使用。
     /// 历史产品为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量。
+    /// 现网口径一卷即一匹，按卷换算腿共用本列（dual_unit_converter 的 rolls_to_meters）。
     #[sea_orm(column_type = "Decimal(Some((12, 4)))")]
     pub meters_per_piece: Option<Decimal>,
-    /// 每卷米数（卷↔米换算元数据）：单一真源的换算入参，供「按卷」换算视图使用。
-    /// 历史产品为 NULL，不影响既有；库存落库真相仍为米/公斤双列，本列不参与库存计量。
-    #[sea_orm(column_type = "Decimal(Some((12, 4)))")]
-    pub meters_per_roll: Option<Decimal>,
     /// 供应商产品编码
     pub supplier_product_code: Option<String>,
     /// 供应商 ID
@@ -90,6 +100,11 @@ pub struct Model {
     pub factory_address: Option<String>,
     /// 产品等级（优等品/一等品/合格品）
     pub product_grade: Option<String>,
+    /// 安全类别（GB 18401-2010 的 A/B/C 三类，可空即未定级）。
+    /// A 类为婴幼儿（身高 100cm 及以下）纺织产品，另须满足 GB 31701-2015；
+    /// B 类为直接接触皮肤的产品；C 类为非直接接触皮肤的产品。
+    /// 取值以 models::status::general::product_safety_category 为唯一词表源，DB CHECK 由 product_vocab_check 域收口。
+    pub safety_category: Option<String>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

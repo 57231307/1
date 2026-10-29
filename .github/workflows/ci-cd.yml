@@ -4084,7 +4084,7 @@ jobs:
       #     依据 .monkeycode/MEMORY.md 注释 IR「禁止写变更日志式内容（批次号、
       #     "修复xxx"过程、v14/批次xxx/exit 143 排障史等）；变更说明放 commit
       #     message，注释永远只描述当前代码的用途」。
-      #   棘轮档 —— 行号引用（xxx.rs:123 / file.ts:45）不禁、基线只准降不准升；
+      #   棘轮档 —— 行号引用（源文件名后接冒号与行号）不禁、基线只准降不准升；
       #     键=去掉行号后的文本指纹（教训：api-request-baseline 的 _comment——带
       #     行号会让漂移把老问题误报成新失配）。基线：
       #     backend/.comment-format-baseline.txt。
@@ -4166,11 +4166,16 @@ jobs:
           REPORT_PATH = os.environ.get('GATE_REPORT', '/tmp/comment-format-report.md')
           SAMPLE_N = int(os.environ.get('GATE_SAMPLE_N', '20'))
 
-          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件（IR 口径=代码注释）。
+          # 扫描面：backend/ frontend/ 两棵代码树内的源码文件，外加 .github/ 流水线定义。
+          # 扩进 .github/ 的理由同 IR 禁令本身：这些文件里的注释写的是"某轮 CI 怎么修的"，
+          # 与代码注释是同一种变更日志式内容，此前只因为不在面内而从未被判过。
           # .md/.monkeycode/ 等文档不在本规则面内——同时规避裁定采纳记录里
           # "门禁反向判定 MEMORY.md 自身引用行号写法需用户确认"的风险（默认不碰）。
-          SCAN_PREFIXES = ('backend/', 'frontend/')
-          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue'}
+          SCAN_PREFIXES = ('backend/', 'frontend/', '.github/')
+          EXTS = {'.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue', '.yml', '.yaml'}
+          # YAML 与流水线定义文件的注释形态是 `#`，与上面四形态都不重合；只把前缀扩到
+          # .github/ 而不认 `#`，等于文件进了扫描面、注释却一行读不到（空判）。
+          SHARP_EXTS = {'.yml', '.yaml'}
 
           HARD_PATTERNS = [
               # R1 任务号：`任务 #N`；裸 `#\d+` 看板/issue 引用（负向后顾避开 path/#1、标识符）。
@@ -4211,7 +4216,9 @@ jobs:
               ('R4.md章节引用', re.compile(r'[\w.\-/]*\.md\s*§\s*\d+')),
           ]
           RATCHET_PATTERNS = [
-              # R5 行号引用：xxx.rs:123 / file.ts:45（含 :129-151 区间形态）
+              # R5 行号引用：源文件名后接冒号与行号（含起止区间形态）。
+              # 此处刻意不摆具体写法样例：流水线定义文件已在扫描面内，规则自身文档里写
+              # 一个真形态等于自造一条棘轮指纹（基线只准降），形状以正则为唯一描述。
               ('R5.行号引用', re.compile(
                   r'[\w./\-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|vue|py|java|sql):\d+(?:[ \t]*-[ \t]*\d+)?')),
           ]
@@ -4245,6 +4252,19 @@ jobs:
               track_single = (ext != '.rs')
               in_block = None  # (open_tok, close_tok)
               for i, line in enumerate(text.splitlines(), start=1):
+                  # YAML 与流水线定义文件只认"整行注释"（首个非空白字符是 #）。
+                  # 行内 # 不能当注释起点：这些文件里大量 run 与脚本行是 shell 语句，
+                  # 其中的子命令替换与不定长引号会让字符串态跟丢，把等号左边的变量名
+                  # 误判成注释起点（实测在安卓计时那一行造出一条与本道无关的假红）；
+                  # 也不在此类文件里找 // 与 /* */（URL 里的 https:// 会被误当行注释起点）。
+                  # 已知边界，非无声漏判：run 块与值后的行内注释因此不进扫描面，实量
+                  # 当前流水线定义里此类形态 0 处（引号成对的行内井号行逐行核过），
+                  # 一旦将来出现带禁止形态的行内注释，须连同引号态判定一起重新设计。
+                  if ext in SHARP_EXTS:
+                      s = line.lstrip()
+                      if s.startswith('#'):
+                          yield (i, line)
+                      continue
                   start_pos = 0
                   if in_block:
                       close = line.find(in_block[1])
@@ -4388,6 +4408,11 @@ jobs:
               ('R5.行号引用', 'probe_r5a.ts', '// 见 api_gateway_handler.rs:129-151\n'),
               ('R5.行号引用', 'probe_r5b.vue',
                '<!-- 详见 store/fabric.ts:31 -->\n<template><div/></template>\n'),
+              # 流水线定义文件的 `#` 注释形态必须与上面四形态一道被探针覆盖：只扩前缀
+              # 不测该形态，扫描面看似含 .github/ 实际一行读不到（空判）
+              ('R1.看板引用', 'probe_r1e.yml', '# 修复见 #941\n'),
+              ('R3.run号', 'probe_r3b.yaml',
+               '# 实证：CI run #4675 该 job 串行未并发\n'),
           ]
 
 
@@ -4420,6 +4445,10 @@ jobs:
               # batch 标识符与"波次"作为工厂染色概念（后不接数词）都不该命中
               ('R2.Batch号', 'neg_r2e.ts', '// batchNo 与 batch_size 由库存批次规则给定\n'),
               ('R2.波次', 'neg_r2f.rs', '// 按波次划分下发染色任务，此处指工厂染色波次\n'),
+              # 流水线行里紧跟非空白字符的 # 不是 YAML 注释起点（值内的 # 属字面量），
+              # 若把它当注释判，正常写十六进制色值与占位符的 run 行会被误拦
+              ('R1.看板后缀', 'neg_r1f.yml',
+               '- run: node scripts/brand.mjs --hex=a#1a73e8 --out=dist/i.ong\n'),
           ]
 
 
