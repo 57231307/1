@@ -45,7 +45,13 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelGrossProfitRate') }}</div>
-            <div class="stat-value">{{ stats.gross_profit_rate === '' ? t('common.valueMissing') : `${stats.gross_profit_rate}%` }}</div>
+            <div class="stat-value">
+              {{
+                stats.gross_profit_rate === ''
+                  ? t('common.valueMissing')
+                  : `${stats.gross_profit_rate}%`
+              }}
+            </div>
             <div class="stat-trend" :class="stats.profit_trend > 0 ? 'up' : 'down'">
               {{ stats.profit_trend > 0 ? '+' : '' }}{{ stats.profit_trend }}%
             </div>
