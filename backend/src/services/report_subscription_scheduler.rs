@@ -32,6 +32,7 @@ use crate::models::report_subscription::{
 use crate::services::email_service::EmailService;
 use crate::services::report_subscription_service::ReportSubscriptionService;
 use crate::utils::error::AppError;
+use crate::utils::html_escape::escape_html;
 use crate::utils::scheduler_framework::Scheduler;
 
 /// 调度器名称（用于 Scheduler trait 统一标识）
@@ -149,13 +150,22 @@ impl ReportSubscriptionScheduler {
         Ok(count)
     }
 
-    /// 执行单条订阅：发送邮件通知 + 调用 mark_run_success 更新订阅状态。
-    async fn execute_subscription(&self, sub: &ReportSubscriptionModel) -> Result<(), AppError> {
-        let now = Utc::now();
-        let recipients = self.extract_recipients(sub)?;
-        let subject = format!("【报表订阅】{} 已到期执行", sub.name);
-        let report_url = format!("{}/report/subscriptions/{}", self.frontend_base_url, sub.id);
-        let html_content = format!(
+    /// 构造报表订阅执行邮件正文。
+    /// 入参：`subscription_name` 订阅名称（人工录入）、`frequency` 频率串、
+    /// `export_format` 导出格式串、`trigger_time` 触发时间展示串、`report_url` 报表查看链接。
+    /// 传给谁：`Self::execute_subscription`，再由 `EmailService::send_html_email` 交给邮件服务商。
+    /// 存什么：四个字段的转义文本；链接同时用于 `href` 属性与链接文本，两处都是转义后的形态。
+    /// 存哪里：只在内存中构造，本腿不落库。
+    pub fn build_subscription_email_html(
+        subscription_name: &str,
+        frequency: &str,
+        export_format: &str,
+        trigger_time: &str,
+        report_url: &str,
+    ) -> String {
+        let safe_name = escape_html(subscription_name);
+        let safe_url = escape_html(report_url);
+        format!(
             "<html><body>\
              <h2>报表订阅通知</h2>\
              <p>订阅名称：<strong>{}</strong></p>\
@@ -166,7 +176,27 @@ impl ReportSubscriptionScheduler {
              <p><a href=\"{}\">{}</a></p>\
              <hr><p style=\"color:#888;font-size:12px;\">本邮件由系统自动发送，请勿回复。</p>\
              </body></html>",
-            sub.name, sub.frequency, sub.export_format, now, report_url, report_url
+            safe_name,
+            escape_html(frequency),
+            escape_html(export_format),
+            escape_html(trigger_time),
+            safe_url,
+            safe_url
+        )
+    }
+
+    /// 执行单条订阅：发送邮件通知 + 调用 mark_run_success 更新订阅状态。
+    async fn execute_subscription(&self, sub: &ReportSubscriptionModel) -> Result<(), AppError> {
+        let now = Utc::now();
+        let recipients = self.extract_recipients(sub)?;
+        let subject = format!("【报表订阅】{} 已到期执行", sub.name);
+        let report_url = format!("{}/report/subscriptions/{}", self.frontend_base_url, sub.id);
+        let html_content = Self::build_subscription_email_html(
+            &sub.name,
+            &sub.frequency,
+            &sub.export_format,
+            &now.to_string(),
+            &report_url,
         );
 
         // 邮件发送：未配置 EmailService 时跳过（仍更新订阅状态）
