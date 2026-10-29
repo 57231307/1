@@ -14,7 +14,7 @@
  * 存哪里：本文件；被测实现 src/views/sales-contract/composables/useScProc.ts 的 handleView。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { h, isVNode, defineComponent, type VNode } from 'vue';
+import { isVNode, defineComponent, type VNode } from 'vue';
 import { mount } from '@vue/test-utils';
 import { ElMessageBox } from 'element-plus';
 
