@@ -24,7 +24,8 @@
 #   主干 push 不触发。合并 PR 属自动动作，主线一律人工发起，见 on.push 与 ci-info 的
 #   plan-scope 步骤（手动运行默认 full_suite=true，即整条流水线连同发布链一起核一遍）。
 #   v* tag 推送仍自动跑，但属显式发版动作，按基本检查面加发布链执行，不带测试面。
-#   漏洞检测在能拦住事情的那一轮跑（PR 拦合并、发版轮拦发布），口径同上。
+#   漏洞检测在 PR 与 v 前缀标签两轮跑（前者拦合并、后者拦正式版本发布）；关掉测试面的手动
+#   发布轮不扫，那一轮前置的 skipped 由打包发布的 job 级 if 显式放行，发布链不因此断。
 #   所有 job timeout 统一 360 分钟（6 小时），E2E 45 分片并行加速。
 #   注：任何新增 job 必须同时加入 ci-cleanup-retry.needs，否则不参与门禁。
 # ==============================================================================
@@ -2541,15 +2542,19 @@ jobs:
       # 留在 needs 里会让发版轮因前端测试被 skip 而永不触发，发布链直接断。
       ci-build-rust,
       ci-build-fe,
-      # 发布必须被漏洞扫描拦住：本 job 的前置按"全部成功"求值，扫描判红即不产出二进制。
-      # 扫描的 job 级 if 与本 job 的发布条件同源（见 security-vulnerability-scan），凡本 job
-      # 要跑的那一轮扫描必然真实执行，不存在前置被跳过而发布照走、也不存在扫描红过仍出包。
+      # 发布必须被漏洞扫描拦住，扫描判红即不产出二进制（下方 if 显式排除 failure 与 cancelled）。
+      # 扫描只在 PR 与 v 前缀标签执行，关掉测试面的手动发布轮里它的结论是 skipped，那种跳过由下方
+      # if 放行，否则 GitHub 会因前置被跳过而把整条发布链一起 skip（本门早先摘掉 ci-test-fe 是同
+      # 一机理）。正式版本的拦截点因此落在标签轮，那一轮扫描必然真实执行。
       security-vulnerability-scan
     ]
     runs-on: ubuntu-latest
     timeout-minutes: 360
     # 发布事件两枚：显式发版的 v* tag，与人工发起且未跳过发布的手动运行。合并 PR 不再自动发布。
-    if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
+    # 显式 if 取代默认的"全部前置成功"语义，所以 failure 与 cancelled 一律拦住，只放行 skipped。
+    # 会被 skip 的前置只有全面漏洞检测（按检查范围跳过），其余前置（格式与静态与 lint 与类型与
+    # 前后端构建）红时本 job 仍不触发。
+    if: ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')) && !(contains(needs.*.result, 'failure')) && !(contains(needs.*.result, 'cancelled'))
     permissions:
       contents: write
     outputs:
@@ -3545,10 +3550,11 @@ jobs:
   #   3. 扫描器缺失 / 输出不可解析 / audit 命令异常退出（exit > 1）⇒ 按未执行处理，fail closed
   #   4. gitleaks 秘密泄露
   #   5. cargo tree --locked：Cargo.lock 与 Cargo.toml 漂移 ⇒ fail
-  # 事件范围：PR（合并前的拦截位）与两枚发布事件（v* tag 与未跳过发布的手动运行，即
-  # package-release 与 github-release 的触发条件）执行，其余轮跳过。与发布条件同源是硬要求：
-  # 打包发布把本 job 列为前置，前置若在某轮被跳过，那一轮的发布链会整体不触发。
-  # 调用方是 ci-info 与打包发布；入参取检查范围输出与当前事件与引用，判定结论不外传，
+  # 事件范围：PR 与 v 前缀标签执行，其余轮（含关掉测试面的手动发布轮）跳过，口径见 ci-info
+  # 的 full_suite。标签轮必扫是因为打包发布把本 job 列为前置，正式版本的漏洞拦截以这一轮结论
+  # 为准；手动发布轮若关掉测试面则不扫，那一轮前置的 skipped 由打包发布的 job 级 if 显式放行，
+  # 发布链不会因为缺一道前置而整段不触发。
+  # 调用方是 ci-info 与打包发布；入参取检查范围输出与当前事件引用，判定结论不外传，
   # 只写 reports 目录下的审计、依赖图与全量三份产物并各自上传。
   # 产物：三个 artifact 名各自独立、目录互不覆盖
   #   reports/audit/ → dependency-audit-reports、reports/deps/ → dependency-trees、
@@ -3563,8 +3569,9 @@ jobs:
     # 三个原 job 各 30 分钟；合并后工作量为三者之和，上调窗口（只放宽时间预算，不影响判定）
     timeout-minutes: 60
     needs: ci-info
-    # 只在能拦住事情的轮次跑：PR 拦合并，发布事件拦出包（口径见上方事件范围说明）
-    if: needs.ci-info.outputs.full_suite == 'true' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_release != 'true')
+    # 只在 PR 与 v 前缀标签跑（口径见 ci-info 的 full_suite）：主线手动运行按测试面开关放行，
+    # 显式发版的标签轮必扫，因为打包发布把本 job 列为前置，正式版本的漏洞拦截以这一轮为准。
+    if: needs.ci-info.outputs.full_suite == 'true' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: 检出代码（含完整历史，gitleaks 需要）
         uses: actions/checkout@v5
