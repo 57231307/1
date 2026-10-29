@@ -9049,6 +9049,8 @@ export default {
         reveal: 'Reveal',
         concession: 'Concession',
         rejudge: 'Rejudge',
+        managerapprove: 'Manager approval',
+        directorapprove: 'Director approval',
         download: 'Download',
       },
       loadListFailed: 'Failed to load permission list',

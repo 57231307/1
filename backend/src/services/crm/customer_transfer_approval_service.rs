@@ -733,8 +733,9 @@ impl CustomerTransferApprovalService {
 
     /// 转移挂链客户归属（`customers.owner_id`）——审批执行腿的服务内受控写函数。
     /// **不开放 HTTP 面**：唯一入口是经理/总监审批通过后的 `execute_transfer_in` 分派，
-    /// 授权来源是 S5 收细后的独立审批动作键（manager-approve/director-approve，与建单
-    /// create 键分离）叠加审批单行级归属门（`get_pending_approval` 已把门）。
+    /// 授权来源是收细后的两枚独立审批动作键（managerapprove/directorapprove，由
+    /// PATH_ACTION_SEGMENT_MAP 从 URL 末段显式映射派生，与建单 create 键分离）
+    /// 叠加审批单行级归属门（`get_pending_approval` 已把门）。
     ///
     /// 语义件全部复用既有形态，不造第二套：
     /// - 行级归属门：与本服务审批单门同一判据源 `check_resource_owner_by_member_scope`，
