@@ -253,10 +253,11 @@ impl BusinessModeConfigService {
             .count(&*self.db)
             .await?;
         if linked_count > 0 {
-            return Err(AppError::business(format!(
-                "业务模式 {} 已被 {} 个单据引用，不可删除",
-                model.mode_code, linked_count
-            )));
+            // 删除腿引用门：业务模式已被单据引用即拒绝，归业务族；
+            // 文案点名公开规则与出路，去掉模式编码与引用计数（只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "该业务模式已被单据引用，不可删除，请先处理关联单据",
+            ));
         }
 
         let mut active: ConfigActiveModel = model.into();

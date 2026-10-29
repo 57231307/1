@@ -843,13 +843,12 @@ impl InventoryTransferService {
             || transfer.status == transfer_status::SHIPPED
             || transfer.status == transfer_status::COMPLETED
         {
-            // 保持脱敏 `business`：文案经 `format!` 塞入服务端查得的 `transfer.status`（实体数据），
-            // 触到 `utils/error.rs`「禁止把查询到的实体数据拼进可外显文案」硬边界，
-            // 与建单/审批/完成门（静态规则文案）不同族 ⇒ 不随本批收口为 displayable。
-            return Err(AppError::business(format!(
-                "调拨单状态 {} 不允许删除",
-                transfer.status
-            )));
+            // 删除腿状态门：已审核/已发货/已完成调拨单拒绝删除，前置状态未满足，归业务族；
+            // 文案改为静态公开规则——去掉查得的 `transfer.status` 插值（真实状态只进
+            // tracing），不再触「查询实体数据拼进可外显文案」硬边界 ⇒ 本次收口为 displayable
+            return Err(AppError::business_displayable(
+                "已审核、已发货或已完成的调拨单不能删除",
+            ));
         }
 
         let txn = (*self.db).begin().await?;

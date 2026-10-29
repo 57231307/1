@@ -272,7 +272,10 @@ impl CustomerTeamShareService {
             .ok_or_else(|| AppError::not_found(format!("团队成员记录 {} 不存在", member_id)))?;
 
         if !member.is_active {
-            return Err(AppError::business("移除失败：该成员已不在团队中"));
+            // 删除腿重复提交门：目标已是离队态即拒绝，公开规则、不含标识，可外显
+            return Err(AppError::business_displayable(
+                "该成员已不在团队中，无需重复移除",
+            ));
         }
 
         // 校验操作人权限
@@ -285,8 +288,10 @@ impl CustomerTeamShareService {
 
         // primary 不可移除（需先转移主负责人）
         if member.team_role == team_model::TEAM_ROLE_PRIMARY {
-            return Err(AppError::business(
-                "移除失败：主负责人（primary）不可直接移除，请先变更主负责人",
+            // 删除腿状态门：主负责人拒绝直接移除，公开规则；
+            // 去掉词表原值括号注（真实角色只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "主负责人不可直接移除，请先变更主负责人",
             ));
         }
 

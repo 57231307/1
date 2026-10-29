@@ -88,10 +88,11 @@ impl LabDipRequestService {
     /// 校验：仅 pending 状态可删除
     pub fn validate_can_delete(status: &str) -> Result<(), AppError> {
         if status != req_status::PENDING {
-            return Err(AppError::business(format!(
-                "当前状态 {} 不可删除（仅 pending 可删除）",
-                status
-            )));
+            // 删除腿状态门：仅待处理可删除，前置状态未满足，归业务族；
+            // 文案改为静态公开规则（去掉词表原值插值，真实状态只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "仅待处理状态的对色申请单可以删除",
+            ));
         }
         Ok(())
     }

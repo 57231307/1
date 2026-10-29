@@ -3,7 +3,7 @@
 //! 包含线索 CRUD、状态更新、线索转客户等。
 //! 拆分自原 `crm_service.rs`。
 
-use crate::models::{crm_lead, crm_opportunity, customer};
+use crate::models::{crm_lead, crm_opportunity, customer, customer_transfer_approval};
 // 批次 212 P2-5 修复（v12 复审）：硬编码 "active" 替换为 master_data 常量
 use crate::models::status::master_data;
 // 批次 236 v13 P1-1：线索状态常量接入（规则 0）
@@ -491,9 +491,12 @@ impl CrmService {
         user_id: i32,
     ) -> Result<crm_lead::Model, AppError> {
         let lead = self.get_lead(lead_id, None).await?;
-        // 取值校验：与 create_lead 同口径，非法状态拒绝，不裸落库
+        // 取值校验：与 create_lead 同口径，非法状态拒绝，不裸落库。
+        // 值域过关后再过转换门，与 update_lead_status 共用同一道门，
+        // 避免更新线索这条腿绕过回退拦截
         if let Some(s) = &req.lead_status {
             Self::ensure_valid_lead_status(s)?;
+            Self::ensure_lead_status_transition_allowed(lead.lead_status.as_deref(), s)?;
         }
         let mut lead_active: crm_lead::ActiveModel = lead.into();
 
@@ -582,14 +585,25 @@ impl CrmService {
 
     /// 删除线索
     ///
-    /// 删除前先做引用校验：`crm_opportunity.lead_id` 通过外键 `fk_crm_opportunity_lead`
-    /// 引用 `crm_lead.id` 且无 `ON DELETE` 动作。若该线索已被任一存活商机引用，直接物理删除会
-    /// 命中 FK 约束并被裸映射成 500 `DATABASE_ERROR`（违反失败信封只能单一 `AppError` 形状的红线）。
-    /// 此处以与 DB 约束同口径的“是否存在引用”预校验，命中则返回可外显业务错误（HTTP 400 / `BUSINESS_ERROR`）。
-    /// 说明：`crm_lead` 表无软删列，线索状态词表亦无 `deleted/cancelled` 态，故维持硬删语义——
-    /// 已转商机的线索禁止直接删除，由调用方先处理关联商机（行业惯例口径，是否改软删保留引用待产品确认）。
+    /// 删除前做两条引用预校验，命中任一腿都返回可外显业务错误（HTTP 400 BUSINESS_ERROR）。
+    /// 拒绝发生在任何写操作之前，库里零漂移。
+    /// 腿一 商机引用（DB 有护栏）。`crm_opportunity.lead_id` 经外键 `fk_crm_opportunity_lead`
+    /// 引用 `crm_lead.id` 且无 ON DELETE 动作。存在任意引用时直接物理删除会撞 FK 约束，
+    /// 并被裸映射成 500 DATABASE_ERROR（违反失败信封只能单一 AppError 形状的红线），
+    /// 故以同口径的"是否存在引用"预校验，改成可外显业务错误。
+    /// 腿二 转移审批引用（DB 无护栏）。`customer_transfer_approvals.lead_id` 在 DDL 里是
+    /// INTEGER NOT NULL 且没有外键，DB 侧不会拦。漏拦的后果是把审批单留成孤儿行，
+    /// 更坏的一条链是孤儿审批单被审批通过时先落 approved 再执行转移失败，
+    /// 库里留下"已批准但未转移"的脏态，故这条腿只能在服务层拦。
+    /// 审批腿统计不加状态过滤，终态单（approved、rejected、cancelled）同样拒删，
+    /// 审批历史要留痕，不能靠删线索抹掉。
+    /// 入参 lead_id 为待删线索主键，user_id 为真实操作人（写审计用）。
+    /// 调用方为 crm_handler 的 delete_lead（归属门禁在前、本校验在后）。
+    /// 说明：`crm_lead` 表无软删列，线索状态词表亦无 deleted、cancelled 态，故维持硬删语义，
+    /// 被引用的线索禁止直接删除，由调用方先处理关联商机与关联审批
+    /// （行业惯例口径，是否改软删保留引用待产品确认）。
     pub async fn delete_lead(&self, lead_id: i32, user_id: i32) -> Result<(), AppError> {
-        // 引用预校验：与 fk_crm_opportunity_lead 同口径——只要存在任意一条引用该线索的商机即拒绝删除
+        // 引用预校验腿一：与 fk_crm_opportunity_lead 同口径——只要存在任意一条引用该线索的商机即拒绝删除
         let referencing_opportunities = crm_opportunity::Entity::find()
             .filter(crm_opportunity::Column::LeadId.eq(lead_id))
             .count(&*self.db)
@@ -597,6 +611,19 @@ impl CrmService {
         if referencing_opportunities > 0 {
             return Err(AppError::business_displayable(
                 "该线索已转商机，不可删除，请先处理关联商机",
+            ));
+        }
+
+        // 引用预校验腿二 转移审批引用。该列无外键，DB 不会拦，
+        // 只要名下存在任意 customer_transfer_approvals 引用（含终态单）即拒绝删除。
+        // 命中时不写任何表，线索行与审批行与审计行均保持原样。
+        let referencing_approvals = customer_transfer_approval::Entity::find()
+            .filter(customer_transfer_approval::Column::LeadId.eq(lead_id))
+            .count(&*self.db)
+            .await?;
+        if referencing_approvals > 0 {
+            return Err(AppError::business_displayable(
+                "该线索存在客户转移审批记录，不可删除，请先处理关联审批",
             ));
         }
 
@@ -640,6 +667,36 @@ impl CrmService {
         Ok(())
     }
 
+    /// 线索状态转换门（值域校验之后的第二道门）。
+    ///
+    /// 业务规则：CONVERTED（已转化为客户）是正向终态，行业口径无 unconvert 惯例，
+    /// 故除"目标值仍为 CONVERTED"的自映射（幂等空写，不改数据）外，
+    /// 拒绝一切离开 CONVERTED 的跃迁，即禁止把已转化线索回退成 new、contacted、
+    /// qualified、assigned、pool、lost 任一非终态。
+    /// 拦这条的理由。转化时 `converted_customer_id` 与 CONVERTED 状态同时写入，
+    /// 回退状态而不清该列会造出"非终态线索却挂着客户链"的形态，
+    /// 而 customer_transfer_approval_service 的大客户判据 check_large_customer
+    /// 正是读这条链，形态一破，二级审批前置就能被无门凑齐。
+    /// 其余当前态（非 CONVERTED）之间仍按既有词表自由跃迁，本门不扩范围、
+    /// 不改取值域校验口径。
+    ///
+    /// 调用方。`update_lead`（更新线索端点载荷含 lead_status 时）与
+    /// `update_lead_status`（更新线索状态端点）。
+    /// 入参 current 为落库的当前状态（可空，空视为非终态并放行），target 为待写入状态。
+    /// 命中回退时返回可外显业务错误（HTTP 400 BUSINESS_ERROR），
+    /// 两个调用方都在写库之前调用本门，拒绝即零漂移。
+    fn ensure_lead_status_transition_allowed(
+        current: Option<&str>,
+        target: &str,
+    ) -> Result<(), AppError> {
+        if current == Some(lead_status::CONVERTED) && target != lead_status::CONVERTED {
+            return Err(AppError::business_displayable(
+                "线索已转化为客户，不可回退线索状态",
+            ));
+        }
+        Ok(())
+    }
+
     /// 更新线索状态
     pub async fn update_lead_status(
         &self,
@@ -650,6 +707,8 @@ impl CrmService {
         // 取值校验：不再原样落库，非法状态直接拒绝（DB 侧兜底见 chk_crm_lead_lead_status）
         Self::ensure_valid_lead_status(status)?;
         let lead = self.get_lead(lead_id, None).await?;
+        // 转换门：读得当前状态后判回退，命中即拒，早于任何写操作
+        Self::ensure_lead_status_transition_allowed(lead.lead_status.as_deref(), status)?;
         let mut lead_active: crm_lead::ActiveModel = lead.into();
         lead_active.lead_status = Set(Some(status.to_string()));
         lead_active.updated_at = Set(Some(chrono::Utc::now()));
