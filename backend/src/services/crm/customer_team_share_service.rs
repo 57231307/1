@@ -273,7 +273,9 @@ impl CustomerTeamShareService {
 
         if !member.is_active {
             // 删除腿重复提交门：目标已是离队态即拒绝，公开规则、不含标识，可外显
-            return Err(AppError::business_displayable("该成员已不在团队中，无需重复移除"));
+            return Err(AppError::business_displayable(
+                "该成员已不在团队中，无需重复移除",
+            ));
         }
 
         // 校验操作人权限
