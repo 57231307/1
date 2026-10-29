@@ -101,10 +101,11 @@ impl DyeBatchReworkService {
         if model.status == dye_batch_rework_status::IN_PROGRESS
             || model.status == dye_batch_rework_status::COMPLETED
         {
-            return Err(AppError::business(format!(
-                "回修中/已完成的回修单不可删除，当前状态: {}",
-                model.status
-            )));
+            // 删除腿状态门：回修中/已完成前置状态不满足删除条件，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "回修中或已完成的回修单不可删除",
+            ));
         }
         let mut active: ReworkActiveModel = model.into();
         active.is_deleted = Set(true);
