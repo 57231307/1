@@ -262,8 +262,9 @@ const PATH_ACTION_SEGMENT_MAP: &[(&str, &str)] = &[
 ];
 
 /// 判定一个路径段是否为"动作段形态"：命中关键字表或映射表左列即是。
-/// 用途两处：`extract_action_from_path` 的末段动作派生、
-/// `extract_resource_info` 扫描记录 ID 时跳过动作段（动作段不是 ID 也不是资源）。
+/// 调用方：`extract_resource_info` 扫描记录 ID 时跳过动作段（动作段既不是 ID
+/// 也不是资源）。末段动作派生走 `extract_action_from_path`（那里还需要映射表
+/// 右列的动作码本身，不止判"是不是动作段"）。
 fn is_path_action_segment(segment: &str) -> bool {
     PATH_ACTION_KEYWORDS.contains(&segment)
         || PATH_ACTION_SEGMENT_MAP
