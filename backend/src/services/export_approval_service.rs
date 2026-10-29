@@ -746,38 +746,6 @@ impl ExportApprovalService {
         Ok(model.clone())
     }
 
-    /// 敏感导出 fail-closed 校验（既有受理面签名保持不动，资源 handler 零改动）：
-    /// 令牌有效性 + 资源类型匹配 + 重试状态门 + 尝试登记。
-    ///
-    /// 尝试登记口径：每次通过校验进入导出即记一次尝试（last_attempt_at=now；
-    /// 若此前已有尝试则 retry_count+1）。导出成功由 handler 随后调 [`record_download`]
-    /// 置 consumed；导出未成功时 handler 不会调用 record_download，该尝试自然成为
-    /// 一次失败，计入重试额度。窗口未到 / 次数用尽 / 已消费 / 已过期 四态分别给出
-    /// 可区分文案，次数用尽同时落 exhausted 终态。
-    pub async fn enforce_export_download(
-        &self,
-        token: Option<&str>,
-        expected_resource: &str,
-    ) -> Result<Model, AppError> {
-        let token = token.unwrap_or("").trim();
-        if token.is_empty() {
-            return Err(AppError::permission_denied(
-                "敏感资源导出需先获得导出审批令牌",
-            ));
-        }
-
-        let model = self.verify_download_token(token).await?;
-
-        if model.resource_type != expected_resource {
-            return Err(AppError::permission_denied(format!(
-                "导出令牌资源类型不匹配：期望 {}，实际 {}",
-                expected_resource, model.resource_type
-            )));
-        }
-
-        self.gate_and_register_attempt(&model).await
-    }
-
     /// 组装本次导出请求实际携带的范围参数，形状与申请落库的 export_params 同形。
     ///
     /// 功能：把导出端点真实读取的筛选项收敛成一个对象，本次没带的维度不进对象。
@@ -801,9 +769,16 @@ impl ExportApprovalService {
         serde_json::Value::Object(obj)
     }
 
-    /// 安全强化版受理入口，资源导出 handler 的受理门：在 enforce_export_download
-    /// 的校验之上增加两道门——调用者必须是被批准的申请人本人（防令牌被转发复用），
-    /// 且实际请求范围必须与批准范围逐项一致（防超范围导出）。
+    /// 敏感导出 fail-closed 受理门（单一入口），资源导出 handler 的受理腿依次校验：
+    /// 令牌非空 → 令牌哈希校验 → 调用者必须是被批准的申请人本人（防令牌被转发复用）
+    /// → 资源类型匹配 → 实际请求范围与批准范围逐项一致（防超范围导出）
+    /// → 重试状态门与尝试登记。
+    ///
+    /// 尝试登记口径：每次通过校验进入导出即记一次尝试（last_attempt_at=now；
+    /// 若此前已有尝试则 retry_count+1）。导出成功由 handler 随后调 [`record_download`]
+    /// 置 consumed；导出未成功时 handler 不会调用 record_download，该尝试自然成为
+    /// 一次失败，计入重试额度。窗口未到 / 次数用尽 / 已消费 / 已过期 四态分别给出
+    /// 可区分文案，次数用尽同时落 exhausted 终态。
     ///
     /// requested_params 由调用方经 scope_params 组装，传 None 等于关掉范围核验，
     /// 只允许确实不存在任何数据范围维度的端点使用。
@@ -906,7 +881,7 @@ impl ExportApprovalService {
         )))
     }
 
-    /// 重试状态门 + 尝试登记（enforce 两侧共用）
+    /// 重试状态门 + 尝试登记（enforce_export_download_secured 受理门的收口环节）
     async fn gate_and_register_attempt(&self, model: &Model) -> Result<Model, AppError> {
         match Self::retry_state_of(model, Utc::now()) {
             TokenRetryState::Eligible => {}
