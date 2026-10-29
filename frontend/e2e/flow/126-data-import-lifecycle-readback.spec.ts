@@ -93,8 +93,10 @@ test.describe.serial('122 数据导入任务生命周期与模板契约', () => 
         file: {
           name: taskFileName,
           mimeType: 'application/octet-stream',
-          // 用 Uint8Array 承载最小字节，避免在 e2e 类型面引入 Buffer 全局
-          buffer: new TextEncoder().encode('E2E minimal upload') as unknown as never,
+          // multipart 的 buffer 成员只接受 Buffer，传 Uint8Array 运行期报
+          // Unexpected buffer type of 'data.file'，as unknown as never 只会把这条契约错
+          // 从类型面挪到运行期。e2e 类型面本就在使用 Buffer 全局。
+          buffer: Buffer.from('E2E minimal upload', 'utf-8'),
         },
       },
     });
@@ -249,7 +251,7 @@ test.describe.serial('122 数据导入任务生命周期与模板契约', () => 
         file: {
           name: `${marker}.xlsx`,
           mimeType: 'application/octet-stream',
-          buffer: new TextEncoder().encode('E2E negative probe') as unknown as never,
+          buffer: Buffer.from('E2E negative probe', 'utf-8'),
         },
       },
     });
@@ -268,7 +270,7 @@ test.describe.serial('122 数据导入任务生命周期与模板契约', () => 
         file: {
           name: `${marker}.xlsx`,
           mimeType: 'application/octet-stream',
-          buffer: new TextEncoder().encode('E2E negative probe') as unknown as never,
+          buffer: Buffer.from('E2E negative probe', 'utf-8'),
         },
       },
     });

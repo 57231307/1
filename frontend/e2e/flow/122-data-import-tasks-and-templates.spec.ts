@@ -117,7 +117,9 @@ async function postMultipartCreateTask(
   fileName: string
 ): Promise<APIResponse> {
   const token = await csrfTokenOf(page);
-  const csvBytes = new TextEncoder().encode(`sku,qty\nE2E-ZERO-COV,2\n`);
+  // Playwright 的 multipart buffer 成员只接受 Buffer，传 Uint8Array 运行期报
+  // Unexpected buffer type of 'data.file'。
+  const csvBytes = Buffer.from('sku,qty\nE2E-ZERO-COV,2\n', 'utf-8');
   return page.request.post(`${API_BASE}${API_PREFIX}/data-import/tasks`, {
     headers: {
       'X-Requested-With': 'XMLHttpRequest',
