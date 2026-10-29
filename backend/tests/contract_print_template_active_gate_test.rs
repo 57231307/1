@@ -28,9 +28,11 @@
 //! 反空操作自证：若出件解析去掉启用位过滤（还原"建了就一直可用"），用例 1 的停用段与
 //! 用例 2 的停用段必红；若竞位过滤退回按 module 清（还原遮蔽缺陷），用例 2 的"种子形态
 //! 行被降位/停用后 404"必红（种子行仍以最小 id 出件，停用无效）；若竞位条件放宽为
-//! "保存后本行将成为启用默认行"（即单纯状态切换也竞位），用例 3 的"重新启用后在任行保位"
-//! 必红；若显式 id 分支不查启用位，用例 4 停用段必红；若管理面详情被顺手加上启用位过滤，
-//! 用例 5 必红。断言不使用恒真式。
+//! "保存后本行将成为启用默认行"（即单纯状态切换也竞位），用例 3 的"撞位重新启用必须被
+//! 点名拒绝"与"在任行保位"必红；若撞位点名守卫缺席，用例 3 的重新启用直写会撞库侧
+//! 启用默认唯一门，得到 DatabaseError 族而非可外显业务拒绝，其错误族与点名文案断言
+//! 当场必红；若显式 id 分支不查启用位，用例 4 停用段必红；若管理面详情被顺手加上
+//! 启用位过滤，用例 5 必红。断言不使用恒真式。
 
 mod test_common;
 
@@ -173,6 +175,24 @@ fn assert_not_found(err: AppError, expect_in_msg: &[&str]) {
             rendered.contains(token),
             "404 消息必须点名 {token}，实际: {rendered}"
         );
+    }
+}
+
+/// 断言拒绝落在可外显业务拒绝族（business_displayable），文案是业务原因且逐点名关键字。
+///
+/// 撞位点名守卫的变异自证。守卫缺席时直写会撞库侧启用默认唯一门，界面拿到的是
+/// DatabaseError 族裸库错，也没有对在任行的点名，本 helper 的族断言与关键字断言
+/// 当场判红，不接受把点名拒绝退化成难看的库错。
+fn assert_business_displayable(err: AppError, expect_in_msg: &[&str]) {
+    let AppError::BusinessErrorDisplayable(msg) = &err else {
+        panic!("拒绝必须是可外显业务拒绝（business_displayable 族），实际形态 {err:?}");
+    };
+    assert!(
+        !msg.contains("DatabaseError") && !msg.contains("数据重复"),
+        "拒绝文案必须是业务原因，不得是数据库重复错误原文，实际 {msg}"
+    );
+    for token in expect_in_msg {
+        assert!(msg.contains(token), "拒绝文案必须点名 {token}，实际 {msg}");
     }
 }
 
@@ -390,10 +410,7 @@ async fn inactive_row_never_demotes_in_position_default() {
     )
     .await
     .expect_err("撞位在任启用默认行的停用默认行重新启用必须被点名拒绝");
-    assert!(
-        matches!(err_on, AppError::BusinessErrorDisplayable(_)),
-        "撞位拒绝必须是可外显的业务拒绝，实际形态 {err_on:?}"
-    );
+    assert_business_displayable(err_on, &["IT_GATE_IX_KEEP", "默认模板", "启用"]);
     // 拒绝不得部分生效、零写入：在任行保位保状态，被拒行留存停用态与自身默认位。
     let keeper_still = reload(&db, keeper.id).await;
     assert!(
