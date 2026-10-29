@@ -509,10 +509,11 @@ impl PurchaseReceiptService {
 
         // 2. 检查状态
         if receipt.receipt_status != status::purchase_receipt::DRAFT {
-            return Err(AppError::business(format!(
-                "入库单状态不允许删除，当前状态：{}",
-                receipt.receipt_status
-            )));
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的入库单可以删除",
+            ));
         }
 
         // 3. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）
