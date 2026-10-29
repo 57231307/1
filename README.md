@@ -27,7 +27,7 @@
 
 Bingxi Management Platform 是一套自托管的企业资源计划（ERP）平台，采用**单体 Rust 后端 + 单体 Vue 3 前端**的前后端分离形态：后端以 Axum 提供 HTTP 与 WebSocket 接口、SeaORM 访问 PostgreSQL、迁移以 Rust 代码内联 SQL 实现并按业务域聚合；前端为 Vue 3 + TypeScript + Element Plus 单页应用，经 Vite 构建为静态资源由 Nginx 托管。同一套后端还通过 Tauri 壳与 Android 工程产出桌面与移动客户端。
 
-数据持久化在 PostgreSQL，缓存与实时推送分别由 Redis 与 WebSocket 承担，鉴权采用 JWT 配合服务端权限校验，配置由 `.env` 与 `config.yaml` 提供，服务以 systemd 直部署运行并支持 `bingxi update` 增量升级。本文只描述**如何把它跑起来和改起来**；功能清单、业务域划分与行业实现见「文档索引」中的架构与接口文档。
+数据持久化在 PostgreSQL。热点读与 TTL 缓存走进程内 moka 缓存，Redis 承载限流计数与令牌撤销（JTI）等需要跨实例共享的状态，实时推送走 WebSocket；鉴权采用 JWT 配合服务端权限校验与 PostgreSQL 行级安全，配置由 `.env` 与 `config.yaml` 提供，服务以 systemd 直部署运行并支持 `bingxi update` 增量升级（SHA256 校验）。本文只描述**如何把它跑起来和改起来**；业务域划分与实现细节见「文档索引」中的架构与接口文档。
 
 ---
 
