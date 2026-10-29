@@ -255,10 +255,11 @@ ensure_actionlint() {
     local WORK_DIR
     WORK_DIR="$(fetch_work_dir)" \
         || { echo "::error::无法在仓库外创建下载解包临时目录"; return 1; }
-    # shellcheck disable=SC2064
-    trap "rm -rf '$WORK_DIR'" EXIT
     local ROOT_SNAPSHOT
     ROOT_SNAPSHOT="$(mktemp)"
+    # 快照文件与解包目录共用退出清理：下载或校验中途失败直接 return 时也不留残件。
+    # shellcheck disable=SC2064
+    trap "rm -rf '$WORK_DIR' '$ROOT_SNAPSHOT'" EXIT
     ls -A . > "$ROOT_SNAPSHOT"
     (
         cd "$WORK_DIR" || exit 1
