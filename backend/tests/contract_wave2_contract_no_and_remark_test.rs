@@ -291,10 +291,6 @@ async fn sales_create_persists_remark_and_reads_back() {
                 payment_method: None,
                 delivery_location: None,
                 remark: Some("这是备注，不得被静默丢弃".to_string()),
-                template_id: None,
-                clause_values: None,
-                contract_market: None,
-                tax_inclusive: None,
                 items: None,
             },
             9101,
@@ -335,10 +331,6 @@ async fn purchase_create_persists_remark_and_reads_back() {
                 payment_method: None,
                 delivery_location: None,
                 remark: Some("采购备注文本".to_string()),
-                template_id: None,
-                clause_values: None,
-                contract_market: None,
-                tax_inclusive: None,
             },
             9101,
         )
@@ -512,10 +504,6 @@ async fn live_sales_update_ignores_duplicate_contract_no_and_persists_remark() {
         payment_method: None,
         delivery_location: None,
         remark: None,
-        template_id: None,
-        clause_values: None,
-        contract_market: None,
-        tax_inclusive: None,
         items: None,
     };
     let a = service
@@ -638,10 +626,6 @@ async fn live_purchase_update_ignores_duplicate_contract_no_and_persists_remark(
         payment_method: None,
         delivery_location: None,
         remark: None,
-        template_id: None,
-        clause_values: None,
-        contract_market: None,
-        tax_inclusive: None,
     };
     let a = service
         .create(mk(&format!("PC-W2L-A-{suffix}")), 9101)

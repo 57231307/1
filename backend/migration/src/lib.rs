@@ -17,7 +17,8 @@
 //!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
 //!   → m0104_add_document_no_partial_unique_four_tables
 //!   → sales_contract_source_order
-//!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
+//!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop → print_template_default_slot
+//!   → print_template_default_slot（打印模板默认位库侧唯一门）
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -34,6 +35,8 @@
 //!         / m_purchase_greige_read_grant
 //!         / m_customer_credit_name_backfill / m_customer_credit_remark_column
 //!         / m_customer_credit_family_grant
+//!         其后四枚链尾登记为 m_status_vocab_check 与 m_wage_energy_vocab_check
+//!         与 m_contract_template_schema 与 m_print_template_default_slot
 //!（单文件域的台账名取文件名段，故 dye_recipe_reject 域登记为
 //! `m0091_widen_dye_recipe_status_for_reject`；多文件域手写 `MigrationName`，台账记域名。）
 //!
@@ -161,6 +164,16 @@
 //!    唯一行回落，多义如实给空值不伪造。为什么另立独立域已在复用测试库上入账，
 //!    域内新增子迁移在复用库上永不重放，只有让新域名处于 pending 才能被 migrate run 拾起；
 //!    挂在链尾 contract_template_schema 之后，只依赖该域建的快照表
+//! 31. print_template_default_slot: 打印模板默认位库侧唯一门——给 print_templates 按
+//!    单据类型 doc_type 建"启用且默认至多一行"的部分唯一索引
+//!    uq_print_template_active_default，索引谓词 WHERE is_default AND status='active'
+//!    与出件解析 load_active_default_template 的三条件过滤逐字符同源（键 doc_type
+//!    即解析查找键，写入侧建/改/设默认三处竞位清理同口径）；建索引前只读探测存量
+//!    违例，命中即 RAISE EXCEPTION 点名中止，不 UPDATE 不 DELETE 洗数据，人工口径
+//!    与解析同源保留每 doc_type id 最小一行；同支更正 is_default 列注释，如实描述
+//!    互斥域是 doc_type 而非 module。置于链尾为新的顶层条目（并入已应用的
+//!    print_subsystem 域会被台账跳过，索引与注释永不落地），依赖 print_subsystem 的
+//!    m0098 建表，早于本域执行，down 撤索引并还原建表注释原文
 
 pub use sea_orm_migration::prelude::*;
 
@@ -218,6 +231,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::product_roll_column_drop::Migration),
             // 合同条款快照来源指针，链尾独立域，只依赖 contract_template_schema 建的快照表
             Box::new(domain::contract_clause_snapshot_provenance::Migration),
+            Box::new(domain::print_template_default_slot::Migration),
         ]
     }
 }

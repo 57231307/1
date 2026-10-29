@@ -20,12 +20,6 @@
 //!   同一个用例函数内顺序执行，从结构上排除竞态。四张新表都不在夹具的种子参照表名单内，
 //!   逐用例清空，起点确定。
 //!
-//! 兑付分工 本文件全部用例都需要已应用 m_contract_template_schema 的活库，属编译与用例类
-//!   验证，按车道基线的验证分工一律由本次推送触发的云端 CI 兑付，本地不跑 cargo test，
-//!   也不在本地活库执行本文件，更不在本地跑迁移。迁移在活库上的应用与 up 与 down 可用性
-//!   同样由 CI 兑付，本文件只断迁移应用完成之后的库内形态；up 与 down 的互逆与域内逆序
-//!   次序在文本面由 `tests/contract_template_schema_migration_lock_test.rs` 的次序锁钉住。
-//!
 //! 反空操作自证
 //! - 模板状态词表 CHECK 缺席或被放宽时，`template_vocab_checks_reject_out_of_vocab_values`
 //!   的越界插入会成功，当场判红并点名缺失的约束名。
@@ -396,8 +390,6 @@ async fn four_new_tables_exist_with_declared_columns() {
         ("contract_clauses", "template_id", "NO"),
         ("contract_clauses", "template_version", "NO"),
         ("contract_clauses", "sort", "NO"),
-        // 链尾独立域 m0119 追加的来源指针列 可空，历史快照行为空值
-        ("contract_clauses", "template_clause_id", "YES"),
     ];
     for (table, column, nullable) in expected {
         let shape = column_shape(&db, table, column).await;

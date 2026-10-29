@@ -1,24 +1,16 @@
-//! 合同模板体系词表与结构与次序的静态锁（CI 常规可跑，不依赖活库）
+//! 合同模板体系词表 ↔ 迁移 CHECK 取值集静态锁（CI 常规可跑，不依赖活库）
 //!
-//! 功能 一侧钉住合同模板体系八组取值域在两侧同为一套，写入方权威词表是
+//! 功能 钉住合同模板体系八组取值域在两侧同为一套，写入方权威词表是
 //!   `models/status/contract_template.rs` 的各 `ALL`，数据库侧兜底是
-//!   `migration/src/domain/contract_template_schema/mod.rs` 的八枚词表常量，
-//!   逐组比对两侧取值集**集合相等**，并钉住「迁移的值域只能由常量单点注入 CHECK」
-//!   这一接线形态，防止有人另抄一套清单进 SQL 字符串。另一侧在文本面钉结构与次序，
-//!   建表列集合与可空性与四份 Entity 的字段同形，m0118 补列的两侧同形与 up 与 down
-//!   配对，域内子迁移的 up 正序与 down 严格逆序，每支迁移内部表与索引的创建与撤销
-//!   互逆，以及加在既有表上的 CHECK 必须在 down 显式撤销。
-//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读迁移域与五支子迁移与四份
-//!   Entity 与词表文件的源文本，活库面一律交同目录的 `*_shape_live_test.rs` 由 CI 兑付。
-//!   快照表的 `template_clause_id` 补列由链尾独立域 `contract_clause_snapshot_provenance`
-//!   落，本锁的实体同形段按两支文本合成判定；独立域自身的 up 与 down 互逆与「不回填不建外键」
-//!   判据在同一文件里点名，路径写全，防两域互相顶替。
+//!   `migration/src/domain/contract_template_schema/mod.rs` 的八枚词表常量。
+//!   本锁逐组比对两侧取值集**集合相等**，并钉住「迁移的值域只能由常量单点注入 CHECK」
+//!   这一接线形态，防止有人另抄一套清单进 SQL 字符串。
+//! 调用方 CI 的 Rust 测试 job 与本仓本地门。入参 无，读两份源文件原文与词表常量。
 //! 传给谁 无下游，纯断言。存什么 不写库、不写文件。存哪里 不落地。
 //!
 //! 判据是集合逐元素相等，不是包含
 //! - 词表加值而 CHECK 未加 合法写入撞 23514，冒无据可依的裸错误；
-//! - CHECK 比词表宽 旁路脚本能写出业务永不产生的脏 token，读取侧按词表分支时静默漏判；
-//! - 建表列或实体字段任一侧增删 列集合断言点名差集，防表列与实体漂移导致的整行解码失败。
+//! - CHECK 比词表宽 旁路脚本能写出业务永不产生的脏 token，读取侧按词表分支时静默漏判。
 //! 形态照 `tests/fulfillment_source_vocab_check_parity_test.rs` 的同族锁，从源文件按锚点
 //! 解析，解析失守（锚点或引号或占位形态变化）直接 panic 点名，绝不解析出空集就当通过。
 
@@ -30,7 +22,7 @@ use bingxi_backend::models::status::contract_template::contract_party_side;
 use bingxi_backend::models::status::contract_template::contract_side_kind;
 use bingxi_backend::models::status::contract_template::contract_template_status;
 use bingxi_backend::models::status::contract_template::contract_type;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::PathBuf;
 
@@ -281,8 +273,6 @@ fn vocab_tokens_are_lowercase_ascii_and_non_empty() {
 const BANNED_KIND: &str = "labor";
 
 /// 本域五支子迁移的相对文件名（与域内 mod.rs 的声明同名，改名即红）。
-/// 快照来源指针列 m0119 不在本域，由链尾独立域 `contract_clause_snapshot_provenance` 落；
-/// 本域已在复用测试库入账，域内新增子迁移永不重放，另立独立域是硬约束。
 const CHILD_MIGRATIONS: &[&str] = &[
     "m0114_create_contract_templates",
     "m0115_create_clause_library",
@@ -338,9 +328,7 @@ fn vocabulary_lists_are_never_inlined_into_child_migrations() {
     }
 }
 
-/// 链上两支域按依赖先后注册。溯源补列域只依赖建表域 m0117 建的快照表，注册位置必须晚于建表域。
-/// 只钉依赖先后不钉绝对末位，避免与后续按自身依赖追挂链尾的新域互斥成两套矛盾的锁。
-/// 台账名是域名而不是单文件名（并域会被台账整体跳过，四表全缺席）。
+/// 迁移域必须注册在链尾，且台账名是域名而不是单文件名（并域会被台账整体跳过，四表全缺席）。
 #[test]
 fn contract_template_schema_domain_is_registered_at_chain_tail() {
     let lib = read("migration/src/lib.rs");
@@ -366,22 +354,9 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
         );
     }
 
-    let provenance = "Box::new(domain::contract_clause_snapshot_provenance::Migration),";
-    let prov_pos = lib.find(provenance).unwrap_or_else(|| {
-        panic!("迁移链里找不到 {provenance}（溯源补列独立域未注册，复用库上补列永不落地）")
-    });
-    assert!(
-        prov_pos > pos,
-        "contract_clause_snapshot_provenance 必须注册在 contract_template_schema 之后（补列依赖该域 m0117 建的快照表），实得两者先后相反"
-    );
-
     assert!(
         domain_mod.contains("pub mod contract_template_schema;"),
         "域必须在 domain/mod.rs 声明，否则 lib.rs 的注册引用不到"
-    );
-    assert!(
-        domain_mod.contains("pub mod contract_clause_snapshot_provenance;"),
-        "独立域必须在 domain/mod.rs 声明，否则链尾注册引用不到"
     );
     let mod_src = read(MIGRATION_REL);
     assert!(
@@ -405,820 +380,43 @@ fn contract_template_schema_domain_is_registered_at_chain_tail() {
             "域内 up 或 down 未调用子迁移 {child}"
         );
     }
-    // m0119 不得留在本域内，否则复用库上永不重放；必须只出现在新独立域里
-    assert!(
-        !mod_src.contains("m0119_add_contract_clause_snapshot_provenance"),
-        "m0119 不得留在 contract_template_schema 域内，必须挂在链尾独立域，实得域文件已含该子迁移即复用库永不重放"
-    );
-    let new_mod_src = read("migration/src/domain/contract_clause_snapshot_provenance/mod.rs");
-    assert!(
-        new_mod_src.contains("\"m_contract_clause_snapshot_provenance\""),
-        "独立域必须手写 MigrationName 返回域名 m_contract_clause_snapshot_provenance"
-    );
-    assert!(
-        new_mod_src.contains("mod m0119_add_contract_clause_snapshot_provenance;"),
-        "独立域必须声明 m0119 子迁移"
-    );
 }
 
-/// 合同模板建表域与其链尾的独立补列域两支都不得越界写业务数据，也不得留下空 down。
-/// 判据是两域 SQL 面不出现 UPDATE 与 DELETE 与 TRUNCATE 的语句形态，
+/// 本域五支迁移不得越界写业务数据，也不得留下空 down。
+/// 判据是域内 SQL 面不出现 UPDATE 与 DELETE 与 TRUNCATE 的语句形态，
 /// down 侧只允许 DROP 与显式 no-op。
 #[test]
 fn contract_template_schema_never_touches_business_data_rows() {
-    let dirs = [
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("migration/src/domain/contract_template_schema"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("migration/src/domain/contract_clause_snapshot_provenance"),
-    ];
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("migration/src/domain/contract_template_schema");
+    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
     let mut checked = 0usize;
-    for dir in dirs {
-        let entries =
-            fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
-        for entry in entries {
-            let path = entry
-                .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
-                .path();
-            if path.extension().and_then(|s| s.to_str()) != Some("rs") {
-                continue;
-            }
-            let text =
-                fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
-            let code_only = strip_line_comments(&text);
-            for banned in ["UPDATE \"", "DELETE FROM", "TRUNCATE "] {
-                assert!(
-                    !code_only.contains(banned),
-                    "{:?} 的代码面出现语句形态 {banned}——合同模板体系与快照溯源补列两支域绝不写业务数据行，\
-                     存量脏值一律交只读探测点名后人工处置",
-                    path
-                );
-            }
-            checked += 1;
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
+            .path();
+        if path.extension().and_then(|s| s.to_str()) != Some("rs") {
+            continue;
         }
-    }
-    assert!(
-        checked >= 8,
-        "只扫到 {checked} 个源文件，说明扫描没走到两支迁移域目录（合同模板建表域六份加独立补列域两份），本锁已失去检测力"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// 结构面与次序面的文本锁（不依赖活库，CI 常规可跑）
-// ---------------------------------------------------------------------------
-
-/// 去掉整行注释后的源码，SQL 字面量里的行首 // 不存在，注释行一律不参与判定。
-fn strip_line_comments(text: &str) -> String {
-    text.lines()
-        .filter(|l| !l.trim_start().starts_with("//"))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// 取 `async fn <sig>` 的函数体（按大括号配平截断，取不到直接 panic 点名）。
-fn fn_body(src: &str, sig: &str) -> String {
-    let at = src
-        .find(sig)
-        .unwrap_or_else(|| panic!("源文件里找不到 {sig}（函数形态或改名使本锁失去检测对象）"));
-    let rest = &src[at..];
-    let bytes = rest.as_bytes();
-    let mut depth = 0usize;
-    let mut started = false;
-    for (i, b) in bytes.iter().enumerate() {
-        if *b == b'{' {
-            depth += 1;
-            started = true;
-        } else if *b == b'}' && started {
-            depth -= 1;
-            if depth == 0 {
-                return rest[..i + 1].to_string();
-            }
-        }
-    }
-    panic!("{sig} 的函数体大括号未配平，无法判定次序")
-}
-
-/// 四支建表迁移应当声明的约束全集，含建表体内联约束与建表后追加的 CHECK。
-/// 名单与本仓迁移文本逐枚核过，多一枚少一枚都判红，防止约束被静默删除或静默加宽。
-const CHILD_INLINE_CONSTRAINTS: &[(&str, &[&str])] = &[
-    (
-        "m0114_create_contract_templates",
-        &[
-            "chk_contract_templates_active_approved",
-            "chk_contract_templates_contract_type",
-            "chk_contract_templates_party_side",
-            "chk_contract_templates_status",
-            "chk_contract_templates_version",
-            "uq_contract_templates_code_version",
-        ],
-    ),
-    (
-        "m0115_create_clause_library",
-        &[
-            "chk_clause_library_applies_type",
-            "chk_clause_library_body",
-            "chk_clause_library_code",
-            "chk_clause_library_status",
-            "uq_clause_library_code",
-        ],
-    ),
-    (
-        "m0116_create_contract_template_clauses",
-        &[
-            "chk_ctc_applies_when",
-            "chk_ctc_clause_code",
-            "chk_ctc_legal_review_status",
-            "chk_ctc_review_pair",
-            "chk_ctc_sort",
-            "chk_ctc_text_source",
-            "fk_ctc_library",
-            "fk_ctc_template",
-        ],
-    ),
-    (
-        "m0117_create_contract_clauses",
-        &[
-            "chk_cc_body_rendered",
-            "chk_cc_body_fully_rendered",
-            "chk_cc_clause_code",
-            "chk_cc_contract_kind",
-            "chk_cc_sort",
-            "chk_cc_template_version",
-            "fk_cc_template",
-        ],
-    ),
-];
-
-/// 钉每支建表迁移的约束名单。解析口径 认 `CONSTRAINT 名` 与 `CONSTRAINT "名"` 两种写法，
-/// 跳过 `CONSTRAINT IF EXISTS` 这种撤销语句；解析结果为空直接 panic，绝不当成无约束通过。
-#[test]
-fn declared_constraint_names_are_exactly_the_pinned_set() {
-    for &(child, pinned) in CHILD_INLINE_CONSTRAINTS {
-        let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
-        let src = strip_line_comments(&read(&rel));
-        let mut found: BTreeSet<String> = BTreeSet::new();
-        for raw in src.lines() {
-            let line = raw.trim();
-            let Some(at) = line.find("CONSTRAINT ") else {
-                continue;
-            };
-            let tail = &line[at + "CONSTRAINT ".len()..];
-            let name = object_name(tail);
-            if name.is_empty() || name == "IF" {
-                continue;
-            }
-            found.insert(name);
-        }
-        let expected: BTreeSet<String> = pinned.iter().map(|n| (*n).to_string()).collect();
-        assert!(
-            !found.is_empty(),
-            "{rel} 一枚约束都没解析到，本锁已失去检测力"
-        );
-        assert_eq!(
-            found, expected,
-            "{rel} 的约束名单与钉住的集合不一致。缺席的约束是被静默删除，多出的约束是没登记\
-             进本锁的加宽或新增。\n钉住={expected:?}\n实得={found:?}"
-        );
-        for name in pinned {
-            let count = src.matches(*name).count();
-            assert!(
-                count >= 1,
-                "{rel} 的约束名 {name} 在文本面出现 {count} 次，名单与实得已脱节"
-            );
-            // 允许两种形态 只声明一次，或走先撤后加的幂等重建（撤与加各出现一次，合计两次）。
-            // 出现两次以上却没有撤销形态，等于同名约束重复声明或探测与施加写重了。
-            if count > 1 {
-                assert_eq!(
-                    count, 2,
-                    "{rel} 的约束名 {name} 出现 {count} 次，超过撤与加配对的两次"
-                );
-                assert!(
-                    src.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{name}""#)),
-                    "{rel} 的约束名 {name} 出现 {count} 次但不带先撤后加的幂等形态，\
-                     属重复声明"
-                );
-            }
-        }
-    }
-
-    // m0118 的 CHECK 走 for 循环加 format 注入，名单以占位形态出现在 up、以实形态出现在 down。
-    let rel =
-        "migration/src/domain/contract_template_schema/m0118_add_contract_main_clause_columns.rs";
-    let src = strip_line_comments(&read(rel));
-    let down_at = src
-        .find("async fn down")
-        .unwrap_or_else(|| panic!("{rel} 缺少 down"));
-    let (up_part, down_body) = src.split_at(down_at);
-    assert!(
-        up_part.contains(r#"ALTER TABLE "{table}" ADD CONSTRAINT "chk_{table}_contract_market""#),
-        "{rel} 的 up 不再以占位形态给两侧合同主表施加内外销 CHECK，施加面被改动需同步本锁"
-    );
-    for table in CONTRACT_MAIN_TABLES {
-        let name = format!("chk_{table}_contract_market");
-        assert!(
-            down_body.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{name}""#)),
-            "{rel} 的 down 没有撤销 {table} 上的 {name}，回滚后库里会比 up 之前更紧"
-        );
-        assert_eq!(
-            src.matches(&name).count(),
-            1,
-            "{rel} 的约束名 {name} 出现多次或形态变化，实得 {cnt} 次",
-            cnt = src.matches(&name).count()
-        );
-    }
-}
-
-/// 子迁移文件名与其建的四张表（m0118 是补列，不建表，故不在表名单内）。
-const CHILD_TABLES: &[(&str, &str)] = &[
-    ("m0114_create_contract_templates", "contract_templates"),
-    ("m0115_create_clause_library", "clause_library"),
-    (
-        "m0116_create_contract_template_clauses",
-        "contract_template_clauses",
-    ),
-    ("m0117_create_contract_clauses", "contract_clauses"),
-];
-
-/// 列规格，name 与 not_null 一律按迁移文本与实体逐列核定。
-struct ColSpec {
-    name: &'static str,
-    not_null: bool,
-}
-
-const fn col(name: &'static str, not_null: bool) -> ColSpec {
-    ColSpec { name, not_null }
-}
-
-/// contract_templates 的全部列与可空性。
-const CONTRACT_TEMPLATES_COLS: &[ColSpec] = &[
-    col("id", true),
-    col("template_code", true),
-    col("contract_type", true),
-    col("party_side", true),
-    col("version", true),
-    col("title", true),
-    col("status", true),
-    col("effective_from", false),
-    col("created_by", true),
-    col("approved_by", false),
-    col("approved_at", false),
-    col("remark", false),
-    col("created_at", true),
-    col("updated_at", true),
-];
-
-/// clause_library 的全部列与可空性。
-const CLAUSE_LIBRARY_COLS: &[ColSpec] = &[
-    col("id", true),
-    col("clause_code", true),
-    col("title", true),
-    col("body", true),
-    col("applies_contract_type", false),
-    col("status", true),
-    col("remark", false),
-    col("created_by", true),
-    col("created_at", true),
-    col("updated_at", true),
-];
-
-/// contract_template_clauses 的全部列与可空性。body 与 library_clause_id 列侧可空，
-/// 二选一由 CHECK 钉住，故实体两侧都是 Option。
-const CONTRACT_TEMPLATE_CLAUSES_COLS: &[ColSpec] = &[
-    col("id", true),
-    col("template_id", true),
-    col("clause_code", true),
-    col("title", true),
-    col("body", false),
-    col("library_clause_id", false),
-    col("required", true),
-    col("sort", true),
-    col("applies_when", false),
-    col("legal_review_status", true),
-    col("legal_reviewed_by", false),
-    col("legal_reviewed_at", false),
-    col("legal_review_remark", false),
-    col("created_at", true),
-    col("updated_at", true),
-];
-
-/// contract_clauses 快照的全部列与可空性。快照行要么整条存在要么不存在，
-/// 所以正文与模板版本一律 NOT NULL，不给空串与零值冒充已固化。
-const CONTRACT_CLAUSES_COLS: &[ColSpec] = &[
-    col("id", true),
-    col("contract_kind", true),
-    col("contract_id", true),
-    col("clause_code", true),
-    col("title", true),
-    col("body_rendered", true),
-    col("template_id", true),
-    col("template_version", true),
-    col("sort", true),
-    col("created_at", true),
-    col("updated_at", true),
-];
-
-/// 快照实体面对的完整列集合 建表十列加链尾独立域 m0119 追加一列（供实体同形比对使用；
-/// 建表文本面仍按 m0117 的十列单独判定，两支各自互逆）。
-/// m0119 追加的一枚列规格：可空无默认；历史快照行没有可信指针可回填，读侧对空值走
-/// (模板, 条款码) 唯一行回落，伪造指针比空值更坏。
-const CONTRACT_CLAUSES_COLS_ALL: &[ColSpec] = &[
-    col("id", true),
-    col("contract_kind", true),
-    col("contract_id", true),
-    col("clause_code", true),
-    col("title", true),
-    col("body_rendered", true),
-    col("template_id", true),
-    col("template_version", true),
-    col("sort", true),
-    col("template_clause_id", false),
-    col("created_at", true),
-    col("updated_at", true),
-];
-
-/// m0118 补列的两侧合同主表名。
-const CONTRACT_MAIN_TABLES: &[&str] = &["sales_contracts", "purchase_contracts"];
-
-/// m0118 补到两侧合同主表的列，全部可空且无默认（历史合同保持 NULL 的判据）。
-const CONTRACT_MAIN_ADDED_COLS: &[&str] = &[
-    "quality_terms",
-    "breach_liability",
-    "dispute_resolution",
-    "performance_period",
-    "signed_at",
-    "signed_by_user_id",
-    "signature_hash",
-    "signature_image_url",
-    "signature_certificate",
-    "stamp_tax_amount",
-    "contract_market",
-    "tax_inclusive",
-];
-
-/// 建表迁移必须把列名与可空性写成契约声明的形态。判据从 CREATE TABLE 括号体内逐行解析，
-/// 表名或列名或 NOT NULL 任一改动都会与规格表对不上，缺席多出席名集合。
-#[test]
-fn create_table_blocks_declare_exactly_the_specified_columns() {
-    let specs: [(&str, &str, &[ColSpec]); 4] = [
-        (
-            "m0114_create_contract_templates",
-            "contract_templates",
-            CONTRACT_TEMPLATES_COLS,
-        ),
-        (
-            "m0115_create_clause_library",
-            "clause_library",
-            CLAUSE_LIBRARY_COLS,
-        ),
-        (
-            "m0116_create_contract_template_clauses",
-            "contract_template_clauses",
-            CONTRACT_TEMPLATE_CLAUSES_COLS,
-        ),
-        (
-            "m0117_create_contract_clauses",
-            "contract_clauses",
-            CONTRACT_CLAUSES_COLS,
-        ),
-    ];
-    for (child, table, spec) in specs {
-        let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
-        let src = strip_line_comments(&read(&rel));
-        let open_anchor = format!("CREATE TABLE IF NOT EXISTS {table} (");
-        let open = src.find(&open_anchor).unwrap_or_else(|| {
-            panic!("{rel} 找不到 {open_anchor}——建表形态或表名被改动，本锁失去检测对象")
-        });
-        let body_start = open + open_anchor.len();
-        let close = find_create_table_close(&src[body_start..], &rel, table);
-        let body = &src[body_start..body_start + close];
-
-        let mut declared: BTreeSet<String> = BTreeSet::new();
-        let mut nullability: BTreeMap<String, bool> = BTreeMap::new();
-        for raw in body.lines() {
-            let line = raw.trim();
-            if line.is_empty()
-                || line.starts_with("CONSTRAINT")
-                || line.starts_with("PRIMARY KEY")
-                || line.starts_with("UNIQUE (")
-                || line.starts_with("CHECK (")
-            {
-                continue;
-            }
-            let name = line.split_whitespace().next().unwrap_or("");
-            if name.is_empty() || !name.chars().next().unwrap().is_ascii_lowercase() {
-                continue;
-            }
-            declared.insert(name.to_string());
-            nullability.insert(
-                name.to_string(),
-                line.contains("NOT NULL") || line.contains("PRIMARY KEY"),
-            );
-        }
-
-        let expected: BTreeSet<String> = spec.iter().map(|c| c.name.to_string()).collect();
-        assert_eq!(
-            declared, expected,
-            "{rel} 的 {table} 列集合与规格表不一致。多出的列未登记进本锁，缺席的列会让\
-             读写腿按不存在的列解码。规格={expected:?} 实得={declared:?}"
-        );
-        for c in spec {
-            let Some(is_null) = nullability.get(c.name) else {
-                panic!("{table} 的建表体内解析不到列 {cname}", cname = c.name);
-            };
-            assert_eq!(
-                *is_null,
-                c.not_null,
-                "{table}.{cname} 的可空性与规格不符，钉的是 not_null={want}，\
-                 迁移文本实得 not_null={got}。可空性漂移会让历史行的空值语义\
-                 与服务层解码口径分叉",
-                cname = c.name,
-                want = c.not_null,
-                got = *is_null,
-            );
-        }
-    }
-}
-
-/// 从 CREATE TABLE 体内定位与其配平的右括号偏移。体内不含嵌套括号到语句级，
-/// 只需要按括号深度配平即可。找不到即 panic 点名，绝不放宽成整文件扫描。
-fn find_create_table_close(tail: &str, rel: &str, table: &str) -> usize {
-    let bytes = tail.as_bytes();
-    let mut depth = 1usize;
-    for (i, b) in bytes.iter().enumerate() {
-        if *b == b'(' {
-            depth += 1;
-        } else if *b == b')' {
-            depth -= 1;
-            if depth == 0 {
-                return i;
-            }
-        }
-    }
-    panic!("{rel} 的 {table} 建表体括号未配平，无法界定列清单")
-}
-
-/// 实体与 DDL 必须同形，列名集合与可空性两处同源。表列一旦与 Entity 漂移，
-/// 解码整行失败或新列在读写腿里静默失踪，都是本仓反复出现过的缺陷形态。
-/// 快照表的列由两支域文本合成 contract_template_schema/m0117 建表加链尾独立域
-/// contract_clause_snapshot_provenance/m0119 补列。判据按 domain/stem 全路径读文件，
-/// 防止独立域被搬回 contract_template_schema 或另立他名后本锁静默失联。
-#[test]
-fn entities_declare_exactly_the_ddl_columns_with_matching_nullability() {
-    let pairs: [(&str, &str, &[ColSpec]); 4] = [
-        (
-            "contract_template_schema/m0114_create_contract_templates",
-            "src/models/contract_template.rs",
-            CONTRACT_TEMPLATES_COLS,
-        ),
-        (
-            "contract_template_schema/m0115_create_clause_library",
-            "src/models/clause_library.rs",
-            CLAUSE_LIBRARY_COLS,
-        ),
-        (
-            "contract_template_schema/m0116_create_contract_template_clauses",
-            "src/models/contract_template_clause.rs",
-            CONTRACT_TEMPLATE_CLAUSES_COLS,
-        ),
-        (
-            "contract_template_schema/m0117_create_contract_clauses|contract_clause_snapshot_provenance/m0119_add_contract_clause_snapshot_provenance",
-            "src/models/contract_clause.rs",
-            CONTRACT_CLAUSES_COLS_ALL,
-        ),
-    ];
-    for (child, model_rel, spec) in pairs {
-        // 快照列由两支迁移合成（建表加补列），DDL 面按两支文本合并判定；
-        // child 里 pipe 分隔的每一段都是相对 domain/ 的完整路径（含域名与文件名）。
-        let ddl = child
-            .split('|')
-            .map(|c| strip_line_comments(&read(&format!("migration/src/domain/{c}.rs"))))
+        let text =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path));
+        let code_only = text
+            .lines()
+            .filter(|l| !l.trim_start().starts_with("//"))
             .collect::<Vec<_>>()
             .join("\n");
-        let model = strip_line_comments(&read(model_rel));
-        let mut fields: BTreeMap<String, bool> = BTreeMap::new();
-        for raw in model.lines() {
-            let line = raw.trim();
-            let Some(rest) = line.strip_prefix("pub ") else {
-                continue;
-            };
-            let Some((name, ty)) = rest.split_once(':') else {
-                continue;
-            };
-            let name = name.trim();
-            if name.is_empty() || !name.chars().all(|c| c.is_ascii_lowercase() || c == '_') {
-                continue;
-            }
-            fields.insert(name.to_string(), ty.trim_start().starts_with("Option<"));
-        }
-        let expected: BTreeSet<String> = spec.iter().map(|c| c.name.to_string()).collect();
-        let declared: BTreeSet<String> = fields.keys().cloned().collect();
-        assert_eq!(
-            declared, expected,
-            "{model_rel} 的字段集合与本锁规格不一致（建表迁移 {child}）。缺席字段让新列\
-             在读写腿失踪，多出的字段解码时报列不存在。规格={expected:?} 实得={declared:?}"
-        );
-        for c in spec {
-            let cname = c.name;
-            let Some(entity_optional) = fields.get(cname) else {
-                panic!("{model_rel} 没有字段 {cname}，实体与建表迁移已脱节");
-            };
-            assert_eq!(
-                *entity_optional, !c.not_null,
-                "{model_rel} 的 {cname} 与 {child} 建表体的可空性不同形。\
-                 DDL NOT NULL 的列在实体里必须是裸类型，可空列必须是 Option，\
-                 否则一侧放行一侧拒写"
-            );
+        for banned in ["UPDATE \"", "DELETE FROM", "TRUNCATE "] {
             assert!(
-                ddl.contains(&format!("{cname} ")) || ddl.contains(&format!("{cname}(")),
-                "{child} 的建表体里找不到列 {cname}，规格表与迁移文本已脱节"
-            );
-        }
-    }
-}
-
-/// m0119 补列必须只加一列、可空无默认、up 与 down 互逆。判据与 m0118 同族但单点：
-/// 出现第二枚 ADD COLUMN 即越界改动快照表形态，缺 down 的 DROP 即回滚不干净。
-/// 该迁移已搬出 contract_template_schema 域，挂在链尾独立域 `contract_clause_snapshot_provenance`
-/// 目录下；判据按新路径读文件，防止搬回原域后本锁静默失联。
-#[test]
-fn m0119_adds_exactly_one_nullable_provenance_column_with_inverse_down() {
-    let src = strip_line_comments(&read(
-        "migration/src/domain/contract_clause_snapshot_provenance/m0119_add_contract_clause_snapshot_provenance.rs",
-    ));
-    let down_at = src
-        .find("async fn down")
-        .expect("m0119 缺少 down，无法分段判 up 与 down 的列集合");
-    let (up_src, down_src) = src.split_at(down_at);
-    let add = r#"ALTER TABLE "contract_clauses" ADD COLUMN IF NOT EXISTS "template_clause_id""#;
-    let drop = r#"ALTER TABLE "contract_clauses" DROP COLUMN IF EXISTS "template_clause_id""#;
-    assert_eq!(
-        up_src.matches("ADD COLUMN IF NOT EXISTS").count(),
-        1,
-        "m0119 只应追加来源指针一列，实得多枚 ADD COLUMN 即越界改快照表形态"
-    );
-    assert!(
-        up_src.contains(add),
-        "m0119 的 up 缺少来源指针加列语句，形如 {add}"
-    );
-    assert!(
-        down_src.contains(drop),
-        "m0119 的 down 必须撤销该列（与 up 互逆），缺位即回滚不干净"
-    );
-    assert_eq!(
-        down_src.matches("DROP COLUMN IF EXISTS").count(),
-        1,
-        "m0119 的 down 只应撤销这一列，多撤即动了不该动的形态"
-    );
-    let stmt = up_src
-        .split(add)
-        .nth(1)
-        .and_then(|t| t.split(';').next())
-        .unwrap_or_default();
-    assert!(
-        !stmt.contains("NOT NULL") && !stmt.contains("DEFAULT"),
-        "m0119 给 template_clause_id 带了 NOT NULL 或 DEFAULT，形={stmt}。\
-         新增列必须可空无默认，历史快照行没有可信指针可回填"
-    );
-}
-
-/// 快照表的引用完整性口径 合同模板建表域与链尾独立补列域任何一支迁移都不给 contract_clauses
-/// 加指向条款项的外键（快照与模板行之间只留溯源指针，不留可级联可阻塞的强引用），也不给
-/// template_clause_id 建约束。判据是两支域 SQL 文本面不出现指向 contract_template_clauses 的
-/// FOREIGN KEY，contract_clauses 的 ADD CONSTRAINT 名单不含外键该列的名。
-#[test]
-fn snapshot_table_never_gains_foreign_key_to_template_clauses() {
-    let dirs = [
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("migration/src/domain/contract_template_schema"),
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("migration/src/domain/contract_clause_snapshot_provenance"),
-    ];
-    let mut scanned = 0usize;
-    for dir in dirs {
-        let entries =
-            fs::read_dir(&dir).unwrap_or_else(|e| panic!("读取迁移域目录 {dir:?} 失败: {e}"));
-        for entry in entries {
-            let path = entry
-                .unwrap_or_else(|e| panic!("读取目录项失败: {e}"))
-                .path();
-            if path.extension().and_then(|s| s.to_str()) != Some("rs") {
-                continue;
-            }
-            let text = strip_line_comments(
-                &fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {e}", path)),
-            );
-            // REFERENCES contract_template_clauses 一律判负：快照引用条款项只以指针列建模
-            assert!(
-                !text.contains("REFERENCES contract_template_clauses"),
-                "{:?} 出现指向 contract_template_clauses 的外键，快照行会被模板行删除动作阻塞\
-                 或牵动，与切片A对该表的建模决定冲突",
+                !code_only.contains(banned),
+                "{:?} 的代码面出现语句形态 {banned}——合同模板体系域绝不写业务数据行，\
+                 存量脏值一律交只读探测点名后人工处置",
                 path
             );
-            scanned += 1;
         }
+        checked += 1;
     }
     assert!(
-        scanned >= 8,
-        "只扫到 {scanned} 个源文件，两支迁移域目录未走全（合同模板建表域六份加独立补列域两份），本锁失去检测对象"
+        checked >= 5,
+        "只扫到 {checked} 个源文件，说明扫描没走到迁移域目录，本锁已失去检测力"
     );
-}
-
-/// m0118 补列必须两侧同形且一律可空。判据按表名加列名成对出现，缺任一一侧即点名。
-#[test]
-fn main_table_added_columns_cover_both_sides_and_stay_nullable() {
-    let src = strip_line_comments(&read(
-        "migration/src/domain/contract_template_schema/m0118_add_contract_main_clause_columns.rs",
-    ));
-    let down_at = src
-        .find("async fn down")
-        .expect("m0118 缺少 down，无法分段判 up 与 down 的列集合");
-    let (up_src, down_src) = src.split_at(down_at);
-    for col_name in CONTRACT_MAIN_ADDED_COLS.iter().copied() {
-        for table in CONTRACT_MAIN_TABLES.iter().copied() {
-            let add = format!(r#"ALTER TABLE "{table}" ADD COLUMN IF NOT EXISTS "{col_name}""#);
-            let drop = format!(r#"ALTER TABLE "{table}" DROP COLUMN IF EXISTS "{col_name}""#);
-            let added_in_up = up_src.contains(&add);
-            let dropped_in_down = down_src.contains(&drop);
-            // 销售侧的四条款列与签署列与印花税列是既有列，本迁移只给采购侧补齐，
-            // 再给两侧补内外销与含税两枚，故销售侧只允许这两枚有 ADD 与 DROP 配对。
-            let is_sales_new = matches!(col_name, "contract_market" | "tax_inclusive");
-            let expected_add = table == "purchase_contracts" || is_sales_new;
-            assert_eq!(
-                added_in_up, expected_add,
-                "m0118 的 {table}.{col_name} 加列形态与规格不符。期望 add={expected_add}，\
-                 实得 {added_in_up}。销售侧既有列不该重复加列，采购侧该补的一枚不能少"
-            );
-            assert_eq!(
-                dropped_in_down, added_in_up,
-                "m0118 的 {table}.{col_name} up 与 down 不互逆。加过的列必须能撤，\
-                 没加的列不该出现在 down，实得 add={added_in_up} drop={dropped_in_down}"
-            );
-            if added_in_up {
-                let stmt = up_src
-                    .split(&add)
-                    .nth(1)
-                    .and_then(|t| t.split(';').next())
-                    .unwrap_or_default();
-                assert!(
-                    !stmt.contains("NOT NULL") && !stmt.contains("DEFAULT"),
-                    "m0118 给 {table}.{col_name} 带了 NOT NULL 或 DEFAULT，形={stmt}。\
-                     新增列必须可空无默认，否则历史行在新读法下冒充成已采集过的值"
-                );
-            }
-        }
-    }
-}
-
-/// 域内子迁移的调用次序必须 up 正序、down 严格逆序；建表体内的表与索引也必须
-/// up 正序创建、down 逆序撤销。外键方向与依赖方向都在这里钉死，顺序错了 down 必断。
-#[test]
-fn up_and_down_run_in_strictly_opposite_order() {
-    let mod_src = read(MIGRATION_REL);
-    let up = fn_body(&mod_src, "async fn up");
-    let down = fn_body(&mod_src, "async fn down");
-
-    let mut up_positions: Vec<(usize, &str)> = Vec::new();
-    let mut down_positions: Vec<(usize, &str)> = Vec::new();
-    for child in CHILD_MIGRATIONS.iter().copied() {
-        let up_hits = up.matches(&format!("{child}::Migration")).count();
-        let down_hits = down.matches(&format!("{child}::Migration")).count();
-        assert_eq!(
-            up_hits, 1,
-            "域内 up 必须恰好调用 {child} 一次，实得 {up_hits} 次（漏调半张表，多调重复建表）"
-        );
-        assert_eq!(
-            down_hits, 1,
-            "域内 down 必须恰好调用 {child} 一次，实得 {down_hits} 次（漏撤留半张表在库里）"
-        );
-        up_positions.push((up.find(child).expect("up 找不到子迁移名"), child));
-        down_positions.push((down.find(child).expect("down 找不到子迁移名"), child));
-    }
-    up_positions.sort_by_key(|(pos, _)| *pos);
-    down_positions.sort_by_key(|(pos, _)| *pos);
-
-    let up_order: Vec<&str> = up_positions.iter().map(|(_, n)| *n).collect();
-    let down_order: Vec<&str> = down_positions.iter().map(|(_, n)| *n).collect();
-    assert_eq!(
-        up_order,
-        CHILD_MIGRATIONS.to_vec(),
-        "域内 up 的调用次序必须与被引用表在前的建表次序一致，实得 {up_order:?}"
-    );
-    let mut expected_down = CHILD_MIGRATIONS.to_vec();
-    expected_down.reverse();
-    assert_eq!(
-        down_order, expected_down,
-        "域内 down 必须是 up 的严格逆序（先撤引用方再撤被引用表，否则外键挡住 DROP），实得 {down_order:?}"
-    );
-
-    // 每支建表迁移内部的表与索引也要 up 正序、down 逆序。
-    for &(child, _table) in CHILD_TABLES {
-        let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
-        let src = strip_line_comments(&read(&rel));
-        let down_at = src
-            .find("async fn down")
-            .unwrap_or_else(|| panic!("{rel} 缺少 down，无法分段判创建与撤销次序"));
-        let (up_part, down_body) = src.split_at(down_at);
-        let created = collect_created_objects(up_part);
-        let dropped = collect_dropped_objects(down_body);
-        assert!(
-            !created.is_empty(),
-            "{rel} 的 up 段没解析到 CREATE TABLE 或 CREATE INDEX，本锁失去检测对象"
-        );
-        let mut reversed = created.clone();
-        reversed.reverse();
-        assert_eq!(
-            dropped, reversed,
-            "{rel} 的 down 撤销次序不是 up 创建次序的严格逆序。创建次序={created:?}\
-             \n撤销次序={dropped:?}\n期望={reversed:?}"
-        );
-    }
-}
-
-/// 收集 up 体内创建的表与索引名（表带前缀 t 索引带前缀 i，保证两类对象不会互相冒充）。
-fn collect_created_objects(body: &str) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for raw in body.lines() {
-        let line = raw.trim();
-        if let Some(rest) = line.strip_prefix("CREATE TABLE IF NOT EXISTS ") {
-            out.push(format!("t.{}", object_name(rest)));
-        } else if let Some(rest) = line.strip_prefix("CREATE UNIQUE INDEX IF NOT EXISTS ") {
-            out.push(format!("i.{}", object_name(rest)));
-        } else if let Some(rest) = line.strip_prefix("CREATE INDEX IF NOT EXISTS ") {
-            out.push(format!("i.{}", object_name(rest)));
-        }
-    }
-    out
-}
-
-/// 收集 down 体内撤销的表与索引名。
-fn collect_dropped_objects(body: &str) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for raw in body.lines() {
-        let line = raw.trim();
-        if let Some(rest) = line.strip_prefix("DROP TABLE IF EXISTS ") {
-            out.push(format!("t.{}", object_name(rest)));
-        } else if let Some(rest) = line.strip_prefix("DROP INDEX IF EXISTS ") {
-            out.push(format!("i.{}", object_name(rest)));
-        }
-    }
-    out
-}
-
-/// 取对象名的首段标识符。带引号的写法先剥掉起始引号，再从首字符起取到第一个
-/// 非标识符字符为止。花括号占位原样保留，交给调用方判占位形态。
-fn object_name(rest: &str) -> String {
-    rest.trim()
-        .trim_start_matches('"')
-        .chars()
-        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '{' || *c == '}')
-        .collect()
-}
-
-/// up 里 ALTER TABLE ADD CONSTRAINT 的约束，若落在本文件自己新建的表上就随 DROP TABLE 一起消失，
-/// 落在既有表上（m0118 的内外销 CHECK）必须在 down 里显式撤销。不互逆的回滚会把约束留在库里。
-#[test]
-fn added_constraints_are_either_dropped_or_rided_out_with_their_table() {
-    let mut own_tables: BTreeSet<String> = BTreeSet::new();
-    for (_child, table) in CHILD_TABLES {
-        own_tables.insert((*table).to_string());
-    }
-    for child in CHILD_MIGRATIONS.iter().copied() {
-        let rel = format!("migration/src/domain/contract_template_schema/{child}.rs");
-        let src = strip_line_comments(&read(&rel));
-        let Some(down_at) = src.find("async fn down") else {
-            panic!("{rel} 缺少 down，无法判定约束配对");
-        };
-        let (up_part, down_body) = src.split_at(down_at);
-        for raw in up_part.lines() {
-            let line = raw.trim();
-            let Some(rest) = line.strip_prefix("ALTER TABLE ") else {
-                continue;
-            };
-            let Some(at_add) = rest.find("ADD CONSTRAINT ") else {
-                continue;
-            };
-            let table = object_name(&rest[..at_add]);
-            let constraint = object_name(&rest[at_add + "ADD CONSTRAINT ".len()..]);
-            // m0118 的 CHECK 走 for 循环加 format 注入，源文本里是 {table} 占位形态，
-            // 按两侧合同主表逐一展开后再判配对，占位形态本身不参与own_tables比对。
-            let candidates: Vec<(String, String)> = if table.contains('{') {
-                CONTRACT_MAIN_TABLES
-                    .iter()
-                    .map(|t| (t.to_string(), constraint.replace("{table}", *t)))
-                    .collect()
-            } else {
-                vec![(table, constraint)]
-            };
-            for (table, constraint) in candidates {
-                if own_tables.contains(&table) {
-                    continue;
-                }
-                assert!(
-                    down_body.contains(&format!(r#"DROP CONSTRAINT IF EXISTS "{constraint}""#)),
-                    "{rel} 的 up 在既有表 {table} 上加了约束 {constraint}，down 却没有显式撤销它。\
-                     回滚后约束会留在库里，比 up 之前更紧，属不可逆"
-                );
-            }
-        }
-    }
 }

@@ -8,7 +8,8 @@
 //! 2. 默认位竞位侧：新建/更新/设默认都以 doc_type（渲染查找键）为互斥域、只在显式置默认位
 //!    且本行生效为启用时竞位，且只降「同键且未停用」的在任默认行；内置种子形态行
 //!    （module=doc_type）被用户自建默认行降位是预期语义；停用行不得把在任启用默认行打下来；
-//!    单纯状态位切换（含重新启用）一律不清任何行的默认位，并存形态由解析按 id 升序取首行。
+//!    单纯状态位切换（含重新启用）一律不清任何行的默认位；带默认位的停用行重新启用若会与
+//!    在任启用默认行撞位，管理面非竞位腿按生效值点名拒绝且零写入，并存形态不再落库。
 //! 3. 显式模板 id 出件侧：`load_printable_template` 只接受启用行，停用与不存在都 404 并
 //!    点名模板 id 与成因（锁 POST /print-tasks 与 POST /print-templates/{id}/print 的受理门）。
 //! 4. 管理面口径：详情读取必须仍能看到停用行（与出件侧有意不同，防止后续"顺手"把管理面
@@ -27,9 +28,11 @@
 //! 反空操作自证：若出件解析去掉启用位过滤（还原"建了就一直可用"），用例 1 的停用段与
 //! 用例 2 的停用段必红；若竞位过滤退回按 module 清（还原遮蔽缺陷），用例 2 的"种子形态
 //! 行被降位/停用后 404"必红（种子行仍以最小 id 出件，停用无效）；若竞位条件放宽为
-//! "保存后本行将成为启用默认行"（即单纯状态切换也竞位），用例 3 的"重新启用后在任行保位"
-//! 必红；若显式 id 分支不查启用位，用例 4 停用段必红；若管理面详情被顺手加上启用位过滤，
-//! 用例 5 必红。断言不使用恒真式。
+//! "保存后本行将成为启用默认行"（即单纯状态切换也竞位），用例 3 的"撞位重新启用必须被
+//! 点名拒绝"与"在任行保位"必红；若撞位点名守卫缺席，用例 3 的重新启用直写会撞库侧
+//! 启用默认唯一门，得到 DatabaseError 族而非可外显业务拒绝，其错误族与点名文案断言
+//! 当场必红；若显式 id 分支不查启用位，用例 4 停用段必红；若管理面详情被顺手加上
+//! 启用位过滤，用例 5 必红。断言不使用恒真式。
 
 mod test_common;
 
@@ -172,6 +175,24 @@ fn assert_not_found(err: AppError, expect_in_msg: &[&str]) {
             rendered.contains(token),
             "404 消息必须点名 {token}，实际: {rendered}"
         );
+    }
+}
+
+/// 断言拒绝落在可外显业务拒绝族（business_displayable），文案是业务原因且逐点名关键字。
+///
+/// 撞位点名守卫的变异自证。守卫缺席时直写会撞库侧启用默认唯一门，界面拿到的是
+/// DatabaseError 族裸库错，也没有对在任行的点名，本 helper 的族断言与关键字断言
+/// 当场判红，不接受把点名拒绝退化成难看的库错。
+fn assert_business_displayable(err: AppError, expect_in_msg: &[&str]) {
+    let AppError::BusinessErrorDisplayable(msg) = &err else {
+        panic!("拒绝必须是可外显业务拒绝（business_displayable 族），实际形态 {err:?}");
+    };
+    assert!(
+        !msg.contains("DatabaseError") && !msg.contains("数据重复"),
+        "拒绝文案必须是业务原因，不得是数据库重复错误原文，实际 {msg}"
+    );
+    for token in expect_in_msg {
+        assert!(msg.contains(token), "拒绝文案必须点名 {token}，实际 {msg}");
     }
 }
 
@@ -325,7 +346,8 @@ async fn new_active_default_demotes_builtin_style_default_of_same_doc_type() {
     );
 }
 
-/// 用例 3：停用行不得把在任启用默认行打下来；重新启用只恢复出件资格、一律不竞位。
+/// 用例 3：停用行不得把在任启用默认行打下来，重新启用不发起竞位；带默认位的停用行
+/// 重新启用会与在任启用默认行撞位，管理面点名拒绝且零写入，在任行保位。
 #[tokio::test]
 async fn inactive_row_never_demotes_in_position_default() {
     let db = test_common::setup_test_db().await;
@@ -375,34 +397,47 @@ async fn inactive_row_never_demotes_in_position_default() {
         .expect("解析必须仍命中在任启用默认行");
     assert_eq!(hit.id, keeper.id);
 
-    // 停用行（is_default=true）重新启用：状态位单独切换不发起竞位。存量并存形态下
-    // 解析按 id 升序取首行保确定性，在任启用默认行必须保位不被清（"重新启用就竞位"判红锁）。
+    // 停用行（is_default=true）重新启用且未显式置默认位：单纯状态切换不发起竞位。
+    // schema 层同一单据类型至多一行启用且默认，直写会与在任启用默认行撞位，管理面
+    // 非竞位腿必须点名拒绝，而不是把裸的库侧重复错误冒到界面上。
     let mut on = update_req_none();
     on.status = Some(print_template_status::ACTIVE.to_string());
-    let rec_on = print_handler::update_print_template(
+    let err_on = print_handler::update_print_template(
         AxPath(claimant.id),
         State(st.clone()),
         auth(),
         Json(on),
     )
     .await
-    .expect("重新启用带默认位的模板行必须成功");
-    assert_eq!(
-        rec_on.0.data.expect("重新启用返回体必须携带模板行").status,
-        print_template_status::ACTIVE,
-        "重新启用必须回读 active"
-    );
+    .expect_err("撞位在任启用默认行的停用默认行重新启用必须被点名拒绝");
+    assert_business_displayable(err_on, &["IT_GATE_IX_KEEP", "默认模板", "启用"]);
+    // 拒绝不得部分生效、零写入：在任行保位保状态，被拒行留存停用态与自身默认位。
     let keeper_still = reload(&db, keeper.id).await;
     assert!(
         keeper_still.is_default,
-        "单纯状态位切换一律不清任何行的默认位：在任启用默认行必须保位"
+        "单纯状态位切换一律不清任何行的默认位，在任启用默认行必须保位"
+    );
+    assert_eq!(
+        keeper_still.status,
+        print_template_status::ACTIVE,
+        "拒绝路径不得动在任行的启用状态"
+    );
+    let claimant_still = reload(&db, claimant.id).await;
+    assert_eq!(
+        claimant_still.status,
+        print_template_status::INACTIVE,
+        "拒绝不得部分生效，被拒行必须仍为停用态"
+    );
+    assert!(
+        claimant_still.is_default,
+        "拒绝不得顺手清掉被拒行自身的默认位"
     );
     let hit2 = print_task_handler::load_active_default_template(&db, DT_ROUNDTRIP)
         .await
-        .expect("重新启用后解析必须仍可命中（并存形态按 id 升序确定）");
+        .expect("撞位重新启用被拒后解析必须仍命中在任启用默认行");
     assert_eq!(
         hit2.id, keeper.id,
-        "并存两行启用默认时解析按 id 升序取首行，在任行保位"
+        "重新启用被点名拒绝，在任行保位且解析结果不变"
     );
     // 全程零副作用：出件门拒绝段不产生任何打印任务行。
     let tasks = print_task::Entity::find()

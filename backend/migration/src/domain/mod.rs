@@ -99,6 +99,12 @@
 //!   不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码) 唯一行回落，
 //!   多义如实给空值不伪造。台账名取域名 m_contract_clause_snapshot_provenance，
 //!   挂在链尾 contract_template_schema 之后
+//! - print_template_default_slot: 打印模板默认位库侧唯一门域。给 print_templates 按单据
+//!   类型 doc_type 建"启用且默认至多一行"的部分唯一索引 uq_print_template_active_default，
+//!   谓词三条件与出件解析过滤逐字符同源；存量违例只读探测 fail-visible 中止，不 UPDATE
+//!   不 DELETE 洗数据；并更正 is_default 列注释，如实描述互斥域是 doc_type 而非 module。
+//!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的 print_subsystem 域
+//!   会被台账整体跳过，索引与注释更正永不落地。台账名取域名 m_print_template_default_slot
 
 pub mod system;
 pub mod business;
@@ -146,3 +152,4 @@ pub mod product_vocab_check;
 pub mod product_roll_column_drop;
 // 合同条款快照来源指针域。独立顶层域，理由见域头（域内新增子迁移在复用库永不重放）。
 pub mod contract_clause_snapshot_provenance;
+pub mod print_template_default_slot;

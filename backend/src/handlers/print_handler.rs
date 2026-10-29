@@ -1520,6 +1520,9 @@ pub async fn update_print_template(
         .status
         .clone()
         .unwrap_or_else(|| existing.status.clone());
+    // 生效默认位，撞位点名守卫判据用。请求未带 is_default 时沿用存量值，存量默认位
+    // 会随启用一起生效。existing 随后被移入 ActiveModel 就读不到了，在这里先算好。
+    let effective_is_default = req.is_default.unwrap_or(existing.is_default);
 
     let mut active: print_template::ActiveModel = existing.into_active_model();
     if let Some(v) = req.template_name {
@@ -1595,6 +1598,31 @@ pub async fn update_print_template(
             to_record(model),
             "打印模板更新成功",
         )));
+    }
+
+    // 默认位撞位的点名拒绝守卫，只读，置于非竞位腿一切写入之前。判据是"写完之后的
+    // 生效形态恰好是 启用且默认"，且生效默认位来自存量留存（竞位腿已在上方处理显式
+    // 请求置默认位并返回，走到这里说明本次没有显式请求上任）。同一判据封住两类口子。
+    // 一是把带默认位的停用行只改状态重新启用，二是把启用默认行只改单据类型移进别的
+    // 单据类型。不点名拒绝就直接撞库侧默认位唯一门，裸"数据重复"冒到界面上。
+    // 在任行的业务标识（编码、名称、ID）与两条出路一并给出。停用行留存自身默认位
+    // 合法，不在本守卫射程（生效状态非启用即不撞位），建模板与设默认口各自竞位不经此处。
+    if effective_is_default && effective_status == print_template_status::ACTIVE {
+        let occupying = print_template::Entity::find()
+            .filter(print_template::Column::DocType.eq(doc_type_for_default.as_str()))
+            .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
+            .filter(print_template::Column::IsDefault.eq(true))
+            .filter(print_template::Column::Id.ne(id))
+            .one(&*state.db)
+            .await?;
+        if let Some(row) = occupying {
+            return Err(AppError::business_displayable(format!(
+                "该单据类型的默认模板位已被启用中的模板\"{name}\"（编码 {code}，ID {id}）占用，本模板不能带着默认标记直接启用。如需换默认模板，请在本次保存中同时勾选\"设为默认\"，保存时会自动把现用默认模板降位、由本模板接任。如只想启用本模板而不换默认，请先取消本模板的默认标记再启用。",
+                name = row.template_name,
+                code = row.template_code,
+                id = row.id
+            )));
+        }
     }
 
     if let Some(v) = req.is_default {
