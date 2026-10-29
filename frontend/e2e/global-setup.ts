@@ -692,6 +692,14 @@ const SEED_ROLE_EXTRA_PERMISSIONS: Record<string, string[]> = {
   // 只授线索族，不越界授 purchase/supplier 码，保密面负向断言不受影响。
   salesperson: [
     'orders:read',
+    // 报价到销售完成的跨岗接力链需要建单岗真实可行：下列四键逐一对齐后端
+    // init_service_ops/permission.rs 的 sales_rep 分组（quotations 只读与建单、
+    // 订单建与改），不新增后端没有的键，也不授任何 approve 或 reject 键
+    // （后端把审批与拒绝只给 sales_manager，建审分离由本链的负向用例在运行时钉）。
+    'quotations:read',
+    'quotations:create',
+    'orders:create',
+    'orders:update',
     'crm-leads:read',
     'crm-leads:create',
     'crm-leads:update',
