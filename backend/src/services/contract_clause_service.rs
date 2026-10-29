@@ -8,12 +8,8 @@
 //!   成品文本残留 `{{` 或 `}}` 一律拒绝，库侧 CHECK `chk_cc_body_fully_rendered` 是最后防线。
 //!   三 固化 把成品文本与当时的标题、条款码、顺序、来源条款项行指针、模板主键与模板版本号
 //!   写进 `contract_clauses` 快照行；模板此后任何改版与停用都不回读、不影响已固化行。
-//!   读侧两出口 合同详情腿的条款数组（顺序 标题 正文 必填标记 固化时模板版本，必填标记按
-//!   来源指针单义回查，历史空指针行走 (模板,条款码) 唯一行回落，多义如实给空值不伪造），
-//!   与打印腿的条款摘要文本（快照为空给“模板前签约，条款未固化”，不回填伪造内容）。
 //! 调用方 `services/sales_contract_service.rs` 与 `services/purchase_contract_service.rs`
-//!   的创建腿（事务内调用，与合同行同事务同生死）、合同详情 handler、`services/print_service.rs`
-//!   的合同打印数据装配。
+//!   的创建腿（事务内调用，与合同行同事务同生死）。
 //! 入参 事务或库连接、合同侧别（取 `contract_side_kind` 词表）、合同主键、模板主键、
 //!   内外销与含税两枚上下文、占位符填充值表。
 //! 传给谁 写 `contract_clauses`；读 `contract_templates`、`contract_template_clauses`、
@@ -33,8 +29,8 @@ use crate::models::status::contract_template::{
 };
 use crate::utils::error::AppError;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    EntityTrait, Order, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseTransaction, EntityTrait, Order,
+    QueryFilter, QueryOrder, Set,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -327,82 +323,4 @@ pub async fn render_and_pin_for_new_contract(
     let plan =
         plan_clauses_for_signing(txn, template_id, contract_market, tax_inclusive, values).await?;
     pin_plan_txn(txn, contract_kind, contract_id, &plan).await
-}
-
-/// 合同详情腿的条款数组出参。键 顺序 条款码 标题 固化正文 必填标记 来源模板 模板版本
-/// 来源指针。必填标记解析 优先按 `template_clause_id` 单义回查条款项；
-/// 指针为空的历史快照行按 (模板, 条款码) 回查，恰好一行才给值，多义或查不到如实给空值，
-/// 绝不猜一个填上。快照为空返回空数组，是否“模板前签约”由出参消费方按空数组判定，
-/// 本层不掺文案。
-pub async fn list_clauses_for_contract(
-    db: &DatabaseConnection,
-    contract_kind: &str,
-    contract_id: i32,
-) -> Result<Vec<serde_json::Value>, AppError> {
-    let rows = contract_clause::Entity::find()
-        .filter(contract_clause::Column::ContractKind.eq(contract_kind))
-        .filter(contract_clause::Column::ContractId.eq(contract_id))
-        .order_by(contract_clause::Column::Sort, Order::Asc)
-        .all(db)
-        .await?;
-    let mut out = Vec::with_capacity(rows.len());
-    for r in rows {
-        let required = resolve_required(db, &r).await?;
-        out.push(serde_json::json!({
-            "sort": r.sort,
-            "clause_code": r.clause_code,
-            "title": r.title,
-            "body_rendered": r.body_rendered,
-            "required": required,
-            "template_id": r.template_id,
-            "template_version": r.template_version,
-            "template_clause_id": r.template_clause_id,
-        }));
-    }
-    Ok(out)
-}
-
-/// 必填标记单义回查。指针行存在即采信其 required；查不到指针行（模板草稿期被删）给空值。
-async fn resolve_required(
-    db: &DatabaseConnection,
-    snapshot: &contract_clause::Model,
-) -> Result<Option<bool>, AppError> {
-    if let Some(tc_id) = snapshot.template_clause_id {
-        let tc = contract_template_clause::Entity::find_by_id(tc_id)
-            .one(db)
-            .await?;
-        return Ok(tc.map(|row| row.required));
-    }
-    let candidates = contract_template_clause::Entity::find()
-        .filter(contract_template_clause::Column::TemplateId.eq(snapshot.template_id))
-        .filter(contract_template_clause::Column::ClauseCode.eq(snapshot.clause_code.as_str()))
-        .all(db)
-        .await?;
-    if candidates.len() == 1 {
-        Ok(Some(candidates[0].required))
-    } else {
-        Ok(None)
-    }
-}
-
-/// 打印腿的条款摘要文本 按固化顺序把“标题 正文”逐条拼为一块文本。
-/// 快照为空时返回“模板前签约，条款未固化”，与历史合同展示口径同源，不回填伪造内容。
-pub async fn clauses_summary_for_print(
-    db: &DatabaseConnection,
-    contract_kind: &str,
-    contract_id: i32,
-) -> Result<String, AppError> {
-    let clauses = list_clauses_for_contract(db, contract_kind, contract_id).await?;
-    if clauses.is_empty() {
-        return Ok("模板前签约，条款未固化".to_string());
-    }
-    let mut parts: Vec<String> = Vec::with_capacity(clauses.len());
-    for c in clauses {
-        parts.push(format!(
-            "{} {}",
-            c["title"].as_str().unwrap_or_default(),
-            c["body_rendered"].as_str().unwrap_or_default()
-        ));
-    }
-    Ok(parts.join("\n"))
 }
