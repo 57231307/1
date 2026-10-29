@@ -111,11 +111,11 @@ async fn seed_approval(
 
 /// 零漂移回读。线索仍在 且 该线索名下审批行数与状态原样未动
 async fn assert_untouched(db: &sea_orm::DatabaseConnection, lead_id: i32, expect_rows: u64) {
-    let lead = crm_lead::Entity::find_by_id(lead_id)
-        .one(db)
-        .await
-        .unwrap();
-    assert!(lead.is_some(), "拒删路径不得删掉线索行（lead_id={lead_id}）");
+    let lead = crm_lead::Entity::find_by_id(lead_id).one(db).await.unwrap();
+    assert!(
+        lead.is_some(),
+        "拒删路径不得删掉线索行（lead_id={lead_id}）"
+    );
     let kept = customer_transfer_approval::Entity::find()
         .filter(customer_transfer_approval::Column::LeadId.eq(lead_id))
         .count(db)
@@ -136,7 +136,13 @@ async fn assert_untouched(db: &sea_orm::DatabaseConnection, lead_id: i32, expect
 async fn delete_lead_with_pending_approval_rejected_and_rows_untouched() {
     let db = live_db().await;
     seed_lead(&db, 30, 100).await;
-    seed_approval(&db, "TA-E2E-PENDING-30", 30, customer_transfer_approval::STATUS_PENDING).await;
+    seed_approval(
+        &db,
+        "TA-E2E-PENDING-30",
+        30,
+        customer_transfer_approval::STATUS_PENDING,
+    )
+    .await;
 
     let svc = CrmService::new(Arc::new(db.clone()));
     let err = svc
@@ -197,7 +203,11 @@ async fn delete_lead_without_any_approval_reference_succeeds() {
         .expect("无审批引用必须删除成功，本腿不得过紧");
 
     assert!(
-        crm_lead::Entity::find_by_id(50).one(&db).await.unwrap().is_none(),
+        crm_lead::Entity::find_by_id(50)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none(),
         "无引用线索应被真实硬删"
     );
 }
@@ -208,7 +218,13 @@ async fn delete_lead_is_scoped_by_lead_id_not_whole_table() {
     let db = live_db().await;
     seed_lead(&db, 60, 100).await;
     seed_lead(&db, 61, 100).await;
-    seed_approval(&db, "TA-E2E-PENDING-61", 61, customer_transfer_approval::STATUS_PENDING).await;
+    seed_approval(
+        &db,
+        "TA-E2E-PENDING-61",
+        61,
+        customer_transfer_approval::STATUS_PENDING,
+    )
+    .await;
 
     let svc = CrmService::new(Arc::new(db.clone()));
     svc.delete_lead(60, 100)
@@ -216,7 +232,11 @@ async fn delete_lead_is_scoped_by_lead_id_not_whole_table() {
         .expect("审批引用挂在另一条线索上，不得拦住本线索删除");
 
     assert!(
-        crm_lead::Entity::find_by_id(60).one(&db).await.unwrap().is_none(),
+        crm_lead::Entity::find_by_id(60)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none(),
         "无直接引用的线索应被真实硬删"
     );
     assert_untouched(&db, 61, 1).await;
