@@ -109,11 +109,11 @@
               style="width: 120px"
             />
           </el-form-item>
-          <el-form-item prop="unitPrice">
+          <el-form-item prop="unitPriceWithTax">
             <el-input
-              v-model="newItem.unitPrice"
+              v-model="newItem.unitPriceWithTax"
               inputmode="decimal"
-              placeholder="单价"
+              placeholder="含税单价"
               style="width: 130px"
             />
           </el-form-item>
@@ -121,7 +121,7 @@
             <el-input
               v-model="newItem.taxPercent"
               inputmode="decimal"
-              placeholder="税率%(空=取订单税率)"
+              placeholder="税率%(录含税价必填)"
               style="width: 180px"
             />
           </el-form-item>
@@ -160,6 +160,7 @@ import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { numberInputRules, numericView } from '@/utils/number-input';
+import { netFromInclusive, roundToCent } from '@/utils/money';
 import { formatAmount } from '../composables/srFmts';
 import {
   salesReturnStatusLabelKey,
@@ -190,13 +191,14 @@ const serverItems = ref<SalesReturnItem[]>([]);
 const itemsLoading = ref(false);
 const itemSaving = ref(false);
 // 明细维护栏手写录入文本模型（数字约束收进 numberInputRules 单源校验器，不靠步进按钮）；
-// 提交前显式 Number() 归一为契约数值
+// 含税单价是录入事实（主输入），不含税单价提交前按税率除法反算派生，不手输
 const newItem = reactive({
   productId: '1',
   quantity: '1',
-  unitPrice: '0',
-  // 税率留空（空串）：不发送该键，由后端按关联销售订单同商品明细的权威税率回填，
-  // 绝不在前端默认成 0 掩盖缺失
+  // 含税单价初值留空由人工填写（0 只能由人工显式敲出）
+  unitPriceWithTax: '',
+  // 税率与含税单价同行必填：含税事实要靠税率除法反算净额，缺税率前端算不出钩稽值，
+  // 送后端必然被单价钩稽门点名拒绝，不在录入途中掩盖缺失
   taxPercent: '',
   reason: '',
 });
@@ -204,9 +206,31 @@ const itemFormRef = ref<FormInstance>();
 const itemRules = computed<FormRules>(() => ({
   productId: numberInputRules({ label: '产品ID', required: true, min: 1, integer: true }),
   quantity: numberInputRules({ label: '退货数量', required: true, min: 1 }),
-  unitPrice: numberInputRules({ label: '退货单价', required: true, min: 0, precision: 2 }),
-  taxPercent: numberInputRules({ label: '税率', min: 0, max: 100, precision: 2 }),
+  unitPriceWithTax: numberInputRules({
+    label: '含税单价',
+    required: true,
+    min: 0,
+    precision: 2,
+  }),
+  taxPercent: numberInputRules({ label: '税率', required: true, min: 0, max: 100, precision: 2 }),
 }));
+
+/**
+ * 提交前构造行金额载荷（含税口径单源腿）。
+ * 入参，含税单价与税率文本已由 itemRules 判为合法非空；出参是 unit_price 派生净额与
+ * unit_price_with_tax 原文两键，净额按 money.ts 的 netFromInclusive 除法反算，
+ * 与后端 utils/tax.rs 反算值分位一致，后端 ensure_unit_price_reconciles 复核必然通过。
+ * 传给谁：handleAddItem 的 POST 载荷与 handleUpdateItem 的 PUT 载荷。
+ * 本函数不存在 乘 (1 + 税率) 造含税 或 乘税率造税额 的第二套公式。
+ */
+const buildPricePayload = (): { unit_price: number; unit_price_with_tax: string } => {
+  const inclusive = Number(newItem.unitPriceWithTax);
+  const rate = Number(newItem.taxPercent);
+  return {
+    unit_price: netFromInclusive(inclusive, rate),
+    unit_price_with_tax: newItem.unitPriceWithTax.trim(),
+  };
+};
 const validateItemForm = async (): Promise<boolean> => {
   let ok = false;
   await itemFormRef.value?.validate(valid => {
@@ -257,13 +281,16 @@ const handleAddItem = async () => {
   if (!valid) return;
   itemSaving.value = true;
   try {
+    const price = buildPricePayload();
     await createSalesReturnItem(props.currentReturn.id, {
       // 按后端 CreateSalesReturnItemRequest 的 snake_case 契约发送；
-      // tax_percent 为空时不发送，由后端从关联销售订单取权威税率（不默认 0）
+      // 含税单价是录入事实随 unit_price_with_tax 送，不含税单价是除法反算的派生值，
+      // 税率同行必填（0 = 显式无票声明），后端 ensure_unit_price_reconciles 逐分复核
       product_id: Number(newItem.productId),
       quantity: Number(newItem.quantity),
-      unit_price: Number(newItem.unitPrice),
-      tax_percent: newItem.taxPercent.trim() === '' ? undefined : Number(newItem.taxPercent),
+      unit_price: price.unit_price,
+      unit_price_with_tax: price.unit_price_with_tax,
+      tax_percent: Number(newItem.taxPercent),
       reason: newItem.reason || undefined,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -279,12 +306,18 @@ const handleAddItem = async () => {
  * 行编辑：回填添加栏并切换为更新模式
  * 后端 quantity unit_price tax_percent 是 rust_decimal 出参走线为字符串（形如 "10.0000"）
  * 先经 Number() 归一再按录入框形态格式化 缺值留空串 由必填与范围规则点名是哪个字段
+ * 含税单价回显只有除法还原一条腿，无折扣行按 成交含税 ÷ 数量，还原不出留空要求按实录入，
+ * 绝不按 不含税单价 乘 一加税率 倒造
  */
 const handleEditItem = (row: SalesReturnItem) => {
   editingItemId.value = row.id ?? null;
   newItem.productId = numericView(row.product_id);
   newItem.quantity = row.quantity == null ? '' : numericView(Number(row.quantity), 2);
-  newItem.unitPrice = row.unit_price == null ? '' : numericView(Number(row.unit_price), 2);
+  const qty = Number(row.quantity);
+  const recoverable = Number(row.discount_amount) === 0 && Number.isFinite(qty) && qty > 0;
+  newItem.unitPriceWithTax = recoverable
+    ? numericView(roundToCent(Number(row.total_amount) / qty), 2)
+    : '';
   newItem.taxPercent = row.tax_percent == null ? '' : numericView(Number(row.tax_percent), 2);
   newItem.reason = row.notes ?? '';
 };
@@ -295,11 +328,14 @@ const handleUpdateItem = async () => {
   if (!valid) return;
   itemSaving.value = true;
   try {
+    const price = buildPricePayload();
     // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
-    // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
+    // NOT NULL 列恒送值；含税单价是主输入事实恒送覆盖，后端按它反算并逐分复核单价；
+    // reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
     await updateSalesReturnItem(props.currentReturn.id, editingItemId.value, {
       quantity: Number(newItem.quantity),
-      unit_price: Number(newItem.unitPrice),
+      unit_price: price.unit_price,
+      unit_price_with_tax: price.unit_price_with_tax,
       reason: newItem.reason || null,
     });
     ElMessage.success(t('salesReturns.detailDialog.itemSuccess'));
@@ -316,7 +352,7 @@ const cancelEditItem = () => {
   editingItemId.value = null;
   newItem.productId = '1';
   newItem.quantity = '1';
-  newItem.unitPrice = '0';
+  newItem.unitPriceWithTax = '';
   newItem.taxPercent = '';
   newItem.reason = '';
 };

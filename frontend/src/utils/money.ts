@@ -109,6 +109,28 @@ export function taxFromInclusive(inclusive: number, taxPercent: number): number 
 }
 
 /**
+ * 成交含税额（含税侧折扣扣减的唯一取法），与后端 `backend/src/utils/tax.rs` 的
+ * `line_split` 的 deal_inclusive 同一算式——含税金额先聚合，折扣在**含税侧**减掉，
+ * 全程不除不乘税率，因此不构成造净额也不构成造含税。
+ * 入参，inclusiveUnitPrice 是录入的含税单价事实，quantity 是数量，
+ * discountPercent 是行折扣百分数（undefined 或 0 = 不打折）。
+ * 出参是收敛到分的成交含税额，等于后端落库的 total_amount 列口径。
+ * 传给谁：销售退货行金额只读展示与表头合计预览（退货表头 total_amount 落库权威值
+ * 仍由后端逐行汇总，本函数仅供编辑态展示，两侧同算式故数值逐分一致）。
+ * 调用方：views/sales-returns/composables/useSr.ts 的行派生与合计腿。
+ */
+export function dealInclusiveFromLine(
+  inclusiveUnitPrice: number,
+  quantity: number,
+  discountPercent?: number
+): number {
+  const listInclusive = inclusiveAmountFromLine(inclusiveUnitPrice, quantity);
+  if (discountPercent === undefined || discountPercent === 0) return listInclusive;
+  const inclusiveDiscount = roundToCent((listInclusive * discountPercent) / 100);
+  return roundToCent(listInclusive - inclusiveDiscount);
+}
+
+/**
  * 票面两值腿的净额预览（唯一合法取法：含税额减税额的差额），与后端
  * `backend/src/utils/tax.rs` 的 `net_from_inclusive_and_tax` 同一算式。
  * 发票票面给出的是「金额、税额、价税合计」三个数，其中不含税金额是派生值：

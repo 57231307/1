@@ -63,11 +63,16 @@ export interface SalesReturnItem {
   product_code: string | null;
 }
 
-/** 新增明细的写入契约（CreateSalesReturnItemRequest）；回源读取用 notes，故与读模型分开。 */
+/**
+ * 新增明细的写入契约（CreateSalesReturnItemRequest）；回源读取用 notes，故与读模型分开。
+ * 含税单价是退货录入事实（主输入），rust_decimal 走线送十进制字符串；
+ * 不含税单价是按税率除法反算的派生值，后端逐分复核钩稽，分位不一致即点名拒绝。
+ */
 export interface SalesReturnItemInput {
   product_id: number;
   quantity: number;
   unit_price: number;
+  unit_price_with_tax?: string;
   tax_percent?: number;
   discount_percent?: number;
   reason?: string;
@@ -75,14 +80,17 @@ export interface SalesReturnItemInput {
 
 /**
  * 更新明细的写入契约（handlers/sales_return_handler.rs UpdateReturnItemRequest）：
- * 后端仅接受这三个字段。三态语义（RFC 7386 JSON Merge Patch）：键缺席=保持原值、
- * 显式 null=清空、有值=覆盖。quantity/unit_price 为 NOT NULL 列（m0011 DDL）：
+ * 后端仅接受 quantity/unit_price/unit_price_with_tax/reason 四键。三态语义（RFC 7386 JSON Merge Patch）：
+ * 键缺席=保持原值、显式 null=清空、有值=覆盖。quantity/unit_price 为 NOT NULL 列（m0011 DDL）：
  * 禁止送 null（后端 400「退货数量/退货单价不能清空：该字段为必填项」）；
+ * unit_price_with_tax 是含税录入事实（主输入，rust_decimal 走线送十进制字符串），
+ * 缺席即由后端按本行已落库含税额除法还原，还原不出时点名拒绝；
  * reason 映射 DB 可空列 notes（sales_return_item），清空须显式送 null。
  */
 export interface SalesReturnItemUpdate {
   quantity?: number;
   unit_price?: number;
+  unit_price_with_tax?: string;
   reason?: string | null;
 }
 
@@ -122,12 +130,18 @@ export interface UpdateSalesReturnRequest {
   notes?: string | null;
 }
 
-/** 新增退货明细请求（对齐 backend CreateSalesReturnItemRequest）。 */
+/**
+ * 新增退货明细请求（对齐 backend CreateSalesReturnItemRequest）。
+ * 含税单价 unit_price_with_tax 是录入事实（主输入），rust_decimal 走线送十进制字符串；
+ * 非 0 税率行缺本键时后端按关联订单行已落库含税额除法还原，还原不出即点名拒绝，
+ * 系统不用「不含税单价 乘 一加税率」倒造。
+ */
 export interface CreateSalesReturnItemRequest {
   line_no?: number;
   product_id: number;
   quantity: number;
   unit_price: number;
+  unit_price_with_tax?: string;
   tax_percent?: number;
   discount_percent?: number;
   reason?: string;

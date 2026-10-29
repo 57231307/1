@@ -27,6 +27,51 @@ import { getSalesOrderList } from '@/api/sales';
 import { getCustomerList } from '@/api/customer';
 import { getProductList } from '@/api/product';
 import logger, { logAuxLoadFailure } from '@/utils/logger';
+import {
+  dealInclusiveFromLine,
+  netFromInclusive,
+  parseDecimalInput,
+  roundToCent,
+} from '@/utils/money';
+
+/**
+ * 编辑回显与订单带出的含税单价原文（主输入列）。
+ * 入参，totalAmount 是行成交含税额、quantity 是数量、discountAmount 是净额口径折扣额，
+ * 均取自后端行出参（rust_decimal 走线先经 Number 归一）。
+ * 出参是含税单价输入框原文；还原不出（有折扣或数量非正）返回空串交人工录入。
+ * 取法只有除法还原这一条腿，与后端 utils/tax.rs 的 recover_inclusive_unit_price 同源，
+ * 绝不用「不含税单价 乘 1 加税率」倒造。
+ * 传给谁：loadFormItems 的回显映射与 onSalesOrderChange 的带出映射。
+ */
+function recoverInclusiveUnitPriceText(
+  totalAmount: number,
+  quantity: number,
+  discountAmount: number
+): string {
+  if (discountAmount !== 0 || !Number.isFinite(quantity) || quantity <= 0) return '';
+  return String(roundToCent(totalAmount / quantity));
+}
+
+/**
+ * 逐行派生列重算（方向口径与后端 utils/tax.rs 与前端 money.ts 单源一致）。
+ * 入参，row 是本表一行；读含税单价原文与税率，写派生的不含税单价与成交含税额。
+ * 不含税单价 = 含税单价 ÷ (1 + 税率% ÷ 100) 先舍到分（netFromInclusive），
+ * 成交含税额 = 含税单价 × 数量后在含税侧减行折扣（dealInclusiveFromLine），
+ * 本函数不存在任何乘 (1 + 税率) 造含税或乘税率造税额的写法。
+ * 含税原文为空时不改写派生列：带出与回显已把后端权威值放在行上，
+ * 提交时省略含税键、由后端按订单行或本行落库值除法还原，两侧仍同口径。
+ * 传给谁：calculateTotal 的逐行漏斗与提交前的行有效性判定。
+ */
+function applyDerivedRowPrices(row: ReturnFormItem): void {
+  const incText = row.unitPriceWithTax.trim();
+  if (incText === '') return;
+  const inc = parseDecimalInput(incText);
+  if (inc === undefined || !Number.isFinite(inc) || inc < 0) return;
+  const rate = row.taxPercent;
+  if (rate === undefined || !Number.isFinite(rate) || rate < 0) return;
+  row.unitPrice = netFromInclusive(inc, rate);
+  row.amount = dealInclusiveFromLine(inc, row.quantity, row.discountPercent);
+}
 
 // v11 批次 163 P2-1 修复：定义具体类型替代 any
 // v11 批次 174 P2-1 修复：导出接口供 ReturnEditDialog 使用
@@ -40,6 +85,11 @@ export interface SalesOrderOption {
     product_name: string;
     product_code: string;
     unit_price: number;
+    quantity: number;
+    tax_percent: number;
+    discount_percent: number;
+    discount_amount: number;
+    total_amount: number;
   }>;
 }
 
@@ -61,9 +111,23 @@ export interface ReturnFormItem {
   productName: string | null;
   productCode: string | null;
   quantity: number;
+  /**
+   * 行级**含税单价**（价税分离的录入事实，本表唯一价格主输入）：保存输入框原文，
+   * 空串表示未填写。关联订单行且无折扣时可留空，由后端按订单行含税额除法还原；
+   * 非 0 税率而既无本值又无订单可还原时，后端点名拒绝建单，系统不乘 (1 + 税率) 倒造。
+   */
+  unitPriceWithTax: string;
+  /**
+   * 行级**不含税单价**（派生只读）：由含税单价按本行税率除法反算（money.ts 的
+   * netFromInclusive，与后端 utils/tax.rs 同源），不可手输；提交时后端逐分复核钩稽。
+   */
   unitPrice: number;
   taxPercent?: number;
   discountPercent?: number;
+  /**
+   * 行级成交含税额（派生只读）：含税单价聚合金额扣行折扣（money.ts 的
+   * dealInclusiveFromLine，与后端 utils/tax.rs 的 line_split 折扣腿同源）。
+   */
   amount: number;
   reason: string;
 }
@@ -240,6 +304,8 @@ export function useSr() {
           productName: '',
           productCode: '',
           quantity: 1,
+          // 含税单价初值留空由人工填写（0 只能由人工显式敲出），税率不预填任何档位
+          unitPriceWithTax: '',
           unitPrice: 0,
           taxPercent: undefined,
           discountPercent: undefined,
@@ -263,6 +329,12 @@ export function useSr() {
       productName: item.product_name,
       productCode: item.product_code,
       quantity: Number(item.quantity),
+      // 含税单价回显只有除法还原一条腿：无折扣行按 成交含税额 ÷ 数量，还原不出留空重录
+      unitPriceWithTax: recoverInclusiveUnitPriceText(
+        Number(item.total_amount),
+        Number(item.quantity),
+        Number(item.discount_amount)
+      ),
       unitPrice: Number(item.unit_price),
       taxPercent: Number(item.tax_percent),
       discountPercent: Number(item.discount_percent),
@@ -315,10 +387,17 @@ export function useSr() {
           productName: item.product_name,
           productCode: item.product_code,
           quantity: 0,
-          unitPrice: item.unit_price,
-          taxPercent: undefined,
-          discountPercent: undefined,
-          amount: 0,
+          // 带出行的含税单价同样只有除法还原一条腿：订单行无折扣时按 行成交含税 ÷ 数量，
+          // 还原不出留空由退货员按实录入；税率与折扣率取订单行权威值随带
+          unitPriceWithTax: recoverInclusiveUnitPriceText(
+            Number(item.total_amount),
+            Number(item.quantity),
+            Number(item.discount_amount)
+          ),
+          unitPrice: Number(item.unit_price),
+          taxPercent: Number(item.tax_percent),
+          discountPercent: Number(item.discount_percent),
+          amount: Number(item.total_amount),
           reason: '',
         }));
       }
@@ -334,6 +413,8 @@ export function useSr() {
       productName: '',
       productCode: '',
       quantity: 1,
+      // 含税单价初值留空由人工填写（0 只能由人工显式敲出），税率不预填任何档位
+      unitPriceWithTax: '',
       unitPrice: 0,
       amount: 0,
       reason: '',
@@ -350,10 +431,15 @@ export function useSr() {
     calculateTotal();
   };
 
-  // 重算总金额（仅用于表单展示，服务端独立维护表头 total_amount，不随请求体提交）
+  // 重算总金额（仅用于表单展示，服务端独立维护表头 total_amount，不随请求体提交）：
+  // 先逐行按含税单价派生净额与成交含税额，再按成交含税额（含税侧减折扣）累加，
+  // 与后端落库 total_amount 同一反算口径，不存在 Σ 数量乘不含税单价的第二套合计
   const calculateTotal = () => {
+    for (const item of formData.items) {
+      applyDerivedRowPrices(item);
+    }
     formData.totalAmount = formData.items.reduce((sum, item) => {
-      return sum + item.quantity * item.unitPrice;
+      return sum + (Number.isFinite(item.amount) ? item.amount : 0);
     }, 0);
   };
 
@@ -401,7 +487,10 @@ export function useSr() {
           line_no: idx,
           product_id: it.productId,
           quantity: it.quantity,
+          // unit_price 是含税单价按税率反算的派生值；含税原文为空（关联订单可还原的行）
+          // 时省略 unit_price_with_tax 键，由后端按订单行已落库含税额除法还原
           unit_price: it.unitPrice,
+          unit_price_with_tax: it.unitPriceWithTax.trim() === '' ? undefined : it.unitPriceWithTax,
           tax_percent: it.taxPercent,
           discount_percent: it.discountPercent,
           reason: it.reason || undefined,
@@ -409,10 +498,12 @@ export function useSr() {
         await createSalesReturnItem(returnId, body);
       } else {
         // 三态契约（后端 UpdateReturnItemRequest DoubleOption）：quantity/unit_price 为
-        // NOT NULL 列恒送值；reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
+        // NOT NULL 列恒送值；含税单价有原文才送（覆盖），空文本省略键由后端按本行落库值还原；
+        // reason 映射 DB 可空列 notes，清空 ⇒ 显式 null（不塌成省略）
         await updateSalesReturnItem(returnId, it.id, {
           quantity: it.quantity,
           unit_price: it.unitPrice,
+          unit_price_with_tax: it.unitPriceWithTax.trim() === '' ? undefined : it.unitPriceWithTax,
           reason: it.reason || null,
         });
       }
@@ -432,6 +523,33 @@ export function useSr() {
     if (formData.items.every(it => it.productId === null)) {
       msg.warning('pleaseAddReturnDetail');
       return false;
+    }
+
+    // 行有效性点名拦截（含税口径）：含税原文一旦有值就必须可解析且税率同行——
+    // 否则前端算不出与后端钩稽一致的不含税派生值，送上去必然 400；
+    // 无关联订单的行含税单价是唯一录入事实，缺它没有任何可还原的来源，直接拒。
+    // 含税留空且有关联订单是合法腿：省略含税键由后端按订单行除法还原。
+    for (let i = 0; i < formData.items.length; i += 1) {
+      const it = formData.items[i];
+      if (it.productId === null) continue;
+      const incText = it.unitPriceWithTax.trim();
+      const rowNo = i + 1;
+      if (incText === '') {
+        if (formData.salesOrderId === null) {
+          ElMessage.error(`第 ${rowNo} 行缺少含税单价，请按票面含税单价录入后重试`);
+          return false;
+        }
+        continue;
+      }
+      const inc = parseDecimalInput(incText);
+      if (inc === undefined || !Number.isFinite(inc) || inc < 0) {
+        ElMessage.error(`第 ${rowNo} 行含税单价不是合法的十进制金额，请按票面重新填写`);
+        return false;
+      }
+      if (it.taxPercent === undefined || !Number.isFinite(it.taxPercent) || it.taxPercent < 0) {
+        ElMessage.error(`第 ${rowNo} 行已录含税单价，须同行填写税率（0 = 显式无票声明）`);
+        return false;
+      }
     }
 
     const headBody = buildHeadBody();
