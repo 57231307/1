@@ -199,15 +199,28 @@ test.describe('辅助核算 读面契约回读', () => {
     // page_size 服务端 clamp 到 100（handler 实现值 1 到 100），回显钉实现口径
     expect(num(drill.page_size), `page_size=250 应被 clamp 为 100`).toBe(100);
 
-    for (const q of [
-      '/assist-accounting/drill-down?dimension_code=CUSTOMER&dimension_value_id=1',
-      '/assist-accounting/drill-down?accounting_period=2099-01&dimension_value_id=1',
-      '/assist-accounting/drill-down?accounting_period=2099-01&dimension_code=CUSTOMER',
-    ]) {
-      const fail = await apiCallExpectFail(page, 'GET', q);
-      expect(fail.status, `穿透必填参缺失应恰 400，实际 ${fail.status}（${q}）`).toBe(400);
-      expect(failureCode(fail)).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
-    }
+    // 三枚必填参缺一各钉一次（URL 整串写在调用点，判定器可解析位点）
+    const missPeriod = await apiCallExpectFail(
+      page,
+      'GET',
+      '/assist-accounting/drill-down?dimension_code=CUSTOMER&dimension_value_id=1'
+    );
+    expect(missPeriod.status, `缺 accounting_period 应恰 400，实际 ${missPeriod.status}`).toBe(400);
+    expect(failureCode(missPeriod)).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const missDim = await apiCallExpectFail(
+      page,
+      'GET',
+      '/assist-accounting/drill-down?accounting_period=2099-01&dimension_value_id=1'
+    );
+    expect(missDim.status, `缺 dimension_code 应恰 400，实际 ${missDim.status}`).toBe(400);
+    expect(failureCode(missDim)).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    const missValue = await apiCallExpectFail(
+      page,
+      'GET',
+      '/assist-accounting/drill-down?accounting_period=2099-01&dimension_code=CUSTOMER'
+    );
+    expect(missValue.status, `缺 dimension_value_id 应恰 400，实际 ${missValue.status}`).toBe(400);
+    expect(failureCode(missValue)).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('AA-05 业务单与五维与汇总三读腿：唯一标记零命中 缺参拒绝 条件真值腿', async ({ page }) => {
@@ -295,8 +308,13 @@ test.describe('辅助核算 读面契约回读', () => {
           );
         }
       }
-      // records 列表腿信封（本域已有覆盖，这里只借回读通道，不再锁它）
-      expect(num(pageData.total), `列表 total 应为非负整数`).toBeGreaterThanOrEqual(0);
+      // records 列表腿信封（本域已有覆盖，这里只借回读通道）：
+      // 真值不变式 total（全库计数）不少于当页行数
+      const listed = pageData.records as Row[];
+      expect(
+        num(pageData.total),
+        `total 不少于当页行数，实际 ${pageData.total} 对 ${listed.length}`
+      ).toBeGreaterThanOrEqual(listed.length);
     }
   });
 });
