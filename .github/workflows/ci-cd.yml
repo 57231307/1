@@ -4087,7 +4087,7 @@ jobs:
       #     依据 .monkeycode/MEMORY.md 注释 IR「禁止写变更日志式内容（批次号、
       #     "修复xxx"过程、v14/批次xxx/exit 143 排障史等）；变更说明放 commit
       #     message，注释永远只描述当前代码的用途」。
-      #   棘轮档 —— 行号引用（xxx.rs:123 / file.ts:45）不禁、基线只准降不准升；
+      #   棘轮档：形如「文件名 冒号 行号」的引用不禁、基线只准降不准升；
       #     键=去掉行号后的文本指纹（教训：api-request-baseline 的 _comment——带
       #     行号会让漂移把老问题误报成新失配）。基线：
       #     backend/.comment-format-baseline.txt。
@@ -4214,7 +4214,7 @@ jobs:
               ('R4.md章节引用', re.compile(r'[\w.\-/]*\.md\s*§\s*\d+')),
           ]
           RATCHET_PATTERNS = [
-              # R5 行号引用：xxx.rs:123 / file.ts:45（含 :129-151 区间形态）
+              # R5 行号引用：文件名 冒号 行号（含 冒号 起 减 止 的区间形态）
               ('R5.行号引用', re.compile(
                   r'[\w./\-]+\.(?:rs|ts|tsx|js|jsx|mjs|cjs|vue|py|java|sql):\d+(?:[ \t]*-[ \t]*\d+)?')),
           ]
