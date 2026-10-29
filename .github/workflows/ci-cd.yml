@@ -4031,6 +4031,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: ci-info
+    # 只在 PR 跑（口径见 ci-info 的 full_suite）：注释形态与棘轮基线属提交门面，
+    # 在 PR 判负即拦住，主干 push 不重复执行；聚合门按 success/skipped 放行本 job 的 skip。
+    if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
         uses: actions/checkout@v5
