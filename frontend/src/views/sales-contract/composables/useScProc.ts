@@ -23,6 +23,7 @@ import { formatCurrency, getStatusLabel } from './scFmts';
 import { escapeHtml } from '@/utils/print';
 // 导出走后端带水印 xlsx 接口
 import { exportFromBackend } from '@/utils/export';
+import { h, type VNode } from 'vue';
 
 /**
  * 合同金额归一：后端 total_amount 为 Decimal ⇒ 出参 JSON 字符串（或 null），
@@ -30,6 +31,37 @@ import { exportFromBackend } from '@/utils/export';
  */
 const fmtContractAmount = (amount: string | null) =>
   formatCurrency(amount == null ? null : Number(amount));
+
+/**
+ * 构造销售合同详情弹层的消息 VNode。
+ * 功能：把「标签：值」逐字段渲染成行，值一律走 Vue 文本节点进 DOM、绝不拼 HTML 字符串，
+ * 使人工程录入字段（编号/名称/客户/付款条件/付款方式/交货地点等）携带标签片段时只按字面显示，
+ * 杜绝弹层被当 HTML 解析执行的结构型注入面。
+ * 调用方：handleView（经 ElMessageBox.alert 的 VNode 消息通道渲染）。
+ * 入参：row 销售合同行对象；文本字段可空（空值显示 '-'），total_amount 为 Decimal 字符串，
+ * 经 fmtContractAmount 归一后作文本值渲染。
+ * 传给谁：ElMessageBox.alert 的 message 形参。
+ * 存什么：不保存状态；同入参必同出参。
+ * 存哪里：本文件导出；后续结构化弹层复用本入口，禁止在调用点另写私有拼装副本。
+ */
+export const buildScContractDetailMessage = (row: SalesContract): VNode => {
+  /** 单字段行：strong 标签 + 文本节点值（空值占位 '-'） */
+  const fieldRow = (label: string, value: string | null | undefined) =>
+    h('p', [h('strong', `${label}：`), value || '-']);
+  return h('div', [
+    fieldRow('合同编号', row.contract_no),
+    fieldRow('合同名称', row.contract_name),
+    fieldRow('客户', row.customer_name),
+    fieldRow('合同金额', fmtContractAmount(row.total_amount)),
+    fieldRow('签订日期', row.signed_date),
+    fieldRow('生效日期', row.effective_date),
+    fieldRow('到期日期', row.expiry_date),
+    fieldRow('付款条件', row.payment_terms),
+    fieldRow('付款方式', row.payment_method),
+    fieldRow('交货日期', row.delivery_date),
+    fieldRow('交货地点', row.delivery_location),
+  ]);
+};
 
 /**
  * 刷新回调
@@ -132,25 +164,14 @@ export function useScProc(refresh: RefreshCallbacks) {
     }
   };
 
-  /** 查看详情（弹出 ElMessageBox） */
+  /**
+   * 查看详情（弹出 ElMessageBox）：消息走 buildScContractDetailMessage 的 VNode 通道，
+   * 字段值以文本节点渲染；不得回退为「HTML 字符串 + dangerouslyUseHTMLString」拼接口径。
+   */
   const handleView = (row: SalesContract) => {
-    ElMessageBox.alert(
-      `<div>
-        <p><strong>合同编号：</strong>${row.contract_no}</p>
-        <p><strong>合同名称：</strong>${row.contract_name}</p>
-        <p><strong>客户：</strong>${row.customer_name || '-'}</p>
-        <p><strong>合同金额：</strong>${fmtContractAmount(row.total_amount)}</p>
-        <p><strong>签订日期：</strong>${row.signed_date || '-'}</p>
-        <p><strong>生效日期：</strong>${row.effective_date || '-'}</p>
-        <p><strong>到期日期：</strong>${row.expiry_date || '-'}</p>
-        <p><strong>付款条件：</strong>${row.payment_terms || '-'}</p>
-        <p><strong>付款方式：</strong>${row.payment_method || '-'}</p>
-        <p><strong>交货日期：</strong>${row.delivery_date || '-'}</p>
-        <p><strong>交货地点：</strong>${row.delivery_location || '-'}</p>
-      </div>`,
-      '合同详情',
-      { dangerouslyUseHTMLString: true, confirmButtonText: '关闭' }
-    );
+    ElMessageBox.alert(buildScContractDetailMessage(row), '合同详情', {
+      confirmButtonText: '关闭',
+    });
   };
 
   /** 打印当前列表 */
