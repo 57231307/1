@@ -1414,7 +1414,9 @@ export default {
     exportFailedReason: 'Export failed: {reason}',
     exportRequestSubmitted: 'Export approval request submitted, current status: {status}',
     exportApprovalSubmittedGuide:
-      'Export request submitted. After approval, return to this resource list page and click "Download My Export" to get the file',
+      'Export request submitted and entered the approval chain; track progress in the approval center. After approval, return to this resource list page and click "Download My Export" to get the file',
+    exportApprovalRotatedGuide:
+      'A new export token has been issued and the old token is now invalid',
     docNoGenerateFailed:
       'Failed to generate document no. (prefix {prefix} collided {maxRetry} times), please retry or contact the administrator',
     networkError: 'Network error',
@@ -11080,7 +11082,6 @@ export default {
     rejected: 'Rejected',
     confirmCancel: 'Revoke this export request?',
     cancelled: 'Revoked',
-    copyFailed: 'Copy failed',
     detailFailed: 'Failed to fetch export approval detail',
     pendingApproval: 'Pending My Approval',
     createRequest: 'Create Export Request',
@@ -11089,7 +11090,7 @@ export default {
     noApprovedExport:
       'No approved export is available to download; submit a request and wait for approval',
     tokenExhausted:
-      'The export token has been used up or expired; please submit a new export request',
+      'The export token retry budget is exhausted or past its validity; please submit a new export request',
     detailTitle: 'Approval Detail',
     createTitle: 'Create Export Request',
     verifyTitle: 'Download Token Verification',
@@ -11097,6 +11098,7 @@ export default {
     paramsPlaceholder: 'JSON object of export parameters (e.g. keyword mapped to a filter value)',
     verifyTokenPlaceholder: 'Paste the download token',
     estimatedRowsLabel: 'Estimated Rows',
+    estimatedRowsInvalid: 'Estimated rows must be a non-negative integer',
     fileFormatLabel: 'File Format',
     jsonInvalid: 'Export parameters must be valid JSON',
     jsonMustBeObject: 'Export parameters must be a JSON object',
@@ -11114,9 +11116,37 @@ export default {
     logDownloadNoUser: 'Current user identity is unavailable, inline export download was blocked',
     logDownloadListFailed: 'Failed to query downloadable approved exports',
     logDownloadNone: 'The current user has no downloadable inline export for resource {resource}',
+    logAcquireTokenFailed:
+      'Failed to retrieve export token plaintext (request #{id}); the backend has surfaced the exact reason',
     statusPending: 'Pending approval',
     statusPendingL2: 'Pending second-level approval',
     statusExpired: 'Expired',
+    statusConsumed: 'Exported',
+    statusExhausted: 'Retries exhausted',
+    tokenConsumedMark: 'Invalidated',
+    tokenViewedMark: 'Viewed',
+    retryUsageLabel: 'Retry budget (used/max)',
+    approvalProgressLabel: 'Approval progress',
+    viewInApprovalCenter: 'View in approval center',
+    viewTokenAction: 'View token',
+    rotateTokenAction: 'Rotate token',
+    goToExport: 'Go export',
+    tokenCopyFailed: 'Failed to copy token, please select and copy the token text manually',
+    logCopyFailed: 'Copy export token failed',
+    tokenOnceTitle: 'One-time export token view',
+    tokenOnceWarning:
+      'The full token plaintext is shown only once and cannot be viewed again after closing; click "Copy token" to take it, or use "Download My Export" on the resource list page or "Go export" here to download in place',
+    tokenOnceClose: 'I have seen it, close',
+    tokenOnceUnavailable:
+      'The plaintext of this token has already been viewed (fingerprint {fingerprint}) and cannot be shown again; click "Rotate token" to issue a new one for export',
+    confirmRotateToken:
+      'Rotating will invalidate the current token immediately and issue a new one. Continue?',
+    logTokenViewed: 'Export token viewed once (request #{id})',
+    logTokenOnceFailed: 'One-time export token view failed (request #{id})',
+    logRotateOk: 'Export token rotated (request #{id})',
+    logRotateFailed:
+      'Export token rotation rejected (request #{id}); the backend has surfaced the exact state',
+    logRouteFailed: 'Failed to navigate to export entry (request #{id})',
     resourceType: {
       customer: 'Customer List',
       supplier: 'Supplier List',

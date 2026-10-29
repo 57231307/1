@@ -6,7 +6,7 @@
 //! - sales_crm: 销售报价/CRM/色价
 //! - production: 生产/质量/委外/事件/failover
 //! - finance: 合规/权限/RLS/色卡/坏账/8D
-//! - v15: V15 各批次（core/batch18/batch19/extensions/final 合并）
+//! - v15: V15 各期扩展（core 与 extensions 与 final 等合并）
 //! - rls_dept: RLS dept 数据范围语义扩展（5 表冗余 department_id + 触发器 + 策略重写）
 //! - crm_lead_claim_record: crm_lead 领取事件列（last_claimed_at/by，公海保护期与每日计数的唯一可靠判据）
 //! - crm_vocab_check: CRM 状态词表 DB CHECK 约束（crm_lead/crm_opportunity，依赖 business 建表）
@@ -96,6 +96,11 @@
 //! - purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口两支
 //!   同域迁移（m0113a 严格只读逐值点名、m0113b 守卫后施加 CHECK），词表权威在
 //!   models::status::purchase_inventory::purchase_inspection_result；置于链尾为新的顶层条目
+//! - export_approval_lifecycle: 导出审批令牌生命周期改造域（export_approval_request 补
+//!   BPM 关联/令牌哈希化/重试窗口列 + status CHECK 扩 consumed、exhausted + 登记
+//!   export_approval BPM 流程定义行；依赖 system 建的 bpm_process_definition 与
+//!   bpm_process_instance 与 users/roles、v15 建的 export_approval_request 与
+//!   download_token 等既有列，故必须排全链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -143,3 +148,4 @@ pub mod product_vocab_check;
 pub mod product_roll_column_drop;
 pub mod textile_safety;
 pub mod purchase_inspection_result_check;
+pub mod export_approval_lifecycle;

@@ -10,6 +10,7 @@ use crate::handlers::crm_customer_handler::apply_customer_field_permission;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::dto::PageRequest;
 use crate::services::customer_service::{CreateCustomerArgs, CustomerService, UpdateCustomerArgs};
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::utils::admin_checker::is_admin_role;
 use crate::utils::data_permission::{DEFAULT_HIDDEN_FIELDS, DataPermissionFilter};
 use crate::utils::error::AppError;
@@ -646,61 +647,100 @@ fn record_customers_export_audit(state: &AppState, auth: &AuthContext, row_count
     Arc::new(svc).record_async(event, None);
 }
 
-/// V15 P0-S12 + P0-S15 新增（Batch 474）：客户列表导出为带水印的 xlsx；端点：`GET /api/v1/customers/export`；设计要点： - 复用 `list_customers` 的查询参数（status/customer_type/keyword） - 通过 `CustomerService::list_customers_with_filter` 一次性查询（page_size=10000 防 OOM） - 行级数据权限
-/// 与 `list_customers` 一致，调用 `to_data_scope_context` + `get_permission_filter` - 水印：操作员（AuthContext.username）+ 导出时间（ISO8601）+ 资源类型说明 - IP 暂为 None（middleware 未把 client_ip 注入 AuthContext，后续批次补齐）；规则 3：导出统一使用 xlsx 格式（含水印），错误用 AppError 表达。
+/// 客户列表导出为带水印的 xlsx，端点为 GET /api/v1/customers/export
+///
+/// 功能：按本次请求的筛选与行级数据权限取客户全集，落成带操作者水印的表格文件
+/// 调用方：客户路由的导出端点
+/// 入参：查询参数（keyword、customer_type、status 与审批令牌）、应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，取数交 CustomerService::list_customers_with_filter，表格构造交
+/// build_customers_table，审计交 record_customers_export_audit，成功登记交 record_download
+/// 存什么：不写业务表；水印行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
+/// 存哪里：不适用
+///
+/// 范围参数只收本次请求实际带的筛选项，与批准范围逐项比对。ip_address 为 None，
+/// 因为中间件未把 client_ip 注入会话上下文。导出统一使用 xlsx 格式，
+/// 失败用 AppError 信封表达。
 pub async fn export_customers(
     State(state): State<AppState>,
     Query(query): Query<CustomerListQuery>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(query.download_token.as_deref(), "customer")
-            .await?;
-
-    // V15 P0-S12：复用 list 逻辑，page_size 取上限 10000 防止单次导出过大
-    let page_req = PageRequest {
-        page: 1,
-        page_size: 10000,
-    };
-
-    let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
-    let data_scope_ctx = auth.to_data_scope_context();
-
-    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
-    let result = customer_service
-        .list_customers_with_filter(
-            page_req,
-            query.status.clone(),
-            query.customer_type.clone(),
-            query.keyword.clone(),
-            permission_filter,
-            Some(&data_scope_ctx),
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "keyword",
+            query.keyword.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "customer_type",
+            query.customer_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "status",
+            query.status.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "customer",
+            auth.user_id,
+            Some(requested_scope),
         )
         .await?;
 
-    let row_count = result.items.len();
-    let table = build_customers_table(&result.items);
-    let watermark = WatermarkConfig {
-        operator: Some(auth.username.clone()),
-        ip_address: None, // 后续批次从 ConnectInfo 提取
-        exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("客户列表导出（共 {} 条）", row_count)),
-    };
-    let filename = format!(
-        "customers_export_{}",
-        chrono::Utc::now().format("%Y%m%d%H%M%S")
-    );
-    // 敏感导出 fail-closed：记录令牌消费（流式导出用 filename + row_count 作逻辑标识）
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(
-            approval.id,
-            filename.clone(),
-            row_count as i64,
-            String::new(),
-        )
+    let (table, filename, watermark) = approval_svc
+        .run_export_leg(approval.id, async {
+            // 复用列表取数口径，page_size 取上限 10000 防止单次导出过大
+            let page_req = PageRequest {
+                page: 1,
+                page_size: 10000,
+            };
+
+            let permission_filter = get_permission_filter(&state, &auth, "customer").await?;
+            let data_scope_ctx = auth.to_data_scope_context();
+
+            let customer_service =
+                CustomerService::new(state.db.clone(), state.search_client.clone());
+            let result = customer_service
+                .list_customers_with_filter(
+                    page_req,
+                    query.status.clone(),
+                    query.customer_type.clone(),
+                    query.keyword.clone(),
+                    permission_filter,
+                    Some(&data_scope_ctx),
+                )
+                .await?;
+
+            let row_count = result.items.len();
+            let table = build_customers_table(&result.items);
+            let watermark = WatermarkConfig {
+                operator: Some(auth.username.clone()),
+                // ip_address 为 None，中间件未把 client_ip 注入会话上下文
+                ip_address: None,
+                exported_at: Some(chrono::Utc::now().to_rfc3339()),
+                extra: Some(format!("客户列表导出（共 {} 条）", row_count)),
+            };
+            let filename = format!(
+                "customers_export_{}",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
+            // 敏感导出 fail-closed：记录令牌消费（流式导出用文件名与行数作逻辑标识）
+            approval_svc
+                .record_download(
+                    approval.id,
+                    filename.clone(),
+                    row_count as i64,
+                    String::new(),
+                )
+                .await?;
+            record_customers_export_audit(&state, &auth, row_count);
+            Ok((table, filename, watermark))
+        })
         .await?;
-    record_customers_export_audit(&state, &auth, row_count);
+
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

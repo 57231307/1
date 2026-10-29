@@ -18,6 +18,7 @@
 //!   → m0104_add_document_no_partial_unique_four_tables
 //!   → sales_contract_source_order
 //!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
+//!   → sales_contract_source_order → export_approval_lifecycle
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -158,6 +159,16 @@
 //!    wage_energy_vocab_check 的 m0102 与 m0103 两段式），权威词表 models::status::
 //!    purchase_inventory::purchase_inspection_result，NULL 为完成质检前合法初值，
 //!    守卫拒绝不在迁移里 UPDATE 洗数据；置于链尾为新的顶层条目，晚于 business 建列
+//! 31. export_approval_lifecycle: 导出审批令牌生命周期改造域（m0105）——给
+//!    export_approval_request 幂等加 token_hash/token_fingerprint/token_viewed/retry_count/
+//!    last_attempt_at/max_retries/token_consumed/token_consumed_at/bpm_instance_id 九列 +
+//!    bpm_instance_id 外键指向 bpm_process_instance(ON DELETE SET NULL) + token_hash 部分唯一
+//!    索引；status CHECK 以同约束名扩 consumed、exhausted 两终态；向 bpm_process_definition
+//!    登记 code=export_approval 的 ACTIVE 流程定义（按 risk_level 走一级或二级，审批人锚点取
+//!    admin 角色最小启用用户，系统未初始化时跳过不造值）。迁移内绝不 UPDATE/DELETE 历史明文令牌，
+//!    老行按 token_expires_at 自然过期、校验侧对 token_hash IS NULL 回退明文比对。依赖 system
+//!    建的 bpm_process_definition/bpm_process_instance/users/roles 与 finance 建并 v15 扩展的
+//!    export_approval_request 全部早于本域；置于全链尾为新的顶层条目，复用库上必然执行。
 
 pub use sea_orm_migration::prelude::*;
 
@@ -215,6 +226,7 @@ impl MigratorTrait for Migrator {
             Box::new(domain::product_roll_column_drop::Migration),
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
+            Box::new(domain::export_approval_lifecycle::Migration),
         ]
     }
 }
