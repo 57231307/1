@@ -13,8 +13,9 @@ import { APP_ERROR_CODES, loginViaUI, apiCallRaw, apiCall, apiCallExpectFail } f
  * - POST /advanced/reports/execute：入参 template_code 必填；未知 id 走
  *   get_template 的 not_found（services/report/tpl 附近）→ 404 + NOT_FOUND；
  *   已知 sales_summary 返回 columns（{key,label} 数组）、data 行数组与 total_count。
- * - POST /advanced/reports/export：format 经 ExportFormat::parse 白名单
- *   （csv/excel/pdf/json，非法值 bad_request → 400 BAD_REQUEST）；
+ * - POST /advanced/reports/export：format 经白名单校验
+ *   （csv/excel/xlsx/pdf/json，非法值在取数之前即被拒 → 400 VALIDATION_ERROR，
+ *   白名单外的值不再静默回落成 json）；
  *   csv 出参 data.status/format/size_bytes/record_count（format 回显请求值）。
  * - POST /advanced/ai/recommendations（rec，OptionalJson）：缺体回落
  *   recommendation_type="all"、limit=10；limit 入参真实生效——传 1 时返回条数 ≤ 1，
@@ -193,7 +194,9 @@ test.describe.serial('123 advanced 族九端点契约配对（缺参点名 400 �
       format: 'xml',
     });
     expect(badFormat.status).toBe(400);
-    expect(badFormat.code).toBe(APP_ERROR_CODES.BAD_REQUEST);
+    // 非法枚举入参走校验族（与下方缺字段与超范围两腿同族同码），
+    // 后端对不在白名单内的 format 报 validation_displayable，出参码 VALIDATION_ERROR。
+    expect(badFormat.code).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
   });
 
   test('智能推荐缺体回落 all+10，limit 入参真实生效', async ({ page }) => {
