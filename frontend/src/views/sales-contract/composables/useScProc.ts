@@ -23,6 +23,7 @@ import { formatCurrency, getStatusLabel } from './scFmts';
 import { escapeHtml } from '@/utils/print';
 // 导出走后端带水印 xlsx 接口
 import { exportFromBackend } from '@/utils/export';
+import { h, type VNode } from 'vue';
 
 /**
  * 合同金额归一：后端 total_amount 为 Decimal ⇒ 出参 JSON 字符串（或 null），
@@ -32,6 +33,7 @@ const fmtContractAmount = (amount: string | null) =>
   formatCurrency(amount == null ? null : Number(amount));
 
 /**
+/**
  * composable 内取 i18n 文案（非组件环境无 setup 作用域，走 i18n.global，
  * 与本文件执行类型选项 actionForm.executeType* 的取法同源）。
  * @param key 文案键；named 可选具名插值参数
@@ -39,6 +41,39 @@ const fmtContractAmount = (amount: string | null) =>
  */
 const tr = (key: string, named?: Record<string, string | number>): string =>
   named === undefined ? i18n.global.t(key) : i18n.global.t(key, named);
+
+/**
+ * 构造销售合同详情弹层的消息 VNode。
+ * 功能：把标签与值逐字段渲染成行，标签取 salesContract.proc.label* 文案键，值一律走 Vue
+ * 文本节点进 DOM、绝不拼 HTML 字符串，使人工程录入字段（编号/名称/客户/付款条件/付款方式/
+ * 交货地点等）携带标签片段时只按字面显示，杜绝弹层被当 HTML 解析执行的结构型注入面。
+ * 调用方：handleView（经 ElMessageBox.alert 的 VNode 消息通道渲染）。
+ * 入参：row 销售合同行对象；文本字段可空（空值显示 '-'），total_amount 为 Decimal 字符串，
+ * 经 fmtContractAmount 归一后作文本值渲染；状态取 utils/sales-contract-status 权威词表
+ * （经 scFmts::getStatusLabel），不外显裸枚举。
+ * 传给谁：ElMessageBox.alert 的 message 形参。
+ * 存什么：不保存状态；同入参必同出参。
+ * 存哪里：本文件导出；后续结构化弹层复用本入口，禁止在调用点另写私有拼装副本。
+ */
+export const buildScContractDetailMessage = (row: SalesContract): VNode => {
+  /** 单字段行：strong 标签 + 文本节点值（空值占位 '-'） */
+  const fieldRow = (labelKey: string, value: string | null | undefined) =>
+    h('p', [h('strong', `${tr(labelKey)}: `), value || '-']);
+  return h('div', [
+    fieldRow('salesContract.proc.labelContractNo', row.contract_no),
+    fieldRow('salesContract.proc.labelContractName', row.contract_name),
+    fieldRow('salesContract.proc.labelCustomer', row.customer_name),
+    fieldRow('salesContract.proc.labelTotalAmount', fmtContractAmount(row.total_amount)),
+    fieldRow('salesContract.proc.labelSignedDate', row.signed_date),
+    fieldRow('salesContract.proc.labelEffectiveDate', row.effective_date),
+    fieldRow('salesContract.proc.labelExpiryDate', row.expiry_date),
+    fieldRow('salesContract.proc.labelStatus', getStatusLabel(row.status)),
+    fieldRow('salesContract.proc.labelPaymentTerms', row.payment_terms),
+    fieldRow('salesContract.proc.labelPaymentMethod', row.payment_method),
+    fieldRow('salesContract.proc.labelDeliveryDate', row.delivery_date),
+    fieldRow('salesContract.proc.labelDeliveryLocation', row.delivery_location),
+  ]);
+};
 
 /**
  * 刷新回调
@@ -146,30 +181,13 @@ export function useScProc(refresh: RefreshCallbacks) {
   };
 
   /**
-   * 查看详情（弹出 ElMessageBox）：文案全部走 i18n（salesContract.proc.*），
-   * 状态行取 utils/sales-contract-status 权威词表（经 scFmts::getStatusLabel），不外显裸枚举。
-   * dangerouslyUseHTMLString 直渲 HTML，标签与字段值等全部插值点统一过 escapeHtml，
-   * 与打印腿（handlePrint 的 escapeHtml 口径）保持同一安全标准。
+  /**
+   * 查看详情（弹出 ElMessageBox）：消息走 buildScContractDetailMessage 的 VNode 通道，
+   * 字段值以文本节点渲染；不得回退为「HTML 字符串 + dangerouslyUseHTMLString」拼接口径。
+   * 标题与按钮文案走 i18n（salesContract.proc.detailTitle 与 common.close）。
    */
   const handleView = (row: SalesContract) => {
-    const detailRow = (labelKey: string, value: string): string =>
-      `<p><strong>${escapeHtml(tr(labelKey))}: </strong>${escapeHtml(value)}</p>`;
-    const html = `<div>
-        ${detailRow('salesContract.proc.labelContractNo', row.contract_no)}
-        ${detailRow('salesContract.proc.labelContractName', row.contract_name)}
-        ${detailRow('salesContract.proc.labelCustomer', row.customer_name || '-')}
-        ${detailRow('salesContract.proc.labelTotalAmount', fmtContractAmount(row.total_amount))}
-        ${detailRow('salesContract.proc.labelSignedDate', row.signed_date || '-')}
-        ${detailRow('salesContract.proc.labelEffectiveDate', row.effective_date || '-')}
-        ${detailRow('salesContract.proc.labelExpiryDate', row.expiry_date || '-')}
-        ${detailRow('salesContract.proc.labelStatus', getStatusLabel(row.status))}
-        ${detailRow('salesContract.proc.labelPaymentTerms', row.payment_terms || '-')}
-        ${detailRow('salesContract.proc.labelPaymentMethod', row.payment_method || '-')}
-        ${detailRow('salesContract.proc.labelDeliveryDate', row.delivery_date || '-')}
-        ${detailRow('salesContract.proc.labelDeliveryLocation', row.delivery_location || '-')}
-      </div>`;
-    ElMessageBox.alert(html, tr('salesContract.proc.detailTitle'), {
-      dangerouslyUseHTMLString: true,
+    ElMessageBox.alert(buildScContractDetailMessage(row), tr('salesContract.proc.detailTitle'), {
       confirmButtonText: tr('common.close'),
     });
   };
