@@ -39,26 +39,8 @@ pub const P92_CRUD_MODULE: &str = "sales_order_crud";
 pub(crate) fn decimal_to_f64(d: &rust_decimal::Decimal) -> f64 {
     d.to_string().parse::<f64>().unwrap_or(0.0)
 }
-/// 订单金额累计：用于 create_order 拆分时在 helper 间传递总额
-struct OrderTotals {
-    subtotal: rust_decimal::Decimal,
-    tax_amount: rust_decimal::Decimal,
-    discount_amount: rust_decimal::Decimal,
-    total_amount: rust_decimal::Decimal,
-}
-
-/// 单行明细金额计算结果（避免 tuple 返回触发 clippy::type_complexity）
-struct SalesItemAmounts {
-    /// 落 sales_order_item.unit_price 列的不含税单价（由含税单价反算，不是采信提交值）
-    unit_price: rust_decimal::Decimal,
-    item_subtotal: rust_decimal::Decimal,
-    item_discount: rust_decimal::Decimal,
-    item_tax: rust_decimal::Decimal,
-    item_total: rust_decimal::Decimal,
-    discount_pct: rust_decimal::Decimal,
-    tax_pct: rust_decimal::Decimal,
-}
-
+/// 订单金额累计与单行折算结果统一取自 amounts 模块，本文件不再自持结构。
+/// 存在理由，销售订单与销售合同必须对同一组数量与单价算出同一金额，口径只能有一处。
 impl SalesService {
     // create_order / update_order / delete_order
     // 内容来自原 order.rs L277-610 + L611-777 + L778-814
@@ -199,7 +181,7 @@ impl SalesService {
     /// 计算订单成交含税总额（信用检查与信用占用的基数，纯函数无 IO）
     ///
     /// 入参 request 是建单请求，逐行真调 calculate_sales_item_amounts（含税单价是录入
-    /// 事实，净额与税额由内核除法反算取差额）。出参是各行成交含税额 item_total 之和，
+    /// 事实，净额与税额由内核除法反算取差额）。出参是各行成交含税额 total_amount 之和，
     /// 与落库 sales_order.total_amount 列同一单源同数值。传给谁：create_order 的
     /// check_credit_available 与 occupy_credit_and_warn。本函数内不存在也不得写入
     /// `净额 × 税率` 造税额、`净额 + 税额` 拼含税额的正向公式——含税事实只能来自录入。
@@ -211,7 +193,7 @@ impl SalesService {
         let mut order_amount = rust_decimal::Decimal::ZERO;
         for item in &request.items {
             let amounts = Self::calculate_sales_item_amounts(item)?;
-            order_amount += amounts.item_total;
+            order_amount += amounts.total_amount;
         }
         Ok(order_amount)
     }
@@ -350,13 +332,14 @@ impl SalesService {
     /// 入参 item_req 是销售订单行请求：含税单价 unit_price_with_tax 是录入事实，
     /// unit_price 是提交的不含税单价（必须与反算值分位一致，落库采信反算值），
     /// tax_percent 是百分数口径税率（缺省按 0 = 免税/不含税声明，与既有口径一致）。
-    /// 出参 SalesItemAmounts 五个金额字段分别写 sales_order_item 的 unit_price、subtotal、
-    /// discount_amount、tax_amount、total_amount 列，其中税额是「成交含税 − 折后净额」的差额，
-    /// 恒等式 subtotal − discount_amount + tax_amount == total_amount 逐分成立。
-    /// 税率非 0 而缺含税单价时点名拒绝：本函数不用 `单价 × (1 + 税率)` 造含税额。
+    /// 出参 SalesLineAmounts 各金额字段分别写 sales_order_item 的 unit_price、subtotal、
+    /// discount_amount、tax_amount、total_amount 列，其中税额是成交含税减折后净额的差额，
+    /// 恒等式 subtotal - discount_amount + tax_amount == total_amount 逐分成立。
+    /// 传给谁：create_order 的信用金额基数、建单与改单明细行 ActiveModel 与表头合计漏斗。
+    /// 税率非 0 而缺含税单价时点名拒绝：本函数不用单价乘一加税率造含税额。
     fn calculate_sales_item_amounts(
         item_req: &crate::services::so::SalesOrderItemRequest,
-    ) -> Result<SalesItemAmounts, AppError> {
+    ) -> Result<crate::services::so::amounts::SalesLineAmounts, AppError> {
         let discount_pct = item_req
             .discount_percent
             .unwrap_or(rust_decimal::Decimal::ZERO);
@@ -380,14 +363,15 @@ impl SalesService {
             tax_pct,
         );
         crate::utils::tax::ensure_reconciled(split.deal_net, split.tax, split.deal_inclusive)?;
-        Ok(SalesItemAmounts {
+        Ok(crate::services::so::amounts::SalesLineAmounts {
             unit_price,
-            item_subtotal: split.list_net,
-            item_discount: split.discount_net,
-            item_tax: split.tax,
-            item_total: split.deal_inclusive,
-            discount_pct,
-            tax_pct,
+            subtotal: split.list_net,
+            discount_amount: split.discount_net,
+            amount_after_discount: split.deal_net,
+            tax_amount: split.tax,
+            total_amount: split.deal_inclusive,
+            discount_percent: discount_pct,
+            tax_percent: tax_pct,
         })
     }
 
@@ -395,7 +379,7 @@ impl SalesService {
     fn build_sales_order_item_active_model(
         item_req: &crate::services::so::SalesOrderItemRequest,
         order_id: i32,
-        amounts: &SalesItemAmounts,
+        amounts: &crate::services::so::amounts::SalesLineAmounts,
     ) -> sales_order_item::ActiveModel {
         let zero = rust_decimal::Decimal::ZERO;
         sales_order_item::ActiveModel {
@@ -404,12 +388,12 @@ impl SalesService {
             product_id: sea_orm::ActiveValue::Set(item_req.product_id),
             quantity: sea_orm::ActiveValue::Set(item_req.quantity),
             unit_price: sea_orm::ActiveValue::Set(amounts.unit_price),
-            discount_percent: sea_orm::ActiveValue::Set(amounts.discount_pct),
-            tax_percent: sea_orm::ActiveValue::Set(amounts.tax_pct),
-            subtotal: sea_orm::ActiveValue::Set(amounts.item_subtotal),
-            tax_amount: sea_orm::ActiveValue::Set(amounts.item_tax),
-            discount_amount: sea_orm::ActiveValue::Set(amounts.item_discount),
-            total_amount: sea_orm::ActiveValue::Set(amounts.item_total),
+            discount_percent: sea_orm::ActiveValue::Set(amounts.discount_percent),
+            tax_percent: sea_orm::ActiveValue::Set(amounts.tax_percent),
+            subtotal: sea_orm::ActiveValue::Set(amounts.subtotal),
+            tax_amount: sea_orm::ActiveValue::Set(amounts.tax_amount),
+            discount_amount: sea_orm::ActiveValue::Set(amounts.discount_amount),
+            total_amount: sea_orm::ActiveValue::Set(amounts.total_amount),
             shipped_quantity: sea_orm::ActiveValue::Set(zero),
             notes: sea_orm::ActiveValue::Set(item_req.notes.clone()),
             created_at: sea_orm::ActiveValue::Set(chrono::Utc::now()),
@@ -440,48 +424,38 @@ impl SalesService {
     }
 
     /// 创建订单明细 + 累计金额（批量 INSERT 优化）
+    /// 行金额与表头合计都由 amounts 模块产出，本函数只做门控、建模型与落库
     async fn create_order_items_and_calculate_totals(
         &self,
         items: Vec<crate::services::so::SalesOrderItemRequest>,
         order_id: i32,
         txn: &sea_orm::DatabaseTransaction,
-    ) -> Result<OrderTotals, AppError> {
-        let mut subtotal = rust_decimal::Decimal::ZERO;
-        let mut tax_amount = rust_decimal::Decimal::ZERO;
-        let mut discount_amount = rust_decimal::Decimal::ZERO;
-        let mut total_amount = rust_decimal::Decimal::ZERO;
-        let mut item_models = Vec::new();
+    ) -> Result<crate::services::so::amounts::SalesAmountTotals, AppError> {
+        let mut lines = Vec::with_capacity(items.len());
+        let mut item_models = Vec::with_capacity(items.len());
         for item_req in items {
-            // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处：
+            // 建单与改单都从这一个漏斗写明细行，链来源的词表门控因此只有一处，
             // 词表外取值整笔中止（事务回滚），不落库、不静默归一、不代填默认值。
             item_req.validate_fulfillment_source()?;
             let amounts = Self::calculate_sales_item_amounts(&item_req)?;
-            subtotal += &amounts.item_subtotal;
-            discount_amount += &amounts.item_discount;
-            tax_amount += &amounts.item_tax;
-            total_amount += &amounts.item_total;
             item_models.push(Self::build_sales_order_item_active_model(
                 &item_req, order_id, &amounts,
             ));
+            lines.push(amounts);
         }
         if !item_models.is_empty() {
             sales_order_item::Entity::insert_many(item_models)
                 .exec(txn)
                 .await?;
         }
-        Ok(OrderTotals {
-            subtotal,
-            tax_amount,
-            discount_amount,
-            total_amount,
-        })
+        Ok(crate::services::so::amounts::sum_line_amounts(&lines))
     }
 
     /// 更新订单总金额（含审计日志）
     async fn update_order_totals(
         &self,
         order_entity: sales_order::Model,
-        totals: OrderTotals,
+        totals: crate::services::so::amounts::SalesAmountTotals,
         user_id: i32,
         txn: &sea_orm::DatabaseTransaction,
     ) -> Result<i32, AppError> {

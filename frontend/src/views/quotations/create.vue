@@ -382,7 +382,7 @@ async function loadCustomers() {
 }
 
 /** 由报价详情构建表头字段（编辑态与复制态共用；不含明细/条款）
- *  后端 rust_decimal 出参形态是 JSON 十进制字符串，回填 el-input-number 前经 utils/money 归一 */
+ *  后端 rust_decimal 出参形态是 JSON 十进制字符串，回填 数值录入控件 前经 utils/money 归一 */
 function buildQuotationHeader(data: QuotationResponseDto) {
   return {
     customer_id: data.customer_id,

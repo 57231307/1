@@ -307,7 +307,7 @@
           </el-col>
           <el-col :span="8">
             <el-form-item :label="$t('printTemplates.dialog.copiesDefault')" prop="copies_default">
-              <el-input-number v-model="form.copies_default" :min="1" :max="99" />
+              <NumericInput v-model="form.copies_default" :min="1" :max="99" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
@@ -399,6 +399,7 @@
 
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus';

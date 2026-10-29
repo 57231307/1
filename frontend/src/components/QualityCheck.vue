@@ -121,8 +121,10 @@
         <el-form-item
           v-if="reportForm.issue_type === 'color_diff'"
           :label="t('common.qualityCheck.colorDeltaE')"
+          prop="color_delta_e"
         >
-          <el-input-number v-model="reportForm.color_delta_e" :min="0" :precision="2" :step="0.5" />
+          <!-- 手写录入 色差值 非负 两位小数（原控件 min=0 precision=2 落到 rules；step 仅是步进辅助非约束，随控件一并移除） -->
+          <el-input v-model="reportForm.color_delta_e" inputmode="decimal" />
           <span style="margin-left: 8px; color: #909399; font-size: 12px">
             {{ t('common.qualityCheck.colorDeltaEHint') }}
           </span>
@@ -186,6 +188,7 @@ import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Plus } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
+import { numberInputRules } from '@/utils/number-input';
 import {
   reportQualityIssue,
   resolveQualityIssue,
@@ -214,7 +217,8 @@ const reportForm = ref({
   issue_type: '',
   severity: 'medium',
   description: '',
-  color_delta_e: undefined as number | undefined,
+  // 视图态数值字段以字符串承载（el-input 手写录入），提交边界显式转回契约数字
+  color_delta_e: '',
   color_fastness_grade: undefined as number | undefined,
 });
 
@@ -230,6 +234,11 @@ const reportRules = computed(() => ({
   description: [
     { required: true, message: t('common.qualityCheck.rule.descriptionRequired'), trigger: 'blur' },
   ],
+  color_delta_e: numberInputRules({
+    label: t('common.qualityCheck.colorDeltaE'),
+    min: 0,
+    precision: 2,
+  }),
 }));
 
 /** 严重度标签映射（响应式 t() 求值，替代导入的 ISSUE_SEVERITY 中文常量） */
@@ -269,7 +278,7 @@ function showReportDialog() {
     issue_type: '',
     severity: 'medium',
     description: '',
-    color_delta_e: undefined,
+    color_delta_e: '',
     color_fastness_grade: undefined,
   };
   reportVisible.value = true;
@@ -289,6 +298,9 @@ async function handleReportSubmit() {
     // body 携带也会被忽略，此处不再发送（对齐 AfterSalesPanel.vue 先例）。
     await reportQualityIssue(props.orderId, {
       ...reportForm.value,
+      // 色差值 DTO 契约为 number：字符串编辑态在提交边界显式转回；空串=未填=省略该键
+      color_delta_e:
+        reportForm.value.color_delta_e === '' ? undefined : Number(reportForm.value.color_delta_e),
     });
     ElMessage.success(t('common.qualityCheck.reportSuccess'));
     reportVisible.value = false;

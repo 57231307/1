@@ -1,5 +1,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCallRaw, genCode, tryCleanup } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 主数据读回持久锁 + 列表列值非空锁（客户 / 供应商 / 产品）
@@ -333,6 +335,8 @@ test.describe('主数据读回持久锁 + 列表列值非空锁（客户/供应�
       category_id: cat.id,
       standard_price: 66.6,
       specification: '133x72',
+      // 新建回读列锁用例只比对名称/编码/富化分类列，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const id = Number(created?.id);
     expect(id, `产品建行应回主键 id：${JSON.stringify(created).slice(0, 200)}`).toBeGreaterThan(0);
@@ -386,6 +390,8 @@ test.describe('主数据读回持久锁 + 列表列值非空锁（客户/供应�
       status: 'active',
       category_id: cat.id,
       standard_price: 10.5,
+      // 编辑回读列锁用例改名与价格不触碰类型列，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const id = Number(created?.id);
     expect(id, `产品建行应回主键 id：${JSON.stringify(created).slice(0, 200)}`).toBeGreaterThan(0);
@@ -437,6 +443,8 @@ test.describe('主数据读回持久锁 + 列表列值非空锁（客户/供应�
       unit: '米',
       status: 'active',
       category_id: cat.id,
+      // 列表列值非空锁不比对类型列，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const id = Number(created?.id);
     expect(id, `产品建行应回主键 id：${JSON.stringify(created).slice(0, 200)}`).toBeGreaterThan(0);

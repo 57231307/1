@@ -162,11 +162,11 @@
             :label="t('supplier.dialog.label.registeredCapital')"
             prop="registered_capital"
           >
-            <el-input-number
+            <NumericInput
               v-model="localFormData.registered_capital"
+              style="width: 100%"
               :min="0"
               :precision="2"
-              style="width: 100%"
             />
           </el-form-item>
         </el-col>
@@ -240,6 +240,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import NumericInput from '@/components/NumericInput.vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 // 表单模型与空白态以 ./supplier-form 为单一定义（与父组件 index.vue 共用，禁止两处各写一份）

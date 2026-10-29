@@ -9,6 +9,37 @@
     destroy-on-close
     @update:model-value="(v: boolean) => (proc.importDialogVisible.value = v)"
   >
+    <div class="import-template-bar">
+      <el-button type="primary" link :loading="templateLoading" @click="handleDownloadTemplate">
+        <el-icon><download /></el-icon>
+        {{ t('skuMapping.buttonDownloadTemplate') }}
+      </el-button>
+    </div>
+
+    <el-alert
+      v-if="templateMeta"
+      class="import-columns-tip"
+      :title="t('skuMapping.importColumnsTip')"
+      type="info"
+      :closable="false"
+      show-icon
+    />
+    <el-table
+      v-if="templateMeta"
+      :data="templateMeta.columns"
+      size="small"
+      max-height="200"
+      class="import-columns"
+    >
+      <el-table-column prop="title" :label="t('skuMapping.colName')" width="180" />
+      <el-table-column :label="t('skuMapping.colRequired')" width="90">
+        <template #default="{ row }">
+          {{ row.required ? t('skuMapping.colRequiredYes') : t('skuMapping.colRequiredNo') }}
+        </template>
+      </el-table-column>
+      <el-table-column prop="example" :label="t('skuMapping.colExample')" />
+    </el-table>
+
     <el-upload
       drag
       action="#"
@@ -57,9 +88,16 @@
 </template>
 
 <script setup lang="ts">
-import { inject } from 'vue';
+import { inject, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { UploadFilled } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { Download, UploadFilled } from '@element-plus/icons-vue';
+import {
+  downloadImportTemplate,
+  getImportTemplateMeta,
+  saveTemplateBlob,
+  type ImportTemplateMeta,
+} from '@/api/import-template';
 import type { useSkuMappingImport } from '../composables/useSkuMappingImport';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -68,14 +106,70 @@ type ProcState = ReturnType<typeof useSkuMappingImport>;
 
 const proc = inject<ProcState>('skuMappingImportProc')!;
 
+// 列说明与模板文件都取自后端模板登记表，前端不另抄列清单
+const templateMeta = ref<ImportTemplateMeta | null>(null);
+const templateLoading = ref(false);
+
 const onFileChange = (uploadFile: { raw?: File }) => {
   if (uploadFile.raw) {
     proc.handleFileChange(uploadFile.raw);
   }
 };
+
+const loadTemplateMeta = async () => {
+  if (templateMeta.value || templateLoading.value) {
+    return;
+  }
+  templateLoading.value = true;
+  try {
+    const res = await getImportTemplateMeta('sku_mapping');
+    templateMeta.value = res.data;
+  } catch (e: unknown) {
+    const err = e as Error;
+    ElMessage.error(err.message || t('skuMapping.messageTemplateDownloadFailed'));
+  } finally {
+    templateLoading.value = false;
+  }
+};
+
+watch(
+  () => proc.importDialogVisible.value,
+  visible => {
+    if (visible) {
+      void loadTemplateMeta();
+    }
+  }
+);
+
+const handleDownloadTemplate = async () => {
+  templateLoading.value = true;
+  try {
+    const blob = await downloadImportTemplate('sku_mapping');
+    saveTemplateBlob(blob, 'sku_mapping_template.xlsx');
+    ElMessage.success(t('skuMapping.messageTemplateDownloaded'));
+  } catch (e: unknown) {
+    const err = e as Error;
+    ElMessage.error(err.message || t('skuMapping.messageTemplateDownloadFailed'));
+  } finally {
+    templateLoading.value = false;
+  }
+};
 </script>
 
 <style scoped>
+.import-template-bar {
+  display: flex;
+  margin-bottom: 12px;
+}
+
+.import-columns-tip {
+  margin-bottom: 8px;
+}
+
+.import-columns {
+  margin-bottom: 16px;
+}
+
 .import-loading {
   display: flex;
   align-items: center;

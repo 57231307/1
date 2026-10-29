@@ -70,7 +70,10 @@
     <el-dialog v-model="examDialogVisible" title="新建体检记录" width="520">
       <el-form :model="examForm" label-width="100px">
         <el-form-item label="员工ID" required
-          ><el-input-number v-model="examForm.worker_id" :min="1" class="w-full"
+          ><el-input
+            v-model="examWorkerField.text"
+            class="w-full"
+            @blur="examWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="体检类型" required>
           <el-select v-model="examForm.exam_type" class="w-full">
@@ -138,14 +141,16 @@
           ><el-input v-model="hazardForm.monitoring_point"
         /></el-form-item>
         <el-form-item label="实测值" required
-          ><el-input-number
-            v-model="hazardForm.measured_value"
-            :min="0"
-            :precision="3"
+          ><el-input
+            v-model="hazardMeasuredField.text"
             class="w-full"
+            @blur="hazardMeasuredField.normalize()"
         /></el-form-item>
         <el-form-item label="限值" required
-          ><el-input-number v-model="hazardForm.limit_value" :min="0" :precision="3" class="w-full"
+          ><el-input
+            v-model="hazardLimitField.text"
+            class="w-full"
+            @blur="hazardLimitField.normalize()"
         /></el-form-item>
         <el-form-item label="单位" required><el-input v-model="hazardForm.unit" /></el-form-item>
         <el-form-item label="监测日期" required
@@ -174,7 +179,10 @@
     <el-dialog v-model="ppeDialogVisible" title="新建发放记录" width="520">
       <el-form :model="ppeForm" label-width="110px">
         <el-form-item label="员工ID" required
-          ><el-input-number v-model="ppeForm.worker_id" :min="1" class="w-full"
+          ><el-input
+            v-model="ppeWorkerField.text"
+            class="w-full"
+            @blur="ppeWorkerField.normalize()"
         /></el-form-item>
         <el-form-item label="用品名称" required
           ><el-input v-model="ppeForm.ppe_name"
@@ -191,7 +199,7 @@
         </el-form-item>
         <el-form-item label="规格型号"><el-input v-model="ppeForm.specification" /></el-form-item>
         <el-form-item label="数量" required
-          ><el-input-number v-model="ppeForm.quantity" :min="1" class="w-full"
+          ><el-input v-model="ppeQtyField.text" class="w-full" @blur="ppeQtyField.normalize()"
         /></el-form-item>
         <el-form-item label="发放日期" required
           ><el-date-picker
@@ -230,7 +238,12 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref, toRef } from 'vue';
+import {
+  useNumberField,
+  validateNumberValue,
+  type NumberFieldSpec,
+} from '@/composables/useNumberField';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import {
@@ -329,6 +342,10 @@ const examForm = reactive({
   contraindications: '',
 });
 
+// 数值手输桥 范围与精度由单源校验器裁决（全项目禁步进控件）
+const examWorkerSpec: NumberFieldSpec = { label: '员工ID', required: true, min: 1, precision: 0 };
+const examWorkerField = useNumberField(toRef(examForm, 'worker_id'), examWorkerSpec, 'undefined');
+
 async function loadExams() {
   loading.value = true;
   try {
@@ -356,6 +373,11 @@ async function onScanWarnings() {
 async function onCreateExam() {
   if (!examForm.worker_id || !examForm.exam_type || !examForm.exam_date || !examForm.exam_result) {
     ElMessage.warning(t('occupationalHealth.message.examRequired'));
+    return;
+  }
+  const workerInvalid = validateNumberValue(examForm.worker_id, examWorkerSpec);
+  if (workerInvalid) {
+    ElMessage.warning(workerInvalid);
     return;
   }
   // 后端门控（service :292-296）：in_service 必填 next_exam_date，提前拦截给出可读提示
@@ -407,6 +429,29 @@ const hazardForm = reactive({
   remarks: '',
 });
 
+const hazardMeasuredSpec: NumberFieldSpec = {
+  label: '实测值',
+  required: true,
+  min: 0,
+  precision: 3,
+};
+const hazardLimitSpec: NumberFieldSpec = {
+  label: '限值',
+  required: true,
+  min: 0,
+  precision: 3,
+};
+const hazardMeasuredField = useNumberField(
+  toRef(hazardForm, 'measured_value'),
+  hazardMeasuredSpec,
+  'undefined'
+);
+const hazardLimitField = useNumberField(
+  toRef(hazardForm, 'limit_value'),
+  hazardLimitSpec,
+  'undefined'
+);
+
 async function loadHazards() {
   loadingHazard.value = true;
   try {
@@ -417,6 +462,10 @@ async function loadHazards() {
     loadingHazard.value = false;
   }
 }
+
+const hazardValueInvalid = () =>
+  validateNumberValue(hazardForm.measured_value, hazardMeasuredSpec) ??
+  validateNumberValue(hazardForm.limit_value, hazardLimitSpec);
 
 async function onCreateHazard() {
   if (
@@ -429,6 +478,11 @@ async function onCreateHazard() {
     !hazardForm.monitoring_date
   ) {
     ElMessage.warning(t('occupationalHealth.message.hazardRequired'));
+    return;
+  }
+  const valueInvalid = hazardValueInvalid();
+  if (valueInvalid) {
+    ElMessage.warning(valueInvalid);
     return;
   }
   // 后端门控（service :200-202）：limit_value 必须 > 0
@@ -479,6 +533,11 @@ const ppeForm = reactive({
   remarks: '',
 });
 
+const ppeWorkerSpec: NumberFieldSpec = { label: '员工ID', required: true, min: 1, precision: 0 };
+const ppeQtySpec: NumberFieldSpec = { label: '数量', required: true, min: 1, precision: 0 };
+const ppeWorkerField = useNumberField(toRef(ppeForm, 'worker_id'), ppeWorkerSpec, 'undefined');
+const ppeQtyField = useNumberField(toRef(ppeForm, 'quantity'), ppeQtySpec);
+
 async function loadPpe() {
   loadingPpe.value = true;
   try {
@@ -523,6 +582,13 @@ async function onCreatePpe() {
     !ppeForm.quantity
   ) {
     ElMessage.warning(t('occupationalHealth.message.ppeRequired'));
+    return;
+  }
+  const ppeInvalid =
+    validateNumberValue(ppeForm.worker_id, ppeWorkerSpec) ??
+    validateNumberValue(ppeForm.quantity, ppeQtySpec);
+  if (ppeInvalid) {
+    ElMessage.warning(ppeInvalid);
     return;
   }
   // 后端门控（service :413-418）：expiry_date 必须晚于 distribution_date

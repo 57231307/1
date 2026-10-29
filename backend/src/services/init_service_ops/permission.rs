@@ -620,6 +620,14 @@ impl InitService {
                     ("fabric-orders", "create"),
                     ("quotations", "read"),
                     ("quotations", "create"),
+                    // 销售合同建单与订单转合同：本岗负责起草合同（手工建单 POST
+                    // /sales/sales-contracts 与销售订单转合同 POST /sales/sales-contracts/
+                    // from-order/{id} 运行期同派生为 sales-contracts:create；转合同预填读口
+                    // GET /sales/sales-contracts/preview-from-order/{id} 派生 sales-contracts:read）。
+                    // 审批通过/拒绝仍归 sales_manager（SoD 建审分离，与 quotations 同口径），
+                    // 本岗不授 approve/reject，成对性锁见 tests/contract_wave11_approve_reject_pairing_test.rs。
+                    ("sales-contracts", "read"),
+                    ("sales-contracts", "create"),
                     ("customers", "read"),
                     ("customers", "create"),
                     // PII 按需揭示（POST /crm/customers/{id}/pii/reveal 的运行时键，
@@ -973,6 +981,14 @@ impl InitService {
                     ("stock", "read"),
                     ("suppliers", "read"),
                     ("purchase-orders", "read"),
+                    // 坯布建档与入库要选来源单据与坯布对应产品：`POST /production/greige-fabrics`
+                    // 与 `POST /production/greige-fabrics/{id}/stock-in` 收 product_id 与
+                    // purchase_receipt_id，二者的选择器分别打 `GET /products`（派生
+                    // products:read）与 `GET /purchase/receipts`（派生 purchase-receipts:read）。
+                    // 本岗位此前只有 purchase-orders:read，两个候选面恒 403，等于后端已支持的
+                    // 关联单据字段在界面上是假入口。只授读，收货与改单仍归采购两岗。
+                    ("purchase-receipts", "read"),
+                    ("products", "read"),
                 ],
             ),
             (

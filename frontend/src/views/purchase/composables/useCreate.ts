@@ -200,8 +200,10 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
   const handleProductSelect = (index: number) => {
     const product = products().find(p => p.id === createForm.value.items[index].product_id);
     if (product) {
+      // 出参 price 是 DECIMAL 字符串（NULL→null）：原文带进含税单价主输入列，缺值留空交 items 必填校验拦
+      const rawPrice = product.price;
       createForm.value.items[index].unit_price_with_tax =
-        product.price == null ? '' : String(product.price);
+        rawPrice == null || rawPrice === '' ? '' : String(rawPrice);
       calculateSubtotal(createForm.value.items[index]);
     }
     // 换产品时清色号和已解析映射

@@ -414,7 +414,9 @@ const handleProductSelect = async (index: number, productId: number) => {
     row.product_code = product.product_code;
     // 产品参考价带进**含税单价**主输入列（可现谈覆盖）；无参考价就留空，
     // 不补 0、不乘税率：带出只是建议值，含税口径由制单人确认
-    row.unit_price_with_tax = product.price == null ? '' : String(product.price);
+    // 出参 price 是 DECIMAL 字符串（NULL→null）：有值才原文带出，缺值留空交必填校验拦
+    const rawPrice = product.price;
+    row.unit_price_with_tax = rawPrice == null || rawPrice === '' ? '' : String(rawPrice);
     calculateSubtotal(row);
   }
   await ensureColorOptions(row.product_id);

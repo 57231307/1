@@ -1,6 +1,6 @@
 use crate::container::AppState;
 use crate::middleware::audit_context::AuditContext;
-use crate::middleware::auth_context::AuthContext;
+use crate::middleware::auth_context::{AuthContext, CsrfSession};
 use crate::middleware::public_routes::is_public_path;
 use crate::services::auth_service::AuthService;
 use crate::utils::audit::{self, SecurityEvent};
@@ -296,6 +296,9 @@ pub async fn auth_middleware(
                 return Err(unauthorized_response("账户已被禁用，请联系管理员"));
             }
 
+            // CSRF Token 的会话绑定核验需要 claims.session_id，AuthContext::from_claims 会 move 掉 claims，
+            // 因此在这里先取一份
+            let csrf_session_id = claims.session_id.clone();
             let mut auth_context = AuthContext::from_claims(claims);
 
             // V15 P0-S01 修复：从数据库加载 role.data_scope 和 user.department_id
@@ -368,6 +371,11 @@ pub async fn auth_middleware(
                 "认证成功"
             );
             request.extensions_mut().insert(auth_context);
+            // CSRF 会话绑定：把本次会话的 JTI/session_id 一并注入，供 csrf 中间件核验
+            // 「Token 是否属于当前会话」。与 auth_context 同一提交点注入，二者不可能只到一个层。
+            request
+                .extensions_mut()
+                .insert(CsrfSession::new(csrf_session_id));
             Ok(next.run(request).await)
         }
         Err(e) => {

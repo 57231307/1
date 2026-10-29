@@ -187,7 +187,7 @@
           width="120"
         >
           <template #default="{ row }">
-            <el-input-number v-model="row.quantity" :min="1" size="small" />
+            <NumericInput v-model="row.quantity" size="small" :min="1" />
           </template>
         </el-table-column>
         <el-table-column
@@ -232,13 +232,7 @@
         >
           <template #default="{ row }">
             <!-- 不含税单价是派生只读值：按含税单价与本行税率除法反算，改它必然被后端单价钩稽门拒绝 -->
-            <el-input-number
-              v-model="row.unitPrice"
-              :min="0"
-              :precision="2"
-              size="small"
-              disabled
-            />
+            <NumericInput v-model="row.unitPrice" size="small" :min="0" :precision="2" disabled />
           </template>
         </el-table-column>
         <el-table-column prop="amount" :label="t('purchaseReturn.form.column.amount')" width="120">
@@ -285,6 +279,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance } from 'element-plus';

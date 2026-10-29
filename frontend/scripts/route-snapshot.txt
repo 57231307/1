@@ -1,4 +1,4 @@
-# layers=8 endpoints=1773
+# layers=8 endpoints=1776
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -893,6 +893,7 @@ GET	/api/v1/erp/sales/sales-contracts/*	sales_contract_handler::get_contract	sal
 GET	/api/v1/erp/sales/sales-contracts/*/items	sales_contract_handler::get_contract_items	sales
 GET	/api/v1/erp/sales/sales-contracts/*/print	print_handler::sales_contract_print_docx	sales
 GET	/api/v1/erp/sales/sales-contracts/export	sales_contract_handler::export_contracts	sales
+GET	/api/v1/erp/sales/sales-contracts/preview-from-order/*	sales_contract_handler::preview_convert_from_order	sales
 GET	/api/v1/erp/sales/sales-prices	sales_price_handler::list_prices	sales
 GET	/api/v1/erp/sales/sales-prices/*	sales_price_handler::get_price	sales
 GET	/api/v1/erp/sales/sales-prices/export	sales_price_handler::export_prices	sales
@@ -941,6 +942,7 @@ GET	/api/v1/erp/system-update/update-status	system_update_handler::get_update_st
 GET	/api/v1/erp/system-update/version	system_update_handler::get_version	system
 GET	/api/v1/erp/system-update/versions/*	system_update_handler::get_system_version_by_id	mod
 GET	/api/v1/erp/templates/download/*	import_export_handler::download_template	analytics
+GET	/api/v1/erp/templates/meta/*	import_export_handler::describe_import_template	analytics
 GET	/api/v1/erp/user-notification-settings	user_notification_setting_handler::get_setting	analytics
 GET	/api/v1/erp/user-path	tracking_handler::get_user_path	analytics
 GET	/api/v1/erp/user/profile	user_handler::get_current_user_profile	mod
@@ -1565,6 +1567,7 @@ POST	/api/v1/erp/sales/orders/*/submit	sales_order_handler::submit_order	sales
 POST	/api/v1/erp/sales/sales-contracts	sales_contract_handler::create_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/approve	sales_contract_handler::approve_contract	sales
 POST	/api/v1/erp/sales/sales-contracts/*/reject	sales_contract_handler::reject_contract	sales
+POST	/api/v1/erp/sales/sales-contracts/from-order/*	sales_contract_handler::convert_from_order	sales
 POST	/api/v1/erp/sales/sales-prices	sales_price_handler::create_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/approve	sales_price_handler::approve_price	sales
 POST	/api/v1/erp/sales/sales-prices/*/reject	sales_price_handler::reject_price	sales

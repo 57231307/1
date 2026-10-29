@@ -1,5 +1,6 @@
-/// 双计量单位换算工具（面料行业专用，提供米数↔公斤数精确换算，支持幅宽/克重等多参数）
 use rust_decimal::Decimal;
+/// 双计量单位换算工具（面料行业专用，提供米数↔公斤数精确换算，支持幅宽/克重等多参数）
+use rust_decimal::prelude::ToPrimitive;
 use std::str::FromStr;
 
 /// 双计量单位换算器
@@ -94,6 +95,31 @@ impl DualUnitConverter {
         Ok(rate.round_dp(4))
     }
 
+    /// 每公斤出米数（面料主数据出米数派生只读值）：向下取整保留一位小数（floor，非四舍五入）。
+    /// 算式与 kg_to_meters 与 calculate_conversion_rate 同源，由 1 公斤代入即得：
+    /// 米 = 1000 ÷ (克重 × 幅宽m)，幅宽m = 幅宽cm ÷ 100，代入化简即 100000 ÷ (克重 × 幅宽cm)。
+    /// 只由克重与幅宽两列决定，不引入新列与新入参；作为产品出参只读键 meters_per_kg 的唯一算式源。
+    /// 取整口径与 kg_to_meters（保留两位）不同：本函数按产品出米数要求向下截断到一位小数，
+    /// 不改动 kg_to_meters 的既有精度。任一入参为 None 或 ≤0 时返回 None（未录入不可算，不得下发 0）。
+    /// 出参形状必须由本函数显式定型到一位小数：floor 与除法的结果标度沿用入参标度，
+    /// 幅宽/克重按两位小数（DECIMAL(10,2) 列形态）进来时出参会带成 "3.30"，
+    /// 与契约测试 tests/contract_product_fabric_intake_lock_test.rs 对 "3.3" 的断言不符；
+    /// 调用方各自再修标度等于把出参契约散落到消费端，故只在本算式源收口。
+    /// 定型走「还原成十分位整数再按标度 1 构造」，不用任何四舍五入语义，
+    /// 使一位小数的向下截断口径与前端算式源严格同形。
+    pub fn meters_per_kg(
+        gram_weight: Option<Decimal>,
+        width_cm: Option<Decimal>,
+    ) -> Option<Decimal> {
+        let gram = gram_weight.filter(|g| *g > Decimal::ZERO)?;
+        let width = width_cm.filter(|w| *w > Decimal::ZERO)?;
+        let width_m = width / Decimal::from(100);
+        let meters = Decimal::from(1000) / (gram * width_m);
+        let truncated = (meters * Decimal::from(10)).floor() / Decimal::from(10);
+        let tenths = (truncated * Decimal::from(10)).to_i128()?;
+        Some(Decimal::from_i128_with_scale(tenths, 1))
+    }
+
     /// 码↔米固定换算率（单一真源）：1 米 = 1.0936 码。
     /// 该率为行业定长换算，与克重/幅宽无关；作为报价/订单「码」单位换算视图的唯一入参，
     /// 禁止调用方各自散落字面量。米↔公斤走 meters_to_kg/kg_to_meters（克重×幅宽），二者语义不同。
@@ -123,17 +149,19 @@ impl DualUnitConverter {
         Ok((piece_count * meters_per_piece).round_dp(2))
     }
 
-    /// 卷数转米数：米 = 卷 × 每卷米数（roll_count 卷数，meters_per_roll 取自产品换算元数据列）
+    /// 卷数转米数：米 = 卷 × 每匹米数（roll_count 卷数，meters_per_piece 取自产品换算元数据列）。
+    /// 现网口径一卷即一匹，products 的每卷米数列已按裁定废弃（m0109 探测式下线），
+    /// 按卷换算与本列共用同一换算真源，禁止再为卷单设一份米数口径。
     pub fn rolls_to_meters(
         roll_count: Decimal,
-        meters_per_roll: Decimal,
+        meters_per_piece: Decimal,
     ) -> Result<Decimal, String> {
         if roll_count < Decimal::ZERO {
             return Err("卷数不能为负数".to_string());
         }
-        if meters_per_roll <= Decimal::ZERO {
-            return Err("每卷米数必须大于 0".to_string());
+        if meters_per_piece <= Decimal::ZERO {
+            return Err("每匹米数必须大于 0".to_string());
         }
-        Ok((roll_count * meters_per_roll).round_dp(2))
+        Ok((roll_count * meters_per_piece).round_dp(2))
     }
 }

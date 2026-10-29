@@ -22,6 +22,8 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 import { pickSelectIn } from '../flow/ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /** GET /products/{id} 回读的产品主档切片（编码为前端契约别名键，别名由后端 append_frontend_aliases 补齐） */
 interface ProductMaster {
@@ -59,7 +61,10 @@ async function createIdentifiableProduct(
     name: `E2E带出产品${code}`,
     unit: '米',
     category_id: getCtx().productCategoryIds[0],
+    // 报价带出主档的面料产品：带克重与幅宽做米↔公斤换算，取面料相容类型（成品布），
+    // 三键（幅宽/克重/面料成分）由入参与本键同全，取值经单源常量引用。
     specification,
+    product_type: PRODUCT_TYPE.finished,
     fabric_composition: composition,
     gram_weight: gramWeight,
     width,

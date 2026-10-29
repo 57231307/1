@@ -26,6 +26,7 @@ import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, tryCleanup } from '../flow/helpers';
 import { pickListArray } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -267,7 +268,20 @@ test.describe('11 质检不合格生成退货', () => {
     ).not.toHaveText('', {
       timeout: 10_000,
     });
-    await expect(firstRow.getByRole('spinbutton').first()).toHaveValue('50', { timeout: 10_000 });
+    // 退货数量预填断言与接口回读绑定（写后读回口径）。先 GET 质检明细端点取真实
+    // unqualified_quantity，再按列头「退货数量」锚定行内录入框断言同值显示，
+    // 不再拿硬编码字面量凑绿。退货数量录入无 precision，numericView 按 String(模型)
+    // 直出，Number 归一后期望形态即 '50'（若组件将来带精度，期望值随回读值一起判，不误伤）
+    const inspItems = pickListArray<{ unqualified_quantity: string | number }>(
+      await apiCallRaw<unknown>(page, 'GET', `/purchase/inspections/${inspectionId}/items`),
+      'items',
+      '11-02 质检明细不合格量回读'
+    );
+    expect(inspItems.length, '质检明细应为 1 行').toBe(1);
+    const returnQtyInput = await cellInputByColumn(itemsTable, firstRow, '退货数量');
+    await expect(returnQtyInput).toHaveValue(String(Number(inspItems[0].unqualified_quantity)), {
+      timeout: 10_000,
+    });
   });
 
   test('11-03 提交预填退货单后生成新退货单并落库', async ({ page }) => {

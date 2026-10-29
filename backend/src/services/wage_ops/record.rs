@@ -1,11 +1,12 @@
 //! 工资记录 Service impl 子模块（wage_ops/record）
 //!
-//! 批次 490 D10-4a 拆分：从原 `wage_service.rs` L634-848 迁移。
+//! 由原 wage_service 的工资记录操作部分拆分而来。
 //! 包含 WageRecordService 的 10 个方法（new 留在 facade）：
-//! - generate_record_no（私有，统一生成器生成单号 WR{YYYYMMDD}{NNN}）
-//! - create / update / delete（CRUD + 业务校验）
+//! - generate_record_no（私有带事务臂，统一生成器生成单号 WR{YYYYMMDD}{NNN}，
+//!   advisory 锁占用在 create 自开的建单事务上）
+//! - create / update / delete（CRUD + 业务校验；create 取号与插入同一自开事务）
 //! - confirm / pay / cancel（状态机 draft→confirmed→paid/cancelled）
-//! - get_by_id / get_by_no / list（查询）
+//! - get_by_id / get_by_no / list（查询；get_by_no 先判重再取行）
 //!
 //! 业务规则：
 //! - 周期结束 ≥ 周期开始
@@ -16,6 +17,7 @@
 use rust_decimal::Decimal;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
+    SqlErr, TransactionTrait,
 };
 
 use crate::models::status::wage_record_status;
@@ -30,22 +32,27 @@ use crate::services::wage_service::{
 };
 
 impl WageRecordService {
-    /// 生成工资单号（统一生成器：`WR{YYYYMMDD}{3位流水}`，advisory lock 防并发重号）
-    async fn generate_record_no(&self) -> Result<String, AppError> {
-        crate::utils::number_generator::DocumentNumberGenerator::generate_no(
-            &*self.db,
+    /// 生成工资单号（统一生成器带事务臂：`WR{YYYYMMDD}{3位流水}`，前缀级 advisory 锁
+    /// 占用在传入事务上、持到该事务提交；create 在自开建单事务内调用并同事务插入。
+    /// 取号失败原样上抛真实 AppError，不再拍平为可直接外显的业务文案。）
+    async fn generate_record_no(
+        &self,
+        txn: &sea_orm::DatabaseTransaction,
+    ) -> Result<String, AppError> {
+        crate::utils::number_generator::DocumentNumberGenerator::generate_no_with_txn(
+            txn,
             "WR",
             RecordEntity,
             wage_record::Column::RecordNo,
         )
         .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "工资单号生成失败");
-            AppError::business_displayable("工资单号生成失败，请稍后重试")
-        })
     }
 
     /// 创建工资记录（仅创建空记录，需调用 calculate 触发计算）；建单人取服务端会话身份，请求体不承载身份
+    ///
+    /// 取号与插入同一临界区：自开新事务内取号（advisory 锁持到提交，同前缀并发取号
+    /// 在锁上串行化）并插入 wage_record；撞 record_no 活跃行部分唯一索引（m0104）
+    /// 时映射为单号冲突的专属可外显错误、整事务回滚；非唯一类 SQL 错误照常归类上抛。
     pub async fn create(
         &self,
         req: CreateWageRecordRequest,
@@ -56,12 +63,13 @@ impl WageRecordService {
             return Err(AppError::business("周期结束日期必须 ≥ 周期开始日期"));
         }
 
-        let record_no = self.generate_record_no().await?;
+        let txn = (*self.db).begin().await?;
+        let record_no = self.generate_record_no(&txn).await?;
         let now = crate::utils::date_utils::utc_now_fixed();
 
         let active = RecordActiveModel {
             id: Default::default(),
-            record_no: Set(record_no),
+            record_no: Set(record_no.clone()),
             period_start: Set(req.period_start),
             period_end: Set(req.period_end),
             workshop: Set(req.workshop),
@@ -82,10 +90,22 @@ impl WageRecordService {
             updated_at: Set(now),
         };
 
-        let result = active
-            .insert(&*self.db)
-            .await
-            .map_err(|e| AppError::database(format!("工资记录创建失败: {}", e)))?;
+        let result = active.insert(&txn).await.map_err(|e| {
+            if matches!(e.sql_err(), Some(SqlErr::UniqueConstraintViolation(_))) {
+                tracing::error!(
+                    error = %e,
+                    record_no = %record_no,
+                    "工资建单撞 record_no 唯一索引（并发撞号或旁路重复号），整事务回滚"
+                );
+                AppError::business_displayable(format!(
+                    "工资单号 {} 已存在，本次建单未落库，请重新提交",
+                    record_no
+                ))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+        txn.commit().await?;
         Ok(result)
     }
 
@@ -394,15 +414,34 @@ impl WageRecordService {
         Ok(model)
     }
 
-    /// 按单号查询
+    /// 按单号查询（先判重再取行：`.one()` 在重复行存在时静默任选一行，属假单行；
+    /// m0104 部分唯一索引生效后新重复无法落库，存量重复由迁移守卫点名中止，
+    /// 此处仍显式判重，撞多行报数据异常归口 database，不外抛裸 SQL）
     pub async fn get_by_no(&self, record_no: &str) -> Result<RecordModel, AppError> {
-        let model = RecordEntity::find()
+        let models = RecordEntity::find()
             .filter(wage_record::Column::RecordNo.eq(record_no))
             .filter(wage_record::Column::IsDeleted.eq(false))
-            .one(&*self.db)
-            .await?
-            .ok_or_else(|| AppError::not_found(format!("工资单号 {} 不存在", record_no)))?;
-        Ok(model)
+            .all(&*self.db)
+            .await?;
+        match models.as_slice() {
+            [] => Err(AppError::not_found(format!(
+                "工资单号 {} 不存在",
+                record_no
+            ))),
+            [one] => Ok(one.clone()),
+            many => {
+                tracing::error!(
+                    record_no = %record_no,
+                    dup_rows = many.len(),
+                    "wage_record.record_no 存在多条活跃行（数据异常，需人工定性处置）"
+                );
+                Err(AppError::database(format!(
+                    "工资单号 {} 存在 {} 条活跃记录，数据异常",
+                    record_no,
+                    many.len()
+                )))
+            }
+        }
     }
 
     /// 分页查询

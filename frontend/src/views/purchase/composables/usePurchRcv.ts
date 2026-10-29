@@ -83,7 +83,7 @@ export function usePurchRcv(onSuccess: () => void, getProducts: () => Product[])
 
   /**
    * 十进制出参解析：明细的数量/单价列在后端是 DECIMAL（purchase_order_item 模型，
-   * rust_decimal 经 JSON 序列化为**字符串**，如 "20.0000"），el-input-number 与
+   * rust_decimal 经 JSON 序列化为**字符串**，如 "20.0000"），数值录入控件与
    * :max 计算只接受 number，加载边界必须显式解析：
    * Number('')===0、Number(null)===0 会把缺值伪装成合法数量，NaN 会静默传导到
    * 可收量上限与提交 payload，故缺值/非法值一律抛错，由调用方拒绝打开并留痕。

@@ -8,6 +8,8 @@ import {
   failureCode,
   genCode,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 116 色卡价格族季节规则 阶梯价 客户专属价 首个真契约覆盖
@@ -184,6 +186,8 @@ async function seedHost(
     code: `116P${tag}`,
     category_id: categoryId,
     unit: 'm',
+    // 季价档链按色号计价，不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const productId = Number(product.id);
   expect(

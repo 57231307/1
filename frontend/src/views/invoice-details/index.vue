@@ -89,20 +89,20 @@
           <el-input v-model="formData.invoice_no" readonly />
         </el-form-item>
         <el-form-item label="价税合计" prop="total_amount">
-          <el-input-number
+          <NumericInput
             v-model="formData.total_amount"
+            style="width: 100%"
             :min="0"
             :precision="2"
-            style="width: 100%"
             placeholder="必填，票面的价税合计数"
           />
         </el-form-item>
         <el-form-item label="税额" prop="tax_amount">
-          <el-input-number
+          <NumericInput
             v-model="formData.tax_amount"
+            style="width: 100%"
             :min="0"
             :precision="2"
-            style="width: 100%"
             placeholder="必填，按票面税额填写"
           />
         </el-form-item>
@@ -133,6 +133,8 @@ import { isDialogDismissal } from '@/utils/monitor';
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
+import { numberInputRules } from '@/utils/number-input';
+import NumericInput from '@/components/NumericInput.vue';
 import { generateUniqueDocNo } from '@/utils/document-no';
 import { netFromInclusiveAndTax } from '@/utils/money';
 import {
@@ -213,9 +215,21 @@ const derivedAmountText = computed<string>(() =>
 
 const formRules: FormRules = {
   invoice_no: [{ required: true, message: '请输入发票号', trigger: 'blur' }],
-  total_amount: [{ required: true, message: '请输入价税合计', trigger: 'blur' }],
+  total_amount: numberInputRules({
+    label: '价税合计',
+    required: true,
+    min: 0,
+    precision: 2,
+    messages: { empty: '请输入价税合计' },
+  }),
   tax_amount: [
-    { required: true, message: '请按票面录入税额', trigger: 'blur' },
+    ...numberInputRules({
+      label: '税额',
+      required: true,
+      min: 0,
+      precision: 2,
+      messages: { empty: '请按票面录入税额' },
+    }),
     {
       validator: (_rule: unknown, value: unknown, callback: (error?: Error) => void) => {
         const tax = typeof value === 'number' ? value : undefined;

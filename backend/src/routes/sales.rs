@@ -138,6 +138,17 @@ pub fn sales_contracts() -> Router<AppState> {
             "/sales-contracts",
             post(sales_contract_handler::create_contract),
         )
+        // 销售订单转合同：预填读取 + 事务化转换。两条路径的静态段
+        // （preview-from-order、from-order）优先于动态 /{id}，且段数不同（3 段 vs 2 段），
+        // 不会被 matchit 误当成 /{id} 记录匹配；与上方 export 先于 /{id} 同属"静态先登记"约定。
+        .route(
+            "/sales-contracts/preview-from-order/{order_id}",
+            get(sales_contract_handler::preview_convert_from_order),
+        )
+        .route(
+            "/sales-contracts/from-order/{order_id}",
+            post(sales_contract_handler::convert_from_order),
+        )
         // V15 P0-S12 修复（Batch 475d）：销售合同导出端点（必须在 /:id 之前注册，避免 axum matchit 把 "export" 当 :id 匹配）
         .route(
             "/sales-contracts/export",

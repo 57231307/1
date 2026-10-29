@@ -20,7 +20,7 @@
 
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
-use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -184,12 +184,18 @@ impl ArReconciliationService {
 // 共享内部辅助（供 vfy.rs 自动对账使用）
 // =====================================================
 
-/// 为对账单生成对账单号（共用）（支持传入 `DatabaseConnection` 或 `DatabaseTransaction`，；便于调用方在事务内生成单号（避免单号生成与主事务不一致导致断号）。）
+/// 在建单事务内为对账单生成对账单号（共用，RC{YYYYMMDD}{3位流水}）。
+/// 调用方：`vfy_ops/reconciliation.rs::generate_reconciliation`、
+/// `vfy_ops/match.rs::process_customer_match`，两者均已先开启建单事务。
+/// 入参 `txn` 为调用方已开启的事务：取号直接在调用方连接与事务上执行，
+/// 前缀级 advisory 锁持有到调用方事务提交，取号与对账单 INSERT 在同一临界区；
+/// 若在事务内再自开内层事务取号，锁随内层提交（保存点释放）提前消失，
+/// INSERT 前重新出现并发窗口。只返回单号字符串，不落库任何数据。
 pub(crate) async fn generate_reconciliation_no(
-    db: &(impl ConnectionTrait + TransactionTrait),
+    txn: &DatabaseTransaction,
 ) -> Result<String, AppError> {
-    DocumentNumberGenerator::generate_no(
-        db,
+    DocumentNumberGenerator::generate_no_with_txn(
+        txn,
         "RC",
         ReconciliationEntity,
         crate::models::ar_reconciliation::Column::ReconciliationNo,

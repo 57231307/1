@@ -16,6 +16,8 @@ import {
   formItemByExactLabel,
   waitForToast,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 // 锁定新建流转卡对话框把裸的生产订单 ID 输入换成可搜索下拉后的三条行为契约。
 // 一，打开对话框后经生产订单列表端点加载候选，输入单号部分字符可筛出目标订单。
@@ -68,6 +70,8 @@ test.describe('流转卡新建，生产订单可搜索下拉', () => {
       name: productName,
       category_id: categoryId,
       unit: '米',
+      // 流转卡建单宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const productId = Number(product?.id);
     expect(productId, `建产品应返回主键，响应 ${JSON.stringify(product).slice(0, 160)}`).toBeGreaterThan(

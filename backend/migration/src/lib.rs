@@ -14,6 +14,10 @@
 //!   → customer_credit_family_grant
 //!   → system_admin_bpm_config_grant → ap_input_tax_subject
 //!   → customers_nullable_columns_norm
+//!   → status_vocab_check → wage_energy_vocab_check → contract_template_schema
+//!   → m0104_add_document_no_partial_unique_four_tables
+//!   → sales_contract_source_order
+//!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -116,6 +120,34 @@
 //!    见 batch_no 与 owner_id/m0070）回填成文缺省（status 'active'，payment_terms 30，
 //!    词表与默认值证据全量写在域文件头），置于链尾为新的顶层条目（并域会被台账跳过），
 //!    依赖 system 建的两列，down 恢复可空无默认（数据无损论证见域文件头）
+//! 23. status_vocab_check 与 wage_energy_vocab_check: 状态与取值域词表的 DB CHECK 收口两支
+//! 24. contract_template_schema: 合同模板体系数据地基——contract_templates 模板主表（版本与
+//!    同一类别同一立场只允许一版启用的部分唯一 ACTIVE 门）、clause_library 条款库（一枚条款码
+//!    一枚可复用正文）、contract_template_clauses 模板条款项（条款库引用与模板内正文二选一，
+//!    带顺序与必填标记与条件出条款标记与逐条法务复核位）、contract_clauses 签约条款快照
+//!    （存固化当时的正文原文与模板版本号，模板改版不回溯改写已签合同），并给
+//!    sales_contracts 与 purchase_contracts 补齐条款与签署与印花税与内外销与含税列，
+//!    新增列一律可空且无默认，历史合同保持空值即「模板前签约，条款未固化」判据；
+//!    域内全部形态为先探测后约束的失败可见写法，绝不 UPDATE 或 DELETE 业务数据。
+//!    置于链尾为新的顶层条目（并入已应用的域会被台账整体跳过，四张表与补列全部缺席），
+//!    依赖 system 与 business 与 v15 建好的两张合同主表，全部早于本域
+//! 25. m0104_add_document_no_partial_unique_four_tables: 单据号四列活跃行部分唯一索引
+//!    （production_recipe.recipe_no / production_recipe_addition.addition_no /
+//!    process_wage_rate.rate_no / wage_record.record_no，形态照 m0068 部分唯一 +
+//!    fail-visible 存量重复探测，谓词与读路径判重同源 is_deleted = false）——服务侧
+//!    取号改「与插入同一事务」形态的 DB 先决约束，先补约束再收临界区；四表均由 v15 域
+//!    建表（四表表定义见 v15 域），置于链尾为新的顶层条目：链尾晚于 v15 执行，
+//!    表必然已存在、无跨域尾调问题，复用库上也必然执行（并入已应用域会被台账整体跳过）
+//! 26. product_spec_extension_columns: 产品主档规格扩展列。products 加
+//!    width_needle_included_cm 与 weight_tolerance 与 spandex_percent 与 usage 与
+//!    safety_category，product_colors 加 color_fastness_grade，全部可空无默认。独立顶层域
+//!    是因为并入 business 域会在复用库被台账整体跳过、补列全部缺席；两张表由 business 域
+//!    先建，置于链尾必然晚于建表
+//! 27. product_vocab_check: 上述扩展列的取值词表收口域，晚于加列域，形如先加列、再点名、
+//!    再收约束；全部先探测后约束的失败可见写法，域内绝不 UPDATE 或 DELETE 业务数据
+//! 28. product_roll_column_drop: 产品每卷米数列的探测式下线域，晚于代码面摘除读写
+//!    （先改代码，再收列形态）；脏值存在时 RAISE EXCEPTION 点名中止不洗数据，
+//!    down 只回空壳不回填历史值
 
 pub use sea_orm_migration::prelude::*;
 
@@ -162,6 +194,15 @@ impl MigratorTrait for Migrator {
             Box::new(domain::customers_nullable_columns_norm::Migration),
             Box::new(domain::status_vocab_check::Migration),
             Box::new(domain::wage_energy_vocab_check::Migration),
+            Box::new(domain::contract_template_schema::Migration),
+            Box::new(domain::m0104_add_document_no_partial_unique_four_tables::Migration),
+            Box::new(domain::sales_contract_source_order::Migration),
+            // 产品主档规格扩展列，链尾独立域（products 与 product_colors 由 business 域先建）
+            Box::new(domain::product_spec_extension_columns::Migration),
+            // 产品主档规格扩展列取值域收口，晚于加列域（先加列，再点名，再收口）
+            Box::new(domain::product_vocab_check::Migration),
+            // 产品每卷米数列探测式下线，晚于代码面摘除读写（先改代码，再收列形态）
+            Box::new(domain::product_roll_column_drop::Migration),
         ]
     }
 }

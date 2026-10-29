@@ -4,6 +4,8 @@ import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, ensureTestEntities, getCtx } from '../flow/helpers';
 import { pickSelect, elSelectByLabel } from '../flow/ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 async function filterByStatus(page: Page, statusLabel: string): Promise<void> {
   await expect(page.getByRole('table').first()).toBeVisible({ timeout: 30000 });
@@ -25,6 +27,8 @@ async function createOrderInStatus(page: Page, targetStatus: string): Promise<nu
     name: `E2E生产产品${suffix}`,
     unit: '米',
     category_id: categoryId,
+    // 执行链工单宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+    product_type: PRODUCT_TYPE.auxiliary,
   });
   const productId = prod.data?.id;
   if (!productId) {

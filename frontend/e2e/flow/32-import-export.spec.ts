@@ -142,16 +142,21 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
       '[P0-导入-产品] 导入弹窗（ImportDialogTab el-upload）未渲染文件输入控件'
     ).toBeGreaterThan(0);
 
-    // 创建临时测试文件：表头必须与后端产品模型的中文字段名一致——
-    // 后端 product_ops/import_export.rs:64-85 模板表头 + :335-352 必填校验（产品编码、产品名称、产品类型、计量单位）；
-    // 产品类型为枚举 {坯布, 成品布, 辅料}（:305-319）；状态缺省为 active（:260-265）。
-    // 原实现使用英文 code/name/unit 表头：CsvImporter::parse 按表头名做键值映射（utils/import_export.rs:102-119），
-    // 后端找不到"产品编码/产品名称/产品类型/计量单位"列 → 全部走"缺少 X 列"错误 → success_count=0，
-    // 测试期望 success_count=1 必然判红（数据契约错配，非源码缺陷）。
+    // 创建临时测试文件：表头必须与后端产品导入权威表的列名字面逐字一致——
+    // 列定义唯一源是 product_ops/import_export.rs 的 PRODUCT_IMPORT_COLUMNS（形态同 SKU 导入权威表），
+    // 模板下载 产品导出 数据导入中心的模板与元数据与注册表行与两条导入解析腿全部只消费这一张表。
+    // 必填四列（表内 required 位）：产品编码 产品名称 产品类型 计量单位；
+    // 产品类型只接受词表值（坯布 成品布 辅料，行级校验 validate_import_row_fields 判）。
+    // 本行类型为「坯布」（面料类）：建品判据 validate_product_create_fields（product_service.rs）
+    // 要求 幅宽 克重 面料成分 三列同全且数值大于 0，故按模板真实列名补齐这三列——
+    // 这是用例贴合真实契约（断言原样保留，仍断「导入成功 1 条」），不是削足适履放宽断言；
+    // 缺列整行会被判据点名拒绝（行级失败归到真实列名，不再落「数据库」这类无信息列）。
+    // CsvImporter::parse 按表头名做键值映射（utils/import_export.rs），英文表头会全部判成缺列。
     const tmpFile = `/tmp/p0-import-product-${TS}.csv`;
     fs.writeFileSync(
       tmpFile,
-      '产品编码,产品名称,产品类型,计量单位\n' + `P0-IMP-${TS},P0导入测试产品,坯布,米\n`
+      '产品编码,产品名称,产品类型,计量单位,面料成分,幅宽,克重\n' +
+        `P0-IMP-${TS},P0导入测试产品,坯布,米,100%棉,150.00,120.00\n`
     );
     console.log(`[P0-导入-产品] 创建临时导入文件: ${tmpFile}`);
 

@@ -470,7 +470,7 @@ export const TERM_TYPE_LABELS: Record<TermType, string> = {
 // ---------------------------------------------------------------------------
 // 编辑态（表单控件持数值 number）与提交边界（写线 string）
 // 后端 Decimal 未启 serde-floats，提交/回读线格式都是十进制字符串；
-// el-input-number 只能绑定数值，因此表单内部保持 number，最终提交前经 toWire 构造器转换。
+// 数值录入控件保持绑定数值，因此表单内部维持 number，最终提交前经 toWire 构造器转换。
 // 缺值语义：可选字段 undefined ⇒ 省略键（严禁伪造 ''/0 冒充未填）；
 // NOT NULL 字段（quantity/unit_price/unit_price_with_tax/tax_rate/exchange_rate）
 // 由表单校验拦截，提交前必然有效数值。

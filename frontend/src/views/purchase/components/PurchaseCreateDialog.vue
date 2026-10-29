@@ -133,11 +133,11 @@
               class="col-color"
               @change="onColorSelect(index)"
             />
-            <el-input-number
+            <NumericInput
               v-model="item.quantity"
-              :min="1"
               class="col-qty"
               @change="onCalculateSubtotal(item)"
+              :min="1"
             />
             <!--
               含税单价是本表唯一的价格主输入（录入事实），用 el-input 承载并靠校验器管范围：
@@ -149,13 +149,13 @@
               :placeholder="t('purchase.createDlg.unitPriceWithTaxPlaceholder')"
               @change="onCalculateSubtotal(item)"
             />
-            <el-input-number
+            <NumericInput
               v-model="item.tax_rate"
+              :placeholder="t('purchase.createDlg.taxRatePlaceholder')"
+              class="col-tax"
               :min="0"
               :max="999.9999"
               :precision="4"
-              :placeholder="t('purchase.createDlg.taxRatePlaceholder')"
-              class="col-tax"
               @change="onCalculateSubtotal(item)"
             />
             <!-- 不含税单价是派生只读值：含税单价按本行税率除法反算，前端不乘 (1 + 税率) -->
@@ -204,6 +204,7 @@
 
 <script setup lang="ts">
 import { deepClone } from '@/utils';
+import NumericInput from '@/components/NumericInput.vue';
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormRules, FormInstance } from 'element-plus';
@@ -350,7 +351,7 @@ watch(
 }
 
 /* 定宽列一律不参与收缩，对话框宽度不足时改由 items-table 横向滚动承接。
-   允许收缩会把 el-input-number 的输入框压到零宽，数量与税率在界面上填不进去 */
+   允许收缩会把数值录入框压到零宽，数量与税率在界面上填不进去 */
 .col-color,
 .col-qty,
 .col-price,

@@ -153,7 +153,10 @@ async fn test_barcode_create_read_search_chain() {
             cost_price: None,
             description: None,
             status: master_data::ACTIVE.to_string(),
-            product_type: "坯布".to_string(),
+            // 夹具入参形态随动：product_type 改为显式 Option 后此位必须给值；
+            // 本用例断言面是条码建→查→搜→改链路，取非面料类「辅料」以避开面料类三列必录门，
+            // 条码判据不受类型影响。
+            product_type: Some("辅料".to_string()),
             fabric_composition: None,
             yarn_count: None,
             density: None,
@@ -167,8 +170,12 @@ async fn test_barcode_create_read_search_chain() {
             factory_name: None,
             factory_address: None,
             product_grade: None,
+            width_needle_included_cm: None,
+            weight_tolerance: None,
+            spandex_percent: None,
+            usage: None,
+            safety_category: None,
             meters_per_piece: None,
-            meters_per_roll: None,
         })
         .await
         .expect("建产品（带条码）应成功");
@@ -215,8 +222,12 @@ async fn test_barcode_create_read_search_chain() {
             factory_name: None,
             factory_address: None,
             product_grade: None,
+            width_needle_included_cm: None,
+            weight_tolerance: None,
+            spandex_percent: None,
+            usage: None,
+            safety_category: None,
             meters_per_piece: None,
-            meters_per_roll: None,
             user_id: 1,
         })
         .await

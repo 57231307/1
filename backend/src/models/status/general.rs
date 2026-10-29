@@ -65,6 +65,48 @@ pub mod product_type {
     pub const FABRIC_TYPES: &[&str] = &[GREIGE, FINISHED];
 }
 
+/// 产品色牢度等级（GB 18401 品色牢度分档，含半级）。落 product_colors.color_fastness_grade。
+/// 单一定义源，供取值域校验、CSV 导入枚举校验、DB CHECK 约束与前端下拉词表共用，禁止另抄一份。
+/// 半级形态（1-2、2-3、3-4、4-5）是标准定案的一部分，不是脏数据，收口时必须一并放行。
+/// 空值语义为未考核或未录入。耐唾液项目只对 A 类考核，本色漂白与扎染蜡染等传统手工着色
+/// 产品不考核色牢度，这两条是条件性判据，落在应用层与检验判定侧，不在本词表内表达。
+pub mod color_fastness {
+    pub const GRADE_1: &str = "1";
+    pub const GRADE_1_2: &str = "1-2";
+    pub const GRADE_2: &str = "2";
+    pub const GRADE_2_3: &str = "2-3";
+    pub const GRADE_3: &str = "3";
+    pub const GRADE_3_4: &str = "3-4";
+    pub const GRADE_4: &str = "4";
+    pub const GRADE_4_5: &str = "4-5";
+    pub const GRADE_5: &str = "5";
+
+    /// 全量色牢度词表，供导入与入参枚举合法性判定与 DB CHECK 单源比对
+    pub const ALL_GRADES: &[&str] = &[
+        GRADE_1, GRADE_1_2, GRADE_2, GRADE_2_3, GRADE_3, GRADE_3_4, GRADE_4, GRADE_4_5, GRADE_5,
+    ];
+}
+
+/// 产品安全类别（GB 18401-2010 国家纺织产品基本安全技术规范的三类，落 products.safety_category）。
+/// 单一定义源，供入参取值域校验、DB CHECK 约束与前端下拉词表共用，禁止另抄一份。
+/// A 类为婴幼儿（身高 100cm 及以下）纺织产品，此类另须满足 GB 31701-2015 婴幼儿纺织产品安全技术规范；
+/// B 类为直接接触皮肤的产品；C 类为非直接接触皮肤的产品。空值语义为未定级或未录入。
+/// GB 31701 只对 A 类附加考核、以及耐洗与甲醛等限量指标随类别不同，这些是条件性判据，
+/// 落在应用层与检验判定侧，不在本词表内表达。
+pub mod product_safety_category {
+    /// A 类：婴幼儿纺织产品（另须满足 GB 31701-2015）
+    pub const CLASS_A: &str = "A";
+
+    /// B 类：直接接触皮肤的产品
+    pub const CLASS_B: &str = "B";
+
+    /// C 类：非直接接触皮肤的产品
+    pub const CLASS_C: &str = "C";
+
+    /// 全量安全类别词表，供入参枚举合法性判定与 DB CHECK 单源比对
+    pub const ALL_CLASSES: &[&str] = &[CLASS_A, CLASS_B, CLASS_C];
+}
+
 /// 主数据启用/停用状态（小写值，批次 208 P2-5：supplier/customer/fixed_asset 等用小写 active/inactive，与 common::STATUS_ACTIVE 大写区分）
 pub mod master_data {
     /// 启用：主数据可用状态
