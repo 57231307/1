@@ -144,14 +144,18 @@ impl SalesContractService {
         Self { db }
     }
 
-    /// 根据合同类型和金额计算印花税（档位与合同类型词表逐一对应）
-    /// - 现行词表三型（购销、框架、补充）均为购销性质：总金额 * 0.3‰
-    /// - 存量兼容读：销售订单转合同对话框当前提交小写三值且库内存量同为
-    ///   小写形态，此处逐字面量并列匹配，不做大小写归一兜底；写侧取值以
-    ///   models::status 合同类型词表为准，转单对话框选项对齐大写后本兼容臂摘除
-    /// - 原加工承揽档（processing 与 processing_contract）与 purchase_sale 取值
-    ///   不在销售合同类型取值域内，前端两腿与迁移腿均无法产生，属永不生效
-    ///   档位，已拆除；若库中存在该形态直连脏值，重算后印花税为空，交数据面点名
+    /// 根据合同类型和金额计算印花税（档位与合同类型取值逐一对应，档位穷举与取值形状由
+    /// 合同转合同字段映射锁按 main 语义钉住，改动触发人工复核）。
+    /// - 购销档 0.3‰：现行大写词表三型（购销、框架、补充，UI 建单腿现提交）均为购销性质；
+    ///   小写 sale / purchase_sale 是 main 原语义臂，framework / supplement 是销售订单转
+    ///   合同对话框当前提交的小写存量兼容读，四类同按购销档计。逐字面量并列匹配，不做
+    ///   大小写归一兜底；写侧取值以 models::status 合同类型词表为准，转单对话框选项对齐
+    ///   大写后小写兼容臂随臂收口。
+    /// - 加工承揽档 0.5‰：main 原语义档位（processing / processing_contract），现行大写
+    ///   词表无加工承揽成员，故不并入词表，按 main 追溯形态以小写字面量兼容读保留。
+    /// - 存量库是否仍有上述小写形态直连值无本地迁移证据可判（本车道 backend/migration
+    ///   内 sales_contracts 词表无 CHECK 约束可核），不以"库中不存在"为不补臂理由；若库中
+    ///   存在该形态脏值，交数据面点名，不在本函数用兜底掩盖。
     ///
     /// 可见性 pub(crate)：手工建单（本文件 create）与销售订单转合同
     /// （sales_contract_convert_service）两条链路共用同一印花税算法，税率与
@@ -161,10 +165,16 @@ impl SalesContractService {
         total_amount: Decimal,
     ) -> Option<Decimal> {
         let rate = match contract_type? {
+            // 购销档 0.3‰：大写词表三型（单源常量引用）
             contract_type::SALES | contract_type::FRAMEWORK | contract_type::SUPPLEMENT => {
                 Decimal::new(3, 4) // 0.0003 = 0.3‰
             }
-            "sale" | "framework" | "supplement" => Decimal::new(3, 4), // 0.3‰，转单腿存量小写兼容读
+            // 购销档 0.3‰：main 原语义小写字面臂，逐字保留以维持档位穷举与取值形状
+            "sale" | "purchase_sale" => Decimal::new(3, 4),
+            // 购销档 0.3‰：转单对话框当前提交的小写存量兼容读
+            "framework" | "supplement" => Decimal::new(3, 4),
+            // 加工承揽档 0.5‰：main 原语义档位，新词表无加工承揽成员，以小写字面量保留
+            "processing" | "processing_contract" => Decimal::new(5, 4), // 0.0005 = 0.5‰
             _ => return None,
         };
         Some(total_amount * rate)
