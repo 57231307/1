@@ -178,10 +178,11 @@ impl FlowCardService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != card_status::PENDING && model.status != card_status::TERMINATED {
-            return Err(AppError::business(format!(
-                "流转卡状态为 {}，仅 pending/terminated 状态可删除",
-                model.status
-            )));
+            // 删除腿状态门：仅待排缸/已终止可删除，前置状态未满足，归业务族；
+            // 文案按词表中文名点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅待排缸或已终止状态的流转卡可以删除",
+            ));
         }
 
         let mut active: CardActiveModel = model.into();

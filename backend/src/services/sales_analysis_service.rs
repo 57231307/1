@@ -14,6 +14,7 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, Set,
 };
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{info, warn};
 
@@ -146,6 +147,54 @@ fn parse_trend_date(field: &str, raw: &str) -> Result<NaiveDate, AppError> {
     })
 }
 
+/// 目标周期键 → (窗口起点, 窗口终点, 分桶粒度)。
+/// 形态与聚合实现点 `bi_analysis_ops/sales.rs::build_period_expr` 的桶键逐字对齐：
+/// `YYYY`（年）/ `YYYY-MM`（月）/ `YYYY-MM-DD`（日）/ `YYYY-Q`（季，Q 为 1 到 4 单数字，
+/// 即 `to_char(order_date, 'YYYY-Q')` 的产出形态）。
+/// 七字符形态 `YYYY-MM` 与 ISO 周键 `IYYY-IW` 天然同形，按"目标周期为月或更粗口径"
+/// 的业务语义一律解析为月，不识别周。
+/// 返回 None 表示该周期键无法对齐任何桶口径（调用方出参必须渲染 null，不得回落 0 兜底）。
+/// 调用方：本文件 `SalesAnalysisService::fetch_actual_amounts`（唯一消费点）。
+fn parse_target_period(period: &str) -> Option<(NaiveDate, NaiveDate, &'static str)> {
+    let p = period.trim();
+    match p.len() {
+        4 => {
+            let year: i32 = p.parse().ok()?;
+            Some((
+                NaiveDate::from_ymd_opt(year, 1, 1)?,
+                NaiveDate::from_ymd_opt(year, 12, 31)?,
+                "year",
+            ))
+        }
+        6 => {
+            let year: i32 = p.get(..4)?.parse().ok()?;
+            if p.as_bytes().get(4) != Some(&b'-') {
+                return None;
+            }
+            let q: u32 = p.get(5..)?.parse().ok()?;
+            if !(1..=4).contains(&q) {
+                return None;
+            }
+            let start = NaiveDate::from_ymd_opt(year, (q - 1) * 3 + 1, 1)?;
+            let end = start.checked_add_months(chrono::Months::new(3))? - chrono::Duration::days(1);
+            Some((start, end, "quarter"))
+        }
+        7 => {
+            let first = NaiveDate::parse_from_str(&format!("{p}-01"), "%Y-%m-%d").ok()?;
+            Some((
+                first,
+                first.checked_add_months(chrono::Months::new(1))? - chrono::Duration::days(1),
+                "month",
+            ))
+        }
+        10 => {
+            let day = NaiveDate::parse_from_str(p, "%Y-%m-%d").ok()?;
+            Some((day, day, "day"))
+        }
+        _ => None,
+    }
+}
+
 pub struct SalesAnalysisService {
     db: Arc<DatabaseConnection>,
 }
@@ -260,11 +309,125 @@ impl SalesAnalysisService {
         Ok(rankings)
     }
 
+    /// 目标"实际成交额"的唯一取数腿：按周期键分组复用 `BiAnalysisService::sales_by_time`
+    /// 现算 `sales_orders`（不新写 SQL、不开新查询端点，聚合本体与趋势腿同源）。
+    ///
+    /// 入参：周期键列表 + 数据范围 + 缓存（透传给复用点，范围门与 5min TTL 由复用点自带）。
+    /// 传给谁：`get_targets` 与 `update_target`，产出喂给唯一映射点 `to_target_dto`。
+    /// 返回什么：HashMap（周期键 → 该键桶内成交额）。语义三分：
+    /// 键存在且值为 0 ＝ 窗口内真无成交（"零完成"）；键不存在 ＝ 周期形态无法对齐任何桶
+    /// 口径（"实际额无法判定"，调用方出参渲染 null，禁止 0 兜底掩盖）；
+    /// 稀疏桶缺失由 `sales_by_time` 语义决定，插 0 前已确认窗口覆盖该键。
+    /// 金额线格式：复用点 Decimal 已固化为 f64（`dec_to_f64` 无损十进制字符串往返），
+    /// 此处以 `from_f64_retain` 还原后再按成交列 DECIMAL(14,2) 刻度定点，
+    /// 保持出参字符串线格式与库侧刻度一致。
+    async fn fetch_actual_amounts(
+        &self,
+        periods: &[String],
+        scope: DataScopeContext,
+        cache: Arc<AppCache>,
+    ) -> Result<HashMap<String, Decimal>, AppError> {
+        let mut groups: HashMap<&'static str, (NaiveDate, NaiveDate, Vec<&String>)> =
+            HashMap::new();
+        for p in periods {
+            if let Some((start, end, granularity)) = parse_target_period(p) {
+                let entry = groups
+                    .entry(granularity)
+                    .or_insert((start, end, Vec::new()));
+                if start < entry.0 {
+                    entry.0 = start;
+                }
+                if end > entry.1 {
+                    entry.1 = end;
+                }
+                entry.2.push(p);
+            }
+        }
+
+        let bi = BiAnalysisService::new_with_cache(self.db.clone(), scope, cache);
+        let mut result = HashMap::new();
+        for (granularity, (start, end, keys)) in groups {
+            let points = bi.sales_by_time(start, end, granularity).await?;
+            let bucket_amounts: HashMap<&str, f64> = points
+                .iter()
+                .map(|pt| (pt.period.as_str(), pt.total_amount))
+                .collect();
+            for key in keys {
+                let amount = bucket_amounts.get(key.as_str()).copied().unwrap_or(0.0);
+                match Decimal::from_f64_retain(amount) {
+                    Some(d) => {
+                        result.insert(key.clone(), d.round_dp(2));
+                    }
+                    // 仅非有限值（inf/nan 级数据损坏）可达：留痕后不落键，
+                    // 调用方按"键不存在＝实际额无法判定"渲染 null，不 0 兜底、不整列 500
+                    None => warn!(
+                        period = %key,
+                        raw = amount,
+                        "目标实际额 f64 转 Decimal 失败（桶金额为非有限值），该周期出参按 null 处理"
+                    ),
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    /// 唯一映射点：目标存储行 + 取数腿实际额 → `SalesTargetDto`。
+    /// GET 列表与 PUT 出参共用本函数构造五枚派生键
+    /// （target_amount/actual_amount/completion_rate/variance/status），
+    /// 全仓禁止第二个构造点（比照 `to_trend_point` 的映射点纪律）。
+    ///
+    /// 派生公式只消费入参 `actual_amount` 作分子，绝不回读 `model.total_amount` 自身
+    /// （历史缺陷形态：分子分母同源导致完成率恒 100、差额恒 0）。
+    /// 两态区分：target 为 0 ＝"未设目标"，completion_rate 为 null（除法无口径，
+    /// 不以 0 掩盖）；target 大于 0 且 actual 为 0 ＝"零完成"，completion_rate 为
+    /// Some("0.00")。actual 本身为 null（周期无法对齐桶口径）时三枚派生列均为 null。
+    /// variance ＝ actual − target（未设目标语境下即成交溢出额，语义自洽）。
+    ///
+    /// 入参：存储行（target 取 total_amount 列）、取数腿实际额、状态字符串
+    /// （status 无存库列：PUT 透传入参、GET 落既有兜底值 master_data::ACTIVE；
+    /// 前后端状态词表漂移属产品口径未裁项，本映射点不发明新词）。
+    /// 出参线格式：Decimal 序列化为字符串（本仓 rust_decimal 仅开 serde 未开 serde-float）。
+    pub fn to_target_dto(
+        model: &sales_analysis::Model,
+        actual_amount: Option<Decimal>,
+        status: String,
+    ) -> SalesTargetDto {
+        let target = model.total_amount;
+        let completion_rate = match actual_amount {
+            Some(actual) if target > Decimal::ZERO => Some(
+                (actual / target * Decimal::from(100)).round_dp_with_strategy(
+                    2,
+                    rust_decimal::RoundingStrategy::MidpointAwayFromZero,
+                ),
+            ),
+            _ => None,
+        };
+        let variance = actual_amount.map(|actual| actual - target);
+
+        SalesTargetDto {
+            id: model.id,
+            period: model.period.clone(),
+            target_amount: target,
+            actual_amount,
+            completion_rate,
+            variance,
+            status,
+        }
+    }
+
+    /// 销售目标列表 —— 出参走唯一映射点 `to_target_dto`（含前端渲染的五枚派生键）。
+    ///
+    /// 谁调：handler `sales_analysis_handler::get_targets`（GET targets 路由）。
+    /// 入参：分页两键 + 数据范围 + 缓存（范围与缓存透传给取数腿复用点）。
+    /// 实际成交额来自 `fetch_actual_amounts` 现算 `sales_orders`；周期无法对齐的行的
+    /// 三枚派生列为 null（不 0 兜底）。
     pub async fn get_targets(
         &self,
         page: i64,
         page_size: i64,
-    ) -> Result<(Vec<sales_analysis::Model>, u64), AppError> {
+        scope: DataScopeContext,
+        cache: Arc<AppCache>,
+    ) -> Result<(Vec<SalesTargetDto>, u64), AppError> {
         info!("查询销售目标列表");
 
         let query = sales_analysis::Entity::find()
@@ -279,7 +442,22 @@ impl SalesAnalysisService {
             .all(&*self.db)
             .await?;
 
-        Ok((targets, total))
+        let periods: Vec<String> = targets.iter().map(|t| t.period.clone()).collect();
+        let actuals = self.fetch_actual_amounts(&periods, scope, cache).await?;
+
+        let dtos = targets
+            .iter()
+            .map(|m| {
+                // status 无存库列：列表侧统一落既有 DTO 兜底值，词表未裁前不发明新词
+                Self::to_target_dto(
+                    m,
+                    actuals.get(&m.period).copied(),
+                    master_data::ACTIVE.to_string(),
+                )
+            })
+            .collect();
+
+        Ok((dtos, total))
     }
 
     pub async fn create_target(
@@ -464,19 +642,55 @@ impl SalesAnalysisService {
         Ok(items)
     }
 
-    /// 更新销售目标
+    /// 更新销售目标 —— PUT 出参与 GET 列表共用唯一映射点 `to_target_dto`。
+    ///
+    /// 谁调：handler `update_sales_target`（PUT targets/:period 路由）。
+    /// 入参：周期键 + 更新请求体 + 登录者数据范围 + 共享缓存（范围与缓存透传取数腿）。
+    /// 实际成交额来自 `fetch_actual_amounts` 现算 `sales_orders`（历史缺陷形态
+    /// "actual 取 total_amount 自身导致完成率恒 100、差额恒 0" 已摘除，
+    /// 契约锁测试对退化形态反向自证）。
+    /// remarks 处置：目标表无备注存储列，非空白 remarks 入参 400 显式拒绝（文案只说
+    /// 用户该做什么）；纯空白等同未提交，放行。前端编辑弹窗不下发 remarks，
+    /// 正常用户路径不触发该拒绝。dimension_name 列只保留 create 侧写入的起止日期语义，
+    /// PUT 两处不再挪用该列存备注。
+    /// 查找定行口径：PUT 端点只以周期键定位，无维度入参，故本腿只认总体目标行
+    /// （statistic_type=target 且 dimension_type=overall 且 dimension_id 为空）。
+    /// 新建腿落库的行 dimension_id 恒非空（其 target_id 为必填入参），与本腿查询不相交：
+    /// 维度目标行与经新建腿落库的总体行都不可经本端点寻址，也不被静默代改。
+    /// 本腿 0 行分支新建的总体行只写周期、类型两键与目标额，存同一目标表。
+    /// 命中基数显式判定：0 行走新建（沿用 upsert 语义）；1 行走更新；
+    /// 多于 1 行返回可展示业务错误并点名周期与行数，不再依赖单行查询的驱动层异常。
     pub async fn update_target(
         &self,
         period: &str,
         req: UpdateSalesTargetRequest,
+        scope: DataScopeContext,
+        cache: Arc<AppCache>,
     ) -> Result<SalesTargetDto, AppError> {
         info!("更新销售目标，周期：{}", period);
 
-        let existing = sales_analysis::Entity::find()
+        if let Some(remarks) = &req.remarks {
+            if !remarks.trim().is_empty() {
+                return Err(AppError::validation_displayable(
+                    "目标备注暂不支持保存，请清空备注后重新提交",
+                ));
+            }
+        }
+
+        let rows = sales_analysis::Entity::find()
             .filter(sales_analysis::Column::Period.eq(period))
             .filter(sales_analysis::Column::StatisticType.eq("target"))
-            .one(&*self.db)
+            .filter(sales_analysis::Column::DimensionType.eq("overall"))
+            .filter(sales_analysis::Column::DimensionId.is_null())
+            .all(&*self.db)
             .await?;
+        if rows.len() > 1 {
+            return Err(AppError::business_displayable(format!(
+                "周期 {period} 存在 {} 条总体目标记录，请先更正为一条后重试",
+                rows.len()
+            )));
+        }
+        let existing = rows.into_iter().next();
 
         let target_amount = req.target_amount.unwrap_or(Decimal::ZERO);
         let status = req
@@ -484,9 +698,9 @@ impl SalesAnalysisService {
             .unwrap_or_else(|| master_data::ACTIVE.to_string());
 
         let updated = if let Some(existing_model) = existing {
-            let mut active: sales_analysis::ActiveModel = existing_model.clone().into();
+            let mut active: sales_analysis::ActiveModel = existing_model.into();
             active.total_amount = Set(target_amount);
-            active.dimension_name = Set(req.remarks.clone().or(existing_model.dimension_name));
+            // dimension_name 不触碰：保留 create 侧写入的既有值，备注挪用已摘除
             active.update(&*self.db).await?
         } else {
             let active = sales_analysis::ActiveModel {
@@ -494,31 +708,20 @@ impl SalesAnalysisService {
                 period: Set(period.to_string()),
                 dimension_type: Set("overall".to_string()),
                 dimension_id: Set(None),
-                dimension_name: Set(req.remarks),
                 total_amount: Set(target_amount),
                 ..Default::default()
             };
             active.insert(&*self.db).await?
         };
 
-        let actual_amount = updated.total_amount;
-        let completion_rate = if updated.total_amount > Decimal::ZERO {
-            (actual_amount / updated.total_amount * Decimal::from(100))
-                .round_dp_with_strategy(2, rust_decimal::RoundingStrategy::MidpointAwayFromZero)
-        } else {
-            Decimal::ZERO
-        };
-        let variance = actual_amount - updated.total_amount;
-
-        Ok(SalesTargetDto {
-            id: updated.id,
-            period: updated.period,
-            target_amount: updated.total_amount,
-            actual_amount,
-            completion_rate,
-            variance,
+        let actuals = self
+            .fetch_actual_amounts(&[period.to_string()], scope, cache)
+            .await?;
+        Ok(Self::to_target_dto(
+            &updated,
+            actuals.get(period).copied(),
             status,
-        })
+        ))
     }
 
     /// 导出销售分析报告

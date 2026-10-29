@@ -35,7 +35,9 @@ impl ArReconciliationService {
 
         // 只有草稿状态的对账单可以删除（状态门在 txn 内，基于 lock_exclusive 读出的 model）
         if model.reconciliation_status.as_deref() != Some(ar_status::RECONCILIATION_DRAFT) {
-            return Err(AppError::business(
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable(
                 "只有草稿状态的对账单可以删除".to_string(),
             ));
         }

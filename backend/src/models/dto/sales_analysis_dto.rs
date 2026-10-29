@@ -58,14 +58,21 @@ pub struct UpdateSalesTargetRequest {
     pub remarks: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+/// 销售目标出参行 —— GET 列表与 PUT 出参共用的唯一 DTO
+/// （唯一构造点 `sales_analysis_service::SalesAnalysisService::to_target_dto`，
+/// 消费方为前端 `api/sales-analysis.ts::SalesTarget` 的五列渲染）。
+/// 线格式口径：rust_decimal 仅启用 serde 未启用 serde-float，金额/比率键序列化为字符串；
+/// `actual_amount`/`completion_rate`/`variance` 为 Option：null 表达"无口径"
+/// （`completion_rate` null 含"未设目标"与"周期无法对齐取数口径"两态，
+/// "0.00" 才是"零完成"），禁止用 0 兜底掩盖两态区分。
+#[derive(Debug, Clone, Serialize)]
 pub struct SalesTargetDto {
     pub id: i32,
     pub period: String,
     pub target_amount: Decimal,
-    pub actual_amount: Decimal,
-    pub completion_rate: Decimal,
-    pub variance: Decimal,
+    pub actual_amount: Option<Decimal>,
+    pub completion_rate: Option<Decimal>,
+    pub variance: Option<Decimal>,
     pub status: String,
 }
 

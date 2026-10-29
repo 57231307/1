@@ -538,11 +538,11 @@ pub async fn delete_waybill(
     if waybill.status == Some(waybill_status::DELIVERED.to_string())
         || waybill.status == Some(waybill_status::SIGNED.to_string())
     {
-        let status = waybill.status.clone().unwrap_or_default();
-        return Err(AppError::business(format!(
-            "运单 {} 状态为 {}，已送达/已签收的运单不可删除",
-            id, status
-        )));
+        // 删除腿状态门：已送达/已签收进入签收与应收链路即不可删除，归业务族；
+        // 文案改为静态公开规则（去掉运单 ID 与状态原值插值，只进 tracing），可外显
+        return Err(AppError::business_displayable(
+            "已送达或已签收的运单不可删除",
+        ));
     }
 
     // P0 8-3 修复：delete 操作补审计日志
