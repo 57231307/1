@@ -587,10 +587,7 @@ const handleViewTemplate = async (row: EmailTemplate) => {
       h('div', [
         h('p', [h('strong', `${t('email.index.colTemplateName')}: `), detail.name]),
         h('p', [h('strong', `${t('email.index.colTemplateCode')}: `), detail.code]),
-        h('p', [
-          h('strong', `${t('email.index.labelSubject')}: `),
-          detail.subject_template,
-        ]),
+        h('p', [h('strong', `${t('email.index.labelSubject')}: `), detail.subject_template]),
         h('p', [h('strong', `${t('email.index.labelBody')}:`)]),
         h(
           'pre',

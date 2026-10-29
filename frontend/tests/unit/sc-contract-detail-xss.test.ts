@@ -93,9 +93,9 @@ describe('销售合同详情弹层（handleView 出参注入锁）', () => {
   let alertSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    alertSpy = vi.spyOn(ElMessageBox, 'alert').mockImplementation(() =>
-      Promise.resolve('ok') as never
-    );
+    alertSpy = vi
+      .spyOn(ElMessageBox, 'alert')
+      .mockImplementation(() => Promise.resolve('ok') as never);
   });
 
   afterEach(() => {
