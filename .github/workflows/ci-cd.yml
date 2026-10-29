@@ -3040,7 +3040,7 @@ jobs:
             # 保留 tee 直连输出（此前行为），不套 watchdog。
             # 退出码必须取 playwright 而非 tee：`$?` 在管道后拿到的是管道末端 tee 的
             # 状态（恒 0），会把失败分片判成绿。
-            timeout 2400 npx playwright test --project=chromium --workers="${SHARD_WORKERS}" --shard=$((SHARD - 19))/5 --reporter=line,scripts/e2e-assert-reporter.mjs e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
+            timeout 2400 npx playwright test --reporter=line,scripts/e2e-assert-reporter.mjs --project=chromium --workers="${SHARD_WORKERS}" --shard=$((SHARD - 19))/5 e2e/smoke/ 2>&1 | tee reports/playwright-output.txt
             EXIT_CODE=${PIPESTATUS[0]}
           elif [ "$SHARD" -le 29 ]; then
             # 分片 25-29: traversal 全量遍历 + 端点矩阵（5 片）
