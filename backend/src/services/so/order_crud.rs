@@ -584,7 +584,9 @@ impl SalesService {
         if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
             // 状态门：已发货/已完成前置状态不满足修改条件，归业务族；
             // 文案点名公开规则，不回显词表原值与任何标识，可外显
-            return Err(AppError::business_displayable("已发货或已完成的订单不能修改"));
+            return Err(AppError::business_displayable(
+                "已发货或已完成的订单不能修改",
+            ));
         }
         Ok(())
     }
@@ -760,7 +762,9 @@ impl SalesService {
         if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
             // 删除腿状态门：已发货/已完成前置状态不满足删除条件，归业务族；
             // 文案点名公开规则，不回显词表原值与任何标识，可外显
-            return Err(AppError::business_displayable("已发货或已完成的订单不能删除"));
+            return Err(AppError::business_displayable(
+                "已发货或已完成的订单不能删除",
+            ));
         }
 
         // 释放并删除预留记录（硬删除订单必须清掉预留行，否则 fk_inventory_reservations_order 阻断主表删除）
