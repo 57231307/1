@@ -176,9 +176,7 @@ fn parse_target_period(period: &str) -> Option<(NaiveDate, NaiveDate, &'static s
                 return None;
             }
             let start = NaiveDate::from_ymd_opt(year, (q - 1) * 3 + 1, 1)?;
-            let end = start
-                .checked_add_months(chrono::Months::new(3))?
-                - chrono::Duration::days(1);
+            let end = start.checked_add_months(chrono::Months::new(3))? - chrono::Duration::days(1);
             Some((start, end, "quarter"))
         }
         7 => {
@@ -332,7 +330,9 @@ impl SalesAnalysisService {
             HashMap::new();
         for p in periods {
             if let Some((start, end, granularity)) = parse_target_period(p) {
-                let entry = groups.entry(granularity).or_insert((start, end, Vec::new()));
+                let entry = groups
+                    .entry(granularity)
+                    .or_insert((start, end, Vec::new()));
                 if start < entry.0 {
                     entry.0 = start;
                 }
@@ -652,6 +652,11 @@ impl SalesAnalysisService {
     /// 用户该做什么）；纯空白等同未提交，放行。前端编辑弹窗不下发 remarks，
     /// 正常用户路径不触发该拒绝。dimension_name 列只保留 create 侧写入的起止日期语义，
     /// PUT 两处不再挪用该列存备注。
+    /// 查找定行口径：PUT 端点只以周期键定位，无维度入参，故本腿只认总体目标行
+    /// （statistic_type=target 且 dimension_type=overall 且 dimension_id 为空），
+    /// 与新建分支写入的维度口径一致；维度目标行不可经本端点寻址，也不被静默代改。
+    /// 命中基数显式判定：0 行走新建（沿用 upsert 语义）；1 行走更新；
+    /// 多于 1 行返回可展示业务错误并点名周期与行数，不再依赖单行查询的驱动层异常。
     pub async fn update_target(
         &self,
         period: &str,
@@ -669,11 +674,20 @@ impl SalesAnalysisService {
             }
         }
 
-        let existing = sales_analysis::Entity::find()
+        let rows = sales_analysis::Entity::find()
             .filter(sales_analysis::Column::Period.eq(period))
             .filter(sales_analysis::Column::StatisticType.eq("target"))
-            .one(&*self.db)
+            .filter(sales_analysis::Column::DimensionType.eq("overall"))
+            .filter(sales_analysis::Column::DimensionId.is_null())
+            .all(&*self.db)
             .await?;
+        if rows.len() > 1 {
+            return Err(AppError::business_displayable(format!(
+                "周期 {period} 存在 {} 条总体目标记录，请先更正为一条后重试",
+                rows.len()
+            )));
+        }
+        let existing = rows.into_iter().next();
 
         let target_amount = req.target_amount.unwrap_or(Decimal::ZERO);
         let status = req
@@ -700,7 +714,11 @@ impl SalesAnalysisService {
         let actuals = self
             .fetch_actual_amounts(&[period.to_string()], scope, cache)
             .await?;
-        Ok(Self::to_target_dto(&updated, actuals.get(period).copied(), status))
+        Ok(Self::to_target_dto(
+            &updated,
+            actuals.get(period).copied(),
+            status,
+        ))
     }
 
     /// 导出销售分析报告

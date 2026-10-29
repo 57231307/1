@@ -70,10 +70,22 @@ fn target_dto_field_set_contains_all_seven_contract_keys() {
         assert!(map.contains_key(key), "目标出参缺少契约键 {key}");
     }
     // DECIMAL 线格式：金额与比率键序列化为字符串而非 JSON number
-    assert!(map["target_amount"].is_string(), "target_amount 必须为字符串");
-    assert!(map["actual_amount"].is_string(), "actual_amount 必须为字符串");
-    assert!(map["completion_rate"].is_string(), "有口径时 completion_rate 必须为字符串");
-    assert!(map["variance"].is_string(), "有口径时 variance 必须为字符串");
+    assert!(
+        map["target_amount"].is_string(),
+        "target_amount 必须为字符串"
+    );
+    assert!(
+        map["actual_amount"].is_string(),
+        "actual_amount 必须为字符串"
+    );
+    assert!(
+        map["completion_rate"].is_string(),
+        "有口径时 completion_rate 必须为字符串"
+    );
+    assert!(
+        map["variance"].is_string(),
+        "有口径时 variance 必须为字符串"
+    );
 }
 
 /// 恒等派生反向自证：actual（入参）与 target（存储列）不相等时，
@@ -84,17 +96,33 @@ fn derived_columns_are_not_tautological_when_actual_differs_from_target() {
     let model = sample_model("2026-08", "1000.00");
     let dto = SalesAnalysisService::to_target_dto(&model, Some(dec!(750.00)), "active".to_string());
 
-    let rate = dto.completion_rate.expect("target 大于 0 且 actual 有值时完成率必须有值");
-    assert!(rate != dec!(100), "完成率恒 100：分子分母疑似同源（actual 被取成 target 自身）");
+    let rate = dto
+        .completion_rate
+        .expect("target 大于 0 且 actual 有值时完成率必须有值");
+    assert!(
+        rate != dec!(100),
+        "完成率恒 100：分子分母疑似同源（actual 被取成 target 自身）"
+    );
     assert_eq!(rate, dec!(75), "完成率必须等于 actual/target");
     assert_eq!(rate.to_string(), "75.00", "完成率线格式保持两位小数刻度");
 
     let variance = dto.variance.expect("actual 有值时差额必须有值");
-    assert!(variance != Decimal::ZERO, "差额恒 0：actual 疑似又被取成 target 自身");
+    assert!(
+        variance != Decimal::ZERO,
+        "差额恒 0：actual 疑似又被取成 target 自身"
+    );
     assert_eq!(variance, dec!(-250), "差额必须等于 actual 减 target");
 
-    assert_eq!(dto.actual_amount, Some(dec!(750.00)), "actual_amount 必须原样取入参而非存储目标列");
-    assert_eq!(dto.target_amount, dec!(1000.00), "target_amount 必须取存储行 total_amount 列");
+    assert_eq!(
+        dto.actual_amount,
+        Some(dec!(750.00)),
+        "actual_amount 必须原样取入参而非存储目标列"
+    );
+    assert_eq!(
+        dto.target_amount,
+        dec!(1000.00),
+        "target_amount 必须取存储行 total_amount 列"
+    );
 }
 
 /// 两态可辨锁：未设目标（target 为 0）渲染 null 完成率（除法无口径，不以 0 掩盖）；
@@ -118,7 +146,9 @@ fn unset_target_and_zero_completion_are_distinguishable() {
     // 零完成：target 已设，actual 为 0
     let zero = sample_model("2026-09", "1000.00");
     let dto = SalesAnalysisService::to_target_dto(&zero, Some(Decimal::ZERO), "active".to_string());
-    let rate = dto.completion_rate.expect("零完成的完成率必须有值，不得与未设目标混同为 null");
+    let rate = dto
+        .completion_rate
+        .expect("零完成的完成率必须有值，不得与未设目标混同为 null");
     assert_eq!(rate, Decimal::ZERO);
     assert_eq!(rate.to_string(), "0.00", "零完成保持 0.00 字符串刻度");
     assert_eq!(dto.variance, Some(dec!(-1000)));
@@ -130,9 +160,18 @@ fn unset_target_and_zero_completion_are_distinguishable() {
 fn unresolvable_actual_renders_all_derived_columns_null() {
     let model = sample_model("2026/08", "1000.00");
     let map = dto_json(&model, None);
-    assert!(map["actual_amount"].is_null(), "无法判定周期口径时 actual_amount 必须为 null");
-    assert!(map["completion_rate"].is_null(), "无法判定周期口径时 completion_rate 必须为 null");
-    assert!(map["variance"].is_null(), "无法判定周期口径时 variance 必须为 null");
+    assert!(
+        map["actual_amount"].is_null(),
+        "无法判定周期口径时 actual_amount 必须为 null"
+    );
+    assert!(
+        map["completion_rate"].is_null(),
+        "无法判定周期口径时 completion_rate 必须为 null"
+    );
+    assert!(
+        map["variance"].is_null(),
+        "无法判定周期口径时 variance 必须为 null"
+    );
     assert_eq!(map["target_amount"].as_str(), Some("1000.00"));
     assert_eq!(map["status"].as_str(), Some("active"));
 }
@@ -159,5 +198,26 @@ fn service_source_does_not_reintroduce_derived_degeneracies() {
     assert!(
         src.contains("sales_by_time"),
         "实际成交额必须经复用 BI 聚合 sales_by_time 现算，取数腿不得消失"
+    );
+}
+
+/// 查找定行锁：PUT 查目标行必须显式收窄到总体目标腿并做命中基数判定，
+/// 不得回退到"周期键跨维度捞多行 + 单行查询"的驱动层异常形态。
+#[test]
+fn service_source_locks_overall_only_lookup_with_cardinality_check() {
+    let path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/services/sales_analysis_service.rs");
+    let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("读取 {:?} 失败: {}", path, e));
+    assert!(
+        src.contains("DimensionType.eq(\"overall\")") && src.contains("DimensionId.is_null()"),
+        "PUT 查找必须同时限定 dimension_type=overall 且 dimension_id 为空"
+    );
+    assert!(
+        src.contains("rows.len() > 1"),
+        "命中多于 1 行必须走显式基数判定返回业务错误，不得回退单行查询"
+    );
+    assert!(
+        !src.contains(".one(&*self.db)"),
+        "service 内不得残留单行查询形态（多行命中会退化成驱动层 500）"
     );
 }
