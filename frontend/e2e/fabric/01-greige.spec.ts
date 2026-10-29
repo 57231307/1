@@ -3,8 +3,34 @@
 // 覆盖范围：坯布创建 → 入库 → 出库
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
-import { apiCall, genCode, tryCleanup } from '../flow/helpers';
+import { apiCall, apiCallRaw, genCode, tryCleanup } from '../flow/helpers';
 import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
+
+/**
+ * 清理腿要消费的词表，逐字照抄后端写入方，不做大小写转换：
+ * - 删除门 backend/src/handlers/greige_fabric_handler.rs::delete_greige_fabric 只拦
+ *   IN_STOCK（「在库」）；
+ * - 出库腿 backend/src/handlers/greige_fabric_handler.rs::stock_out 在剩余重量与剩余长度
+ *   双双归零时落 STOCKED_OUT（「已出库」），否则回写 IN_STOCK。
+ * 两值同源 backend/src/models/status/purchase_inventory.rs::greige_fabric_status。
+ */
+const IN_STOCK_WORD = '在库';
+const STOCKED_OUT_WORD = '已出库';
+
+/**
+ * 清理专用的数量读取：SeaORM DECIMAL 序列化为 JSON 字符串，且建档腿不注入数量时这四列
+ * 在库里就是 NULL。清理要把「NULL」如实当作「该行没有库存台账」这一事实来判定出库腿
+ * 是否可达，所以这里与业务断言用的 toExactNumber 口径不同：NULL 归零，但非有限值一律
+ * 判红抛出，避免把脏值洗成 0 后蒙过可达性判定。
+ */
+function toCleanupAmount(v: string | number | null | undefined, id: number, field: string): number {
+  if (v === null || v === undefined) return 0;
+  const n = Number(v);
+  if (!Number.isFinite(n)) {
+    throw new Error(`[01 清理] 坯布 ${id} 的 ${field} 不是可判定数量，实际=${JSON.stringify(v)}`);
+  }
+  return n;
+}
 
 /**
  * 前后端契约缺陷（曾致本套件只能"硬断按钮渲染"，现已修复，恢复真实点击 + 真实 toast）：
@@ -19,10 +45,117 @@ import { pickSelectIn, fillFieldByLabel } from '../flow/ui-helpers';
  *   （greigeFabrics.index.messageStockInSuccess / messageStockOutSuccess）。
  * status 用非「在库」值以便用例后 DELETE 清理（后端仅拦截「在库」删除）。
  */
+/**
+ * 清理登记分两栏：
+ * - GREIGE_CLEANUP 登记本轮自建坯布行的 id 与业务唯一列 fabric_no（seedGreige 用 genCode
+ *   随机后缀写该列，唯一键隔离保留），清理走「在册撤态腿 → 回读非在库 → 删除 → 回读查无」
+ *   硬序，不经 tryCleanup 吞成 warn。坯布的请求 URL 一律以字面量整串写在下面 afterEach 的
+ *   调用点，不收进转发型 helper。
+ * - CLEANUP 保留其余实体（仓库）的原登记与清理形态，本轮不动其清理语义。
+ */
+const GREIGE_CLEANUP: Array<{ id: number; fabricNo: string }> = [];
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
   for (const c of CLEANUP.reverse()) await tryCleanup(page, 'DELETE', c.path, c.label);
   CLEANUP.length = 0;
+
+  // 本处用哪条在册腿：POST /production/greige-fabrics/{id}/stock-out 全量出库。六要素——
+  // 主体：本轮自建且仍可见的坯布行；动作：以回读到的现有库存与累计入库的较小值为出库量做
+  // 全量出库，把 status 从删除门拦截的词值撤到放行词值，再删；对象：该坯布行；时机：
+  // afterEach，即入库腿已把台账抬起之后；地点：本文件 afterEach；后果：出库与删除都走
+  // apiCall，非成功信封即抛出判红，不兜底、不吞。
+  // 删除门 backend/src/handlers/greige_fabric_handler.rs::delete_greige_fabric 只拦
+  // backend/src/models/status/purchase_inventory.rs::greige_fabric_status.IN_STOCK 一个词值；
+  // 出库腿在剩余重量与剩余长度双双归零时落
+  // backend/src/models/status/purchase_inventory.rs::greige_fabric_status.STOCKED_OUT，
+  // 正落在拦截集之外，故回读先断「不再是拦截集里那个词值」，再断逐字等于出库腿落值。
+  // 回读查无走什么：坯布删除腿是软删（置 is_deleted 标记），详情端点按主键取行不过滤该标记，
+  // 删后详情仍会 200，所以「确实查无」必须打在按 is_deleted=false 过滤的列表端点上，
+  // 以本轮唯一键 fabric_no 命中且 id 配对为准；打在详情上会恒不通过、打在删除响应码上又
+  // 证明不了行已不可见。
+  for (const g of GREIGE_CLEANUP.slice().reverse()) {
+    const before = await apiCallRaw<{
+      status?: string | null;
+      weight_kg?: string | number | null;
+      length_m?: string | number | null;
+      quantity_kg?: string | number | null;
+      quantity_meters?: string | number | null;
+    }>(page, 'GET', `/production/greige-fabrics/${g.id}`);
+    const statusAtCleanup = String(before.status);
+    const stockWeight = toCleanupAmount(before.weight_kg, g.id, 'weight_kg');
+    const stockLength = toCleanupAmount(before.length_m, g.id, 'length_m');
+    const cumWeight = toCleanupAmount(before.quantity_kg, g.id, 'quantity_kg');
+    const cumLength = toCleanupAmount(before.quantity_meters, g.id, 'quantity_meters');
+
+    if (statusAtCleanup === IN_STOCK_WORD && stockWeight + stockLength + cumWeight + cumLength === 0) {
+      // 零库存却停在拦截词值：建档腿在未提供 status 时把该列默认写成拦截词值，而在册出库腿
+      // 要求出库量为正且不得超过现有库存与累计入库，因此零库存行经该腿不可达。按本轮裁定，
+      // 这一形态属已立项的「建档即不可删」缺陷，移出甲族清理、转乙族台账处置：这里显式登记
+      // 脏行（带 id 与本轮唯一键，供台账追踪），既不发注定被挡的 DELETE 造红，也不把它
+      // 记成已清理。唯一键隔离由 fabric_no 的随机后缀保证，脏行不污染他人判定。
+      console.warn(
+        `[坯布清理台账] id=${g.id} fabric_no=${g.fabricNo} 清理时机停在「${statusAtCleanup}」` +
+          `且库存与累计入库四列合计为 0：在册出库腿对零库存行不可达（出库量须为正且不得超过` +
+          `现有库存与累计入库），本轮不为其代发注定被删除门挡下的请求，行留存并登记于此。`
+      );
+      continue;
+    }
+
+    if (statusAtCleanup === IN_STOCK_WORD) {
+      // 全量出库：出库量取「现有库存」与「累计入库」的较小值，两个口径都会被出库腿的负值守卫
+      // 挡住，只对齐一个会在另一列上撞业务错；某一维度为 0 时不写入请求体，出库腿要求
+      // 至少一项为正，把 0 塞进去反而撞「必须为正」的校验。
+      const outWeight = Math.min(stockWeight, cumWeight);
+      const outLength = Math.min(stockLength, cumLength);
+      const outBody: Record<string, number> = {};
+      if (outWeight > 0) outBody.weight_kg = outWeight;
+      if (outLength > 0) outBody.length_m = outLength;
+      const stockedOut = await apiCall(
+        page,
+        'POST',
+        `/production/greige-fabrics/${g.id}/stock-out`,
+        outBody
+      );
+      expect(
+        stockedOut.code,
+        `[01 清理] 坯布 ${g.id} 出库腿应返回成功信封 200，实际信封=${JSON.stringify(stockedOut)}`
+      ).toBe(200);
+      const afterOut = await apiCallRaw<{ status?: string | null }>(
+        page,
+        'GET',
+        `/production/greige-fabrics/${g.id}`
+      );
+      expect(
+        String(afterOut.status),
+        `[01 清理] 坯布 ${g.id} 全量出库后不得仍停在删除门拦截的词值，实际=${String(afterOut.status)}`
+      ).not.toBe(IN_STOCK_WORD);
+      expect(
+        String(afterOut.status),
+        `[01 清理] 坯布 ${g.id} 全量出库后应逐字落在出库腿写入方的落值「${STOCKED_OUT_WORD}」，实际=${String(afterOut.status)}`
+      ).toBe(STOCKED_OUT_WORD);
+    }
+
+    const del = await apiCall(page, 'DELETE', `/production/greige-fabrics/${g.id}`);
+    expect(
+      del.code,
+      `[01 清理] 坯布 ${g.id} 删除应返回成功信封 200，实际信封=${JSON.stringify(del)}`
+    ).toBe(200);
+    const afterDelete = await apiCall<{
+      items?: Array<{ id?: number; fabric_no?: string }>;
+    }>(
+      page,
+      'GET',
+      `/production/greige-fabrics?fabric_no=${encodeURIComponent(g.fabricNo)}&page=1&page_size=50`
+    );
+    const stillVisible = (afterDelete.data?.items ?? []).some(
+      it => it.fabric_no === g.fabricNo && Number(it.id) === g.id
+    );
+    expect(
+      stillVisible,
+      `[01 清理] 坯布 ${g.id}（fabric_no=${g.fabricNo}）删除后不应再出现在按未删除过滤的列表里`
+    ).toBe(false);
+  }
+  GREIGE_CLEANUP.length = 0;
 });
 
 async function seedGreige(
@@ -35,14 +168,15 @@ async function seedGreige(
   // stock-in 端点走真实入库登记。
   const suffix = genCode('E2E-GF').slice(-6);
   const name = `E2E坯布${suffix}`;
+  const fabricNo = `E2E-GF${suffix}`;
   const created = await apiCall<{ id?: number }>(page, 'POST', '/production/greige-fabrics', {
-    fabric_no: `E2E-GF${suffix}`,
+    fabric_no: fabricNo,
     fabric_name: name,
     fabric_type: '梭织',
   });
   const id = created.data?.id;
   if (!id) throw new Error(`创建坯布失败 ${JSON.stringify(created)}`);
-  CLEANUP.push({ path: `/production/greige-fabrics/${id}`, label: 'greige_fabric' });
+  GREIGE_CLEANUP.push({ id, fabricNo });
   return { id, name };
 }
 
