@@ -430,7 +430,8 @@ impl RolePermissionService {
 
         // 系统角色不允许删除
         if role.is_system {
-            return Err(AppError::business("系统角色不允许删除"));
+            // 删除腿状态门：系统内置角色拒绝删除，公开业务规则、不含标识，可外显
+            return Err(AppError::business_displayable("系统角色不允许删除"));
         }
 
         // 检查是否有用户关联此角色
@@ -1065,7 +1066,10 @@ impl RolePermissionService {
 
         if let Some(r) = role {
             if r.is_system {
-                return Err(AppError::business("系统角色的权限不允许删除".to_string()));
+                // 删除腿状态门：系统内置角色的权限拒绝删除，公开业务规则、不含标识，可外显
+                return Err(AppError::business_displayable(
+                    "系统角色的权限不允许删除".to_string(),
+                ));
             }
         }
 

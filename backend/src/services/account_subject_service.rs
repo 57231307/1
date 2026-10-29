@@ -333,12 +333,11 @@ impl AccountSubjectService {
                 "不能删除已被凭证使用的科目：{}，被引用次数：{}",
                 id, used_in_vouchers
             );
-            // 前置门：科目被凭证引用这一业务前置未满足，归业务族；文案含查询所得引用条数，
-            // 按 error.rs 安全边界保持脱敏 business。
-            return Err(AppError::business(format!(
-                "科目已被 {} 张凭证使用，不能删除",
-                used_in_vouchers
-            )));
+            // 删除腿引用门：科目被凭证引用这一业务前置未满足，归业务族；
+            // 文案改为静态公开规则（引用计数已在上方 warn! 留痕，不进 HTTP 出参），可外显
+            return Err(AppError::business_displayable(
+                "科目已被凭证使用，不能删除，请先处理相关凭证",
+            ));
         }
 
         // 检查是否有科目余额记录

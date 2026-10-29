@@ -1,4 +1,4 @@
-# layers=8 endpoints=1777
+# layers=8 endpoints=1791
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -25,6 +25,8 @@ DELETE	/api/v1/erp/color-cards/*/items/*	color_card::delete_color_item	color_car
 DELETE	/api/v1/erp/color-prices/*	color_price_handler::delete_color_price	color_price
 DELETE	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::delete_seasonal_rule	color_price
 DELETE	/api/v1/erp/color-prices/tiers/item/*	color_price_handler::delete_tier	color_price
+DELETE	/api/v1/erp/contract-templates/*	contract_template_handler::delete_template	contract_template
+DELETE	/api/v1/erp/contract-templates/*/clauses/*	contract_template_handler::delete_clause	contract_template
 DELETE	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::delete_credit	crm
 DELETE	/api/v1/erp/crm/customers/*	customer_handler::delete_customer	crm
 DELETE	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::delete_customer_address	crm
@@ -343,6 +345,9 @@ GET	/api/v1/erp/company-profile	company_profile_handler::get_company_profile	sys
 GET	/api/v1/erp/company-profile/full	company_profile_handler::get_company_profile_full	system
 GET	/api/v1/erp/contract-signatures	contract_signature_handler::list_signed_contracts	contract_signature
 GET	/api/v1/erp/contract-signatures/*/verify	contract_signature_handler::verify_signature	contract_signature
+GET	/api/v1/erp/contract-templates	contract_template_handler::list_templates	contract_template
+GET	/api/v1/erp/contract-templates/*	contract_template_handler::get_template	contract_template
+GET	/api/v1/erp/contract-templates/*/clauses	contract_template_handler::list_clauses	contract_template
 GET	/api/v1/erp/crm/assignments	crm_assignment_handler::list_assignments	crm
 GET	/api/v1/erp/crm/assignments/history	crm_assignment_handler::list_assignment_history	crm
 GET	/api/v1/erp/crm/assignments/workload	crm_assignment_handler::list_workload	crm
@@ -1140,6 +1145,10 @@ POST	/api/v1/erp/color-prices/seasonal-rules	color_price_handler::create_seasona
 POST	/api/v1/erp/color-prices/tiers/*	color_price_handler::create_tier	color_price
 POST	/api/v1/erp/contract-signatures/*/revoke	contract_signature_handler::revoke_signature	contract_signature
 POST	/api/v1/erp/contract-signatures/sign	contract_signature_handler::sign_contract	contract_signature
+POST	/api/v1/erp/contract-templates	contract_template_handler::create_template	contract_template
+POST	/api/v1/erp/contract-templates/*/approve	contract_template_handler::approve_template	contract_template
+POST	/api/v1/erp/contract-templates/*/clauses	contract_template_handler::add_clause	contract_template
+POST	/api/v1/erp/contract-templates/*/revise	contract_template_handler::revise_template	contract_template
 POST	/api/v1/erp/convert	dual_unit_converter_handler::convert_dual_unit	analytics
 POST	/api/v1/erp/crm/assignments	crm_assignment_handler::assign_customer	crm
 POST	/api/v1/erp/crm/assignments/auto-assign	crm_assignment_handler::auto_assign	crm
@@ -1650,6 +1659,11 @@ PUT	/api/v1/erp/color-cards/*/items/*	color_card::update_color_item	color_card
 PUT	/api/v1/erp/color-prices/*	color_price_handler::update_color_price	color_price
 PUT	/api/v1/erp/color-prices/seasonal-rules/*	color_price_handler::update_seasonal_rule	color_price
 PUT	/api/v1/erp/company-profile/full	company_profile_handler::update_company_profile_full	system
+PUT	/api/v1/erp/contract-templates/*	contract_template_handler::update_template	contract_template
+PUT	/api/v1/erp/contract-templates/*/activate	contract_template_handler::activate_template	contract_template
+PUT	/api/v1/erp/contract-templates/*/clauses/*	contract_template_handler::update_clause	contract_template
+PUT	/api/v1/erp/contract-templates/*/clauses/*/review	contract_template_handler::review_clause	contract_template
+PUT	/api/v1/erp/contract-templates/*/retire	contract_template_handler::retire_template	contract_template
 PUT	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::update_credit	crm
 PUT	/api/v1/erp/crm/customers/*	customer_handler::update_customer	crm
 PUT	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::update_customer_address	crm

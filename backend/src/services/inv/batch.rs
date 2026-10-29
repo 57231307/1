@@ -1452,10 +1452,11 @@ impl InventoryTransferService {
         if transfer.status == transfer_status::SHIPPED
             || transfer.status == transfer_status::COMPLETED
         {
-            return Err(AppError::business(format!(
-                "调拨单状态 {} 不允许删除明细",
-                transfer.status
-            )));
+            // 删除腿状态门：已发货/已完成调拨单拒绝删明细，前置状态未满足，归业务族；
+            // 文案改为静态公开规则（去掉词表原值插值，真实状态只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "已发货或已完成的调拨单不能删除明细",
+            ));
         }
 
         let txn = (*self.db).begin().await?;

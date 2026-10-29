@@ -172,6 +172,10 @@ pub mod omni_audit_service;
 // 批次 106 修复：operation_log_service 模块已删除（零业务引用，已被 omni_audit_service 完全替代）
 pub mod order_change_history_service;
 pub mod purchase_contract_service;
+// 合同模板读写腿 模板主数据与条款项的 CRUD 与版本与 ACTIVE 门（contract_templates 族）
+pub mod contract_template_service;
+// 签约条款渲染与固化腿 合同创建时按启用模板渲染条款并固化快照，详情与打印腿只读快照
+pub mod contract_clause_service;
 pub mod purchase_delivery_calculator;
 pub mod purchase_price_service;
 pub mod sku_mapping_service;
