@@ -1600,13 +1600,15 @@ pub async fn update_print_template(
         )));
     }
 
-    // 默认位撞位的点名拒绝守卫，只读，置于非竞位腿一切写入之前。判据是"写完之后的
-    // 生效形态恰好是 启用且默认"，且生效默认位来自存量留存（竞位腿已在上方处理显式
-    // 请求置默认位并返回，走到这里说明本次没有显式请求上任）。同一判据封住两类口子。
-    // 一是把带默认位的停用行只改状态重新启用，二是把启用默认行只改单据类型移进别的
-    // 单据类型。不点名拒绝就直接撞库侧默认位唯一门，裸"数据重复"冒到界面上。
-    // 在任行的业务标识（编码、名称、ID）与两条出路一并给出。停用行留存自身默认位
-    // 合法，不在本守卫射程（生效状态非启用即不撞位），建模板与设默认口各自竞位不经此处。
+    // 默认位撞位的本行自降位处理，只读探测，置于非竞位腿一切写入之前。判据是"写完之后的
+    // 生效形态恰好是 启用且默认"，且生效默认位来自存量留存（竞位腿已在上方处理显式请求置
+    // 默认位并返回，走到这里说明本次没有显式请求上任）。同一判据涉及两类形态：把带默认位的
+    // 停用行只改状态重新启用，以及把启用默认行只改单据类型移进别的单据类型——二者都会让本行
+    // 落到"启用且默认"，撞上库侧部分唯一索引 uq_print_template_active_default（同 doc_type
+    // 至多一行启用且默认）。本次未显式请求置默认，本行不该夺在任默认行的位，故只把本行自身
+    // is_default 降为 false 再写状态，在任默认行与其余行一律不动：重新启用只恢复出件资格不竞位，
+    // 更新在唯一索引下照常成功。停用行留存自身默认位本就合法（生效状态非启用即不撞位），
+    // 建模板与设默认口各自竞位不经此处。
     if effective_is_default && effective_status == print_template_status::ACTIVE {
         let occupying = print_template::Entity::find()
             .filter(print_template::Column::DocType.eq(doc_type_for_default.as_str()))
@@ -1615,13 +1617,8 @@ pub async fn update_print_template(
             .filter(print_template::Column::Id.ne(id))
             .one(&*state.db)
             .await?;
-        if let Some(row) = occupying {
-            return Err(AppError::business_displayable(format!(
-                "该单据类型的默认模板位已被启用中的模板\"{name}\"（编码 {code}，ID {id}）占用，本模板不能带着默认标记直接启用。如需换默认模板，请在本次保存中同时勾选\"设为默认\"，保存时会自动把现用默认模板降位、由本模板接任。如只想启用本模板而不换默认，请先取消本模板的默认标记再启用。",
-                name = row.template_name,
-                code = row.template_code,
-                id = row.id
-            )));
+        if occupying.is_some() {
+            active.is_default = Set(false);
         }
     }
 
