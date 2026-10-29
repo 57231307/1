@@ -188,7 +188,7 @@ const trendText = (trend: number | null): string =>
 }
 
 /* 环比不可比时的中性档：既不绿也不红，避免把"无数据"读成"下跌"；
-   色值取本组件标签既用的 #666（12px 文本对白底约 5.7:1，达 AA），不用 --el-text-color-secondary（约 3.1:1 不达线） */
+   取色沿用本组件统计标签既用的中性灰，保证 12px 文本对白底达 WCAG AA 对比度 */
 .stat-trend.none {
   color: #666;
 }
