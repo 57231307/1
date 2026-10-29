@@ -353,7 +353,8 @@ test.describe('财务分析 - 指标趋势报告契约面', () => {
       expect(afterBadPut.indicator_name, '被拒的 PUT 不得改写名称').toBe(`契约报告${tag}`);
 
       // 幽灵 id 的 PUT 与 DELETE 与详情均 404（脱敏常量）
-      const ghost = 9_100_000_000 + (Date.now() % 1000);
+      // 幽灵 id 取 i32 上界内的高位区间，保证解析通过且行必不存在
+      const ghost = 2_147_000_000 + (Date.now() % 1000);
       const ghostPut = await apiCallExpectFail(
         page,
         'PUT',
@@ -418,7 +419,7 @@ test.describe('财务分析 - 指标趋势报告契约面', () => {
       const ghost = await apiCallExpectFail(
         page,
         'POST',
-        `/financial-analysis/reports/9100000999/execute?period=2099-12`
+        `/financial-analysis/reports/2147000999/execute?period=2099-12`
       );
       expect(ghost.status, '幽灵报告执行必须 404').toBe(404);
       expect(failureCode(ghost)).toBe(APP_ERROR_CODES.NOT_FOUND);
