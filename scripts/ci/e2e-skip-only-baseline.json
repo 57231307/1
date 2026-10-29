@@ -1,0 +1,8 @@
+{
+  "description": "由 scripts/ci/check-e2e-shard-red-forensics.mjs 的 write-baseline 模式生成，skip 类逐文件计数基线，只降不升",
+  "generatedBy": "node scripts/ci/check-e2e-shard-red-forensics.mjs --mode skip-only --write-baseline",
+  "files": {
+    "frontend/e2e/flow/41-system-update-contract.spec.ts": 3
+  },
+  "total": 3
+}

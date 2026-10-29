@@ -1,0 +1,59 @@
+{
+  "config": {
+    "rootDir": "e2e"
+  },
+  "suites": [
+    {
+      "title": "e2e/demo/b.spec.ts",
+      "file": "e2e/demo/b.spec.ts",
+      "specs": [
+        {
+          "title": "全部带断言的用例",
+          "ok": true,
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "status": "expected",
+                  "duration": 1500,
+                  "steps": [
+                    {
+                      "title": "expect(locator).toHaveText(text)",
+                      "duration": 10,
+                      "category": "assert"
+                    },
+                    {
+                      "title": "beforeEach hook",
+                      "duration": 200,
+                      "category": "test",
+                      "steps": [
+                        {
+                          "title": "expect(response).toBeOK()",
+                          "duration": 8,
+                          "category": "assert"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "status": "expected"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-01-01T00:00:00.000Z",
+    "duration": 2000,
+    "expected": 1,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
