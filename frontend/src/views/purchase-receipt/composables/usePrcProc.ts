@@ -443,8 +443,10 @@ export function usePrcProc(cb: PrcCallbacks) {
       quantity_alt: it.quantity_alt!,
       unit_master: it.unit_master!,
       // unit_price 是含税单价按税率除法反算的净额派生值（calculateItemAmount 产出）：
-      // 已录价行（含显式 0 价）原样上送，未录价行省略键（后端落 NULL）——
-      // 此前 `|| undefined` 把人工显式声明的 0 价塌成缺键，正是本门要消灭的伪装形态。
+      // 已录价行（含显式 0 价）原样上送，未录价行省略键。注意创建腿的真实落库值——
+      // 后端 build_receipt_item_active_model 对省略键做 unwrap_or 默认零后 Set(Some(...))，
+      // 省略键落 0.000000，与人工显式声明的 0 价在库内不可分辨（该塌缩缺陷属后端整族
+      // 整改另行排期，本腿保证前端侧"漏录不造 0、显式 0 原样送"）。
       ...(it.unit_price !== undefined ? { unit_price: it.unit_price } : {}),
     });
 

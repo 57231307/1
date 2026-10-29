@@ -168,8 +168,11 @@ export interface CreateReceiptItemRequest {
   unit_alt?: string;
   /**
    * 不含税单价（净额口径）：由含税单价录入事实按行税率除法反算（money.ts 的
-   * netFromInclusive）后上送，键省略表示价格未采集（后端落 NULL）。显式录入的 0
-   * 是合法值必须原样上送，禁止用 `|| undefined` 把 0 塌成缺键。
+   * netFromInclusive）后上送。键省略时创建腿的真实落库值是 0.000000——后端
+   * build_receipt_item_active_model 对省略键 unwrap_or 默认零后落列，与显式录入的
+   * 0 价在库内不可分辨（该塌缩缺陷属后端整族整改另行排期）；更新腿省略键保持库值、
+   * 显式 null 清空为 NULL。显式录入的 0 是合法值必须原样上送，禁止用
+   * `|| undefined` 把 0 塌成缺键。
    */
   unit_price?: number;
   location_code?: string;
