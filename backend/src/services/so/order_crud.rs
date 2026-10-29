@@ -220,6 +220,8 @@ impl SalesService {
         let credit_available = credit_service
             .check_credit_available(customer_id, order_amount)
             .await
+            // 系统失败族：透传信用服务内部错误原文（可能含评级/额度详情），
+            // 且非用户可自行解决的拒绝，按安全边界保持脱敏
             .map_err(|err| AppError::business(format!("信用检查失败: {}", err)))?;
         if !credit_available {
             tracing::warn!(
@@ -469,6 +471,8 @@ impl SalesService {
             .await
             .map_err(|e| {
                 tracing::error!("信用额度占用失败，事务回滚: {}", e);
+                // 系统失败族：透传信用服务内部错误原文（可能含额度数据），
+                // 且非用户可自行解决的拒绝，按安全边界保持脱敏
                 AppError::business(format!("信用额度占用失败: {}", e))
             })?;
         tracing::info!(
@@ -497,6 +501,8 @@ impl SalesService {
         let opportunity = crm_opportunity::Entity::find_by_id(opportunity_id)
             .one(txn)
             .await?
+            // 文案内嵌商机内部 ID（查询所得记录标识），按安全边界保持脱敏；
+            // 真实 ID 只进 tracing（由调用链上层日志承载）
             .ok_or_else(|| AppError::business(format!("商机 {} 不存在", opportunity_id)))?;
         let mut opp_active: crm_opportunity::ActiveModel = opportunity.into();
         opp_active.actual_amount = sea_orm::ActiveValue::Set(Some(total_amount));
@@ -576,10 +582,9 @@ impl SalesService {
     /// 校验订单状态：已发货 / 已完成不允许修改
     fn validate_order_status_for_update(order: &sales_order::Model) -> Result<(), AppError> {
         if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
-            return Err(AppError::business(format!(
-                "订单状态为{}，不允许修改",
-                order.status
-            )));
+            // 状态门：已发货/已完成前置状态不满足修改条件，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable("已发货或已完成的订单不能修改"));
         }
         Ok(())
     }
@@ -723,6 +728,8 @@ impl SalesService {
         let order_entity = SalesOrderEntity::find_by_id(order_id)
             .one(txn)
             .await?
+            // 事务内一致性 fail-closed：同一事务中订单主行不可能缺失，缺失即脏数据/
+            // 并发异常，非用户可自行解决的拒绝，按既有口径保持脱敏（真实原因进 tracing）
             .ok_or_else(|| AppError::business("销售订单不存在"))?;
 
         // 更新订单总金额
@@ -751,10 +758,9 @@ impl SalesService {
 
         // 检查订单状态
         if order.status == so_status::SHIPPED || order.status == so_status::COMPLETED {
-            return Err(AppError::business(format!(
-                "订单状态为{}，不允许删除",
-                order.status
-            )));
+            // 删除腿状态门：已发货/已完成前置状态不满足删除条件，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable("已发货或已完成的订单不能删除"));
         }
 
         // 释放并删除预留记录（硬删除订单必须清掉预留行，否则 fk_inventory_reservations_order 阻断主表删除）
