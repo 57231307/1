@@ -29,6 +29,8 @@
 // POST advanced/ai/recipe-optimization。
 // 隔离事实：不造行不删行；sales-forecast 用不存在物料号走 fallback 分支，
 // 分支输出长度由 period 映射决定（3m 到 90 条），与库内容无耦合的部分逐值钉死。
+// AI 腿分两段登录：AD-04 到 AD-06 走本 worker 会话账号，AD-07 到 AD-09 走限流隔离
+// 账号，各段调用量都低于后端 10 req/min/user 的 AI 限流阈值，两段互不占同一桶。
 // 假绿防线：AI 输出数值随库漂移，故只钉三类可判红事实——形状（键集与类型）
 // 词表（枚举值域闭包）恒等式（size_kb 与 size_bytes 之商 退化参数常量表）；
 // 空结果循环不假称数据契约，缺参门与入参门逐文案或逐机器码钉。
@@ -36,6 +38,7 @@
 // 文案外显真实原因；提取器缺参拒绝由中间件收口为 400 加 VALIDATION_ERROR。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
+import { getAiTestUsername } from '../fixtures/auth';
 import { APP_ERROR_CODES, apiCallExpectFail, apiCallRaw, failureCode } from '../flow/helpers';
 
 type Row = Record<string, unknown>;
@@ -248,6 +251,19 @@ test.describe('Advanced 报表与 AI 契约回读', () => {
       );
       expect(str(a.description).length, `description 应非空`).toBeGreaterThan(0);
     }
+  });
+
+});
+
+// AD-07 起三条腿合计 9 次 AI 端点调用，与 AD-04 到 AD-06 的 5 次同用一名用户时
+// 会撞满后端 AI 限流桶（middleware/rate_limit.rs 按 user_id 维度 10 req/min），
+// 表现为窗口内后续腿拿 429 而不是被验的入参门与形状合同。
+// 故本段整体改用限流隔离账号（fixtures/auth 的 getAiTestUsername，global-setup 已建），
+// 两桶互不争抢，与 ai/01 与 ai/02 的既有分工同口径。
+test.describe('Advanced AI 形状合同（限流隔离账号）', () => {
+  test.beforeEach(async ({ page, context }) => {
+    await applyAuthMocks(context, { username: getAiTestUsername() });
+    await page.goto('/');
   });
 
   test('AD-07 智能推荐：limit 截断契约与类型标签词表', async ({ page }) => {

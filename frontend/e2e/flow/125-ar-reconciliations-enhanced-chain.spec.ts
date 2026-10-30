@@ -393,8 +393,11 @@ test.describe.serial('125 ar-reconciliations-enhanced 全链契约回读', () =>
       }
     );
     expect(matched.code).toBe(200);
-    expect(Array.isArray(matched.data)).toBe(true);
-    expect(/^自动对账完成，共处理 \d+ 个客户$/.test(matched.message)).toBe(true);
+    expect(Array.isArray(matched.data), `auto-match 出参应为数组，实际 ${JSON.stringify(matched).slice(0, 200)}`).toBe(true);
+    expect(
+      /^自动对账完成，共处理 \d+ 个客户$/.test(matched.message),
+      `auto-match 文案应钉成「自动对账完成，共处理 N 个客户」，实际 ${JSON.stringify(matched.message)}`
+    ).toBe(true);
 
     const results = await apiCallRaw<PagedBody>(
       page,
@@ -403,7 +406,10 @@ test.describe.serial('125 ar-reconciliations-enhanced 全链契约回读', () =>
     );
     expect(results.total).toBeGreaterThanOrEqual(3);
     for (const id of [recMain, recDispute, recDispute2]) {
-      expect(results.list.some(r => r.id === id)).toBe(true);
+      expect(
+        results.list.some(r => r.id === id),
+        `auto-reconcile/results 应含自建对账单 ${id}，实际返回 id 集 ${JSON.stringify(results.list.map(r => r.id))}`
+      ).toBe(true);
     }
 
     const aging = await apiCallRaw<AgingBody>(
