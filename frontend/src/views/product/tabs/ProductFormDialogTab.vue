@@ -426,25 +426,8 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item prop="spandex_percent">
-            <template #label>
-              <span class="form-label-with-tip">
-                {{ t('product.productFormDialogTab.labelSpandexPercent') }}
-                <el-tooltip
-                  :content="t('product.productFormDialogTab.tipSpandexPercent')"
-                  placement="top"
-                >
-                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </span>
-            </template>
-            <el-input
-              v-model="formData.spandex_percent"
-              :placeholder="t('product.productFormDialogTab.placeholderSpandexPercent')"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
+          <!-- 氨纶含量属"成分"内容，与面料成分重复，本档案面撤去单列录入位；
+               products.spandex_percent 列与入参键保留，存量值不显示不改动，直连接口与换算消费面不受影响 -->
           <el-form-item :label="t('product.productFormDialogTab.labelUsage')" prop="usage">
             <el-input
               v-model="formData.usage"
@@ -596,7 +579,6 @@ const formData = reactive({
   // m0106 扩的规格列，数字列以输入框文本形态存（el-input，禁带加减按钮），提交前经 toSubmitNumber 归一
   width_needle_included_cm: '',
   weight_tolerance: '',
-  spandex_percent: '',
   usage: '',
   safety_category: '',
   min_order_quantity: '',
@@ -718,15 +700,13 @@ const formRules = computed<FormRules>(() => {
     ],
     width: [numericFormatRule('product.productFormDialogTab.validateWidthFormat', 2)],
     gram_weight: [numericFormatRule('product.productFormDialogTab.validateGramWeightFormat', 2)],
-    // 带针幅宽严格为正（口径同后端 CHECK），克重公差与氨纶含量非负（0 到 100 上限由后端 CHECK 拒）
+    // 带针幅宽严格为正（口径同后端 CHECK），克重公差非负（0 到 100 上限由后端 CHECK 拒）；
+    // 氨纶含量录入位已撤出档案面，其取值域判据仍留在后端 DTO 与 CHECK，不在此重复挂载
     width_needle_included_cm: [
       numericFormatRule('product.productFormDialogTab.validateWidthNeedleFormat', 2, true),
     ],
     weight_tolerance: [
       numericFormatRule('product.productFormDialogTab.validateWeightToleranceFormat', 2),
-    ],
-    spandex_percent: [
-      numericFormatRule('product.productFormDialogTab.validateSpandexPercentFormat', 2),
     ],
     min_order_quantity: [
       numericFormatRule('product.productFormDialogTab.validateMinOrderQuantityFormat', 2),
