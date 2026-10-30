@@ -205,10 +205,9 @@ impl CustomerService {
 
         // 状态门：已 inactive 的客户拒绝重复软删除
         if customer.status == master_data::INACTIVE {
-            return Err(AppError::business(format!(
-                "客户 {} 已删除，无需重复操作",
-                customer_id
-            )));
+            // 删除腿重复提交门：目标已是软删除态，归业务族；
+            // 文案点名公开规则，去掉内嵌客户内部 ID（只进 tracing），可外显
+            return Err(AppError::business_displayable("该客户已删除，无需重复操作"));
         }
 
         let mut customer_update: customer::ActiveModel = customer.into();

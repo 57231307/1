@@ -4,6 +4,7 @@
 //! 可配置为使用 SendGrid、阿里云邮件推送、腾讯云邮件等服务
 
 use crate::utils::error::AppError;
+use crate::utils::html_escape::{ensure_markup_safe, escape_html, scan_dangerous_markup};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use chrono::Utc;
@@ -17,22 +18,18 @@ use std::collections::HashMap;
 type HmacSha1 = Hmac<Sha1>;
 type HmacSha256 = Hmac<Sha256>;
 
-/// HTML 特殊字符转义，防止 XSS 攻击
-fn escape_html(input: &str) -> String {
-    let mut result = String::with_capacity(input.len());
-    for ch in input.chars() {
-        match ch {
-            '&' => result.push_str("&amp;"),
-            '<' => result.push_str("&lt;"),
-            '>' => result.push_str("&gt;"),
-            '"' => result.push_str("&quot;"),
-            '\'' => result.push_str("&#x27;"),
-            '/' => result.push_str("&#x2F;"),
-            _ => result.push(ch),
-        }
-    }
-    result
-}
+/// 通用发信出口的点名：所有直接调用与后台邮件队列 worker 都收敛到这一条腿，
+/// 检测拒绝的日志与 `email_logs.error_message` 里用它定位是哪条链路被拦。
+const GENERAL_SEND_SOURCE: &str = "通用发信出口（含邮件队列 worker）";
+
+/// HTML 直发出口的点名（事件通知与报表订阅两条腿共用）
+const HTML_SEND_SOURCE: &str = "HTML 直发出口";
+
+/// 纯文本直发出口的点名
+const TEXT_SEND_SOURCE: &str = "纯文本直发出口";
+
+/// 通知邮件出口的点名（正文为纯文本，模板内部完成转义）
+const NOTIFICATION_SEND_SOURCE: &str = "通知邮件出口";
 
 /// 缺陷 6.3 修复：单附件大小上限（25 MB）
 pub const MAX_SINGLE_ATTACHMENT_BYTES: usize = 25 * 1024 * 1024;
@@ -350,8 +347,30 @@ impl EmailService {
         }))
     }
 
-    /// 发送邮件
+    /// 发送邮件：所有邮件正文的唯一出口，HTML 正文在此完成危险标记检测。
+    /// 调用方：`EmailQueueWorker::process_one_email`（邮件队列腿）与任何直接发信方。
     pub async fn send_email(&self, message: EmailMessage) -> Result<(), AppError> {
+        self.send_email_from(message, GENERAL_SEND_SOURCE).await
+    }
+
+    /// 带出口点名的发送：HTML 正文命中危险标记就拒绝发送并点名出口与主题，不静默放行。
+    /// 入参：`source_label` 为本文件顶部的出口点名常量，随拒绝错误进日志。
+    /// 传给谁：`Self::dispatch_to_provider`；拒绝时错误由调用方处置，队列腿会把它写进
+    /// `email_logs.error_message`。
+    async fn send_email_from(
+        &self,
+        message: EmailMessage,
+        source_label: &str,
+    ) -> Result<(), AppError> {
+        if let Some(html_content) = message.html_content.as_deref() {
+            ensure_markup_safe(html_content, source_label, &message.subject)?;
+        }
+        self.dispatch_to_provider(message).await
+    }
+
+    /// 服务商路由，不含检测；只允许由已完成检测的 `Self::send_email_from` 与
+    /// `Self::send_html_email_declared` 调用，避免绕开防线。
+    async fn dispatch_to_provider(&self, message: EmailMessage) -> Result<(), AppError> {
         match self.config.provider.as_str() {
             "sendgrid" => self.send_via_sendgrid(message).await,
             "aliyun" => self.send_via_aliyun(message).await,
@@ -370,50 +389,76 @@ impl EmailService {
         subject: String,
         content: String,
     ) -> Result<(), AppError> {
-        self.send_email(EmailMessage {
-            to,
-            cc: None,
-            bcc: None,
-            subject,
-            html_content: None,
-            text_content: Some(content),
-            attachments: None,
-        })
+        self.send_email_from(
+            EmailMessage {
+                to,
+                cc: None,
+                bcc: None,
+                subject,
+                html_content: None,
+                text_content: Some(content),
+                attachments: None,
+            },
+            TEXT_SEND_SOURCE,
+        )
         .await
     }
 
-    /// 发送 HTML 邮件
-    /// ⚠️ 安全警告（M-5 修复）：调用方必须确保 `html_content` 中所有用户输入都经过 HTML 转义。；推荐使用 `EmailTemplate` 系列方法（`notification_template` / `order_notification` 等），；这些模板内部已自动对所有用户输入做 escape。；直接拼接用户输入到 HTML 中会导致邮件 XSS。
+    /// 发送 HTML 邮件：正文必须已由构造点完成 HTML 文本上下文转义。
+    /// 调用方：`EventNotificationService::send_email_notification`（事件通知腿）、
+    /// `ReportSubscriptionScheduler::execute_subscription`（报表订阅腿）。
+    /// 入参：`html_content` 已成形的正文，其中插值的业务字段值须经 `crate::utils::html_escape::escape_html`
+    /// 转义；模板自身的排版标记保持原样。
+    /// 传给谁：`Self::send_email_from`，出口点名后由通用发信出口做标记检测。
+    /// 行为：检出 `<script>`、标签上的 `on*` 事件属性、`javascript:` 一类伪协议链接或样式表达式时
+    /// 拒绝发送，错误文本点名发信出口、主题与命中类别；不做静默放行。
+    /// 需要携带这类内容只有两条正路：把值按文本上下文转义，或走 `Self::send_html_email_declared`
+    /// 做代码级显式声明。
     pub async fn send_html_email(
         &self,
         to: Vec<String>,
         subject: String,
         html_content: String,
     ) -> Result<(), AppError> {
-        // M-5 防御性检查：检测常见邮件 XSS 危险模式
-        // 注意：这不是完整的 XSS 过滤，仅作为防御纵深的最后一道防线
-        let dangerous_patterns = [
-            "<script",
-            "javascript:",
-            "onerror=",
-            "onload=",
-            "onclick=",
-            "onmouseover=",
-            "eval(",
-            "expression(",
-        ];
-        let lower_content = html_content.to_lowercase();
-        for pattern in &dangerous_patterns {
-            if lower_content.contains(pattern) {
-                tracing::warn!(
-                    "邮件 HTML 内容包含危险模式: pattern={}, subject_len={}",
-                    pattern,
-                    subject.len()
-                );
-            }
-        }
+        self.send_email_from(
+            EmailMessage {
+                to,
+                cc: None,
+                bcc: None,
+                subject,
+                html_content: Some(html_content),
+                text_content: None,
+                attachments: None,
+            },
+            HTML_SEND_SOURCE,
+        )
+        .await
+    }
 
-        self.send_email(EmailMessage {
+    /// 管理员编制正文的显式声明出口：检测照做，但命中项以 warn 日志留痕后仍然送出，不静默。
+    /// 调用方：确需携带被默认检测拒绝的内容（例如对外部系统回显的原始片段）时使用。
+    /// 入参：`declaration` 必须是调用点上的静态字面量（写清是谁授权的），不接受运行时拼接，
+    /// 目的是让每一次绕过都必须在代码里留名，可 grep 可复审。
+    /// 传给谁：`Self::dispatch_to_provider`。
+    /// 边界：默认出口 `Self::send_html_email` 的拒绝语义不受本方法影响；正文里来自业务字段的值
+    /// 仍然必须走转义，本方法只豁免"结构可信"的排版标记争议。
+    pub async fn send_html_email_declared(
+        &self,
+        to: Vec<String>,
+        subject: String,
+        html_content: String,
+        declaration: &'static str,
+    ) -> Result<(), AppError> {
+        for violation in scan_dangerous_markup(&html_content) {
+            tracing::warn!(
+                declaration = declaration,
+                rule = violation.rule,
+                detail = %violation.detail,
+                subject_len = subject.len(),
+                "已声明的 HTML 发信出口检出危险标记，按声明放行并逐条留痕"
+            );
+        }
+        self.dispatch_to_provider(EmailMessage {
             to,
             cc: None,
             bcc: None,
@@ -425,7 +470,9 @@ impl EmailService {
         .await
     }
 
-    /// 发送通知邮件（安全版本，自动 HTML 转义）（接受纯文本标题和内容，内部使用 `EmailTemplate::notification_template`；对所有用户输入进行 HTML 转义，防止邮件 XSS。）
+    /// 发送通知邮件：接受纯文本标题与正文，正文与本模块所有模板一样按 HTML 文本上下文转义。
+    /// 入参：`title` 标题（同时作邮件主题）、`content` 纯文本正文、`action_url` 可选跳转链接。
+    /// 传给谁：`EmailTemplate::notification_template`（纯文本正文途）构造正文，再交通用发信出口。
     pub async fn send_notification_email(
         &self,
         to: Vec<String>,
@@ -434,15 +481,18 @@ impl EmailService {
         action_url: Option<&str>,
     ) -> Result<(), AppError> {
         let html = EmailTemplate::notification_template(title, content, action_url);
-        self.send_email(EmailMessage {
-            to,
-            cc: None,
-            bcc: None,
-            subject: title.to_string(),
-            html_content: Some(html),
-            text_content: Some(content.to_string()),
-            attachments: None,
-        })
+        self.send_email_from(
+            EmailMessage {
+                to,
+                cc: None,
+                bcc: None,
+                subject: title.to_string(),
+                html_content: Some(html),
+                text_content: Some(content.to_string()),
+                attachments: None,
+            },
+            NOTIFICATION_SEND_SOURCE,
+        )
         .await
     }
 
@@ -910,11 +960,28 @@ fn hmac_sha256_bytes(key: &[u8], data: &[u8]) -> Vec<u8> {
 pub struct EmailTemplate;
 
 impl EmailTemplate {
-    /// 生成通知邮件 HTML 模板
-    /// 所有用户输入参数都会自动进行 HTML 转义，防止 XSS 攻击
+    /// 生成通知邮件 HTML 模板（纯文本正文途）。
+    /// 入参：`content` 是纯文本正文，不含任何排版标记，本函数整体转义后注入。
+    /// 传给谁：`EmailService::send_notification_email`。
+    /// 需要模板自带 `<p>`、`<strong>` 一类标记的调用方一律走
+    /// `Self::notification_template_with_safe_body`（可信正文途），两途由函数名区分，
+    /// 选错就会把标记转义成收件人可见的文本，用例可直接证伪。
     pub fn notification_template(title: &str, content: &str, action_url: Option<&str>) -> String {
+        Self::notification_template_with_safe_body(title, &escape_html(content), action_url)
+    }
+
+    /// 生成通知邮件 HTML 模板（可信正文途）。
+    /// 入参：`safe_body` 是调用方已完成值转义的 HTML 片段，本函数不再对它做二次转义；
+    /// `title` 与 `action_url` 仍由本函数负责转义。
+    /// 传给谁：`Self::order_notification`、`Self::inventory_alert` 这类"模板自带标记 + 插值已转义"
+    /// 的构造点；返回值交给 `EmailService` 的发信出口。
+    /// 存什么：只拼装结构，不改写 `safe_body` 的一个字符。
+    pub fn notification_template_with_safe_body(
+        title: &str,
+        safe_body: &str,
+        action_url: Option<&str>,
+    ) -> String {
         let safe_title = escape_html(title);
-        let safe_content = escape_html(content);
         let action_button = action_url.map(|url| {
             let safe_url = escape_html(url);
             format!(
@@ -949,11 +1016,16 @@ impl EmailTemplate {
     </div>
 </body>
 </html>"#,
-            safe_title, safe_title, safe_content, action_button
+            safe_title, safe_title, safe_body, action_button
         )
     }
 
-    /// 生成订单通知邮件
+    /// 生成订单通知邮件。
+    /// 入参：`order_no` 订单号（人工可录入）、`status` 状态中文串、`detail_url` 详情页路径。
+    /// 传给谁：`EmailTemplate::notification_template_with_safe_body`（可信正文途），
+    /// 再由 `EventNotificationService` 交给 `EmailService::send_html_email`。
+    /// 存什么：订单号与状态先按 HTML 文本上下文转义，再拼进带 `<strong>` 标记的片段，
+    /// 标记本身不再被二次转义。
     pub fn order_notification(order_no: &str, status: &str, detail_url: &str) -> String {
         let safe_order_no = escape_html(order_no);
         let safe_status = escape_html(status);
@@ -963,13 +1035,16 @@ impl EmailTemplate {
             <p>请登录系统查看详细信息。</p>"#,
             safe_order_no, safe_status
         );
-        Self::notification_template("订单状态更新", &content, Some(detail_url))
+        Self::notification_template_with_safe_body("订单状态更新", &content, Some(detail_url))
     }
 
     /// V15 P0-S14 死代码清理（批次 461）：删除 approval_notification 邮件模板方法
     /// 原因：唯一调用方 EventNotificationService::notify_pending_approval 已被删除，；该方法变为真实死代码。依据死代码处理规范第六章「真正未使用的项应显式删除」。
     //
-    /// 生成库存预警邮件
+    /// 生成库存预警邮件。
+    /// 入参：`product_name` 产品名（人工录入）、`current_stock` 与 `threshold` 为数量展示串。
+    /// 传给谁：`EmailTemplate::notification_template_with_safe_body`（可信正文途）。
+    /// 存什么：三个值先转义成文本，再拼进 `<strong>` 标记片段，避免把排版标记二次转义。
     pub fn inventory_alert(product_name: &str, current_stock: &str, threshold: &str) -> String {
         let safe_product_name = escape_html(product_name);
         let safe_current_stock = escape_html(current_stock);
@@ -982,6 +1057,6 @@ impl EmailTemplate {
             <p style="color: #ff4d4f;">请及时补货！</p>"#,
             safe_product_name, safe_current_stock, safe_threshold
         );
-        Self::notification_template("库存预警通知", &content, None)
+        Self::notification_template_with_safe_body("库存预警通知", &content, None)
     }
 }

@@ -143,11 +143,17 @@ pub async fn get_rankings(
     Ok(Json(ApiResponse::success(rankings)))
 }
 
+/// 销售目标列表 —— `GET targets` 路由，出参 `Vec<SalesTargetDto>`（含前端渲染的
+/// target_amount/actual_amount/completion_rate/variance/status 五枚派生键，
+/// 唯一构造点在 service `to_target_dto`，本 handler 只透传）。
+/// 谁调：前端 `api/sales-analysis.ts::getSalesTargetList`（销售分析目标卡片）。
+/// 入参：page/page_size（clamp 同前）+ 登录者数据范围 + 共享缓存（透传取数腿）。
+/// 实际成交额现算 `sales_orders`（复用 BI 聚合），周期无法对齐的行派生列为 null。
 pub async fn get_targets(
     Query(params): Query<TargetQuery>,
     State(state): State<AppState>,
     auth: AuthContext,
-) -> Result<Json<ApiResponse<Vec<sales_analysis::Model>>>, AppError> {
+) -> Result<Json<ApiResponse<Vec<SalesTargetDto>>>, AppError> {
     info!("用户 {} 正在查询销售目标", auth.user_id);
 
     let service = SalesAnalysisService::new(state.db.clone());
@@ -155,6 +161,8 @@ pub async fn get_targets(
         .get_targets(
             params.page.unwrap_or(1).clamp(1, 1000),
             params.page_size.unwrap_or(10).clamp(1, 100),
+            auth.to_data_scope_context(),
+            state.cache.clone(),
         )
         .await?;
     info!("销售目标查询成功，共 {} 条记录", targets.len());
@@ -176,14 +184,19 @@ pub async fn create_target(
     Ok(Json(ApiResponse::success(target)))
 }
 
-/// GET /api/v1/erp/sales-analysis/stats - 销售概览统计
+/// GET /api/v1/erp/sales-analysis/stats - 销售概览统计。
+/// 数据源为现算 `sales_orders` 月桶（service 复用 BI 聚合，不再读零写入方的
+/// `sales_statistics`）；按登录者数据范围过滤并透传共享缓存（写法同
+/// `get_targets`/`update_sales_target` 先例），出参序列化后原样返回。
 pub async fn get_stats(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
-    info!("正在获取销售概览统计");
+    info!("用户 {} 正在获取销售概览统计", auth.user_id);
     let service = SalesAnalysisService::new(state.db.clone());
-    let stats = service.get_overview_stats().await?;
+    let stats = service
+        .get_overview_stats(auth.to_data_scope_context(), state.cache.clone())
+        .await?;
     Ok(Json(ApiResponse::success(serde_json::to_value(stats)?)))
 }
 
@@ -218,15 +231,24 @@ pub async fn get_customer_ranking(
 }
 
 /// PUT /api/v1/erp/sales-analysis/targets/:period - 更新销售目标
+/// 出参 `SalesTargetDto`：派生键与 GET 列表共用 service 唯一映射点构造，
+/// 实际成交额按登录者数据范围现算（透传数据范围与共享缓存给取数腿）。
 pub async fn update_sales_target(
     State(state): State<AppState>,
-    _auth: AuthContext,
+    auth: AuthContext,
     Path(period): Path<String>,
     Json(req): Json<UpdateSalesTargetRequest>,
 ) -> Result<Json<ApiResponse<SalesTargetDto>>, AppError> {
-    info!("正在更新销售目标，周期：{}", period);
+    info!("用户 {} 正在更新销售目标，周期：{}", auth.user_id, period);
     let service = SalesAnalysisService::new(state.db.clone());
-    let target = service.update_target(&period, req).await?;
+    let target = service
+        .update_target(
+            &period,
+            req,
+            auth.to_data_scope_context(),
+            state.cache.clone(),
+        )
+        .await?;
     Ok(Json(ApiResponse::success(target)))
 }
 

@@ -316,10 +316,11 @@ impl LabDipSampleService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         if model.matching_result != sample_status::PENDING {
-            return Err(AppError::business(format!(
-                "对色结果 {} 不可删除（仅 pending 状态可删除）",
-                model.matching_result
-            )));
+            // 删除腿状态门：仅待处理对色结果可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅待处理状态的对色结果可以删除",
+            ));
         }
 
         let mut active: SampleActiveModel = model.into();

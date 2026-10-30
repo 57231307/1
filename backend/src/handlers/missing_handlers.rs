@@ -219,7 +219,10 @@ pub async fn delete_accounting_period(
         .ok_or_else(|| AppError::not_found(format!("会计期间 {} 不存在", id)))?;
 
     if period.status == "CLOSED" {
-        return Err(AppError::business("已结账的会计期间不可删除".to_string()));
+        // 删除腿状态门：已结账期间拒绝删除，公开业务规则、不含标识，可外显
+        return Err(AppError::business_displayable(
+            "已结账的会计期间不可删除".to_string(),
+        ));
     }
 
     // 不允许删除存在凭证的期间
@@ -229,10 +232,11 @@ pub async fn delete_accounting_period(
         .count(state.db.as_ref())
         .await?;
     if voucher_count > 0 {
-        return Err(AppError::business(format!(
-            "该会计期间存在 {} 张凭证，不可删除",
-            voucher_count
-        )));
+        // 删除腿引用门：期间内已有凭证即拒绝删除，归业务族；
+        // 文案点名公开规则，去掉查询所得凭证计数（只进 tracing），可外显
+        return Err(AppError::business_displayable(
+            "该会计期间已存在凭证，不可删除，请先处理期内凭证",
+        ));
     }
 
     let active: accounting_period::ActiveModel = period.into();

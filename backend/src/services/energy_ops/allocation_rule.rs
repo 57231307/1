@@ -226,10 +226,11 @@ impl EnergyAllocationRuleService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         if model.status != energy_rule_status::DRAFT {
-            return Err(AppError::business(format!(
-                "仅草稿(draft)状态可删除，当前状态: {}",
-                model.status
-            )));
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的分摊规则可以删除",
+            ));
         }
         let mut active: RuleActiveModel = model.into();
         active.is_deleted = Set(true);

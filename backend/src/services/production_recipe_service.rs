@@ -239,10 +239,11 @@ impl ProductionRecipeService {
     /// 校验：仅 draft 状态可删除
     pub fn validate_can_delete(status: &str) -> Result<(), AppError> {
         if status != recipe_status::DRAFT {
-            return Err(AppError::business(format!(
-                "当前状态 {} 不可删除（仅 draft 可删除）",
-                status
-            )));
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案改为静态公开规则（去掉词表原值插值，真实状态只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的生产配方可以删除",
+            ));
         }
         Ok(())
     }

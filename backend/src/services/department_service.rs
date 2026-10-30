@@ -431,7 +431,11 @@ impl DepartmentService {
             .await?;
 
         if children_count > 0 {
-            return Err(AppError::business("该部门存在子部门，无法删除".to_string()));
+            // 删除腿引用门：存在未清理的子部门即拒绝，归业务族；
+            // 文案点名公开规则与出路，不含计数与标识，可外显
+            return Err(AppError::business_displayable(
+                "该部门存在子部门，无法删除，请先处理子部门".to_string(),
+            ));
         }
 
         // 检查是否有用户关联此部门
@@ -441,10 +445,11 @@ impl DepartmentService {
             .await?;
 
         if user_count > 0 {
-            return Err(AppError::business(format!(
-                "该部门下有 {} 个用户，请先移除用户的部门关联后再删除",
-                user_count
-            )));
+            // 删除腿引用门：仍有用户挂靠即拒绝，归业务族；
+            // 文案点名公开规则与出路，去掉查询所得用户计数（只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "该部门下仍有用户，请先移除用户的部门关联后再删除",
+            ));
         }
 
         // P0 8-3 修复：delete 操作补审计日志
