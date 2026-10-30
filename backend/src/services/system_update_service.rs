@@ -4,8 +4,9 @@
 //! - 公共类型定义（`LocalRelease` / `LocalUpdateCheckResult` / `GitHubRelease` /
 //!   `GitHubAsset` / `UpdateCheckResult` / `UpdateStatus` / `UpdateError`）
 //! - `SystemUpdateService` struct 定义 + `new` 构造器 + `Default` 实现
-//! - 仓身份真源：常量 `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` 与 `resolve_github_repo` /
-//!   `github_repo`（`pub`，供 ops 子模块、`cli` 升级链与一致性契约测试取用）、`GITHUB_API_URL`（`pub(crate)`）
+//! - 仓身份真源：常量 `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME`、纯解析函数 `resolve_github_repo`
+//!   （`pub`，供一致性契约测试直接取用）、进程读取包装 `github_repo`（`pub`，返回
+//!   `Result<String, String>`，供 ops 子模块与 `cli` 升级链取用）、`GITHUB_API_URL`（`pub(crate)`）
 //! - 纯函数：`parse_version` / `extract_zip_entry` / `set_safe_permissions` /
 //!   `validate_download_url` / `validate_asset_name`（`pub(crate)` 供 ops 子模块调用）
 //! - 单元测试模块
@@ -87,13 +88,15 @@ pub fn resolve_github_repo(override_value: Option<&str>) -> Result<String, Strin
     Ok(format!("{owner}/{name}"))
 }
 
-/// 取当前生效的仓身份，覆盖值非法即 panic 点名，绝不静默回落缺省仓。
-pub fn github_repo() -> String {
+/// 取当前生效的仓身份：读 `UPDATE__GITHUB_REPO` 后转调纯函数 `resolve_github_repo`，
+/// 覆盖值非法原样返回拒绝理由，绝不静默回落缺省仓（回落会让更新检查悄悄指向另一个仓）。
+///
+/// 入参无（环境变量即输入），返回 `owner/name` 或拒绝理由；调用方是 `system_update_ops::github`
+/// 的两处 API URL 拼装与 `cli::util` 的升级链。做成 `Result` 而不是直接 panic：服务层调用点
+/// 处在 HTTP 请求线程上，panic 会崩掉整条请求且拿不到可读结论，必须由调用方转成业务错误早退。
+pub fn github_repo() -> Result<String, String> {
     let raw = std::env::var(GITHUB_REPO_ENV).ok();
-    match resolve_github_repo(raw.as_deref()) {
-        Ok(repo) => repo,
-        Err(reason) => panic!("{reason}"),
-    }
+    resolve_github_repo(raw.as_deref())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

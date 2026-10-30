@@ -16,7 +16,9 @@
 //! - `download_update` 调用 `apply::log_update`（`pub(crate)`）+ facade 纯函数
 //!  `validate_asset_name` / `validate_download_url`（`pub(crate)`）
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
-//! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL`（`pub(crate)`）与仓身份 `github_repo()`（`pub`）
+//! - `fetch_latest_release` 与 `fetch_release_by_tag` 使用 facade 常量 `GITHUB_API_URL`（`pub(crate)`）
+//!   与仓身份 `github_repo()`（`pub`，返回 `Result`）；取不到合法身份即转 `UpdateError::ValidationError`
+//!   早退，URL 不拼半截，出参由 facade 的 `From<UpdateError> for AppError` 映射成面向运维的可读校验错误
 
 use crate::config::settings::{
     DEFAULT_RELEASE_MIRRORS, MirrorOrder, UpdateConfig, global_update_config,
@@ -75,7 +77,10 @@ impl SystemUpdateService {
     }
 
     async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
-        let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, github_repo());
+        // 仓身份取自 facade 唯一真源；覆盖值非法时拒绝原因原样透出并早退，
+        // 不在请求线程里崩掉，也不回落到缺省仓去查另一个仓的 release。
+        let repo = github_repo().map_err(UpdateError::ValidationError)?;
+        let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, repo);
 
         // M-1 修复（v9 复审）：对齐 download_update 的 SSRF 防护
         // 原 L1 修复仅添加重定向限制，未用 resolve_to_addrs 防 DNS Rebinding
@@ -128,10 +133,12 @@ impl SystemUpdateService {
         &self,
         version: &str,
     ) -> Result<Option<GitHubRelease>, UpdateError> {
+        // 同上：身份非法就带着拒绝理由早退，不拿半截 URL 去发请求
+        let repo = github_repo().map_err(UpdateError::ValidationError)?;
         let url = format!(
             "{}/repos/{}/releases/tags/v{}",
             GITHUB_API_URL,
-            github_repo(),
+            repo,
             version
         );
 
