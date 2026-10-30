@@ -111,6 +111,10 @@ export const PERMISSIONS = {
   QUOTATION_UPDATE: 'quotations:update',
   QUOTATION_DELETE: 'quotations:delete',
   QUOTATION_CANCEL: 'quotations:cancel',
+  // 提交/通过/拒绝是三条独立端点，运行时键由 URL 末段动作派生，各用各的键，禁止互相兼职放行。
+  QUOTATION_SUBMIT: 'quotations:submit',
+  QUOTATION_APPROVE: 'quotations:approve',
+  QUOTATION_REJECT: 'quotations:reject',
 
   // 销售价格（后端资源：sales-prices）
   SALES_PRICE_READ: 'sales-prices:read',
