@@ -505,7 +505,9 @@ impl CrmService {
 
         if let Some(status) = &opportunity.opportunity_status {
             if status == opp_status::CLOSED_WON {
-                return Err(AppError::business("已赢单的商机不能删除".to_string()));
+                // 删除腿状态门：已赢单前置状态不满足删除条件，归业务族；
+                // 文案点名公开规则，不含标识，可外显
+                return Err(AppError::business_displayable("已赢单的商机不能删除"));
             }
         }
 

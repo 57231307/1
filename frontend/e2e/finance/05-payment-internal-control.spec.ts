@@ -35,6 +35,8 @@ async function seedApprovedInvoice(
   supplierId: number
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
+  // 本轮专属隔离标识写入备注业务列，供残留数据可与后续任何轮次区分（隔离硬要求一）。
+  const stamp = Date.now();
   // tax_amount 显式提交 0：后端对税额缺键点名拒绝，0 是建单方的声明值（本票无进项税），
   // 本夹具只服务付款内控断言，票面税额不涉及进项税。
   const inv = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/invoices', {
@@ -44,6 +46,7 @@ async function seedApprovedInvoice(
     tax_amount: 0,
     invoice_date: today,
     due_date: today,
+    notes: `E2E内控发票隔离 ${stamp}`,
   });
   const id = Number(inv.id);
   if (!id) throw new Error(`建应付单失败：${JSON.stringify(inv)}`);
@@ -78,6 +81,7 @@ async function createDraftRequest(
   amount: number
 ): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
+  // 明细备注带本轮专属隔离标识，残留申请行可按此区分（隔离硬要求一）
   const req = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payment-requests', {
     supplier_id: supplierId,
     request_date: today,
@@ -85,7 +89,7 @@ async function createDraftRequest(
     payment_method: 'TT',
     request_amount: amount,
     currency: 'CNY',
-    items: [{ invoice_id: invoiceId, apply_amount: amount, notes: 'E2E 内控' }],
+    items: [{ invoice_id: invoiceId, apply_amount: amount, notes: `E2E 内控隔离 ${Date.now()}` }],
   });
   const id = Number(req.id);
   if (!id) throw new Error(`建付款申请失败：${JSON.stringify(req)}`);
@@ -176,14 +180,20 @@ test.describe('05 AP 付款方案B内控负向', () => {
     await apiCall(page, 'POST', `/ap/payment-requests/${requestId}/approve`);
 
     // 建付款时恶意附带一个不存在的 payment_amount 字段（后端 DTO 无此字段，应被忽略）。
+    // notes 业务列写入本轮专属隔离标识，本轮残留付款行可与后续任何轮次区分（隔离硬要求一）。
     const pay = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/ap/payments', {
       request_id: requestId,
       payment_date: today,
       payment_amount: 999999,
+      notes: `E2E 内控付款隔离 ${Date.now()}`,
     });
     const paymentId = Number(pay.id);
     if (!paymentId) throw new Error(`建付款单失败：${JSON.stringify(pay)}`);
-    CLEANUP.push({ path: `/ap/payments/${paymentId}`, label: 'ap_payment' });
+    // 本族路由在后端只注册了列表、建单、单读、更新、confirm、print、schedule 七个端点，
+    // 付款根记录没有 DELETE、cancel、void 任何终止腿，同前缀不存在可换的真腿，
+    // 打向不存在的删除端点的清理请求恒被路由层拒绝，故不发该请求并按隔离处置。
+    // 本用例全部断言按本轮自建付款单 id 与申请 id 精确回读（实付金额与来源申请回指），
+    // 没有任何依赖库干净度的计数或唯一性判定，残留行不可能污染后续用例（隔离硬要求二）。
 
     // 回读付款单：金额取申请派生值 777，而非注入的 999999 → 证明"手填金额"被内控消灭；
     // request_id 应逐字段回指本例审批通过的申请，证明付款确由申请派生而非凭空建单。

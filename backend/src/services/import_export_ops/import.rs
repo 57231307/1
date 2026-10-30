@@ -70,81 +70,44 @@ impl ImportExportService {
         })
     }
 
-    /// 导入产品行
+    /// 导入产品行（数据导入中心 /import/excel 的 products 腿，按位读列）
+    /// 列序契约与列集合来自产品导入权威表（services::product_ops::import_export::PRODUCT_IMPORT_COLUMNS）：
+    /// 模板面 元数据面 注册表面与本腿按同一张表的列序 zip（形态同 crm 线索腿「列序即导入器按位读列的次序」锁型），
+    /// 增删列或调换顺序只改权威表一处，模板与读列自动同序，不可能错位。
+    /// 落库前过与单条 HTTP 与产品 CSV 导入同一组建品判据（必录 分级 取值域 安全类别，
+    /// validate_product_create_gates），面料类（坯布 成品布）缺 幅宽 克重 面料成分 任一整行拒绝；
+    /// 不再把产品类型静默写成词表外的 "GENERAL" 硬编码绕过分级必填（该值不在 product_type::ALL_TYPES，
+    /// 历史行为属把分级门改道，非兼容面）。ActiveModel 构造与类别外键预校验共用 crud 的同一份函数。
+    /// ES 同步维持本腿既有形态（改动前后都不经 create_product 的 PG→ES 腿，缺口记交接单）。
     async fn import_product_row(&self, row: &[String], _user_id: i32) -> Result<(), AppError> {
-        use crate::models::product::{ActiveModel as ProductActiveModel, Entity as ProductEntity};
+        use crate::models::product::Column as ProductCol;
+        use crate::models::product::Entity as ProductEntity;
+        use crate::services::product_service::ProductService;
 
-        let code = row
-            .first()
-            .map(|s| s.trim().to_string())
-            .unwrap_or_default();
-        let name = row.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
-        let _category = row.get(2).map(|s| s.trim().to_string()).unwrap_or_default();
-        let unit = row
-            .get(3)
-            .map(|s| s.trim().to_string())
-            .unwrap_or("个".to_string());
-        // 批次 403 修复：价格列非空时必须可解析为 f64，失败时返回验证错误而非静默写 0。
-        // 原 unwrap_or(0.0) 会让 "abc" 等非法价格静默变成 0，导致产品以错误成本价入库。
-        let price = match row.get(4) {
-            Some(s) if !s.trim().is_empty() => s.trim().parse::<f64>().map_err(|_| {
-                AppError::validation_displayable(format!(
-                    "产品 {} 的价格列无法解析为数字: {}",
-                    code, s
-                ))
-            })?,
-            _ => 0.0,
-        };
+        let map = ProductService::product_import_map_from_positional(row);
+        // 行级必填与形态校验：与 /products/import 同一实现（权威表 required 位驱动，文案同形态），
+        // 首错即拒并点名真实列。
+        let validated = ProductService::validate_import_row_fields(&map)
+            .map_err(|issue| AppError::validation_displayable(issue.message))?;
+        let args = ProductService::build_csv_create_args(&map, &validated);
 
-        if code.is_empty() || name.is_empty() {
-            return Err(AppError::validation_displayable(
-                "产品编码和名称不能为空".to_string(),
-            ));
-        }
+        // 建品判据三连（必录 取值域 安全类别），与单条与 CSV 导入两路同门。
+        ProductService::validate_product_create_gates(&args)?;
+        // ActiveModel 共用构造（类型规范化与全列透传只此一份形态）。
+        let active_model = ProductService::product_active_model_from_args(&args)?;
 
-        // 检查编码是否已存在
+        // 检查编码是否已存在（本腿既有语义：业务错误点名，不让它撞库级唯一约束）
         let existing = ProductEntity::find()
-            .filter(crate::models::product::Column::Code.eq(&code))
+            .filter(ProductCol::Code.eq(&args.code))
             .one(&*self.db)
             .await?;
 
         if existing.is_some() {
-            return Err(AppError::business(format!("产品编码 {} 已存在", code)));
+            return Err(AppError::business(format!("产品编码 {} 已存在", args.code)));
         }
 
-        let now = chrono::Utc::now();
-        let active_model = ProductActiveModel {
-            id: Default::default(),
-            code: Set(code),
-            name: Set(name),
-            category_id: Set(None),
-            specification: Set(None),
-            unit: Set(unit),
-            standard_price: Set(Some(
-                rust_decimal::Decimal::from_f64_retain(price).unwrap_or_default(),
-            )),
-            cost_price: Set(None),
-            description: Set(None),
-            status: Set(master_data::ACTIVE.to_string()),
-            is_deleted: Set(false),
-            created_at: Set(now),
-            updated_at: Set(now),
-            product_type: Set("GENERAL".to_string()),
-            fabric_composition: Set(None),
-            yarn_count: Set(None),
-            density: Set(None),
-            width: Set(None),
-            gram_weight: Set(None),
-            structure: Set(None),
-            finish: Set(None),
-            min_order_quantity: Set(None),
-            lead_time: Set(None),
-            supplier_product_code: Set(None),
-            supplier_id: Set(None),
-            is_batch_managed: Set(None),
-            batch_level: Set(None),
-            ..Default::default()
-        };
+        // 类别外键预校验与单条建品同一份判据，非法类别点名拒绝不落 500。
+        ProductService::require_product_category_exists(&*self.db, args.category_id).await?;
 
         active_model.insert(&*self.db).await?;
 

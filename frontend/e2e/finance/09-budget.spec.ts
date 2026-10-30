@@ -13,6 +13,8 @@
 // 说明：花费超出"可用预算"的同步拦截（enforce_budget_available）挂在采购下单预算门
 //   （services/po/order_ops/crud.rs），属采购域，不在财务域自控端点内；本套件覆盖财务域自有、
 //   同步、可确定复现的预算一致性拒绝，全部断真实状态码 + 机器码 + 回读数值。
+// 收尾口径：预算方案族后端没有删除腿，本轮自建方案统一走已注册的驳回跃迁腿置为 rejected 终态，
+//   并回读断状态字面值真实落库、重复驳回被状态门拒绝；方案行以唯一方案号残留，断言只按本轮 id 精确回读。
 import { test, expect } from '../diagnose-fixture';
 import {
   loginViaUI,
@@ -67,9 +69,12 @@ async function seedPlan(
   });
   const id = Number(res.id);
   if (!id) throw new Error(`建方案失败：${JSON.stringify(res)}`);
-  CLEANUP.push({ path: `/budgets/plans/${id}`, label: 'budget_plan' });
   return id;
 }
+
+// 预算方案收尾：方案族没有删除腿，三处用例末尾各以字面量路径直发已注册的驳回跃迁腿，
+// 把本轮自建方案从 draft 置为 rejected 终态；回读断状态字面值真实落库、总额未动，
+// 再对已驳回方案重复驳回断 400 与规则文案，证明该方案已离开仅草稿可驳回的待审白名单。
 
 test.describe('09 预算端到端与一致性', () => {
   test.beforeEach(async ({ page }) => {
@@ -128,6 +133,30 @@ test.describe('09 预算端到端与一致性', () => {
       `/budgets/control/${planId}/data`
     );
     expect(num(control, 'total_amount'), '控制数据应回读方案头总额 1000').toBe(1000);
+
+    // 收尾：方案无删除腿，以字面量路径直发已注册的驳回跃迁腿置终态并回读生效。
+    await apiCallRaw<Record<string, unknown>>(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 收尾驳回',
+    });
+    // 回读断真腿生效：状态字面值为 rejected（不是只断请求返回码），且驳回不得改动方案总额。
+    const retired = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/budgets/plans/${planId}`
+    );
+    expect(String(retired.status), '驳回落库后方案状态应为 rejected 字面值').toBe('rejected');
+    expect(num(retired, 'total_amount'), '驳回不得改动方案总额').toBe(1000);
+    // 离开待审侧的行为学证据：方案列表接口无状态筛选参数，对已驳回方案重复驳回应被状态门拒绝。
+    const reReject = await apiCallExpectFail(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 对已驳回方案重复驳回',
+    });
+    expect(reReject.status, `重复驳回应被状态门拒 400，实际=${reReject.status}`).toBe(400);
+    expect(failureCode(reReject), `机器码应为 BUSINESS_ERROR，实际=${reReject.code}`).toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+    expect(reReject.message, '状态门应回显仅草稿可驳回的规则文案原文').toBe(
+      '预算方案状态不允许驳回（仅草稿状态可驳回）'
+    );
   });
 
   test('09-02 期间分解之和 ≠ 年度计划 → 建明细被拒（400 VALIDATION_ERROR）', async ({ page }) => {
@@ -152,6 +181,29 @@ test.describe('09 预算端到端与一致性', () => {
       APP_ERROR_CODES.VALIDATION_ERROR
     );
     expect(fail.message, '脱敏站点 message 应为固定验证失败常量').toBe('请求参数验证失败');
+
+    // 收尾：本轮方案未被任何成功写路径改动过状态，仍为草稿，以字面量路径直发驳回跃迁腿置终态。
+    await apiCallRaw<Record<string, unknown>>(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 收尾驳回',
+    });
+    const retiredPlan = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/budgets/plans/${planId}`
+    );
+    expect(String(retiredPlan.status), '驳回落库后方案状态应为 rejected 字面值').toBe('rejected');
+    expect(num(retiredPlan, 'total_amount'), '驳回不得改动方案总额').toBe(1000);
+    // 重复驳回被状态门拒绝，证明方案已离开仅草稿可驳回的待审白名单。
+    const dupReject = await apiCallExpectFail(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 对已驳回方案重复驳回',
+    });
+    expect(dupReject.status, `重复驳回应被状态门拒 400，实际=${dupReject.status}`).toBe(400);
+    expect(failureCode(dupReject), `机器码应为 BUSINESS_ERROR，实际=${dupReject.code}`).toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+    expect(dupReject.message, '状态门应回显仅草稿可驳回的规则文案原文').toBe(
+      '预算方案状态不允许驳回（仅草稿状态可驳回）'
+    );
   });
 
   test('09-03 明细合计超过方案总额 → 审批方案被拒（400 BUSINESS_ERROR）', async ({ page }) => {
@@ -192,5 +244,30 @@ test.describe('09 预算端到端与一致性', () => {
     );
     expect(String(planAfter.status), '审批被拒后方案应仍为 draft').toBe('draft');
     expect(num(planAfter, 'total_amount'), '审批被拒不得改动方案总额').toBe(1000);
+
+    // 收尾：审批被状态门拒后方案仍为草稿，以字面量路径直发驳回跃迁腿置终态并回读生效。
+    await apiCallRaw<Record<string, unknown>>(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 收尾驳回',
+    });
+    const retiredAfterApproveFail = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/budgets/plans/${planId}`
+    );
+    expect(String(retiredAfterApproveFail.status), '驳回落库后方案状态应为 rejected 字面值').toBe(
+      'rejected'
+    );
+    expect(num(retiredAfterApproveFail, 'total_amount'), '驳回不得改动方案总额').toBe(1000);
+    // 重复驳回被状态门拒绝，证明方案已离开仅草稿可驳回的待审白名单。
+    const rejectAgain = await apiCallExpectFail(page, 'POST', `/budgets/plans/${planId}/reject`, {
+      approval_comment: 'E2E 对已驳回方案重复驳回',
+    });
+    expect(rejectAgain.status, `重复驳回应被状态门拒 400，实际=${rejectAgain.status}`).toBe(400);
+    expect(failureCode(rejectAgain), `机器码应为 BUSINESS_ERROR，实际=${rejectAgain.code}`).toBe(
+      APP_ERROR_CODES.BUSINESS_ERROR
+    );
+    expect(rejectAgain.message, '状态门应回显仅草稿可驳回的规则文案原文').toBe(
+      '预算方案状态不允许驳回（仅草稿状态可驳回）'
+    );
   });
 });

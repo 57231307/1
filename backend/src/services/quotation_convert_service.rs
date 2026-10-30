@@ -39,7 +39,7 @@ enum UnitStrategy {
     Yards,
     /// 匹制：pieces_to_meters(× meters_per_piece)
     Pieces,
-    /// 卷制：rolls_to_meters(× meters_per_roll)
+    /// 卷制：rolls_to_meters(× meters_per_piece，一卷即一匹)
     Rolls,
     /// 公斤制：quantity 即公斤数，米数走 kg_to_meters
     Kilograms,
@@ -303,10 +303,10 @@ impl QuotationConvertService {
     /// 按报价行单位与产品换算元数据，把交易量换算为订单行米/公斤双计量。
     ///
     /// - 米：quantity 即米数；码：`yards_to_meters`（米↔码率真源在 converter，1 米 = 1.0936 码）；
-    /// - 匹：`pieces_to_meters(× product.meters_per_piece)`；卷：`rolls_to_meters(× product.meters_per_roll)`；
+    /// - 匹：`pieces_to_meters(× product.meters_per_piece)`；卷：`rolls_to_meters(× product.meters_per_piece)`（一卷即一匹）；
     /// - 公斤：quantity 即公斤数，米数走 `kg_to_meters(克重×幅宽)`；
     /// - 米→公斤统一走 `meters_to_kg(gram_weight × width_cm ÷ 1000)`；
-    /// - 元数据缺失（克重/幅宽/每匹米数/每卷米数）或不支持单位（件/条/吨等）：
+    /// - 元数据缺失（克重、幅宽、每匹米数）或不支持单位（件、条、吨等）：
     ///   明确 AppError 拒绝，绝不静默写 0 或猜测——与 converter 对 ≤0 入参直接 Err 的既有语义同源。
     fn convert_item_quantity_to_dual_units(
         item: &sales_quotation_item::Model,
@@ -361,13 +361,14 @@ impl QuotationConvertService {
                 (meters, meters_to_kg(meters)?)
             }
             UnitStrategy::Rolls => {
-                let meters_per_roll = product.meters_per_roll.ok_or_else(|| {
+                // 一卷即一匹的现网口径：按卷换算共用每匹米数列（products 每卷米数列已废弃）
+                let meters_per_piece = product.meters_per_piece.ok_or_else(|| {
                     AppError::validation(format!(
-                        "报价单转订单失败：产品 {} 按「卷」计价但缺少每卷米数(meters_per_roll)换算元数据，无法换算米数（拒绝以 0 或猜测值兜底）",
+                        "报价单转订单失败：产品 {} 按「卷」计价但缺少每匹米数(meters_per_piece)换算元数据，无法换算米数（拒绝以 0 或猜测值兜底）",
                         item.product_id
                     ))
                 })?;
-                let meters = DualUnitConverter::rolls_to_meters(qty, meters_per_roll)
+                let meters = DualUnitConverter::rolls_to_meters(qty, meters_per_piece)
                     .map_err(|e| Self::converter_err(item, e))?;
                 (meters, meters_to_kg(meters)?)
             }

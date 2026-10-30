@@ -8,8 +8,8 @@
 //! 注：基础单条/批量分配已由 `crm_assignment_handler` + `assignment_history_service` 提供。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, ExprTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, ExprTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -79,7 +79,10 @@ pub struct TransferLeadResult {
     pub lead_id: i32,
     pub lead_no: String,
     pub from_user_id: i32,
-    pub from_user_name: String,
+    /// 原归属人展示名。None 表达"原归属人不可解析出展示名"的形态（审批链客户腿
+    /// 可能遇到公海 0 或悬空引用；线索腿取自 crm_lead.owner_name 列恒为 Some）。
+    /// 调用方遇 None 不得以空串或造名顶替——本字段语义是"有真名才展示"。
+    pub from_user_name: Option<String>,
     pub to_user_id: i32,
     pub to_user_name: String,
     pub transferred_at: chrono::DateTime<chrono::Utc>,
@@ -271,9 +274,41 @@ impl CrmAssignService {
 
     /// 转移线索归属人（带审计）：校验 + 事务内更新归属人 + 写历史
     /// 业务规则：线索未转化、新归属人活跃、非自转、记录 TRANSFER 历史
+    ///
+    /// 事务边界：本函数自开事务并整体提交；需要"转移执行与调用方写库同事务"的
+    /// 调用方（客户转移审批链通过后与审批跃迁原子落库）直呼 `transfer_lead_in`，
+    /// 两腿共用同一核心实现，判据与门只有一份。
     pub async fn transfer_lead(
         &self,
         req: TransferLeadRequest,
+        operator_id: i32,
+        operator_name: &str,
+    ) -> Result<TransferLeadResult, AppError> {
+        let txn = (*self.db).begin().await?;
+        let result = self
+            .transfer_lead_in(&txn, &req, operator_id, operator_name)
+            .await?;
+        txn.commit().await?;
+        info!(
+            "用户 {} 将线索 {} 从用户 {} 转移给用户 {}",
+            operator_id, result.lead_id, result.from_user_id, result.to_user_id
+        );
+        Ok(result)
+    }
+
+    /// 在调用方事务内执行线索归属转移（转移核心的唯一实现，公开腿与审批执行腿共用）。
+    ///
+    /// 功能：与 `transfer_lead` 同判据同写入序列（原因非空 → 线索可转移门 → 新归属人
+    /// 活跃门 → 更新归属 → 写 TRANSFER 历史），差别仅在事务由调用方开启与提交，
+    /// 任一步失败由调用方整体回滚，不留"状态已翻、转移未执行"的半态。
+    /// 调用方：`CrmAssignService::transfer_lead`（自开事务包装，行为逐字不变）与
+    /// `customer_transfer_approval_service.rs::execute_transfer_in`（审批通过后的执行腿）。
+    /// 门不放宽：`fetch_lead_for_transfer` 的 CONVERTED 拒绝与自转拒绝原样生效，
+    /// 本函数不携带任何来源/绕过参数。
+    pub(crate) async fn transfer_lead_in(
+        &self,
+        txn: &DatabaseTransaction,
+        req: &TransferLeadRequest,
         operator_id: i32,
         operator_name: &str,
     ) -> Result<TransferLeadResult, AppError> {
@@ -289,13 +324,11 @@ impl CrmAssignService {
         let from_user_id = lead.owner_id;
         let from_user_name = lead.owner_name.clone();
         let now = chrono::Utc::now();
-        // 事务：更新归属人 + 写入转移历史
-        let txn = (*self.db).begin().await?;
         let updated =
-            Self::apply_lead_owner_update(&txn, lead, &new_owner, operator_id, now).await?;
+            Self::apply_lead_owner_update(txn, lead, &new_owner, operator_id, now).await?;
         self.history_service
             .create_with_txn(
-                &txn,
+                txn,
                 operator_id,
                 operator_name,
                 Self::build_transfer_history_request(
@@ -303,15 +336,10 @@ impl CrmAssignService {
                     from_user_id,
                     &from_user_name,
                     &new_owner,
-                    &req,
+                    req,
                 ),
             )
             .await?;
-        txn.commit().await?;
-        info!(
-            "用户 {} 将线索 {} 从用户 {} 转移给用户 {}",
-            operator_id, updated.id, from_user_id, new_owner.id
-        );
         Ok(Self::build_transfer_result(
             updated,
             from_user_id,
@@ -348,7 +376,13 @@ impl CrmAssignService {
     }
 
     /// 查询新归属人并校验：存在 + 活跃
-    async fn fetch_and_validate_new_owner(&self, to_user_id: i32) -> Result<user::Model, AppError> {
+    ///
+    /// 可见性 `pub(crate)`：客户转移审批链的客户归属执行腿与线索执行腿共用这一道
+    /// 校验（同一判据不写第二份），本函数只读、不改变任何门语义。
+    pub(crate) async fn fetch_and_validate_new_owner(
+        &self,
+        to_user_id: i32,
+    ) -> Result<user::Model, AppError> {
         let new_owner = user::Entity::find_by_id(to_user_id)
             .one(&*self.db)
             .await?
@@ -413,7 +447,8 @@ impl CrmAssignService {
             lead_id: updated.id,
             lead_no: updated.lead_no,
             from_user_id,
-            from_user_name,
+            // 线索腿的原归属人展示名取自 crm_lead.owner_name 实列，Some 即真名
+            from_user_name: Some(from_user_name),
             to_user_id: new_owner.id,
             to_user_name: new_owner.username,
             transferred_at: now,
@@ -617,7 +652,8 @@ impl CrmAssignService {
             lead_id: updated.id,
             lead_no: updated.lead_no,
             from_user_id,
-            from_user_name,
+            // 抢单腿的原归属人展示名同样取自 crm_lead.owner_name 实列，Some 即真名
+            from_user_name: Some(from_user_name),
             to_user_id: claimer.id,
             to_user_name: claimer.username,
             transferred_at: now,

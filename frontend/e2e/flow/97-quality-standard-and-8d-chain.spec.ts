@@ -10,6 +10,8 @@ import {
   API_BASE,
   API_PREFIX,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 97 质量域两条链的首个真契约覆盖（质量标准生命周期 与 8D 全阶段推进）
@@ -194,6 +196,8 @@ test.describe.serial('97 8D 全阶段推进链', () => {
       code: `97P${tag}`,
       category_id: categoryId,
       unit: 'm',
+      // 质量标准/8D 链宿主产品不做米↔公斤换算，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const productId = Number(product.id);
     expect(productId > 0, `产品自建失败 ${JSON.stringify(product)}`).toBe(true);

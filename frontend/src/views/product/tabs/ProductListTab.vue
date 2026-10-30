@@ -252,7 +252,24 @@
           <el-input v-model="colorForm.color_name" style="width: 160px" />
         </el-form-item>
         <el-form-item :label="t('product.productListTab.colColorExtraCost')">
-          <el-input-number v-model="colorForm.extra_cost" :min="0" :precision="2" />
+          <!-- 数值录入用纯文本输入框（全项目禁加减步进控件），范围与精度由提交前校验点名拒绝 -->
+          <el-input v-model="colorForm.extra_cost" style="width: 140px" />
+        </el-form-item>
+        <el-form-item :label="t('product.productListTab.colColorFastness')">
+          <!-- 色牢度等级词表与后端 color_fastness 同源（GB 18401 九档，含半级），留空即未考核 -->
+          <el-select
+            v-model="colorForm.color_fastness_grade"
+            clearable
+            :placeholder="t('product.productListTab.placeholderColorFastness')"
+            style="width: 140px"
+          >
+            <el-option
+              v-for="grade in COLOR_FASTNESS_GRADE_VALUES"
+              :key="grade"
+              :label="grade"
+              :value="grade"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" :loading="colorSubmitting" @click="submitColor">
@@ -279,6 +296,11 @@
           prop="color_name"
           :label="t('product.productListTab.colColorName')"
           min-width="120"
+        />
+        <el-table-column
+          prop="color_fastness_grade"
+          :label="t('product.productListTab.colColorFastness')"
+          width="110"
         />
         <el-table-column
           :label="t('product.productListTab.colOperation')"
@@ -463,6 +485,7 @@ import {
   type CreateProductColorPayload,
 } from '@/api/product';
 import { createApproval, listApprovals, type ExportApprovalRequest } from '@/api/export-approvals';
+import { COLOR_FASTNESS_GRADE_VALUES } from '@/constants/product-spec-vocab';
 import {
   exportApprovalStatusLabelKey,
   exportApprovalStatusTagType,
@@ -518,9 +541,11 @@ const stats = reactive({
 watch(products, () => {
   stats.totalProducts = total.value;
   stats.activeProducts = products.value.filter(p => p.is_active).length;
+  // 出参 price 是 DECIMAL 字符串（NULL→null），聚合前先 Number 归一再求和；
+  // 缺值与非数字归 0，与原来 price||0 的口径一致，避免字符串混进加法把均价算成 NaN
   stats.avgPrice =
     products.value.length > 0
-      ? products.value.reduce((sum, p) => sum + (p.price || 0), 0) / products.value.length
+      ? products.value.reduce((sum, p) => sum + (Number(p.price) || 0), 0) / products.value.length
       : 0;
 });
 
@@ -758,9 +783,17 @@ const colorRows = ref<ProductColor[]>([]);
 // 后端 CreateProductColorRequest 必填 color_no/color_name/color_type/extra_cost，
 // 建单请求此前缺 color_type/extra_cost 必 422（缺非 Option 必填）。
 // color_type 全仓唯一确证取值为 DB 列默认 'STANDARD'（无后端枚举/迁移种子给出其余取值，
-// 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以数值真实采集（默认 0）。
+// 完整取值域已列待决策），建/改固定提交 'STANDARD'；extra_cost 表单以输入框文本采集（默认 '0'），
+// 提交前经校验器点名拒绝非数字与超位小数，再归一为 Number 发给后端 f64 入参。
 const COLOR_TYPE_STANDARD = 'STANDARD';
-const colorForm = reactive({ color_no: '', color_name: '', extra_cost: 0 });
+const colorForm = reactive({
+  color_no: '',
+  color_name: '',
+  extra_cost: '0',
+  color_fastness_grade: '',
+});
+// 加价文本判据：非负十进制、最多两位小数（与后端 extra_cost DECIMAL 列精度一致），负号与非法字符直接判不合格
+const COLOR_EXTRA_COST_PATTERN = /^\d+(\.\d{1,2})?$/;
 const colorEditingId = ref<number | null>(null);
 const colorSubmitting = ref(false);
 
@@ -769,7 +802,8 @@ const openColorDialog = async (row: Product) => {
   colorEditingId.value = null;
   colorForm.color_no = '';
   colorForm.color_name = '';
-  colorForm.extra_cost = 0;
+  colorForm.extra_cost = '0';
+  colorForm.color_fastness_grade = '';
   colorDialogVisible.value = true;
   try {
     const { getProductColorList } = await import('@/api/product');
@@ -787,28 +821,39 @@ const submitColor = async () => {
     ElMessage.warning(t('product.productListTab.messageColorNoRequired'));
     return;
   }
+  const extraCostText = colorForm.extra_cost.trim();
+  if (extraCostText === '' || !COLOR_EXTRA_COST_PATTERN.test(extraCostText)) {
+    ElMessage.warning(t('product.productListTab.messageColorExtraCostInvalid'));
+    return;
+  }
+  const extraCost = Number(extraCostText);
   colorSubmitting.value = true;
   try {
     if (colorEditingId.value) {
       // 更新契约（UpdateProductColorRequest）无 color_no，且 color_type 非用户可编辑项——
       // 省略即不改，避免把已有色号的非标准 color_type 覆盖成 STANDARD
+      // color_fastness_grade 始终随发：后端把去空白后的空串当作清空该列，有效档位覆盖
       await updateProductColor(colorProduct.value.id, colorEditingId.value, {
         color_name: colorForm.color_name,
-        extra_cost: colorForm.extra_cost,
+        extra_cost: extraCost,
+        color_fastness_grade: colorForm.color_fastness_grade,
       });
     } else {
+      // 新建时色牢度留空即摘除该键（后端单层 Option 缺键落 NULL），不发空串以免撞 DB CHECK
       await createProductColor(colorProduct.value.id, {
         color_no: colorForm.color_no,
         color_name: colorForm.color_name,
         color_type: COLOR_TYPE_STANDARD,
-        extra_cost: colorForm.extra_cost,
+        extra_cost: extraCost,
+        color_fastness_grade: colorForm.color_fastness_grade.trim() || undefined,
       });
     }
     ElMessage.success(t('common.success'));
     colorEditingId.value = null;
     colorForm.color_no = '';
     colorForm.color_name = '';
-    colorForm.extra_cost = 0;
+    colorForm.extra_cost = '0';
+    colorForm.color_fastness_grade = '';
     const { getProductColorList } = await import('@/api/product');
     const res = await getProductColorList(colorProduct.value.id);
     colorRows.value = (res.data as unknown as ProductColor[]) || [];
@@ -824,8 +869,10 @@ const editColor = (row: ProductColor) => {
   colorEditingId.value = row.id;
   colorForm.color_no = row.color_no || '';
   colorForm.color_name = row.color_name || '';
-  // extra_cost 为 rust_decimal 出参字符串（"0.00"），绑定 el-input-number 前 Number() 归一
-  colorForm.extra_cost = Number(row.extra_cost);
+  // extra_cost 为 rust_decimal 出参字符串（"0.00"），原样转文本回填输入框，不做数值往返
+  colorForm.extra_cost = String(row.extra_cost ?? '0');
+  // 色牢度等级出参为字符串或 null，回填 null 归一空串（下拉回到占位符态）
+  colorForm.color_fastness_grade = row.color_fastness_grade ?? '';
 };
 
 // 删除色号（deleteProductColor）

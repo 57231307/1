@@ -1,6 +1,8 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup, getCtx, ensureTestEntities } from './helpers';
 import { safeGoto, findTableRow } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * P0 停用系统覆盖（2026-09-11 用户指令："删除/停用测试需要系统覆盖"）
@@ -293,7 +295,12 @@ test.describe.serial('P0 停用矩阵：编辑弹窗 UI 切状态→API 回读�
       category_id: getCtx().productCategoryIds[0],
       unit: '米',
       status: 'active',
-      product_type: 'fabric',
+      // 面料类三键同全（幅宽/克重/面料成分缺任一即被后端面料必录门 400），
+      // 类型取值经单源常量引用。
+      product_type: PRODUCT_TYPE.finished,
+      width: 150,
+      gram_weight: 180,
+      fabric_composition: '100%涤纶',
       standard_price: 10,
       cost_price: 5,
       description: 'P0停用产品',

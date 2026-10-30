@@ -426,6 +426,59 @@ pub async fn update_customer(
     )))
 }
 
+/// 更新客户分层请求（tier 受控写腿入参，只带档位一个字段）
+#[derive(Debug, Deserialize)]
+pub struct UpdateCustomerTierRequest {
+    /// 档位 token，值域门在服务写口按 `constants::customer_tier::ALLOWED` 校验
+    pub tier: String,
+}
+
+/// 更新客户分层（PUT /customers/{id}/tier，tier 列的唯一 HTTP 写入口）。
+///
+/// 功能：把客户行的分层档位改为词表内合法值，作为大客户二级审批判据（
+/// `services/crm/customer_transfer_approval_service.rs::check_large_customer`）的受控输入源。
+/// 调用方：权限中间件放行后的 axum 路由（routes/crm.rs::customers）。
+/// 入参：路径 ID + 档位 token + 会话身份（AuthContext）。
+/// 门与口径：读门与整行更新腿逐字同源（`get_customer` 行级数据范围 +
+/// `crm_write_guard::ensure_cross_owner_write_allowed` 跨 owner 写门，归属列 owner_id）；
+/// 值域拒绝与审计由服务写口 `customer_ops/update.rs::update_customer_tier` 单点承担。
+/// 出参收口：只回 id 与档位两个必要字段，不把整行客户实体原文直出（本仓有
+/// "整实体序列化带敏感列"的既往缺陷面，本腿不复制该形态，也不新抄一份脱敏清单）。
+pub async fn update_customer_tier(
+    State(state): State<AppState>,
+    Path(id): Path<i32>,
+    auth: AuthContext,
+    Json(payload): Json<UpdateCustomerTierRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let customer_service = CustomerService::new(state.db.clone(), state.search_client.clone());
+
+    // 行级数据权限（IDOR）防护：与 update_customer 同一判定源，先按 ctx 读行，
+    // 不可见即 403/404，不进入任何写路径
+    let data_scope_ctx = auth.to_data_scope_context();
+    let existing = customer_service
+        .get_customer(id, Some(&data_scope_ctx))
+        .await?;
+    // 写侧越权门：跨 owner 改档位须本人行或持代操作键，与整行更新腿同口径
+    crate::handlers::crm_write_guard::ensure_cross_owner_write_allowed(
+        state.db.clone(),
+        &auth,
+        &data_scope_ctx,
+        Some(existing.owner_id),
+        existing.department_id,
+        "客户分层更新",
+    )
+    .await?;
+
+    let updated = customer_service
+        .update_customer_tier(id, &payload.tier, auth.user_id)
+        .await?;
+
+    Ok(Json(ApiResponse::success_with_message(
+        serde_json::json!({ "id": updated.id, "tier": updated.tier }),
+        "客户分层更新成功",
+    )))
+}
+
 /// 删除客户
 pub async fn delete_customer(
     State(state): State<AppState>,

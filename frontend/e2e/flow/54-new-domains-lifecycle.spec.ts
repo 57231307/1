@@ -16,6 +16,8 @@ import {
   formItemByExactLabel,
   pickListArray,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * 手写数值录入的真值写后读回（按精确 label 锚定录入框）
@@ -77,6 +79,8 @@ test.describe.serial('新域业务流转链', () => {
       code: `54P${ts}`,
       category_id: categoryId,
       unit: 'm',
+      // 生命周期宿主产品无面料属性，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const productId = product?.data?.id;
     expect(productId, '产品创建失败').toBeTruthy();

@@ -12,6 +12,8 @@ import {
   seedDyedOutboundBundle,
   tryCleanup,
 } from './helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 test.describe('面料单据专用字段全链路验证', () => {
   test.beforeEach(async ({ page }) => {
@@ -520,16 +522,15 @@ test.describe('面料单据专用字段全链路验证', () => {
   });
 
   // ============================================================
-  // [BE-2] 产品 meters_per_piece 往返验证：通过 UI 表单填写后重新打开/GET 断言值一致
+  // [BE-2] 产品 meters_per_piece 往返验证：直连 API 创建含值后 GET 断言值一致
   // 对应修复项：
   //   BE-2: 后端 product_ops/crud.rs 已接线 meters_per_piece 到 ActiveModel Set，
   //         handler product_handler.rs CreateProductRequest/UpdateProductRequest 已含该字段
-  //   前端: ProductFormDialogTab.vue 已渲染"每匹米数" el-input-number
-  // 本用例通过 API 创建带 meters_per_piece 的产品（产品表单 UI 交互复杂且脆弱，
-  // 但关键契约验证是后端持久化+回读），随后 GET 详情断言该值非 null 且等于录入值。
-  // 补充 UI 回读：编辑页打开验证输入框展示该值。
+  //   前端: 产品表单已按裁定摘除米数采集面（每匹米数是库存实收口径的换算默认值，
+  //         每卷米数整列下线），持久化契约只由 API 腿验证；
+  //         UI 侧改为断言表单不再出现米数输入（防采集面回潮）。
   // ============================================================
-  test('产品 meters_per_piece：API 创建含值 → GET 回读 → UI 编辑表单回显', async ({ page }) => {
+  test('产品 meters_per_piece：API 创建含值 → GET 回读 → UI 表单无米数输入', async ({ page }) => {
     const ctx = getCtx();
     const code = genCode('E2E-MPP');
     const name = `E2E匹米产品${code}`;
@@ -541,6 +542,8 @@ test.describe('面料单据专用字段全链路验证', () => {
       name,
       unit: '米',
       category_id: ctx.productCategoryIds[0],
+      // 本用例只验 meters_per_piece 读写链，取非面料类型免带面料三键
+      product_type: PRODUCT_TYPE.auxiliary,
       meters_per_piece: testMetersPerPiece,
     });
     const productId = created.data?.id;
@@ -560,7 +563,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       `meters_per_piece 应等于录入值 ${testMetersPerPiece}，实际=${detail.meters_per_piece}`
     ).toBe(testMetersPerPiece);
 
-    // UI 编辑回显验证：打开产品编辑表单确认"每匹米数"输入框有值
+    // UI 采集面零存在验证：打开产品编辑表单确认不再有米数输入（裁定后防回潮面）
     await page.goto(`${BASE_URL}/product`);
     await page.waitForTimeout(2000);
     // 搜索定位到该产品
@@ -583,18 +586,13 @@ test.describe('面料单据专用字段全链路验证', () => {
       await editBtn.click();
       const dialog = page.locator('.el-dialog:visible').last();
       await dialog.waitFor({ state: 'visible', timeout: 10000 });
-      // 定位"每匹米数"输入框
-      const mppInput = dialog
-        .locator('.el-form-item')
-        .filter({ hasText: '每匹米数' })
-        .locator('input')
-        .first();
-      if (await mppInput.isVisible().catch(() => false)) {
-        const inputValue = await mppInput.inputValue();
+      // 米数表单项出现即红：采集面已按裁定摘除，回潮即违反收口口径
+      for (const metersLabel of ['每匹米数', '每卷米数']) {
+        const mppItem = dialog.locator('.el-form-item').filter({ hasText: metersLabel });
         expect(
-          Number(inputValue),
-          `UI 编辑表单"每匹米数"应回显 ${testMetersPerPiece}，实际输入框值="${inputValue}"`
-        ).toBe(testMetersPerPiece);
+          await mppItem.count(),
+          `产品编辑表单不应再出现「${metersLabel}」输入（采集面已摘除，出现即回潮）`
+        ).toBe(0);
       }
       // 关闭对话框
       await page

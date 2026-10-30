@@ -308,6 +308,11 @@ fn is_core_direct_resource(part: &str) -> bool {
             // 派生键即 print-targets。
             | "print-tasks"
             | "print-targets"
+            // 合同模板体系（contract_templates 族的读写腿）为同族根级直接资源：URL 段即权威
+            // 资源名，seg4 起是记录 ID 与动作段。未登记则 validate_route_whitelist 对全员
+            // （含 admin）fail-closed 403；登记后派生键即 contract-templates，与
+            // PERMISSION_RESOURCES 同词表，动作只取方法派生四键加 approve（路径关键字表既有词）。
+            | "contract-templates"
             | "suppliers"
             | "supplier-qualifications"
     )

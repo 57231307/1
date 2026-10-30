@@ -15,6 +15,8 @@ import {
   safeGoto,
   type ListShapeKey,
 } from './ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /**
  * P0 级删除与停用验证（2026-09-10 用户指令）
@@ -57,6 +59,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       code: `P0-DELP-${TS}`,
       unit: '米',
       status: 'active',
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     expect(
       created?.data?.id,
@@ -391,6 +394,7 @@ test.describe.serial('P0 删除与停用：真实 UI 点击验证', () => {
       unit: '米',
       category_id: categoryId,
       status: 'active',
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     expect(
       created?.data?.id,
@@ -852,6 +856,12 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
         code: `P0-GFP-${EXT_TS}`,
         unit: '米',
         status: 'active',
+        // 名称即坯布语义：类型取单源常量，面料类三键（幅宽/克重/面料成分）同全，
+        // 缺任一键补建即被后端面料必录门 400，firstRefOrSeed 会硬失败拖红。
+        product_type: PRODUCT_TYPE.greige,
+        width: 150,
+        gram_weight: 200,
+        fabric_composition: '100%棉',
         // /products → PaginatedResponse → {items}
       },
       'items'
@@ -945,6 +955,7 @@ test.describe.serial('P0 扩展删除：12 资源系统性覆盖', () => {
       code: `P0-COLP-${EXT_TS}`,
       unit: '米',
       status: 'active',
+      product_type: PRODUCT_TYPE.auxiliary,
     });
     const productId = product?.data?.id;
     expect(

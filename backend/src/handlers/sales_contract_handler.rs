@@ -60,6 +60,16 @@ pub struct CreateSalesContractRequestDto {
     pub payment_method: Option<String>,
     pub delivery_location: Option<String>,
     pub remark: Option<String>,
+    /// 签约模板主键（切片B）：给值必须是启用态合同模板，创建时渲染并固化条款快照；
+    /// 空即未选模板签约（条款快照为空，按“模板前签约”口径展示）
+    pub template_id: Option<i32>,
+    /// 条款占位符填充值表（键为正文 {{键}} 的键）；模板用到的键必须给齐
+    pub clause_values: Option<std::collections::HashMap<String, String>>,
+    /// 内外销标记，取值 domestic 与 export（权威词表见 models::status::contract_template），
+    /// 条件出条款判定来源；词表外取值服务端点名拒绝
+    pub contract_market: Option<String>,
+    /// 含税标记三态，条件出条款判定来源
+    pub tax_inclusive: Option<bool>,
     /// 合同明细行
     #[validate(nested)]
     pub items: Option<Vec<CreateContractItemDto>>,
@@ -425,6 +435,11 @@ pub async fn create_contract(
         // 手工建档链路无来源销售订单，溯源列恒置 NULL（区分于转单链路写入真实订单 ID）。
         // 转单走 sales_contract_convert_service，不经本 handler。
         source_order_id: None,
+        // 切片B 渲染固化腿与条件出条款上下文透传（值校验与固化在 service 单点收口）
+        template_id: req.template_id,
+        clause_values: req.clause_values,
+        contract_market: req.contract_market,
+        tax_inclusive: req.tax_inclusive,
         items: map_item_d_tos(req.items),
     };
 
