@@ -495,6 +495,36 @@ mod tests {
     /// 翻页句柄修复的自证用例：60 行触发一次翻页，断言每一页的内容流都非空。
     /// 若把 export_pdf 中翻页处的 `layer = ...` 改回 `let _layer = ...` 丢弃形态，
     /// 新页内容流为空、不含 BT 算子，bt_stream_count 会降到 1，断言必红。
+    /// 读 PDF 页树的页数：页树根字典按 PDF 规范必带 `/Count N`，取所有 /Count 里的最大值
+    /// （多级页树时父节点计数不小于子节点，最大值即总页数）。
+    /// 入参：完整 PDF 字节流；传给谁：仅供本模块的翻页自证用例断言页数。
+    /// 返回 None 表示字节流里找不到任何 /Count（写侧形态与本判据假设不符），
+    /// 与「找到了但页数不足」分开报，避免把计数方式失效当成业务红。
+    /// 为什么不用 /Type /Page 字面量计数：printpdf 出参里 /Type 与 /Page 之间的空格形态随版本变，
+    /// 按字面量数会数出 0，两种红就混成一种了。
+    fn pdf_page_count(pdf: &[u8]) -> Option<usize> {
+        let token = b"/Count";
+        let mut best: Option<usize> = None;
+        let mut pos = 0usize;
+        while let Some(idx) = find_sub(&pdf[pos..], token) {
+            let after = &pdf[pos + idx + token.len()..];
+            let digits: Vec<u8> = after
+                .iter()
+                .copied()
+                .take_while(|b| b.is_ascii_whitespace() || b.is_ascii_digit())
+                .filter(u8::is_ascii_digit)
+                .collect();
+            if let Some(parsed) = std::str::from_utf8(&digits)
+                .ok()
+                .and_then(|text| text.parse::<usize>().ok())
+            {
+                best = Some(best.map_or(parsed, |current| current.max(parsed)));
+            }
+            pos += idx + token.len();
+        }
+        best
+    }
+
     #[test]
     fn export_pdf_page_break_produces_content_on_every_page() {
         let data = make_data(60);
@@ -503,14 +533,12 @@ mod tests {
         // PDF 魔数
         assert!(bytes.starts_with(b"%PDF"), "返回值应以 PDF 魔数开头");
 
-        // 页数断言：/Type /Page 命中数减去 /Type /Pages 命中数等于实际页对象数
-        let text = String::from_utf8_lossy(&bytes);
-        let total_page_hits = text.matches("/Type /Page").count();
-        let pages_node_hits = text.matches("/Type /Pages").count();
-        let actual_pages = total_page_hits - pages_node_hits;
+        // 页数断言：读页树 /Count，取不到与取到但不足分别报因
+        let actual_pages = pdf_page_count(&bytes)
+            .expect("PDF 页树应带 /Count 条目，未找到说明写侧形态与本判据假设不符");
         assert!(
             actual_pages >= 2,
-            "60 行数据应触发翻页产生至少 2 页，实际页对象数 {}",
+            "60 行数据应触发翻页产生至少 2 页，实际页树 /Count {}",
             actual_pages
         );
 
