@@ -328,6 +328,12 @@ pub async fn anti_brute_force(req: Request<Body>, next: Next) -> Result<Response
 /// AI 端点专用速率限制中间件（缺陷 16.4-D4 修复）
 /// 基于 UserID 维度，限制 10 req/min/user，防止 AI 推理 CPU 过载
 pub async fn rate_limit_ai_endpoint(req: Request<Body>, next: Next) -> Result<Response, AppError> {
+    // 非生产环境不限流：与 rate_limit_by_ip、anti_brute_force 同一条环境判据，
+    // 否则 E2E 在同一分片内用同一账号连打 AI 契约用例时，入参校验腿会先被限流顶成 429。
+    if !crate::utils::config::is_production() {
+        return Ok(next.run(req).await);
+    }
+
     let user_id = req
         .extensions()
         .get::<AuthContext>()
