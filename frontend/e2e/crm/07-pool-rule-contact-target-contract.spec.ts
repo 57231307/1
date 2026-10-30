@@ -8,8 +8,14 @@
 //      每个客户最多一个主联系人：新提交 is_primary=true 时先清其他主联系人；
 //      PUT 只改提交了的列（Some 才 Set，None 保留原值）。
 //   3) 销售目标落 sales_statistics 表并按 statistic_type='target' 归类，
-//      创建时把起止日期拼进 dimension_name 存字符串；PUT 走 period 定位，
-//      提交的 remarks 会覆盖 dimension_name，未提交的 status 回落 master_data::ACTIVE。
+//      创建时把起止日期拼进 dimension_name 存字符串；PUT（services/sales_analysis_service.rs::update_target）
+//      只以「dimension_type=overall 且 dimension_id 为空」的总体目标行定行，POST 腿落库的行
+//      dimension_id 恒非空（target_id 为必填），PUT 对其 0 命中故走 upsert 新建腿、两行并存互不改写；
+//      目标表无备注存储列，非空白 remarks 入参 400 VALIDATION_ERROR 显式拒绝，纯空白等同未提交放行；
+//      PUT 不挪用 dimension_name（create 侧日期串原样保留）；未提交 status 回落 master_data::ACTIVE。
+//      派生三键由 to_target_dto 按 actual 现算：actual 为 null 时 completion_rate/variance 同为 null
+//      （不以 0 掩盖），target 大于 0 且 actual 存在时 rate=round(actual÷target×100, 两位, MidpointAwayFromZero)、
+//      variance=actual−target。
 // 被测端点与注册点：
 //   - POST/GET /crm/pool/rules、PUT/DELETE /crm/pool/rules/{id}
 //     backend/src/routes/crm → handlers/crm_pool_handler.rs
@@ -64,10 +70,12 @@
 // 清理与隔离事实（必读）：
 //   公海规则与联系人都有在册 DELETE，用例结尾必删并回读「已不在列表内」。
 //   销售目标只有 GET/POST/PUT 三方法、无 DELETE 端点（routes/crm.rs 未注册），
-//   本卡不为凑绿向后端新增删除端点，改为唯一 period 标记 + 只按自建 id 回读隔离；
-//   留下的 target 行属既存缺口（目标行无法回收，且 update_target 的 actual_amount 直接
-//   取 total_amount、completion_rate 恒为自身比自身 ⇒ 100，不反映任何真实成交），
-//   本文件把它当既成出参事实钉住并在 07-05 注释点名，不当作业务正确性背书。
+//   本卡不为凑绿向后端新增删除端点，改为唯一 period 标记 + 只按自建 id 回读隔离，
+//   留下的 target 行无法回收属既存缺口。actual_amount 由 fetch_actual_amounts 现算
+//   sales_orders（历史缺陷形态「actual 取 total_amount 自身 ⇒ 完成率恒 100、差额恒 0」
+//   已由主干摘除并有契约锁反向自证）；用例按 to_target_dto 真算式钉成对不变量，
+//   退化形态（actual 恰等于 target 且 completion_rate=100 且 variance=0 三者同时出现）
+//   一旦出现在出参即由本文件判红。
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import {
@@ -77,6 +85,7 @@ import {
   failureCode,
   genCode,
   tryCleanup,
+  APP_ERROR_CODES,
 } from '../flow/helpers';
 
 /** customer_pool_rule::Model 出参（models/customer_pool_rule） */
@@ -114,14 +123,17 @@ interface SalesTargetRow {
   total_amount: string;
 }
 
-/** SalesTargetDto 出参（models/dto/sales_analysis_dto），computed 字段非落库值 */
+/** SalesTargetDto 出参（models/dto/sales_analysis_dto），派生三键按 to_target_dto 真算式，可为 null */
 interface SalesTargetDto {
   id: number;
   period: string;
   target_amount: string;
-  actual_amount: string;
-  completion_rate: string;
-  variance: string;
+  /** fetch_actual_amounts 现算 sales_orders；周期无法对齐成交桶口径时为 null（不 0 兜底） */
+  actual_amount: string | null;
+  /** target 为 0 或 actual 缺席时 null；否则两位小数字符串 */
+  completion_rate: string | null;
+  /** actual − target；actual 缺席时 null */
+  variance: string | null;
   status: string;
 }
 
@@ -434,7 +446,7 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     expect(surviving!.phone, '删除动作不得改动留存列的值').toBe('13800138002');
   });
 
-  test('07-05 销售目标创建落 dimension_name 拼接串，PUT 按 period 定位改总额并覆盖备注', async ({
+  test('07-05 销售目标创建落 dimension_name 拼接串，PUT 总体腿落总额且派生键按真算式成对不变量', async ({
     page,
   }) => {
     const me = await apiCallRaw<{ id: number }>(page, 'GET', '/auth/me');
@@ -494,71 +506,238 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
       )}`
     ).toBe(`开始日期: ${startDate}, 结束日期: ${endDate}`);
 
-    // PUT 按 period 定位；未提交 status ⇒ 回落 master_data::ACTIVE="active"
-    // 源码现况登记（只读核实，本卡不动断言语义）：services/sales_analysis_service.rs::update_target
-    // 当前对非空白 remarks 直接报 400 validation_displayable（文案「目标备注暂不支持保存，
-    // 请清空备注后重新提交」），定位腿只认 statistic_type=target 且 dimension_type=overall 且
-    // dimension_id IS NULL 的总体行（create_target 落的行 dimension_id 恒非空），
-    // actual_amount 改由 fetch_actual_amounts 现算 sales_orders。
-    // 因此本段自 PUT 起的红面属"用例契约与源码契约不一致"（源码侧 update_target 已按上述口径改造），
-    // 归研发专家与调度与决策裁决，不在测试面修复范围内。
+    // PUT 按 period 定位；主干 update_target 定行只认「statistic_type=target 且 dimension_type=overall
+    // 且 dimension_id 为空」的总体行（services/sales_analysis_service.rs 查找腿），POST 腿落库的行
+    // dimension_id=me.id 恒非空，故本 PUT 走 0 命中新建腿（upsert），PUT 行与 POST 行并存互不改写；
+    // 未提交 status ⇒ 回落 master_data::ACTIVE="active"；正例不下发 remarks（非空白必被 400 拒，
+    // 拒绝与放行两向由 07-05b/c/d 三例分钉）。
     const updated = await apiCall<SalesTargetDto>(
       page,
       'PUT',
       `/crm/sales-analysis/targets/${created.data.period}`,
-      { target_amount: 654321, remarks: '改后目标备注' }
+      { target_amount: 654321 }
     );
-    expect(updated.data.id, 'PUT 命中的应是同一条目标行').toBe(created.data.id);
+    expect(
+      updated.data.id,
+      'POST 腿行 dimension_id 非空不可被 PUT 总体腿寻址，PUT 应走 0 命中新建腿另起一行'
+    ).not.toBe(created.data.id);
     expect(updated.data.period, 'PUT 出参 period 应等于路径定位键').toBe(period);
     expect(Number(updated.data.target_amount), '提交的 target_amount 应落库').toBe(654321);
     expect(updated.data.status, '未提交 status 时回落 models/status/general.rs:71 ACTIVE').toBe(
       'active'
     );
-    // 既成出参事实（非业务正确性背书）：update_target 把 actual_amount 直接取 total_amount，
-    // completion_rate 于是恒为自身比自身=100、variance 恒为 0，与真实成交无关。
-    // 这条缺口按既存缺陷登记并交调查与复审取证，用例只钉当前线格式。
-    expect(Number(updated.data.actual_amount), 'actual_amount 当前实现等于 total_amount').toBe(
-      654321
-    );
-    expect(Number(updated.data.completion_rate), 'completion_rate 当前恒为 100').toBe(100);
-    expect(Number(updated.data.variance), 'variance 当前恒为 0').toBe(0);
-    expect(
-      typeof updated.data.completion_rate,
-      'SalesTargetDto 的 DECIMAL 字段同样应是序列化字符串'
-    ).toBe('string');
 
-    const afterUpdate = (
+    // 派生三键按 to_target_dto（services/sales_analysis_service.rs:393-419）真算式钉成对不变量：
+    // actual 为 null ⇒ completion_rate 与 variance 必须同为 null（不以 0 掩盖）；
+    // actual 非 null 且 target 大于 0 ⇒ rate=round(actual÷target×100 取两位 MidpointAwayFromZero)、
+    // variance=actual−target。E2E 随机周期对不齐 sales_orders 成交桶，常态走 null 分支。
+    const targetNum = Number(updated.data.target_amount);
+    const actualVal = updated.data.actual_amount;
+    const rateVal = updated.data.completion_rate;
+    const varianceVal = updated.data.variance;
+    if (actualVal === null) {
+      expect(rateVal, 'actual 为 null 时 completion_rate 必须同为 null，不得以 0 掩盖').toBeNull();
+      expect(varianceVal, 'actual 为 null 时 variance 必须同为 null，不得以 0 掩盖').toBeNull();
+    } else {
+      expect(
+        typeof actualVal,
+        `DECIMAL 出参 actual_amount 应是序列化字符串，实际 ${JSON.stringify(actualVal)}`
+      ).toBe('string');
+      expect(targetNum, 'actual 非 null 时本用例目标额必为正').toBeGreaterThan(0);
+      expect(
+        typeof rateVal,
+        `completion_rate 可算时应为两位小数字符串，实际 ${JSON.stringify(rateVal)}`
+      ).toBe('string');
+      const expectedRate = Math.round((Number(actualVal) / targetNum) * 100 * 100) / 100;
+      expect(Number(rateVal), 'completion_rate=round(actual÷target×100, 两位)').toBeCloseTo(
+        expectedRate,
+        2
+      );
+      expect(
+        typeof varianceVal,
+        `variance 可算时应为字符串，实际 ${JSON.stringify(varianceVal)}`
+      ).toBe('string');
+      expect(Number(varianceVal), 'variance=actual−target').toBeCloseTo(
+        Number(actualVal) - targetNum,
+        6
+      );
+      // 显式拒绝退化形态：actual 恰等于 target 且 completion_rate=100 且 variance=0 三者同时出现，
+      // 即历史缺陷「actual 取 total_amount 自身」的指纹（主干已摘除并有契约锁反向自证），判红。
+      const degenerate =
+        Number(actualVal) === targetNum && Number(rateVal) === 100 && Number(varianceVal) === 0;
+      expect(
+        degenerate,
+        `退化形态指纹出现即判红：actual=${actualVal} target=${targetNum} rate=${rateVal} variance=${varianceVal}`
+      ).toBe(false);
+    }
+
+    const afterUpdate = await apiCallRaw<SalesTargetDto[]>(
+      page,
+      'GET',
+      '/crm/sales-analysis/targets?page=1&page_size=100'
+    );
+    const updatedRow = afterUpdate.find(item => item.id === updated.data.id);
+    expect(updatedRow, 'PUT 后 GET 回读应含总体腿新建行').toBeTruthy();
+    expect(
+      Number(updatedRow!.target_amount),
+      `总体腿新行目标额期望 654321，实际 ${JSON.stringify(updatedRow!.target_amount)}`
+    ).toBe(654321);
+    const createdRow = afterUpdate.find(item => item.id === created.data.id);
+    expect(createdRow, 'POST 腿行应仍在列表中且未被 PUT 总体腿改写').toBeTruthy();
+    expect(
+      Number(createdRow!.target_amount),
+      'POST 腿行的目标额不得被 PUT 总体腿静默代改，应保持建单值'
+    ).toBe(123456);
+
+    const modelRows = await listTargetModels(page, period);
+    const createdModel = modelRows.find(item => item.id === created.data.id);
+    expect(createdModel, 'statistics 回读应仍含 POST 腿行').toBeTruthy();
+    expect(
+      createdModel!.dimension_name,
+      'PUT 不挪用 dimension_name：create 侧起止日期拼接串应原样留存，不得被备注覆盖'
+    ).toBe(`开始日期: ${startDate}, 结束日期: ${endDate}`);
+    expect(
+      Number(createdModel!.total_amount),
+      `POST 腿存库列 total_amount 期望 123456，实际 ${JSON.stringify(createdModel!.total_amount)}`
+    ).toBe(123456);
+    const updatedModel = modelRows.find(item => item.id === updated.data.id);
+    expect(updatedModel, 'statistics 回读应含总体腿新建行').toBeTruthy();
+    expect(
+      updatedModel!.statistic_type,
+      `PUT 腿新建行归类期望 "target"，实际 ${JSON.stringify(updatedModel!.statistic_type)}`
+    ).toBe('target');
+    expect(
+      updatedModel!.dimension_type,
+      `PUT 腿新建行期望 "overall"，实际 ${JSON.stringify(updatedModel!.dimension_type)}`
+    ).toBe('overall');
+    expect(
+      updatedModel!.dimension_id,
+      'PUT 总体腿新建行的 dimension_id 必为空——这正是该腿可再次寻址的形态'
+    ).toBeNull();
+    expect(
+      Number(updatedModel!.total_amount),
+      `总体腿新建行存库列 total_amount 期望 654321，实际 ${JSON.stringify(
+        updatedModel!.total_amount
+      )}`
+    ).toBe(654321);
+  });
+
+  test('07-05b 非空白 remarks 的 PUT 被 400 VALIDATION_ERROR 拒绝且不建行（新周期无副作用）', async ({
+    page,
+  }) => {
+    const period = genCode('E2E-TGT');
+    const rejected = await apiCallExpectFail(page, 'PUT', `/crm/sales-analysis/targets/${period}`, {
+      target_amount: 111111,
+      remarks: '不该被保存的备注',
+    });
+    expect(rejected.status, `非空白 remarks 必须 HTTP 400 拒绝，实际 ${rejected.status}`).toBe(400);
+    expect(
+      failureCode(rejected),
+      `拒绝机器码期望 VALIDATION_ERROR，实际 ${JSON.stringify(rejected.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      rejected.message,
+      `拒绝文案原文期望「目标备注暂不支持保存，请清空备注后重新提交」，实际 ${JSON.stringify(
+        rejected.message
+      )}`
+    ).toBe('目标备注暂不支持保存，请清空备注后重新提交');
+    // 真断言拒绝无副作用：拒绝先于定行腿，该周期读写两侧都不得出现任何行。
+    const listed = await apiCallRaw<SalesTargetDto[]>(
+      page,
+      'GET',
+      '/crm/sales-analysis/targets?page=1&page_size=100'
+    );
+    expect(
+      listed.filter(item => item.period === period),
+      '被拒请求不得新建总体目标行'
+    ).toHaveLength(0);
+    expect(
+      await listTargetModels(page, period),
+      '被拒请求不得在存库侧留下任何 target 行'
+    ).toHaveLength(0);
+  });
+
+  test('07-05c 非空白 remarks 的 PUT 被拒时，既有总体行目标额原样不动', async ({ page }) => {
+    const period = genCode('E2E-TGT');
+    const seeded = await apiCall<SalesTargetDto>(
+      page,
+      'PUT',
+      `/crm/sales-analysis/targets/${period}`,
+      {
+        target_amount: 555555,
+      }
+    );
+    expect(Number(seeded.data.target_amount), '前置：总体腿 PUT 应落 555555').toBe(555555);
+
+    const rejected = await apiCallExpectFail(page, 'PUT', `/crm/sales-analysis/targets/${period}`, {
+      target_amount: 999999,
+      remarks: '   trim 后仍非空的备注   ',
+    });
+    expect(rejected.status, `夹带空白的非空白 remarks 同样必须 400，实际 ${rejected.status}`).toBe(
+      400
+    );
+    expect(
+      failureCode(rejected),
+      `拒绝机器码期望 VALIDATION_ERROR，实际 ${JSON.stringify(rejected.code)}`
+    ).toBe(APP_ERROR_CODES.VALIDATION_ERROR);
+    expect(
+      rejected.message,
+      `拒绝文案原文期望「目标备注暂不支持保存，请清空备注后重新提交」，实际 ${JSON.stringify(
+        rejected.message
+      )}`
+    ).toBe('目标备注暂不支持保存，请清空备注后重新提交');
+
+    const afterFail = (
       await apiCallRaw<SalesTargetDto[]>(
         page,
         'GET',
         '/crm/sales-analysis/targets?page=1&page_size=100'
       )
-    ).find(item => item.id === created.data.id);
-    expect(afterUpdate, 'PUT 后回读应仍含该目标行').toBeTruthy();
+    ).find(item => item.id === seeded.data.id);
+    expect(afterFail, '被拒请求过后既有总体行必须仍可回读').toBeTruthy();
     expect(
-      Number(afterUpdate!.target_amount),
-      `GET targets 按 DTO 键 target_amount 钉改后额：期望 654321，实际 ${JSON.stringify(
-        afterUpdate!.target_amount
-      )}`
-    ).toBe(654321);
+      Number(afterFail!.target_amount),
+      '被拒请求不得把目标额改成同请求携带的 999999，应维持前置值'
+    ).toBe(555555);
+  });
 
-    const afterUpdateModel = (await listTargetModels(page, period)).find(
-      item => item.id === created.data.id
-    );
-    expect(afterUpdateModel, 'statistics 回读应仍含该目标行').toBeTruthy();
+  test('07-05d 纯空白 remarks 等同未提交放行，目标额照常落库且不挪用 dimension_name', async ({
+    page,
+  }) => {
+    const period = genCode('E2E-TGT');
+    const passed = await apiCallExpectFail(page, 'PUT', `/crm/sales-analysis/targets/${period}`, {
+      target_amount: 777777,
+      remarks: '   ',
+    });
+    expect(passed.status, `纯空白 remarks 必须放行（HTTP 2xx），实际 ${passed.status}`).toBe(200);
     expect(
-      afterUpdateModel!.dimension_name,
-      `update_target 用 remarks 覆盖 dimension_name，期望「改后目标备注」，实际 ${JSON.stringify(
-        afterUpdateModel!.dimension_name
-      )}（原起止日期串应不再存在）`
-    ).toBe('改后目标备注');
+      typeof passed.code === 'number' && (passed.code === 200 || passed.code === 0),
+      `放行应走成功信封（数字码 200/0），实际 ${JSON.stringify(passed.code)}`
+    ).toBe(true);
+
+    // 真断言放行不是空转：目标额确实落库，且空白备注没有被挪进 dimension_name。
+    const row = (
+      await apiCallRaw<SalesTargetDto[]>(
+        page,
+        'GET',
+        '/crm/sales-analysis/targets?page=1&page_size=100'
+      )
+    ).find(item => item.period === period);
+    expect(row, '放行请求应留下该周期的总体目标行').toBeTruthy();
     expect(
-      afterUpdateModel!.statistic_type,
-      `统计类型归类期望 "target"，实际 ${JSON.stringify(afterUpdateModel!.statistic_type)}`
-    ).toBe('target');
+      Number(row!.target_amount),
+      `放行请求携带的 777777 必须落库，实际 ${JSON.stringify(row!.target_amount)}`
+    ).toBe(777777);
+    const model = (await listTargetModels(page, period)).find(item => item.id === row!.id);
+    expect(model, 'statistics 回读应含放行请求建的总体行').toBeTruthy();
+    expect(model!.statistic_type, '放行行归类 statistic_type=target').toBe('target');
     expect(
-      Number(afterUpdateModel!.total_amount),
-      `存库列 total_amount 期望 654321，实际 ${JSON.stringify(afterUpdateModel!.total_amount)}`
-    ).toBe(654321);
+      model!.dimension_id,
+      '放行行为 PUT 总体腿新建（dimension_id 空），可被同周期 PUT 再次寻址'
+    ).toBeNull();
+    expect(
+      model!.dimension_name,
+      'PUT 腿不写 dimension_name：空白备注未被挪用，纯空白等同未提交'
+    ).toBeNull();
   });
 });
