@@ -1,0 +1,37 @@
+# 中间件镜像版本声明清单（只做漏洞扫描对象与版本下限基线用，不做业务编排）。
+# 调用方：CI job「🛡️ 全面漏洞检测」的 trivy 镜像层判定步（批次三接入）与
+#   版本下限锁 scripts/ci/check-middleware-version-floor.mjs（批次三新增）。
+# 入参：无。本文件不被任何运行时读取，也不参与 docker compose up。
+# 传给谁：逐行 image 字段交给镜像层扫描器出 SBOM 判定；major 与 minor 下限交给版本下限锁比对。
+# 存什么：三枚中间件的镜像仓库与版本下限，以及每个下限的出处与理由。
+# 存哪里：仓库根，与 .github/workflows 同级，和版本下限基线文件放同一目录约定。
+#
+# 为什么要单独入仓：本仓此前没有任何 Dockerfile 与 compose 清单，postgres:16-alpine 只以
+#   GitHub Actions service 的形态散落在六处工作流里，redis 与 nginx 连镜像声明都没有。
+#   结果是中间件层永远没有可扫对象，漏洞检测只能覆盖两枚语言包管面。本清单把"我们实际
+#   要求跑什么版本"写成一处可判定的事实，扫描器与下限锁共用同一个来源。
+# 为什么不写成 deploy/compose.yaml：那会被误解成可编排的部署文件并诱导人补业务服务，
+#   本文件的唯一消费者是判定器，故意放在仓库根并只声明 image，不带 command 与 ports。
+
+services:
+  # PostgreSQL 主库。下限取 16，出处是本仓八处 CI service 一律跑 postgres:16-alpine，
+  # 高于该声明的部署要同步改本行，否则下限锁判红，防止"CI 测 16、线上跑 14"这种未被验证组合。
+  postgres:
+    image: postgres:16-alpine
+    version_floor: "16"
+
+  # Redis 缓存与限流后端。下限取 7，出处是仓内架构文档写明的 Redis 7.0+ 与后端
+  # redis crate 的 connection-manager 用法。声明下限只到 major，是因为本仓没有任何
+  # 依赖 redis 7 具体 minor 特性的代码，写出 7.2 这类精确值就造出了不可复现的数字口径。
+  redis:
+    image: redis:7-alpine
+    version_floor: "7"
+
+  # Nginx 反向代理与前端静态服务。下限取 1.30，依据是官方自 2026-04 起把 1.30 作为
+  # 当前 stable 分支、1.28 同批退役（退役分支不再收 bug 修复，1.28.3 是退役前最后一批
+  # 含缓冲区溢出与邮件认证类 CVE 的修补）。本仓没有任何配置文件可反推现网版本，
+  # 故这里写的是"要求达到的下限"而不是"观测到的现状"，接入部署面取证后如与现网不符，
+  # 以现网升级到位为准，不许反向把下限调低去迁就旧版本。
+  nginx:
+    image: nginx:1.30-alpine
+    version_floor: "1.30"
