@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '../diagnose-fixture';
-import { APP_ERROR_CODES, loginViaUI, apiCallRaw, apiCall, apiCallExpectFail } from './helpers';
+import { applyAuthMocks } from '../smoke/_helpers';
+import { getAiTestUsername, getAiTest2Username } from '../fixtures/auth';
+import { APP_ERROR_CODES, apiCallRaw, apiCall, apiCallExpectFail } from './helpers';
 
 /**
  * 123 advanced 族九个端点的真实契约（advanced 域：AI 推荐/异常检测/质量预测/工艺优化/销售预测/库存优化/报表模板-执行-导出）
@@ -42,6 +44,21 @@ import { APP_ERROR_CODES, loginViaUI, apiCallRaw, apiCall, apiCallExpectFail } f
  *
  * 负例三族（解码 400、越界 400、缺参点名 400）与 2xx 形状腿在同一条用例里配对出现：
  * 只测失败不测成功、或只测成功不测失败，都撑不起"契约"两个字。
+ *
+ * 会话账号与 AI 限流分桶口径（本文件分成两段 describe 的唯一理由）：
+ * - 后端 /advanced/* 整组挂在 routes/analytics.rs::advanced 的 rate_limit_ai_endpoint 层上，
+ *   桶键 `ai_rate:{user_id}`、维度是 user_id、上限 10 次/60 秒（middleware/rate_limit.rs）；
+ *   计数在中间件层完成，4xx 与 2xx 同样消耗额度，被拒的第 11 次拿到的是 429 而不是被验的入参门。
+ * - 本文件对 /advanced/* 共发 18 次请求，单个隔离账号一窗口装不下，故按 user_id 分两桶：
+ *   桶一 = fixtures/auth::getAiTestUsername（global-setup::ensureAiUser 按分片建的 e2e_ai_s{n}），
+ *   承载报表模板列表 1 次、报表执行 2 次、报表导出 2 次、智能推荐 2 次、异常检测 2 次，合计 9 次；
+ *   桶二 = fixtures/auth::getAiTest2Username（同型建的 e2e_ai2_s{n}），
+ *   承载质量预测 3 次、工艺优化 3 次、销售预测 2 次、库存优化 1 次，合计 9 次。
+ *   每桶 9 次 < 10 次上限，留 1 次余量；两桶账号名只按分片序号派生，与 worker 会话账号互不争抢。
+ * - 同分片同 worker 串跑的 flow/51-endpoint-health-scan 对同组端点另有 4 次命中，
+ *   那 4 次走本 worker 的会话账号（不是上面两个隔离账号），因此三处互不叠加。
+ * - 不用等待窗口过期（sleep）规避 429，也不把期望 400/404 的断言改成接受 429：
+ *   那等于把被验的入参门换成限流器行为，契约面就空了。
  */
 
 type ReportTemplateRow = {
@@ -139,9 +156,10 @@ async function firstProductId(page: Page): Promise<number> {
   return id;
 }
 
-test.describe.serial('123 advanced 族九端点契约配对（缺参点名 400 与 2xx 字段形状）', () => {
-  test.beforeEach(async ({ page }) => {
-    await loginViaUI(page);
+test.describe.serial('123-A advanced 报表与推荐族契约（AI 限流桶一，9 次调用）', () => {
+  test.beforeEach(async ({ page, context }) => {
+    await applyAuthMocks(context, { username: getAiTestUsername() });
+    await page.goto('/');
   });
 
   test('报表模板列表为预置九模板真值，sales_summary 在册', async ({ page }) => {
@@ -247,6 +265,13 @@ test.describe.serial('123 advanced 族九端点契约配对（缺参点名 400 �
       '请求格式不正确：请求体或查询参数存在缺失的必填字段、字段类型错误或内容类型错误，请修正后重试'
     );
     expect(missing.message).not.toContain('data_type');
+  });
+});
+
+test.describe.serial('123-B advanced 预测与优化族契约（AI 限流桶二，9 次调用）', () => {
+  test.beforeEach(async ({ page, context }) => {
+    await applyAuthMocks(context, { username: getAiTest2Username() });
+    await page.goto('/');
   });
 
   test('质量预测越界点名 window_days，合法空体默认 90 且枚举收窄', async ({ page }) => {

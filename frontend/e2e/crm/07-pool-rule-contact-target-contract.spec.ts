@@ -47,6 +47,14 @@
 //   sales_statistics（statistic_type='target'/period/dimension_type/dimension_id/dimension_name/total_amount）。
 //   出参一律 PaginatedResponse 之外的信封形状：GET /crm/pool/rules 与
 //   GET /crm/customers/{cid}/contacts 与 GET /crm/sales-analysis/targets 的 data 都是**裸数组**。
+//   销售目标三个读写口的元素类型不同源，回读键名按各自的构造点取，不得互换：
+//   GET /crm/sales-analysis/targets 元素是 models/dto/sales_analysis_dto.rs::SalesTargetDto
+//   （唯一构造点 services/sales_analysis_service.rs::to_target_dto，七键
+//   id/period/target_amount/actual_amount/completion_rate/variance/status，
+//   没有 total_amount、dimension_name、statistic_type）；
+//   POST /crm/sales-analysis/targets 元素是 sales_analysis::Model 全列；
+//   想按存库全列（dimension_name/total_amount/statistic_type）回读只有
+//   GET /crm/sales-analysis/statistics（handlers/sales_analysis_handler.rs::list_statistics）可见。
 //   联系人读写出口经 crm_customer_handler::apply_customer_field_permission 统一脱敏，
 //   utils/field_mask 对 admin 直接原样放行——本 worker 是 admin 会话，
 //   故 phone/email 断言按明文钉；换成非 admin 角色时这两列会变掩码，断言面须随之收窄。
@@ -152,6 +160,34 @@ async function listContacts(
 ): Promise<ContactRow[]> {
   const rows = await apiCallRaw<ContactRow[]>(page, 'GET', `/crm/customers/${customerId}/contacts`);
   expect(Array.isArray(rows), 'GET contacts 出参应为数组').toBe(true);
+  return rows;
+}
+
+/**
+ * 拉目标行的存库全列（GET /crm/sales-analysis/statistics 出参是 sales_analysis::Model 裸数组，
+ * 按 id 倒序；注册点 routes/crm.rs::sales_analysis，实现 handlers/sales_analysis_handler.rs::list_statistics
+ * → services/sales_analysis_service.rs::get_statistics_list，可按 statistic_type 与 period 等值过滤）。
+ * 为什么单独走这个端点：GET /crm/sales-analysis/targets 的出参是 SalesTargetDto
+ * （models/dto/sales_analysis_dto.rs 只 7 键：id/period/target_amount/actual_amount/
+ * completion_rate/variance/status），既没有 total_amount 也没有 dimension_name 与
+ * statistic_type；要钉「dimension_name 存的是什么」「statistic_type 归类对不对」这类
+ * 存库列事实，只有本端点看得见（POST 出参才是 Model 全列）。
+ */
+async function listTargetModels(
+  page: import('@playwright/test').Page,
+  period: string
+): Promise<SalesTargetRow[]> {
+  const rows = await apiCallRaw<SalesTargetRow[]>(
+    page,
+    'GET',
+    `/crm/sales-analysis/statistics?statistic_type=target&period=${encodeURIComponent(
+      period
+    )}&page=1&page_size=100`
+  );
+  expect(
+    Array.isArray(rows),
+    `GET /crm/sales-analysis/statistics 出参应为数组，实际 ${JSON.stringify(rows)}`
+  ).toBe(true);
   return rows;
 }
 
@@ -428,8 +464,9 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     ).toBe('string');
     expect(Number(created.data.total_amount), 'total_amount 数值应等于提交值').toBe(123456);
 
-    // 回读：GET /crm/sales-analysis/targets 按 id 倒序分页，新建行必在首页
-    const listed = await apiCallRaw<SalesTargetRow[]>(
+    // 回读甲：GET /crm/sales-analysis/targets 出参是 SalesTargetDto（派生键 target_amount，
+    // 无 total_amount/dimension_name/statistic_type），按 id 倒序分页，新建行必在首页
+    const listed = await apiCallRaw<SalesTargetDto[]>(
       page,
       'GET',
       '/crm/sales-analysis/targets?page=1&page_size=100'
@@ -437,11 +474,34 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     expect(Array.isArray(listed), 'GET targets 出参应为裸数组').toBe(true);
     const row = listed.find(item => item.id === created.data.id);
     expect(row, '列表回读应含刚建的目标行').toBeTruthy();
-    expect(row!.period).toBe(period);
-    expect(Number(row!.total_amount)).toBe(123456);
-    expect(row!.dimension_name).toBe(`开始日期: ${startDate}, 结束日期: ${endDate}`);
+    expect(row!.period, 'DTO 的 period 应等于建单入参').toBe(period);
+    expect(
+      Number(row!.target_amount),
+      `GET targets 按 DTO 键 target_amount 钉建单额：期望 123456，实际 ${JSON.stringify(
+        row!.target_amount
+      )}（键名请对照 models/dto/sales_analysis_dto.rs::SalesTargetDto）`
+    ).toBe(123456);
+
+    // 回读乙：存库全列只有 statistics 端点可见（create_target 把起止日期拼进 dimension_name）
+    const createdModel = (await listTargetModels(page, period)).find(
+      item => item.id === created.data.id
+    );
+    expect(createdModel, 'statistics 回读应含刚建的目标行').toBeTruthy();
+    expect(
+      createdModel!.dimension_name,
+      `dimension_name 期望「开始日期: ${startDate}, 结束日期: ${endDate}」，实际 ${JSON.stringify(
+        createdModel!.dimension_name
+      )}`
+    ).toBe(`开始日期: ${startDate}, 结束日期: ${endDate}`);
 
     // PUT 按 period 定位；未提交 status ⇒ 回落 master_data::ACTIVE="active"
+    // 源码现况登记（只读核实，本卡不动断言语义）：services/sales_analysis_service.rs::update_target
+    // 当前对非空白 remarks 直接报 400 validation_displayable（文案「目标备注暂不支持保存，
+    // 请清空备注后重新提交」），定位腿只认 statistic_type=target 且 dimension_type=overall 且
+    // dimension_id IS NULL 的总体行（create_target 落的行 dimension_id 恒非空），
+    // actual_amount 改由 fetch_actual_amounts 现算 sales_orders。
+    // 因此本段自 PUT 起的红面属"用例契约与源码契约不一致"（源码侧 update_target 已按上述口径改造），
+    // 归研发专家与调度与决策裁决，不在测试面修复范围内。
     const updated = await apiCall<SalesTargetDto>(
       page,
       'PUT',
@@ -468,18 +528,37 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     ).toBe('string');
 
     const afterUpdate = (
-      await apiCallRaw<SalesTargetRow[]>(
+      await apiCallRaw<SalesTargetDto[]>(
         page,
         'GET',
         '/crm/sales-analysis/targets?page=1&page_size=100'
       )
     ).find(item => item.id === created.data.id);
     expect(afterUpdate, 'PUT 后回读应仍含该目标行').toBeTruthy();
-    expect(Number(afterUpdate!.total_amount), '回读 total_amount 应为改后值').toBe(654321);
     expect(
-      afterUpdate!.dimension_name,
-      'update_target 用 remarks 覆盖 dimension_name（service:489），原起止日期串不再存在'
+      Number(afterUpdate!.target_amount),
+      `GET targets 按 DTO 键 target_amount 钉改后额：期望 654321，实际 ${JSON.stringify(
+        afterUpdate!.target_amount
+      )}`
+    ).toBe(654321);
+
+    const afterUpdateModel = (await listTargetModels(page, period)).find(
+      item => item.id === created.data.id
+    );
+    expect(afterUpdateModel, 'statistics 回读应仍含该目标行').toBeTruthy();
+    expect(
+      afterUpdateModel!.dimension_name,
+      `update_target 用 remarks 覆盖 dimension_name，期望「改后目标备注」，实际 ${JSON.stringify(
+        afterUpdateModel!.dimension_name
+      )}（原起止日期串应不再存在）`
     ).toBe('改后目标备注');
-    expect(afterUpdate!.statistic_type).toBe('target');
+    expect(
+      afterUpdateModel!.statistic_type,
+      `统计类型归类期望 "target"，实际 ${JSON.stringify(afterUpdateModel!.statistic_type)}`
+    ).toBe('target');
+    expect(
+      Number(afterUpdateModel!.total_amount),
+      `存库列 total_amount 期望 654321，实际 ${JSON.stringify(afterUpdateModel!.total_amount)}`
+    ).toBe(654321);
   });
 });

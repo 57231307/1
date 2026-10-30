@@ -137,6 +137,19 @@ export function getAiTestUsername(): string {
 }
 
 /**
+ * AI 限流专用第三用户（e2e_ai2_s{shard}）用户名派生——与 getAiTestUsername 同形状的第二桶。
+ * 为什么要两桶：后端 AI 端点限流按 user_id 维度 10 req/min（middleware/rate_limit.rs 的
+ * rate_limit_ai_endpoint），单个隔离账号一个窗口只容 10 次；一段用例的 /advanced/* 调用数
+ * 超过 10 时，第 11 次起拿的是 429 而不是被验的入参门与出参形状，必须另起一个 user_id。
+ * 取用侧与 e2e_ai_s{shard} 完全同型：账号由 global-setup 的 ensureAiUser 按分片建为
+ * admin 角色、密码沿用建号主体密码（不落凭证文件），调用点只取用户名。
+ */
+export function getAiTest2Username(): string {
+  const shardIndex = process.env.E2E_SHARD_INDEX ?? '';
+  return shardIndex !== '' ? `e2e_ai2_s${shardIndex}` : 'e2e_ai2';
+}
+
+/**
  * 一站式应用 auth 初始化（smoke + bpm/crm/finance/quality/enhanced/purchase 共用）
  *
  * P2.4 去 mock 化（2026-09-09）：
