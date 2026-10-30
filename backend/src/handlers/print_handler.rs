@@ -1690,10 +1690,7 @@ pub async fn preview_print_template(
     // 层 3：CSP 禁脚本执行，仅放样式与内联图片，纵深兜住 content 与净化残留
     let mut html = format!(
         "<html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:\"><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
-        safe_name,
-        safe_css,
-        safe_name,
-        record.content
+        safe_name, safe_css, safe_name, record.content
     );
     for (key, value) in &variables {
         let placeholder = format!("{{{{{}}}}}", key);

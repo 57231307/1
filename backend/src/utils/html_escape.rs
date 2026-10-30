@@ -612,7 +612,10 @@ fn sanitize_url_in_line(line: &str) -> Option<String> {
     // 提取 url( 后的内容直到匹配的 ')'
     let after_paren = &line[url_fn_start + 4..];
     let close_paren = after_paren.find(')').unwrap_or(after_paren.len());
-    let url_content = after_paren[..close_paren].trim().trim_matches('"').trim_matches('\'');
+    let url_content = after_paren[..close_paren]
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'');
     let url_lower = url_content.to_lowercase();
     // 无协议前缀（相对路径或 data:）则按白名单检查
     let scheme_end = url_lower.find(':');
