@@ -94,7 +94,7 @@ jobs:
     steps:
       - name: 查找最近一次同时产出后端二进制与前端产物的 ci-cd.yml run
         id: find
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const {owner, repo} = context.repo;
@@ -188,7 +188,7 @@ jobs:
       E2E_BATCH_NUMBER: ${{ inputs.batch_number }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 记录批次信息
         run: |
@@ -330,7 +330,7 @@ jobs:
 
       - name: 上传测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-batch-${{ inputs.batch_number }}
           path: |

@@ -106,7 +106,7 @@ jobs:
       full_suite: ${{ steps.plan-scope.outputs.full_suite }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # 仅需最近 10 个 commit 用于环境信息展示（git log --oneline -5），无需完整历史
           fetch-depth: 10
@@ -207,7 +207,7 @@ jobs:
           } > reports/env-info.json
 
       - name: 上传环境信息
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: env-info
           path: reports/env-info.*
@@ -230,7 +230,7 @@ jobs:
       contents: write
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（rustfmt）
         uses: ./.github/actions/setup-rust
@@ -392,7 +392,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-fmt-report
           path: |
@@ -412,7 +412,7 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -602,7 +602,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-fmt-report
           # 报告实际写在 frontend/reports/（各步骤 working-directory: frontend），
@@ -636,12 +636,12 @@ jobs:
       contents: write
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: 下载中枢 clippy 原始输出
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: clippy-raw
           path: backend/reports
@@ -1189,7 +1189,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-clippy-report
           path: |
@@ -1216,7 +1216,7 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -1335,7 +1335,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-lint-report
           path: |
@@ -1353,7 +1353,7 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -1404,7 +1404,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-type-check-report
           # 同 frontend-fmt-report：vue-tsc 输出写在 frontend/reports/，
@@ -1445,7 +1445,7 @@ jobs:
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust action 智能探测写入 GITHUB_ENV（防 OOM，不硬编码）
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1458,7 +1458,7 @@ jobs:
           mem_per_unit_gb: '7'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
@@ -1472,7 +1472,7 @@ jobs:
 
       - name: 上传 archive
         if: needs.ci-info.outputs.full_suite == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nextest-archive
           path: backend/nextest-archive.tar.zst
@@ -1520,7 +1520,7 @@ jobs:
 
       - name: 上传 clippy 原始输出（供 🔍 Rust Clippy job 判定）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: clippy-raw
           path: backend/reports/
@@ -1581,7 +1581,7 @@ jobs:
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1593,12 +1593,12 @@ jobs:
           target-cache: 'false'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
       - name: 下载预编译测试 archive
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nextest-archive
           path: backend/
@@ -1607,7 +1607,7 @@ jobs:
         uses: ./.github/actions/verify-nextest-archive
 
       - name: 下载后端 CLI 二进制（migrate 用，复用 ci-build-rust release 产物，分片不重编）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: backend/target/release
@@ -1756,7 +1756,7 @@ jobs:
 
       - name: 上传测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-report-partition-${{ matrix.partition }}
           path: backend/reports/
@@ -1821,7 +1821,7 @@ jobs:
       LOG__DIR: /tmp/ignored-test-logs
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1832,12 +1832,12 @@ jobs:
           target-cache: 'false'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
       - name: 下载预编译测试 archive（与分片同一产物）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nextest-archive
           path: backend/
@@ -1846,7 +1846,7 @@ jobs:
         uses: ./.github/actions/verify-nextest-archive
 
       - name: 下载后端 CLI 二进制（migrate 用）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: backend/target/release
@@ -1970,7 +1970,7 @@ jobs:
 
       - name: 上传 ignored 用例测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-report-ignored
           path: backend/reports/
@@ -1988,7 +1988,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -2043,7 +2043,7 @@ jobs:
 
       - name: 上传前端覆盖率到 Codecov（V15 批次 06 P1-12）
         if: always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           working-directory: frontend
@@ -2054,7 +2054,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-test-report
           # vitest 报告由本 job 各步在 working-directory: frontend 下写进 frontend/reports/，
@@ -2086,13 +2086,13 @@ jobs:
     continue-on-error: true
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（共享主 cargo- 缓存，加速依赖编译）
         uses: ./.github/actions/setup-rust
 
       - name: 缓存 criterion 基线数据
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: backend/target/criterion
           key: criterion-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
@@ -2171,7 +2171,7 @@ jobs:
 
       - name: 上传性能基准报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: perf-bench-report
           path: backend/reports/
@@ -2192,7 +2192,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
@@ -2301,7 +2301,7 @@ jobs:
 
       - name: 上传构建日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-build-log
           # cargo-build.log 由「构建后端 (Release)」在 working-directory: backend 下写进
@@ -2314,7 +2314,7 @@ jobs:
 
       - name: 上传后端产物
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-binary
           path: |
@@ -2352,7 +2352,7 @@ jobs:
       e2e_shard_matrix: ${{ steps.e2e-shard-matrix.outputs.matrix }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -2427,7 +2427,7 @@ jobs:
 
       - name: 上传构建日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-build-log
           # reports/ 是本步骤工作目录（仓库根）下的报告；frontend/reports/ 才是
@@ -2441,7 +2441,7 @@ jobs:
 
       - name: 上传前端产物
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-dist
           path: frontend/dist/
@@ -2562,7 +2562,7 @@ jobs:
       tag_name: v${{ needs.ci-build-rust.outputs.version }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -2577,13 +2577,13 @@ jobs:
           echo "使用编译时的版本: $VERSION"
 
       - name: 下载后端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: release/backend
 
       - name: 下载前端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: frontend-dist
           path: release/frontend/dist
@@ -2628,7 +2628,7 @@ jobs:
           ls -lh "../$TAR_NAME"
 
       - name: 上传发布包
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bingxi-erp-release
           path: release-${{ steps.version.outputs.version }}.tar.gz
@@ -2653,12 +2653,12 @@ jobs:
       pull-requests: read
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: 下载发布包
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: bingxi-erp-release
           path: ./
@@ -2951,7 +2951,7 @@ jobs:
       SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3315,7 +3315,7 @@ jobs:
       # 失败诊断原件，去掉 playwright-report/ 副本不损失任何错误分析能力。
       - name: 上传 E2E 轻量报告（每片必传）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: |
@@ -3344,7 +3344,7 @@ jobs:
 
       - name: 上传 E2E 失败诊断产物（trace/video/error-context）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-diag-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: frontend/reports/e2e-diag-shard-${{ matrix.shard }}.tar.gz
@@ -3424,7 +3424,7 @@ jobs:
       SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3537,7 +3537,7 @@ jobs:
 
       - name: 上传 access-map 报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           # artifact 名禁止冒号：用 include 展开的 group_name（安全名）
           name: access-map-${{ matrix.group_name }}-${{ github.run_id }}
@@ -3551,7 +3551,7 @@ jobs:
       # /tmp/matrix-logs 却从不入产物，导致"某端点 500"永远无法定责，只能靠猜。
       - name: 上传矩阵 job 后端与前端预览日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: matrix-runtime-logs-${{ matrix.group_name }}-${{ github.run_id }}
           path: |
@@ -3602,7 +3602,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: 检出代码（含完整历史，gitleaks 需要）
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
@@ -3769,7 +3769,7 @@ jobs:
         # 防"前序步骤红 → 密钥扫描整轮从未执行"的零覆盖盲区（#4669 实证被跳过）：
         # 仍保持 fail-closed——本步失败照样判负，只是不再被别人的失败遮掉。
         if: ${{ !cancelled() }}
-        uses: gacts/gitleaks@v1
+        uses: gacts/gitleaks@4fd785dcdaf557fda64e05b0ae033b8f7d82fb81 # v1
         continue-on-error: false
         with:
           # 配置走仓库根 .gitleaks.toml（默认读取，含测试/文档合成凭据 allowlist）
@@ -3779,7 +3779,7 @@ jobs:
         # 同 gitleaks：不再被前序失败连带跳过（#4669 实证零覆盖）。
         # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
         if: ${{ !cancelled() }}
-        uses: returntocorp/semgrep-action@v1
+        uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
         continue-on-error: true
         with:
           config: >-
@@ -3790,7 +3790,7 @@ jobs:
 
       - name: 上传依赖审计报告（cargo audit / npm audit 原始输出）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-audit-reports
           path: reports/audit/
@@ -3799,7 +3799,7 @@ jobs:
 
       - name: 上传依赖图记录（cargo tree / npm ls）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-trees
           path: reports/deps/
@@ -3808,7 +3808,7 @@ jobs:
 
       - name: 上传漏洞扫描报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-scan-${{ github.run_id }}
           path: reports/
@@ -3828,7 +3828,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # 审计流程（备份源码 → 剥离 file-level allow → cargo check 收集 dead_code →
       # 恢复源码 → 报告 → 上传 → 门禁判定）与 dead-code-audit.yml 的周报 job 共用
@@ -3895,7 +3895,7 @@ jobs:
       CACHE_ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3963,7 +3963,7 @@ jobs:
 
       - name: 上传诊断产物
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: setup-wizard-e2e-${{ github.run_id }}
           path: |
@@ -3988,7 +3988,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 功能声明 vs 路由实现三方对照
         run: |
@@ -4066,7 +4066,7 @@ jobs:
 
       - name: 上传功能完整性报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: completeness-report-${{ github.run_id }}
           path: /tmp/completeness-report.md
@@ -4096,7 +4096,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # 注释形态门禁需要历史：PR 求 merge-base、push 做 event.before..HEAD
           # diff；仅查覆盖率不查形态的旧步骤无此需求，改动只影响本 job 检出耗时。
@@ -4863,7 +4863,7 @@ jobs:
 
       - name: 上传注释报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: comment-report-${{ github.run_id }}
           path: |
@@ -4893,7 +4893,7 @@ jobs:
     if: ${{ !cancelled() && needs.ci-info.outputs.full_suite == 'true' }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 动态校验——全部 E2E job 必须真实执行成功
         run: |
@@ -4988,14 +4988,14 @@ jobs:
         # 本步按 needs 结论跳过，随后两个报告对账步骤以数据缺失记 SKIP 并点名，
         # 不会假装通过；ci-e2e 结论为 success 而下载步报错时本步直接红，属真异常。
         if: ${{ !cancelled() && needs.ci-e2e.result == 'success' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: e2e-report-shard-*
           path: e2e-forensics-artifacts
           merge-multiple: false
 
       - name: 安装对账用 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -5074,7 +5074,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 敏感链路静态审计
         run: |
@@ -5146,10 +5146,10 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
 
