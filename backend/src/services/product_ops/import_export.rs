@@ -41,7 +41,7 @@ const COL_CATEGORY_ID: &str = "类别ID";
 const COL_SPECIFICATION: &str = "规格型号";
 const COL_UNIT: &str = "计量单位";
 const COL_STANDARD_PRICE: &str = "标准价格";
-const COL_COST_PRICE: &str = "成本价格";
+pub const COL_COST_PRICE: &str = "成本价格";
 const COL_COMPOSITION: &str = "面料成分";
 const COL_YARN_COUNT: &str = "纱支";
 const COL_DENSITY: &str = "密度";
@@ -312,11 +312,14 @@ impl ProductService {
     }
 
     /// T1: 导出产品数据为结构化格式（去除 CSV 中转）
+    /// show_cost_price 由调用方按是否 admin 传入：成本价在 JSON 列表腿本就对非 admin 置空，
+    /// 导出面若整表带出即绕过同一策略，故此处与列表腿同源收口（置空该列，不删列）。
     pub async fn export_products_to_xlsx(
         &self,
         category_id: Option<i32>,
         status: Option<String>,
         search: Option<String>,
+        show_cost_price: bool,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
         // 查询产品列表（单页拉取全量用于导出）
         let (products, _total) = self
@@ -327,7 +330,7 @@ impl ProductService {
         let headers = Self::build_product_csv_headers();
 
         // 构建行数据（直接转为 Vec<Vec<String>>，无需 CSV 中转）
-        let rows: Vec<Vec<String>> = products
+        let mut rows: Vec<Vec<String>> = products
             .iter()
             .map(|p| {
                 let row = Self::build_product_csv_row(p);
@@ -337,6 +340,10 @@ impl ProductService {
                     .collect()
             })
             .collect();
+
+        if !show_cost_price {
+            crate::utils::field_mask::blank_column_by_title(&headers, &mut rows, COL_COST_PRICE);
+        }
 
         Ok((headers, rows))
     }
