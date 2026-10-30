@@ -417,6 +417,25 @@ jobs:
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
 
+      - name: 工作流第三方引用固定性检查（可变 tag 一律判红）
+        # 功能：判定 .github/workflows 全部工作流与 .github/actions 全部 composite action 内的
+        #   uses 引用，凡指向第三方仓库者必须是 40 位 commit sha，可变 tag、短 sha、缺 ref 段
+        #   三类形态任一即判红；仓内 ./ 前缀引用不参与。
+        # 调用方：本步与各本地门共用同一判定器，判据只有一份。
+        # 入参：无，扫描根由脚本自身位置回溯到仓库根。
+        # 传给谁：HARD 行与 TOTAL hard= 与 PINNING_GREEN 或 PINNING_RED 只进本步日志。
+        # 存什么/存哪里：不写文件、不建基线，判定当场算出。
+        # 为什么与 actionlint 同 job 且排在它之后：两步都是只读 .github 与 scripts 的静态锁，
+        #   同 job 复用一次 checkout；排在 Setup Frontend 之后与 actionlint 同理，避免本步判红时
+        #   把后续 node 门拖进没有 node_modules 的级联假红。
+        # 为什么必判红不可降级：本步是上一条「第三方引用全量固定」的护栏。没有它，下一次
+        #   新增 uses 时又会写回 @vN，固定面随时间自然溃堤，且没有任何地方会报错。
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: |
+          node scripts/ci/check-action-pinning.mjs --self-test
+          node scripts/ci/check-action-pinning.mjs
+
       - name: 工作流与 composite action 静态校验（actionlint 棘轮基线）
         # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action。发现按
         #   严重度分流：actionlint 原生发现（注入面/元数据缺项/表达式语法等）与 shellcheck error 级
