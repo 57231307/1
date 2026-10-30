@@ -22,6 +22,8 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 import { pickSelectIn, openScopedDropdown, dropdownItems } from '../flow/ui-helpers';
+// 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
+import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
 /** GET /products/{id} 回读的产品主档切片（编码为前端契约别名键，别名由后端 append_frontend_aliases 补齐） */
 interface ProductMaster {
@@ -59,6 +61,8 @@ async function createIdentifiableProduct(
     name: `E2E带出产品${code}`,
     unit: '米',
     category_id: getCtx().productCategoryIds[0],
+    // 产品类型建单必填且为面料类才按品类分级校验幅宽/克重/成分；本例造的就是面料产品
+    product_type: PRODUCT_TYPE.finished,
     specification,
     fabric_composition: composition,
     gram_weight: gramWeight,
