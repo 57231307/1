@@ -3957,9 +3957,6 @@ export default {
       labelWeightTolerance: 'Weight Tolerance (±g/m²)',
       tipWeightTolerance: 'Allowed deviation of the target gram weight, non-negative',
       placeholderWeightTolerance: 'Enter weight tolerance',
-      labelSpandexPercent: 'Spandex Content (%)',
-      tipSpandexPercent: 'Industry measure of elasticity requirement, 0 to 100',
-      placeholderSpandexPercent: 'Enter spandex content (%)',
       labelUsage: 'Usage',
       placeholderUsage: 'e.g. apparel fabric, home textile, industrial',
       placeholderWidth: 'Enter effective width (cm)',
@@ -3994,8 +3991,6 @@ export default {
         'Enter a valid width number, must be greater than 0, at most 2 decimal places',
       validateWeightToleranceFormat:
         'Enter a valid weight tolerance number, not less than 0, at most 2 decimal places',
-      validateSpandexPercentFormat:
-        'Enter a valid spandex content number, not less than 0, at most 2 decimal places',
       validateInfantStandardRequired:
         'Infant textile products (class A) must list GB 31701-2015 in execution standard',
       messageCreateSuccess: 'Created successfully',
