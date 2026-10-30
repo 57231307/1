@@ -3,7 +3,10 @@
 //! 包含数据源管理、聚合查询、报表执行、缓存管理：
 //! - `aggregate_data`         通用聚合查询分发
 //! - `aggregate_*_data`       4 类业务聚合（销售/采购/库存/财务）
-//! - `query_*_report`         4 类业务明细分页查询
+//! - `query_*_report`         预置模板装配腿：每枚模板一条腿，出参行键与模板
+//!   声明列严格同源（汇总类做真实分组聚合，明细类按声明列投影并关联维表名称），
+//!   装配末端统一过 `ensure_rows_match_declared_columns` 护栏，不同源即硬失败；
+//!   未登记的模板 id 走 `query_sales_report` 销售明细兜底腿（自定义模板既有契约）。
 //! - `execute_report`         报表执行入口（支持缓存 + 数据加载）
 //! - 内部缓存：`generate_cache_key` / `get_cached_data` / `set_cached_data`
 //!
@@ -19,7 +22,6 @@ use tracing::info;
 use crate::models::finance_payment::Entity as FinancePaymentEntity;
 use crate::models::inventory_stock::Entity as InventoryStockEntity;
 use crate::models::purchase_order::Entity as PurchaseOrderEntity;
-use crate::models::purchase_order_item::Entity as PurchaseOrderItemEntity;
 use crate::models::sales_order::Entity as SalesOrderEntity;
 use crate::models::sales_order_item::Entity as SalesOrderItemEntity;
 use crate::utils::error::AppError;
@@ -370,6 +372,7 @@ impl ReportEngineService {
                     .await?
             }
             "purchase_summary" => self.query_purchase_report(&template, &req).await?,
+            "ar_aging" => self.query_ar_aging_report(&template, &req).await?,
             _ => {
                 // 默认: 销售明细（自定义模板兜底）
                 self.query_sales_report(&template, &req).await?
@@ -1392,68 +1395,171 @@ impl ReportEngineService {
         Ok(rows.into_iter().map(|w| (w.id, w.name)).collect())
     }
 
-    /// 查询采购报表（P2-2 修复（v12 复审）：原实现返回空数据桩代码，；现真实查询 purchase_order_item 明细，按日期范围过滤，返回订单明细行。）
+    /// 查询采购汇总报表（按声明列聚合投影）
+    ///
+    /// 功能 按供应商聚合采购订单：采购总额累加订单总额、订单数按订单计数，
+    /// 供应商 id 关联成名称后严格装配模板声明的三列（supplier_name、total_amount、
+    /// order_count），不再返回采购明细整实体行。日期范围按订单日过滤，
+    /// 与销售汇总同一请求时间轴；供应商过滤按提交值下推，非法 id 点名拒绝。
+    /// 调用方 execute_report 在 template_id 为 purchase_summary 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围与 supplier_id 过滤。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 total_amount 是 DECIMAL 线格式字符串，order_count 是整数。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
     pub async fn query_purchase_report(
         &self,
         template: &super::ReportTemplate,
         req: &ExecuteReportRequest,
     ) -> Result<ReportData, AppError> {
-        let mut select = PurchaseOrderItemEntity::find();
-
-        if let Some(date_range) = &req.date_range {
+        let mut select = PurchaseOrderEntity::find();
+        if let Some(range) = &req.date_range {
             select = select.filter(
-                crate::models::purchase_order_item::Column::CreatedAt.gte(
-                    date_range
-                        .start
-                        .and_hms_opt(0, 0, 0)
-                        .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
-                        .and_utc(),
-                ),
-            );
-            select = select.filter(
-                crate::models::purchase_order_item::Column::CreatedAt.lte(
-                    date_range
-                        .end
-                        .and_hms_opt(23, 59, 59)
-                        .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
-                        .and_utc(),
-                ),
+                crate::models::purchase_order::Column::OrderDate.between(range.start, range.end),
             );
         }
+        if let Some(raw) = Self::filter_value(req, "supplier_id") {
+            let supplier_id = Self::parse_filter_id("supplier_id", raw)?;
+            select =
+                select.filter(crate::models::purchase_order::Column::SupplierId.eq(supplier_id));
+        }
+        let orders = select.all(&*self.db).await?;
 
-        let items = select.all(&*self.db).await?;
+        let mut by_supplier: BTreeMap<i32, (u64, rust_decimal::Decimal)> = BTreeMap::new();
+        for order in &orders {
+            let entry = by_supplier
+                .entry(order.supplier_id)
+                .or_insert((0_u64, rust_decimal::Decimal::ZERO));
+            entry.0 += 1;
+            entry.1 += order.total_amount;
+        }
 
-        // 转换为报表行
-        let rows: Vec<serde_json::Value> = items
-            .iter()
-            .map(|item| {
+        let supplier_ids: HashSet<i32> = by_supplier.keys().copied().collect();
+        let supplier_map = Self::load_supplier_name_map(&self.db, &supplier_ids).await?;
+
+        let mut ranked: Vec<(i32, u64, rust_decimal::Decimal)> = by_supplier
+            .into_iter()
+            .map(|(sid, entry)| (sid, entry.0, entry.1))
+            .collect();
+        ranked.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+
+        let rows: Vec<serde_json::Value> = ranked
+            .into_iter()
+            .map(|(sid, count, total)| {
                 serde_json::json!({
-                    "order_id": item.order_id,
-                    "product_id": item.product_id,
-                    "quantity": item.quantity.to_string(),
-                    "unit_price": item.unit_price.to_string(),
-                    "amount": item.total_amount.to_string(),
-                    "subtotal": item.subtotal.to_string(),
-                    "tax_amount": item.tax_amount.to_string(),
-                    "discount_amount": item.discount_amount.to_string(),
-                    "created_at": item.created_at.to_rfc3339(),
+                    "supplier_name": supplier_map.get(&sid).cloned().unwrap_or_default(),
+                    "total_amount": total.to_string(),
+                    "order_count": count,
                 })
             })
             .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
 
-        Ok(ReportData {
-            columns: template.columns.clone(),
-            total_rows: rows.len() as u64,
-            rows,
-            generated_at: Utc::now(),
-            summary: None,
-            metadata: ReportMetadata {
-                data_source: template.data_source.clone(),
-                query_time_ms: 0,
-                cache_hit: false,
-                parameters: req.parameters.clone(),
-            },
-        })
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 按 id 集合批量取供应商名称
+    ///
+    /// 功能 一次 in-list 查询取回供应商维表映射，杜绝逐行查库的 N+1。
+    /// 调用方 采购汇总腿的供应商列取数。
+    /// 入参 db 与供应商 id 集合。
+    /// 传给谁 映射交给装配闭包拼行；空集合不触库。
+    /// 存什么 id 到供应商名称。
+    /// 存哪里 不落库。
+    async fn load_supplier_name_map(
+        db: &DatabaseConnection,
+        ids: &HashSet<i32>,
+    ) -> Result<HashMap<i32, String>, AppError> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let id_list: Vec<i32> = ids.iter().copied().collect();
+        let rows = crate::models::supplier::Entity::find()
+            .filter(crate::models::supplier::Column::Id.is_in(id_list))
+            .all(db)
+            .await?;
+        Ok(rows.into_iter().map(|s| (s.id, s.supplier_name)).collect())
+    }
+
+    /// 查询应收账款账龄报表（按声明列分桶聚合）
+    ///
+    /// 功能 取未结清应收发票（口径与 AR 账龄服务同源：排除草稿与取消、未收金额大于零），
+    /// 按客户分组，把每张发票的逾期天数折进当期、1-30、31-60、60天以上四个桶并累加
+    /// 未收金额，行严格装配模板声明的五列（customer_name、current、1_30_days、
+    /// 31_60_days、over_60_days）。逾期基准日优先取请求日期范围的截止日，
+    /// 缺失才落当日，绝不忽略请求侧基准。桶边界为闭区间，恰好 60 天落 31-60 桶。
+    /// 调用方 execute_report 在 template_id 为 ar_aging 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围作账龄基准。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 四个桶列是 DECIMAL 线格式字符串，客户名是字符串。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_ar_aging_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        use crate::models::status::common;
+        let baseline = req
+            .date_range
+            .as_ref()
+            .map(|range| range.end)
+            .unwrap_or_else(|| Utc::now().date_naive());
+
+        let invoices = crate::models::ar_invoice::Entity::find()
+            .filter(
+                crate::models::ar_invoice::Column::Status
+                    .is_not_in([common::STATUS_CANCELLED, common::STATUS_DRAFT]),
+            )
+            .filter(crate::models::ar_invoice::Column::UnpaidAmount.gt(rust_decimal::Decimal::ZERO))
+            .all(&*self.db)
+            .await?;
+
+        let mut by_customer: BTreeMap<i32, [rust_decimal::Decimal; 4]> = BTreeMap::new();
+        for inv in &invoices {
+            let overdue_days = (baseline - inv.due_date).num_days();
+            // 模板声明四档桶：<=0 当期；1-30；31-60；>60 归 60天以上
+            let bucket = if overdue_days <= 0 {
+                0
+            } else if overdue_days <= 30 {
+                1
+            } else if overdue_days <= 60 {
+                2
+            } else {
+                3
+            };
+            by_customer
+                .entry(inv.customer_id)
+                .or_insert([rust_decimal::Decimal::ZERO; 4])[bucket] += inv.unpaid_amount;
+        }
+
+        let customer_ids: HashSet<i32> = by_customer.keys().copied().collect();
+        let customer_map = Self::load_customer_name_map(&self.db, &customer_ids).await?;
+
+        let mut ranked: Vec<(i32, [rust_decimal::Decimal; 4], rust_decimal::Decimal)> = by_customer
+            .into_iter()
+            .map(|(cid, buckets)| {
+                let total = buckets
+                    .iter()
+                    .fold(rust_decimal::Decimal::ZERO, |acc, b| *acc + *b);
+                (cid, buckets, total)
+            })
+            .collect();
+        ranked.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+
+        let rows: Vec<serde_json::Value> = ranked
+            .into_iter()
+            .map(|(cid, buckets, _total)| {
+                serde_json::json!({
+                    "customer_name": customer_map.get(&cid).cloned().unwrap_or_default(),
+                    "current": buckets[0].to_string(),
+                    "1_30_days": buckets[1].to_string(),
+                    "31_60_days": buckets[2].to_string(),
+                    "over_60_days": buckets[3].to_string(),
+                })
+            })
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
     }
 
     // ==================================================
