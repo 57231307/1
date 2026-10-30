@@ -1,0 +1,319 @@
+# Composite action：全面漏洞检测的扫描本体（依赖漏洞 / 依赖图 / 秘密泄露 / SAST / 工作流定义自身审计）
+#
+# 功能：对一个已检出的工作区跑六个判定面 —— cargo audit（backend 全量含 dev-dependencies）、
+#   npm audit（frontend）、cargo tree --locked（lockfile 漂移即判负）、gitleaks（秘密泄露）、
+#   semgrep 社区规则（只记录）、zizmor（审工作流与 action 定义自身）。
+#   依赖漏洞两面的 high 与 critical 一律阻塞；zizmor 面的阻塞档是 high（它的 severity 上限
+#   就是 high，没有 critical 档）；semgrep 面只做记录。扫描器没跑成（命令缺失、异常退出、
+#   输出不可解析、报告自相矛盾）同样阻塞，不退化成"跳过判定"，不加 || true。
+# 调用方：.github/workflows/ci-cd.yml 的 job「🛡️ 全面漏洞检测」（PR 与 v 前缀标签两轮，
+#   拦合并与拦正式发版）与 .github/workflows/vuln-scan-daily.yml 的主干每日轮。
+#   判定语义只有本文件一份实现，两个调用方不许各留一份副本 —— 两份会各自漂移，
+#   让 PR 面与主干面给出不同结论。
+# 入参：无。两个前置条件由调用方负责：其一，必须先检出且 fetch-depth: 0（gitleaks 读全量历史）；
+#   其二，必须在调用 workflow 的顶层声明 RUST_VERSION 与 NODE_VERSION —— 本动作内嵌调用
+#   ./.github/actions/setup-rust 与 ./.github/actions/setup-frontend，二者取的是
+#   env.RUST_VERSION 与 env.NODE_VERSION，缺值时 rust-toolchain 与 setup-node 会以
+#   "required input 为空"当场判红，不会静默不判。
+# 传给谁：结论只以各步骤退出码交给调用 job，由 ci-cd.yml 的收尾门按 job 状态汇总；
+#   本动作不写 outputs，不回调接口，不创建 issue。
+# 存什么：cargo audit 与 npm audit 与 zizmor 的原始输出与日志、审计命中明细文本、
+#   cargo tree 与 npm ls 的依赖图。计数一律取扫描器自己的输出，解析不到就判不可确定并退出非零，
+#   不写 0 冒充"扫过且干净"。
+# 存哪里：$GITHUB_WORKSPACE/reports/audit/ 与 $GITHUB_WORKSPACE/reports/deps/，
+#   由调用方各自的上传步取走：ci-cd.yml 是 dependency-audit-reports、dependency-trees、
+#   security-scan 全量三份，每日轮是 vuln-scan-daily 前缀三份，均 if-no-files-found: error，
+#   空产物直接判失败。
+name: Vulnerability Scan
+description: 对已检出工作区跑依赖漏洞、依赖图、秘密泄露、SAST 与工作流定义审计，阻塞档按各判定面口径给出且扫描器异常一律阻塞
+runs:
+  using: composite
+  steps:
+    - name: 创建报告目录
+      shell: bash
+      run: mkdir -p "$GITHUB_WORKSPACE/reports/audit" "$GITHUB_WORKSPACE/reports/deps"
+
+    - name: Setup Rust（cargo-audit / cargo tree 需 cargo 工具链；本 job 不编译 crate 故关 sccache）
+      uses: ./.github/actions/setup-rust
+      with:
+        sccache: 'false'
+
+    # 原步骤没有 Rust/Node 工具链，且 `cargo install … || true` 把安装失败吞掉：
+    # 之后 `cargo audit` 是 command not found，JSON 为空，VULN_COUNT=parse-error，
+    # 而 parse-error 既不 fail 也不 warn —— 安全扫描器根本没跑却被记为通过。
+    - name: Setup Frontend（Node.js，npm audit 需要；npm audit 读 package-lock.json，无需 node_modules）
+      uses: ./.github/actions/setup-frontend
+      with:
+        skip-install: 'true'
+
+    - name: 安装 cargo-audit（安装失败/命令缺失必须阻塞，禁止 || true 吞错）
+      shell: bash
+      run: |
+        # runner 上（镜像预置或 Cargo 缓存恢复）可能已经有 cargo-audit，
+        # 而 `cargo install` 撞到同名二进制会以「binary `cargo-audit` already exists in destination」
+        # 退出 101 —— 于是这个漏洞检测 job 会与本次代码改动完全无关地判负。
+        # 已存在就不重装（下一步仍校验命令可用 + 版本可执行，不会把"没装"放过去）。
+        if command -v cargo-audit >/dev/null 2>&1; then
+          echo "cargo-audit 已就绪，跳过安装"
+        else
+          cargo install cargo-audit --locked --quiet
+        fi
+        command -v cargo-audit >/dev/null || { echo "::error::cargo-audit 未安装成功"; exit 1; }
+        cargo audit --version
+
+    - name: Rust 依赖漏洞审计（cargo audit · high/critical 阻塞 CI）
+      shell: bash
+      run: |
+        R="$GITHUB_WORKSPACE/reports/audit"
+        set +e
+        # 审计范围含 [dev-dependencies]：原 ci-audit 用 --no-dev-deps（子集），本 job 全量，
+        # 取超集 ⇒ 任何原本会被阻塞的高危漏洞仍然会被阻塞。
+        ( cd backend && cargo audit --json ) > "$R/cargo-audit.json" 2> "$R/cargo-audit.log"
+        RC=$?
+        set -e
+        echo "cargo audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
+        # exit>1 = 网络/解析之外的异常，扫描器没跑成，不得退化成"跳过判定"
+        if [ "$RC" -gt 1 ]; then
+          echo "::error::cargo audit 异常退出（exit $RC，扫描器未正常完成）"
+          tail -30 "$R/cargo-audit.log" || true
+          exit 1
+        fi
+        python3 - "$R" <<'PY'
+        import json, sys, os
+        R = sys.argv[1]
+        def die(msg):
+            print('::error::' + msg)
+            sys.exit(1)
+        try:
+            d = json.load(open(os.path.join(R, 'cargo-audit.json')))
+        except Exception as e:
+            die('cargo audit 输出无法解析（扫描器未正常执行）: %s' % e)
+        v = d.get('vulnerabilities') or {}
+        items = v.get('list') or []
+        def sev(x):
+            return str(((x.get('advisory') or {}).get('severity')) or '?').lower()
+        lines = []
+        for x in items:
+            a = x.get('advisory') or {}
+            pk = x.get('package') or {}
+            lines.append('[%s] %s %s - %s %s' % (sev(x), pk.get('name'), pk.get('version'), a.get('id'), a.get('title') or ''))
+        open(os.path.join(R, 'cargo-audit-details.txt'), 'w').write('\n'.join(lines) + ('\n' if lines else ''))
+        high = [l for l in lines if l.startswith('[high]') or l.startswith('[critical]')]
+        print('cargo audit: 已知漏洞 %d 条，其中 high/critical %d 条' % (len(items), len(high)))
+        for l in lines[:50]:
+            print('  - ' + l)
+        count = v.get('count')
+        # 输出自相一致校验：任何不一致都按"扫描器未正常执行"处理（fail closed）
+        if v.get('found') is True and not items:
+            die('cargo audit 报告 found=true 但 list 为空（输出异常，无法判定）')
+        if isinstance(count, int) and count > len(items):
+            die('cargo audit 报告 count=%d 大于可解析条目数=%d（输出被截断，无法判定）' % (count, len(items)))
+        # 门禁 1（原 ci-audit）：severity 字段精确命中 high/critical
+        if high:
+            die('检测到 %d 个 high/critical 级别 Rust 依赖漏洞，阻塞 CI（详见 reports/audit/cargo-audit-details.txt）' % len(high))
+        # 门禁 2（原全面漏洞检测 job）：有漏洞且详情文本出现 critical/high ⇒ 同样阻塞
+        if items:
+            txt = open(os.path.join(R, 'cargo-audit-details.txt')).read().lower()
+            if 'critical' in txt or 'high' in txt:
+                die('cargo audit 发现 High/Critical 依赖漏洞（severity 字段缺失，按详情文本判定）')
+            print('::warning::cargo audit 发现 %d 个低危/中危依赖漏洞（记录在案，不阻塞）' % len(items))
+        PY
+
+    - name: npm 依赖漏洞审计（npm audit · high/critical 阻塞 CI）
+      shell: bash
+      run: |
+        R="$GITHUB_WORKSPACE/reports/audit"
+        set +e
+        ( cd frontend && npm audit --json ) > "$R/npm-audit.json" 2> "$R/npm-audit.log"
+        RC=$?
+        set -e
+        echo "npm audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
+        if [ "$RC" -gt 1 ]; then
+          echo "::error::npm audit 异常退出（exit $RC，扫描器未正常完成）"
+          tail -30 "$R/npm-audit.log" || true
+          exit 1
+        fi
+        python3 - "$R" <<'PY'
+        import json, sys, os
+        R = sys.argv[1]
+        def die(msg):
+            print('::error::' + msg)
+            sys.exit(1)
+        try:
+            d = json.load(open(os.path.join(R, 'npm-audit.json')))
+        except Exception as e:
+            die('npm audit 输出无法解析（扫描器未正常执行）: %s' % e)
+        meta = (d.get('metadata') or {}).get('vulnerabilities') or {}
+        pkgs = d.get('vulnerabilities') or {}
+        def sev(x):
+            return str(x.get('severity') or '?').lower()
+        def num(k):
+            try:
+                return int(meta.get(k, 0) or 0)
+            except (TypeError, ValueError):
+                die('npm audit metadata.%s 非数值（输出异常，无法判定）' % k)
+        bad = sorted('%s [%s]' % (k, sev(x)) for k, x in pkgs.items() if sev(x) in ('high', 'critical'))
+        print('npm audit 漏洞统计: %s' % meta)
+        for b in bad[:50]:
+            print('  - ' + b)
+        meta_high = num('high') + num('critical')
+        # 门禁 1（原全面漏洞检测 job）：metadata 计数
+        if meta_high > 0:
+            die('npm audit 发现 %d 个 High/Critical 漏洞，阻塞 CI' % meta_high)
+        # 门禁 2（原 ci-audit）：逐包 severity 字段命中 high/critical
+        if bad:
+            die('npm audit 发现 %d 个 high/critical 级别前端依赖漏洞，阻塞 CI（详见 reports/audit/npm-audit.json）' % len(bad))
+        # 计数与逐包判定不一致（有漏洞统计却解析不到任何包）= 输出不可信，按未执行处理
+        if num('total') > 0 and not pkgs:
+            die('npm audit metadata.total=%d 但无可解析漏洞条目（输出异常，无法判定）' % num('total'))
+        if num('total') > 0 or pkgs:
+            print('::warning::npm audit 存在低危/中危漏洞（详见 reports/audit/npm-audit.json）')
+        PY
+
+    - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
+      # 前序漏洞审计步 fail-closed 判红时，本步与 npm ls 步默认被跳过，
+      # 于是"上传依赖图记录"（if: always 且缺文件即错）跟着报一道假象红：
+      # 看着像两个缺陷，实则同一成因，且恰好在最需要依赖图时把它抹掉。
+      # 与 gitleaks 与 semgrep 同策：!cancelled() 让记录照出，本步自身失败照样判负。
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: |
+        D="$GITHUB_WORKSPACE/reports/deps"
+        cd backend
+        # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
+        cargo tree --locked --charset ascii > "$D/cargo-tree.txt"
+        cargo tree --locked --charset ascii --format json > "$D/cargo-tree.json"
+        echo "cargo tree 行数: $(wc -l < "$D/cargo-tree.txt")"
+
+    - name: 生成 npm ls（依赖图记录，非关键，允许失败）
+      if: ${{ !cancelled() }}
+      continue-on-error: true
+      shell: bash
+      run: |
+        D="$GITHUB_WORKSPACE/reports/deps"
+        ( cd frontend && npm ls --all --json ) > "$D/npm-ls.json" 2> "$D/npm-ls.txt"
+        echo "npm ls 顶层依赖数: $(jq '.dependencies | length' "$D/npm-ls.json" 2>/dev/null || echo N/A)"
+
+    - name: 秘密泄露扫描（gitleaks）
+      # 防"前序步骤红 → 密钥扫描整轮从未执行"的零覆盖盲区（实测存在因此整轮没扫过密钥的轮次）：
+      # 仍保持 fail-closed——本步失败照样判负，只是不再被别人的失败遮掉。
+      if: ${{ !cancelled() }}
+      uses: gacts/gitleaks@4fd785dcdaf557fda64e05b0ae033b8f7d82fb81 # v1
+      continue-on-error: false
+      with:
+        # 配置走仓库根 .gitleaks.toml（默认读取，含测试/文档合成凭据 allowlist）
+        config-path: .gitleaks.toml
+
+    - name: 静态安全扫描（semgrep 社区规则）
+      # 同 gitleaks：不再被前序失败连带跳过（同一实测轮次里 SAST 面也是零覆盖）。
+      # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
+      if: ${{ !cancelled() }}
+      uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
+      continue-on-error: true
+      with:
+        config: >-
+          --config=p/ci-detect-secrets
+          --config=p/typescript
+          --config=p/rust
+        generateSarif: "false"
+
+    - name: 工作流定义自身安全审计（zizmor · high 阻塞 CI）
+      # 功能：用固定版本 zizmor 审本仓 .github 下的工作流与 composite action 定义自身，
+      #   把流水线定义里的注入面、越权 permissions、可变引用、危险触发器这类供应链缺陷
+      #   与依赖漏洞同轮拦截；判红口径与 scripts/ci/actionlint-check.sh 的下载校验同源。
+      # 调用方：本复合动作的两个调用 job（PR 与 v 前缀标签轮、主干每日轮）。
+      # 入参：ZIZMOR_VERSION 与 ZIZMOR_ASSET 与 ZIZMOR_SHA256 三枚 env 常量（版本、
+      #   ubuntu-latest 的 x86_64 gnu 资产名、该资产的 sha256），扫描对象取仓库根 "."，
+      #   zizmor 的输入收集阶段只会挑出工作流与 action 定义，其余文件不参与。
+      # 传给谁：结论只走本步退出码交给调用 job；发现清单落 reports/audit/ 由调用方的
+      #   依赖审计 artifact 一并带走，不外发。
+      # 存什么：zizmor 的 JSON 发现数组（逐条含 ident 与 determinations.severity）与它的
+      #   stderr 日志；无发现时是空数组，不写占位值冒充"审过且干净"。
+      # 存哪里：$GITHUB_WORKSPACE/reports/audit/zizmor.json 与同目录 zizmor.log。
+      # 阻塞档口径：zizmor 的 severity 刻度只有 informational / low / medium / high 四档，
+      #   上限就是 high、没有 critical 档，所以本面只按 high 拦；medium 及以下逐条打印只记录。
+      #   解析时出现刻度之外的 severity 值（含缺失）按"输出不可判定"判红，不兜底成不阻塞，
+      #   也不静默丢弃 —— 刻度漂移意味着钉死版本与判据不再对应，结论不可信。
+      # 为什么一律 fail-closed：下载失败、sha256 与钉死值不符（半包与替换同码）、二进制
+      #   不可执行、版本号与钉死值不符、zizmor 异常退出（其文档口径 1=审计中出错、
+      #   2=参数解析失败、3=一个输入都没收集到，其余未定义码同样按异常处理）、
+      #   输出解析不出 JSON 数组、退出码与发现清单互相矛盾，以上任一情形命中即判红，
+      #   禁止 || true、禁止 continue-on-error、禁止退化成跳过 —— "扫描器没跑成"与
+      #   "跑成了没问题"是两回事，混淆就是本仓既往的假绿来源。
+      # 升级方式：先取到完整资产、现算 sha256、再把三枚常量一起改；只改版本不改校验值
+      #   会被校验当场判红，不会带着半包或错包继续跑。
+      if: ${{ !cancelled() }}
+      shell: bash
+      env:
+        ZIZMOR_VERSION: v1.31.1
+        ZIZMOR_ASSET: zizmor-x86_64-unknown-linux-gnu.tar.gz
+        ZIZMOR_SHA256: d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99
+      run: |
+        set -uo pipefail
+        R="$GITHUB_WORKSPACE/reports/audit"
+        WORK="${RUNNER_TEMP:?runner 未提供 RUNNER_TEMP}/zizmor-work"
+        mkdir -p "$WORK"
+        trap 'rm -rf "$WORK"' EXIT
+        URL="https://github.com/zizmorcore/zizmor/releases/download/${ZIZMOR_VERSION}/${ZIZMOR_ASSET}"
+        curl -sSfL --retry 3 -o "$WORK/zizmor.tar.gz" "$URL" \
+          || { echo "::error::zizmor 下载失败（固定版本 ${ZIZMOR_VERSION}），拒绝跳过审计"; exit 1; }
+        ACTUAL="$(sha256sum "$WORK/zizmor.tar.gz" | awk '{print $1}')"
+        if [ "$ACTUAL" != "$ZIZMOR_SHA256" ]; then
+          echo "::error::zizmor 产物 sha256 与钉死值不符（期望 ${ZIZMOR_SHA256}，实得 ${ACTUAL}）：下载截断或内容被替换，审计未开始即判红"
+          exit 1
+        fi
+        tar -xzf "$WORK/zizmor.tar.gz" -C "$WORK" zizmor \
+          || { echo "::error::zizmor 归档内取不到 zizmor 成员"; exit 1; }
+        chmod +x "$WORK/zizmor"
+        VER="$("$WORK/zizmor" --version 2>&1)" \
+          || { echo "::error::zizmor 二进制无法执行，审计未开始"; exit 1; }
+        VER_NUM="${ZIZMOR_VERSION#v}"
+        if [[ "$VER" != *"${VER_NUM}"* ]]; then
+          echo "::error::zizmor 版本与钉死值不符（期望 ${VER_NUM}，实得 ${VER}）"
+          exit 1
+        fi
+        echo "zizmor 版本核对通过：${VER}"
+        set +e
+        "$WORK/zizmor" --format json . > "$R/zizmor.json" 2> "$R/zizmor.log"
+        RC=$?
+        set -e
+        echo "zizmor exit=$RC（0=无发现 11/12/13/14=有发现且最高为 informational/low/medium/high 1=审计出错 2=参数错误 3=未收集到任何输入）"
+        if [ "$RC" -eq 1 ] || [ "$RC" -eq 2 ] || [ "$RC" -eq 3 ]; then
+          echo "::error::zizmor 未正常完成（exit $RC），按扫描器异常判红，不得当成通过"
+          tail -30 "$R/zizmor.log" || true
+          exit 1
+        fi
+        if [ "$RC" -ne 0 ] && [ "$RC" -lt 11 ]; then
+          echo "::error::zizmor 退出码 $RC 不在其文档口径内，无法判定，按异常处理"
+          tail -30 "$R/zizmor.log" || true
+          exit 1
+        fi
+        python3 - "$R" "$RC" <<'PY'
+        import json, sys
+        R, RC = sys.argv[1], int(sys.argv[2])
+        def die(msg):
+            print('::error::' + msg)
+            sys.exit(1)
+        try:
+            data = json.load(open(R + '/zizmor.json'))
+        except Exception as e:
+            die('zizmor 输出无法解析为 JSON（审计未正常完成）: %s' % e)
+        if not isinstance(data, list):
+            die('zizmor 的 JSON 顶层不是发现数组（实得 %s），输出与钉死版本的口径不符，无法判定' % type(data).__name__)
+        def sev(f):
+            return str((((f or {}).get('determinations') or {}).get('severity')) or '?').lower()
+        items = [(str((f or {}).get('ident') or '?'), sev(f)) for f in data]
+        print('zizmor 发现 %d 条' % len(items))
+        for ident, s in items[:50]:
+            print('  - [%s] %s' % (s, ident))
+        blocking = [i for i, s in items if s in ('high', 'critical')]
+        # 退出码与发现清单必须自相一致，任何不一致都按"没审成"处理（fail closed）
+        if RC == 0 and items:
+            die('zizmor 退出码 0（无发现）却输出 %d 条发现，退出码与输出矛盾，无法判定' % len(items))
+        if RC >= 11 and not items:
+            die('zizmor 退出码 %d（有发现）却解析到 0 条，输出被截断或格式漂移，无法判定' % RC)
+        if blocking:
+            die('zizmor 在工作流与 action 定义里发现 %d 个 high/critical 问题，阻塞 CI（详见 reports/audit/zizmor.json）' % len(blocking))
+        if items:
+            print('::warning::zizmor 发现 %d 个 medium 及以下问题（记录在案，不阻塞）' % len(items))
+        PY
