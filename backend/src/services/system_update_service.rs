@@ -4,7 +4,8 @@
 //! - 公共类型定义（`LocalRelease` / `LocalUpdateCheckResult` / `GitHubRelease` /
 //!   `GitHubAsset` / `UpdateCheckResult` / `UpdateStatus` / `UpdateError`）
 //! - `SystemUpdateService` struct 定义 + `new` 构造器 + `Default` 实现
-//! - 常量 `GITHUB_REPO` / `GITHUB_API_URL`（`pub(crate)`，供 ops 子模块访问）
+//! - 仓身份真源：常量 `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` 与 `resolve_github_repo` /
+//!   `github_repo`（`pub`，供 ops 子模块、`cli` 升级链与一致性契约测试取用）、`GITHUB_API_URL`（`pub(crate)`）
 //! - 纯函数：`parse_version` / `extract_zip_entry` / `set_safe_permissions` /
 //!   `validate_download_url` / `validate_asset_name`（`pub(crate)` 供 ops 子模块调用）
 //! - 单元测试模块
@@ -27,9 +28,73 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 
-// GitHub 仓库与 API 地址（pub(crate) 供 github 子模块 `fetch_latest_release` 访问）
-pub(crate) const GITHUB_REPO: &str = "57231307/1";
+// GitHub 仓库与 API 地址。仓身份唯一真源在此，`pub` 供 `github` 子模块、`cli` 升级链与
+// 一致性契约测试共同取用，不再在别处各写一份（两处独立常量必然漂移）。
+// 缺省值即本仓库当前的 owner 与仓名；私有镜像仓可用运维显式环境变量 `UPDATE__GITHUB_REPO`
+// 指向 `owner/name`；取到非法值当场拒绝而非回落缺省，回落会让更新检查悄悄指向另一处。
+pub const GITHUB_REPO_OWNER: &str = "BingXi-ERP";
+pub const GITHUB_REPO_NAME: &str = "bingxi-erp";
+pub(crate) const GITHUB_REPO_ENV: &str = "UPDATE__GITHUB_REPO";
 pub(crate) const GITHUB_API_URL: &str = "https://api.github.com";
+
+/// 判定 GitHub 账户名：一至三十九位字母数字或单个连字符，不得以连字符开头结尾，也不得连续连字符。
+fn is_valid_repo_owner(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 39
+        && !value.starts_with('-')
+        && !value.ends_with('-')
+        && !value.contains("--")
+        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// 判定仓库名：一至一百位字母数字、连字符、下划线或点，不得以点或连字符开头结尾。
+fn is_valid_repo_name(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 100
+        && !value.starts_with('.')
+        && !value.starts_with('-')
+        && !value.ends_with('.')
+        && !value.ends_with('-')
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
+/// 纯解析仓身份：入参是显式覆盖值（无覆盖传 None），返回 `owner/name` 或点名拒绝的原因。
+/// 做成纯函数是为了让双向判定都能在测试里跑到位，环境变量与进程级单例混进来会让反向夹具失效。
+pub fn resolve_github_repo(override_value: Option<&str>) -> Result<String, String> {
+    let raw = match override_value {
+        None => return Ok(format!("{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}")),
+        Some(v) => v.trim(),
+    };
+    if raw.is_empty() {
+        return Err(format!("{GITHUB_REPO_ENV} 已设置但为空，应填 owner/name"));
+    }
+    let (owner, name) = raw
+        .split_once('/')
+        .ok_or_else(|| format!("{GITHUB_REPO_ENV} 取值 `{raw}` 缺少斜杠分隔的 owner/name 两段"))?;
+    if owner.is_empty() || name.is_empty() {
+        return Err(format!(
+            "{GITHUB_REPO_ENV} 取值 `{raw}` 的 owner 或 name 有一段为空"
+        ));
+    }
+    if !is_valid_repo_owner(owner) {
+        return Err(format!("{GITHUB_REPO_ENV} 取值 `{raw}` 的 owner 不合法"));
+    }
+    if !is_valid_repo_name(name) {
+        return Err(format!("{GITHUB_REPO_ENV} 取值 `{raw}` 的 name 不合法"));
+    }
+    Ok(format!("{owner}/{name}"))
+}
+
+/// 取当前生效的仓身份，覆盖值非法即 panic 点名，绝不静默回落缺省仓。
+pub fn github_repo() -> String {
+    let raw = std::env::var(GITHUB_REPO_ENV).ok();
+    match resolve_github_repo(raw.as_deref()) {
+        Ok(repo) => repo,
+        Err(reason) => panic!("{reason}"),
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalRelease {

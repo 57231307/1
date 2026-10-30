@@ -16,9 +16,9 @@
 //!   活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
 
 use super::{
-    GITHUB_REPO, build_release_url, download_official_only, download_with_mirrors,
-    fetch_with_mirrors, get_backup_dir, get_install_dir, is_service_active, parse_json_field,
-    require_root, run_cmd, timestamp,
+    build_release_url, download_official_only, download_with_mirrors, fetch_with_mirrors,
+    get_backup_dir, get_install_dir, is_service_active, parse_json_field, require_root, run_cmd,
+    timestamp,
 };
 
 // 批次 322 v9 复审低危修复：路径校验逻辑已抽取到共享模块 `utils::path_validator`，
@@ -779,7 +779,10 @@ fn cmd_rollback_legacy(server_old: &str, bingxi_old: &str) {
 
 /// 获取最新版本号
 fn get_latest_version() -> Option<String> {
-    let api_path = format!("repos/{}/releases/latest", GITHUB_REPO);
+    let api_path = format!(
+        "repos/{}/releases/latest",
+        crate::services::system_update_service::github_repo()
+    );
 
     if let Some(json) = fetch_with_mirrors(&api_path, 15) {
         return parse_json_field(&json, "tag_name");

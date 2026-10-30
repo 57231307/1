@@ -16,12 +16,12 @@
 //! - `download_update` 调用 `apply::log_update`（`pub(crate)`）+ facade 纯函数
 //!  `validate_asset_name` / `validate_download_url`（`pub(crate)`）
 //! - `download_and_update` 调用 `apply::apply_update`（pub）+ `apply::log_update`（`pub(crate)`）
-//! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL` / `GITHUB_REPO`（`pub(crate)`）
+//! - `fetch_latest_release` 使用 facade 常量 `GITHUB_API_URL`（`pub(crate)`）与仓身份 `github_repo()`（`pub`）
 
 use crate::config::settings::{
     DEFAULT_RELEASE_MIRRORS, MirrorOrder, UpdateConfig, global_update_config,
 };
-use crate::services::system_update_service::{GITHUB_API_URL, GITHUB_REPO};
+use crate::services::system_update_service::{GITHUB_API_URL, github_repo};
 use crate::services::system_update_service::{
     GitHubAsset, GitHubRelease, SystemUpdateService, UpdateCheckResult, UpdateError,
     find_official_md5_asset, find_official_sha256_asset, normalize_versions_for_compare,
@@ -75,7 +75,7 @@ impl SystemUpdateService {
     }
 
     async fn fetch_latest_release(&self) -> Result<GitHubRelease, UpdateError> {
-        let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, GITHUB_REPO);
+        let url = format!("{}/repos/{}/releases/latest", GITHUB_API_URL, github_repo());
 
         // M-1 修复（v9 复审）：对齐 download_update 的 SSRF 防护
         // 原 L1 修复仅添加重定向限制，未用 resolve_to_addrs 防 DNS Rebinding
@@ -130,7 +130,9 @@ impl SystemUpdateService {
     ) -> Result<Option<GitHubRelease>, UpdateError> {
         let url = format!(
             "{}/repos/{}/releases/tags/v{}",
-            GITHUB_API_URL, GITHUB_REPO, version
+            GITHUB_API_URL,
+            github_repo(),
+            version
         );
 
         let (api_host, api_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)
@@ -581,7 +583,9 @@ mod download_candidate_tests {
         }
     }
 
-    const OFFICIAL: &str = "https://github.com/57231307/1/releases/download/v1/release-1.tar.gz";
+    // 合成身份，只用于判定候选顺序与镜像拼接，不代表真实仓；真实身份由一致性契约测试单独钉。
+    const OFFICIAL: &str =
+        "https://github.com/acme-corp/widget/releases/download/v1/release-1.tar.gz";
 
     #[test]
     fn no_mirrors_yields_only_official() {
