@@ -40,6 +40,14 @@ export interface CreateItem {
   quantity_tolerance_pct: number | undefined;
   /** resolveSkuMapping 成功后的只读信息 */
   resolved: ResolvedMapping | null;
+  /**
+   * resolveSkuMapping 被拒时这一行的可执行原因。优先取后端出参里可外显的 message
+   * （该端点的拒绝文案会分开口径说清压根没建对照，还是只有不分色号的通用对照而缺本色号的色号级对照），
+   * 后端只回脱敏常量时退回本地文案。解析成功或尚未尝试时为 null。
+   * 挂在行上而不是只弹一次提示，因为补对照要离开本对话框去SKU对照表，
+   * 提示消失后"供应商标识"这一列还得说清自己是为什么空着。
+   */
+  resolve_error: string | null;
 }
 
 /**
@@ -71,6 +79,7 @@ const defaultItem = (): CreateItem => ({
   subtotal: 0,
   quantity_tolerance_pct: undefined,
   resolved: null,
+  resolve_error: null,
 });
 
 const defaultForm = (): CreateFormData => ({
@@ -82,6 +91,20 @@ const defaultForm = (): CreateFormData => ({
   department_id: undefined,
   items: [defaultItem()],
 });
+
+/**
+ * 取一行SKU对照解析失败后可显示的拒绝原因。
+ * resolve 端点会把"没建对照"和"只有不分色号的通用对照、缺本色号的色号级对照"两种情形
+ * 分成两条可外显文案，优先原样用出参 message（拦截器弹出的也是它，两处必须同源），
+ * 出参没有可读文案时才退回本地兜底，避免这一列显示一个空字符串冒充原因。
+ */
+function resolveFailureReason(error: unknown): string {
+  const serverMessage = (error as { response?: { data?: { message?: string } } })?.response?.data
+    ?.message;
+  return serverMessage && serverMessage.trim() !== ''
+    ? serverMessage
+    : i18n.global.t('message.skuMappingResolveFailed');
+}
 
 /**
  * 采购单创建表单 composable
@@ -170,30 +193,37 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
         rawPrice == null || rawPrice === '' ? undefined : Number(rawPrice);
       calculateSubtotal(createForm.value.items[index]);
     }
-    // 换产品时清色号和已解析映射
+    // 换产品时清色号和已解析映射，也清掉上一行遗留的拒绝原因
     createForm.value.items[index].color_id = null;
     createForm.value.items[index].resolved = null;
+    createForm.value.items[index].resolve_error = null;
   };
 
   /**
-   * 选择色号后触发 resolveSkuMapping（需 supplier_id + product_id + color_id 均已填）
-   * 无对照 → message.error 拒绝转采购
+   * 选择色号后触发 resolveSkuMapping（需 supplier_id 与 product_id 与 color_id 均已填）
+   * 解析被拒时把后端点名的原因挂到该行，由"供应商标识"列就地显示并在提交前点名行号，
+   * 这里不再另弹一条固定文案（拦截器弹的就是后端原因，再叠一条泛化文案只会与它互相矛盾）
    */
   const handleColorSelect = async (index: number) => {
     const item = createForm.value.items[index];
     const supplierId = createForm.value.supplier_id;
     if (!supplierId || !item.product_id || !item.color_id) {
       item.resolved = null;
+      item.resolve_error = null;
       return;
     }
+    // 发请求前先清空上一轮的解析结果。换供应商时在途窗口里那一列若仍挂着上一个供应商的对照，
+    // 提交门认的就是这个 resolved，等于把别的供应商标识当成当前行的事实
+    item.resolved = null;
+    item.resolve_error = null;
     try {
       const res = await resolveSkuMapping({
         product_id: item.product_id,
         color_id: item.color_id,
         supplier_id: supplierId,
       });
-      if (res.data) {
-        const m = res.data;
+      const m = res.data;
+      if (m) {
         item.resolved = {
           supplier_product_code: m.supplier_product_code,
           supplier_color_no: m.supplier_color_no ?? '',
@@ -208,17 +238,12 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
             calculateSubtotal(item);
           }
         }
+      } else {
+        // 200 但 data 为空的异常出参不能停在"正在校验"那一态，按解析失败挂上兜底原因
+        item.resolve_error = i18n.global.t('message.skuMappingResolveFailed');
       }
     } catch (error: unknown) {
-      item.resolved = null;
-      const errObj = error as { response?: { status?: number; data?: { code?: string } } };
-      const status = errObj?.response?.status;
-      const code = errObj?.response?.data?.code;
-      if (status === 404 || code === 'NOT_FOUND' || code === 'BUSINESS_ERROR') {
-        msg.error('skuMappingNotFound');
-      } else {
-        msg.error('skuMappingResolveFailed');
-      }
+      item.resolve_error = resolveFailureReason(error);
       console.error('[purchase] resolveSkuMapping error:', error);
     }
   };
@@ -233,6 +258,7 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
         handleColorSelect(i);
       } else {
         item.resolved = null;
+        item.resolve_error = null;
       }
     }
   };
@@ -272,13 +298,21 @@ export function useCreate(products: () => Product[], onSuccess: () => void) {
       msg.warning('pleaseAddPurchaseDetail');
       return;
     }
-    // 无对照即拒绝转采购
-    const unresolved = validItems.filter(
-      item => item.product_id && item.color_id && !item.resolved
-    );
+    // 无对照即拒绝转采购。要报出第几行和这一行被拒的原因，只说"存在未建立SKU对照的明细行"
+    // 时操作员不知道该去SKU对照表补哪一条，尤其是产品级通用对照存在而本色号级对照缺失的情形
+    const unresolved = createForm.value.items
+      .map((item, idx) => ({ item, row: idx + 1 }))
+      .filter(
+        ({ item }) => item.product_id && item.quantity > 0 && item.color_id && !item.resolved
+      );
     if (unresolved.length > 0) {
       creating.value = false;
-      msg.error('skuMappingRequired');
+      const first = unresolved[0];
+      msg.error('skuMappingUnresolvedRows', {
+        count: unresolved.length,
+        row: first.row,
+        reason: first.item.resolve_error ?? i18n.global.t('message.skuMappingResolveNotRun'),
+      });
       return;
     }
     // supplier_id/order_date/warehouse_id/department_id 均由表单必填校验保证非空，

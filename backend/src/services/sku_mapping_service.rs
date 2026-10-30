@@ -710,6 +710,28 @@ impl SkuMappingService {
         Ok(())
     }
 
+    /// 判定是否存在"产品级通用对照"（`product_color_id` 为 NULL，即该产品对该供应商不分色通用）。
+    ///
+    /// 调用方：[`crate::handlers::sku_mapping_handler::resolve_sku`]——按色号解析未命中后调它，
+    /// 用来把两种完全不同的失败分开措辞：压根没建对照，与只缺本行色号的色号级对照。
+    /// 入参：`product_id` 与 `supplier_id`，与解析腿同两侧键，但不带色号条件。
+    /// 传给谁：只回一个布尔给 handler 选文案，不写 outputs、不回调接口。
+    /// 存什么 / 存哪里：本函数只读 `product_supplier_mappings`，不产数据也不落库。
+    pub async fn has_product_level_mapping(
+        &self,
+        product_id: i32,
+        supplier_id: i32,
+    ) -> Result<bool, AppError> {
+        Ok(product_supplier_mapping::Entity::find()
+            .filter(product_supplier_mapping::Column::ProductId.eq(product_id))
+            .filter(product_supplier_mapping::Column::SupplierId.eq(supplier_id))
+            .filter(product_supplier_mapping::Column::IsEnabled.eq(true))
+            .filter(product_supplier_mapping::Column::ProductColorId.is_null())
+            .one(&*self.db)
+            .await?
+            .is_some())
+    }
+
     /// 解析供应商 SKU（转采购翻译核心方法）
     ///
     /// 按 (product_id, product_color_id, supplier_id) 查启用映射，

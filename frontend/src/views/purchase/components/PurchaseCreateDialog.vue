@@ -154,14 +154,29 @@
               :precision="4"
             />
             <div class="col-supplier-info">
-              <template v-if="item.resolved">
-                <span class="resolved-text">
-                  {{ item.resolved.supplier_product_code }}
-                  <template v-if="item.resolved.supplier_color_no">
-                    / {{ item.resolved.supplier_color_no }}
-                  </template>
-                </span>
-              </template>
+              <span v-if="item.resolved" class="resolved-text">
+                {{ item.resolved.supplier_product_code }}
+                <template v-if="item.resolved.supplier_color_no">
+                  / {{ item.resolved.supplier_color_no }}
+                </template>
+              </span>
+              <!-- 解析被拒时把后端点名的原因就地显示，不再留一个和"还没选东西"长得一样的空白，
+                   操作员据此才知道要去SKU对照表补哪一级对照；列宽不足被截断时靠 title 看全文 -->
+              <span
+                v-else-if="item.resolve_error"
+                class="resolved-error"
+                :title="item.resolve_error"
+              >
+                {{ item.resolve_error }}
+              </span>
+              <span
+                v-else-if="item.product_id && item.color_id && localForm.supplier_id"
+                class="resolved-placeholder"
+                >{{ t('purchase.createDlg.supplierInfoResolving') }}</span
+              >
+              <span v-else-if="item.product_id && item.color_id" class="resolved-placeholder">{{
+                t('purchase.createDlg.supplierInfoNeedSupplier')
+              }}</span>
               <span v-else class="resolved-placeholder">--</span>
             </div>
             <NumericInput v-model="item.subtotal" class="col-amount" readonly :precision="2" />
@@ -404,6 +419,10 @@ watch(
 
 .resolved-placeholder {
   color: #c0c4cc;
+}
+
+.resolved-error {
+  color: #f56c6c;
 }
 
 .total-amount {
