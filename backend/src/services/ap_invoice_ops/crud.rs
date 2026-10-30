@@ -27,7 +27,9 @@ use crate::services::ap_invoice_service::{
     ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest,
     DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, UpdateApInvoiceRequest,
 };
-use crate::utils::data_scope::{DataScope, DataScopeContext, apply_data_scope};
+use crate::utils::data_scope::{
+    DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
+};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -422,17 +424,13 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 单行可见性判定：与 build_data_scope_condition 的 Dept 分支同语义——
-    /// ap_invoice 无 department_id 列，Dept 统一按「归属人 ∈ 可见部门成员集合」判断
-    /// （to_data_scope_context 已保证 dept 成员集合含本人）；All 放行、Self_ 仅本人。
+    /// 单行可见性判定：复用 `check_resource_owner_by_member_scope` 这一唯一实现，
+    /// 不在本域另造第二套成员集合判定（All 放行；Dept 为本人行或归属人 ∈ 可见部门
+    /// 成员集合；Self_ 仅本人行）。ap_invoice 无 department_id 列，成员集合语义与
+    /// 列表侧 apply_data_scope 的 Dept 分支同宽，避免「列表能看、点详情即 403」。
     /// 不可见返回 403 权限码，绝不放宽为无主可读。
     fn ensure_visible_by_scope(ctx: &DataScopeContext, created_by: i32) -> Result<(), AppError> {
-        let visible = match ctx.scope {
-            DataScope::All => true,
-            DataScope::Dept => ctx.dept_member_user_ids.contains(&created_by),
-            DataScope::Self_ => created_by == ctx.user_id,
-        };
-        if !visible {
+        if !check_resource_owner_by_member_scope(ctx, Some(created_by)) {
             return Err(AppError::permission_denied(
                 "无权访问应付单（数据范围限制）",
             ));
