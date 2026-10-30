@@ -567,8 +567,8 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
       );
     }
 
-    // 显式基准日迁移分桶：基准推到 T+40 后逾期票滑到 31-60 天桶，原桶整桶归零
-    const baseline = utcDate(40);
+    // 显式基准日迁移分桶：基准推到 T+25（不越过票 B 到期日 T+30），票 A 逾期 35 天滑到 31-60 天桶，原 1-30 桶整桶归零
+    const baseline = utcDate(25);
     const shifted = await apiCallRaw<Row>(
       page,
       'GET',
@@ -601,7 +601,8 @@ test.describe.serial('160 应付余额账龄统计与四张应付报表契约链
     eqAmount(shiftedNotDue.total_amount, cents('1000.00'), '迁移后未到期桶金额');
     eqAmount(shifted.total_unpaid_amount, cents('4000.00'), '基准日不改未付合计');
     // 残留口径：AUDITED 夹具票无删除通道（删除门只放行 DRAFT），本用例如实不清理，
-    // 聚合出口按专属供应商过滤，唯一 tag 保证不与其它用例互污
+    // 聚合出口按专属供应商过滤，唯一 tag 保证不与其它用例互污。
+    // 防复发：基准日窗口不得覆盖非目标票的到期日，否则未到期票会被拖进逾期桶
   });
 
   test('160-04 应付日报按 invoice_date 与 due_date 精确命中，缺参与非法日期走抽取器拒绝收口为 VALIDATION_ERROR 信封', async ({
