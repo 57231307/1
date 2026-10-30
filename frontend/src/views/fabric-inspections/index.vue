@@ -126,7 +126,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="门幅(英寸)">
-          <el-input-number
+          <NumericInput
             v-model="form.fabric_width_inches"
             :min="0"
             :precision="2"
@@ -221,10 +221,10 @@
     <el-dialog v-model="rollVisible" title="验布打卷入库" width="500">
       <el-form ref="rollFormRef" :model="rollForm" :rules="rollRules" label-width="130px">
         <el-form-item label="仓库 ID" prop="warehouse_id" required>
-          <el-input-number v-model="rollForm.warehouse_id" :min="1" class="w-full" />
+          <NumericInput v-model="rollForm.warehouse_id" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item label="卷长 m" prop="roll_length" required>
-          <el-input-number
+          <NumericInput
             v-model="rollForm.roll_length"
             :min="0.01"
             :precision="2"
@@ -235,13 +235,13 @@
              逐字段一致（validate(required) + >0 范围校验，无上限）；初值为空不预填 0，
              杜绝以假默认值冒充实测值（成品布标签三列 fail-closed 依赖实测值） -->
         <el-form-item label="卷重 kg" prop="roll_weight" required>
-          <el-input-number v-model="rollForm.roll_weight" :min="0" :precision="2" class="w-full" />
+          <NumericInput v-model="rollForm.roll_weight" :min="0" :precision="2" class="w-full" />
         </el-form-item>
         <el-form-item label="幅宽 cm" prop="roll_width" required>
-          <el-input-number v-model="rollForm.roll_width" :min="0" :precision="1" class="w-full" />
+          <NumericInput v-model="rollForm.roll_width" :min="0" :precision="1" class="w-full" />
         </el-form-item>
         <el-form-item label="克重 g/m2" prop="roll_gram_weight" required>
-          <el-input-number
+          <NumericInput
             v-model="rollForm.roll_gram_weight"
             :min="0"
             :precision="1"
@@ -332,7 +332,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="位置(码)" required>
-          <el-input-number
+          <NumericInput
             v-model="defectForm.position_yards"
             :min="0"
             :precision="1"
@@ -340,7 +340,7 @@
           />
         </el-form-item>
         <el-form-item label="疵点长度(英寸)" required>
-          <el-input-number
+          <NumericInput
             v-model="defectForm.defect_length_inches"
             :min="0"
             :precision="1"
@@ -373,7 +373,7 @@
     <el-dialog v-model="gradeVisible" title="验布定级" width="440">
       <el-form :model="gradeForm" label-width="120px">
         <el-form-item label="检验码数" required>
-          <el-input-number
+          <NumericInput
             v-model="gradeForm.inspected_yards"
             :min="0.01"
             :precision="1"
@@ -381,7 +381,7 @@
           />
         </el-form-item>
         <el-form-item label="合格率 %">
-          <el-input-number
+          <NumericInput
             v-model="gradeForm.qualification_rate"
             :min="0"
             :max="100"
@@ -433,6 +433,7 @@ import {
   type InventoryPieceRow,
 } from '@/api/inventory-transfer';
 import {
+import NumericInput from '@/components/NumericInput.vue';
   closeFabricInspection,
   createFabricInspection,
   deleteFabricInspection,

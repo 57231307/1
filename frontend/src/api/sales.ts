@@ -58,7 +58,7 @@ export interface SalesOrderItem {
   /**
    * 后端 sales_order_items.quantity_tolerance_pct（可空，NULL=用品类/全局默认）。
    * 出参 Decimal 为字符串（如 "5.00"）、入参侧提交数值，故取并集 number | string | null；
-   * 详情展示需 Number() 归一，编辑回显转数值绑定 el-input-number。
+   * 详情展示需 Number() 归一，编辑回显转数值绑定 NumericInput。
    */
   quantity_tolerance_pct: number | string | null;
 }

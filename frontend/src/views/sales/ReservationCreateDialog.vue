@@ -47,7 +47,7 @@
         </el-select>
       </el-form-item>
       <el-form-item :label="t('sales.reservation.quantity')" required prop="quantity">
-        <el-input-number
+        <NumericInput
           v-model="form.quantity"
           :min="0.01"
           :max="selectedMax ?? undefined"
@@ -77,6 +77,7 @@ import { reactive, computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
 import type { SalesOrderItem } from '@/api/sales';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
