@@ -3945,7 +3945,9 @@ export default {
       labelFactoryAddress: 'Factory Address',
       placeholderFactoryAddress: 'Enter factory address',
       labelProductGrade: 'Product Grade',
-      placeholderProductGrade: 'Enter product grade',
+      tipProductGrade:
+        'Fabric grading, one of premium grade, first grade or qualified grade; not the same thing as safety category on the right, which follows GB 18401 class A/B/C',
+      placeholderProductGrade: 'e.g. premium grade',
       labelSafetyCategory: 'Safety Category',
       tipSafetyCategory:
         'GB 18401-2010 class A/B/C: A infant, B direct skin contact, C non-direct skin contact; class A must also meet GB 31701-2015',
@@ -3955,7 +3957,8 @@ export default {
         'Fabric width including needle edge, for open-width and pre-shrunk reference; meter/kg conversion still uses effective width, this column is excluded',
       placeholderWidthNeedleIncluded: 'Enter width (cm)',
       labelWeightTolerance: 'Weight Tolerance (±g/m²)',
-      tipWeightTolerance: 'Allowed deviation of the target gram weight, non-negative',
+      tipWeightTolerance:
+        'This column records only the allowed deviation and is non-negative; the gram weight itself goes in Gram Weight (g/m²) above, the two columns hold separate values',
       placeholderWeightTolerance: 'Enter weight tolerance',
       labelUsage: 'Usage',
       placeholderUsage: 'e.g. apparel fabric, home textile, industrial',

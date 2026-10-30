@@ -3917,7 +3917,9 @@ export default {
       labelFactoryAddress: '生产厂址',
       placeholderFactoryAddress: '请输入生产厂址',
       labelProductGrade: '产品等级',
-      placeholderProductGrade: '请输入产品等级',
+      tipProductGrade:
+        '面料分等，取值为优等品、一等品、合格品；与右侧安全类别不是一件事，安全类别按国标分 A、B、C 三类',
+      placeholderProductGrade: '如 优等品',
       labelSafetyCategory: '安全类别',
       tipSafetyCategory:
         '按 GB 18401-2010 分为 A、B、C 三类：A 婴幼儿，B 直接接触皮肤，C 非直接接触皮肤；A 类另须满足 GB 31701-2015',
@@ -3927,7 +3929,7 @@ export default {
         '含针边的幅宽（厘米），用于开幅与预缩参考；米与公斤换算以有效幅宽为准，本列不参与换算',
       placeholderWidthNeedleIncluded: '请输入幅宽(cm)',
       labelWeightTolerance: '克重公差(±g/m²)',
-      tipWeightTolerance: '克重目标值允许的偏差幅度，非负',
+      tipWeightTolerance: '本列只记允许的偏差幅度，非负；克重本身填在上方克重(g/m²)，两列各自成值',
       placeholderWeightTolerance: '请输入克重公差',
       labelUsage: '用途',
       placeholderUsage: '如服装面料、家纺、产业用',

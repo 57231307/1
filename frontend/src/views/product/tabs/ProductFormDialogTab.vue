@@ -343,10 +343,18 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item
-            :label="t('product.productFormDialogTab.labelProductGrade')"
-            prop="product_grade"
-          >
+          <el-form-item prop="product_grade">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelProductGrade') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipProductGrade')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <el-input
               v-model="formData.product_grade"
               :placeholder="t('product.productFormDialogTab.placeholderProductGrade')"
