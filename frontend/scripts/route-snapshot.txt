@@ -1,4 +1,4 @@
-# layers=8 endpoints=1820
+# layers=8 endpoints=1821
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -1688,6 +1688,7 @@ PUT	/api/v1/erp/crm/customer-credits/*	customer_credit_handler::update_credit	cr
 PUT	/api/v1/erp/crm/customers/*	customer_handler::update_customer	crm
 PUT	/api/v1/erp/crm/customers/*/addresses/*	customer_address_handler::update_customer_address	crm
 PUT	/api/v1/erp/crm/customers/*/contacts/*	crm_customer_handler::update_contact	crm
+PUT	/api/v1/erp/crm/customers/*/tier	customer_handler::update_customer_tier	crm
 PUT	/api/v1/erp/crm/customers/enhanced/*	crm_customer_handler::update_customer	crm
 PUT	/api/v1/erp/crm/leads/*	crate::handlers::crm_handler::update_lead	crm
 PUT	/api/v1/erp/crm/leads/*/status	crate::handlers::crm_handler::update_lead_status	crm
