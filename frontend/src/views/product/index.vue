@@ -25,7 +25,12 @@
       </el-breadcrumb>
     </div>
 
-    <ProductListTab @open-form="openForm" @open-import="openImport" @open-category="openCategory" />
+    <ProductListTab
+      ref="listTabRef"
+      @open-form="openForm"
+      @open-import="openImport"
+      @open-category="openCategory"
+    />
 
     <ProductFormDialogTab
       v-model="formDialogVisible"
@@ -64,6 +69,10 @@ const categoryDialogVisible = ref(false);
 
 const categories = ref<ProductCategory[]>([]);
 
+// 列表子组件句柄：ProductListTab 通过 defineExpose 交出 fetchData 与 fetchCategories，
+// 本容器在保存/导入提交成功后调用 fetchData 重取列表，驱动编辑弹窗下次以库内新值回显。
+const listTabRef = ref<InstanceType<typeof ProductListTab> | null>(null);
+
 const openForm = (mode: 'create' | 'edit' | 'view', row: Product | null) => {
   currentRow.value = row;
   dialogMode.value = mode;
@@ -85,7 +94,12 @@ const openCategory = () => {
 };
 
 const handleSubmitted = () => {
-  // 子组件已通过 emit 触发刷新
+  // 保存与导入落库成功后由本容器驱动列表重取：弹窗的提交结果只 emit 给这里，
+  // 列表数据归 ProductListTab 自己管，本函数若不做任何事，新建的行不进列表、
+  // 编辑过的行在下次打开弹窗时仍以保存前的旧行回显，用户即误判为「填了保存不了」。
+  // 读：子组件暴露的 fetchData；写给谁：useTableApi 以当前分页与筛选参数重发列表请求；
+  // 存什么存哪里：不落前端存储，页面真相始终以服务端 products 表为准。
+  listTabRef.value?.fetchData();
 };
 
 const buildTree = (items: ProductCategory[]): ProductCategory[] => {
