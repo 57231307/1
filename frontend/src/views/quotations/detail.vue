@@ -26,7 +26,7 @@
             <el-button v-if="canApprove" type="success" @click="handleApprove">
               {{ t('quotations.detail.approve') }}
             </el-button>
-            <el-button v-if="canApprove" type="danger" @click="handleReject">
+            <el-button v-if="canReject" type="danger" @click="handleReject">
               {{ t('quotations.detail.reject') }}
             </el-button>
             <el-button v-if="canConvert" type="success" @click="handleConvert">
@@ -208,6 +208,9 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { promptApprovalReason, promptRejectReason } from '@/composables/useActionPrompts';
 import { formatDecimalAmount } from '@/utils/money';
+import { useUserStore } from '@/store/user';
+import { hasRoutePermission } from '@/router';
+import { PERMISSIONS } from '@/constants/permissions';
 import {
   getQuotation,
   submitQuotation,
@@ -232,6 +235,7 @@ const { t } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const router = useRouter();
+const userStore = useUserStore();
 const loading = ref(false);
 const quotation = ref<QuotationResponseDto | null>(null);
 
@@ -253,19 +257,41 @@ async function loadData() {
   }
 }
 
-/** 按钮可见性（按状态） */
+/** 按钮可见性（状态门与权限键同判）：权限码与路由守卫同源判定，后端仍以同一键二次鉴权 */
+const userPermissions = computed<readonly string[]>(() => userStore.userInfo?.permissions || []);
+
 const canEdit = computed(
-  () => quotation.value && ['draft', 'rejected'].includes(quotation.value.status)
+  () =>
+    !!quotation.value &&
+    ['draft', 'rejected'].includes(quotation.value.status) &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_UPDATE, userPermissions.value)
 );
 const canSubmit = computed(
-  () => quotation.value && ['draft', 'rejected'].includes(quotation.value.status)
+  () =>
+    !!quotation.value &&
+    ['draft', 'rejected'].includes(quotation.value.status) &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_SUBMIT, userPermissions.value)
 );
-const canApprove = computed(() => quotation.value?.status === 'pending_approval');
-const canConvert = computed(() => quotation.value?.status === 'approved');
+const canApprove = computed(
+  () =>
+    quotation.value?.status === 'pending_approval' &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_APPROVE, userPermissions.value)
+);
+const canReject = computed(
+  () =>
+    quotation.value?.status === 'pending_approval' &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_REJECT, userPermissions.value)
+);
+const canConvert = computed(
+  () =>
+    quotation.value?.status === 'approved' &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_CREATE, userPermissions.value)
+);
 const canCancel = computed(
   () =>
-    quotation.value &&
-    ['draft', 'pending_approval', 'rejected', 'approved'].includes(quotation.value.status)
+    !!quotation.value &&
+    ['draft', 'pending_approval', 'rejected', 'approved'].includes(quotation.value.status) &&
+    hasRoutePermission(PERMISSIONS.QUOTATION_CANCEL, userPermissions.value)
 );
 
 /** 贸易条款按类型分组 */
