@@ -27,6 +27,7 @@ use crate::services::ap_invoice_service::{
     ApInvoiceListQuery, ApInvoiceService, CreateApInvoiceRequest,
     DEFAULT_BASE_CURRENCY_EXCHANGE_RATE, UpdateApInvoiceRequest,
 };
+use crate::utils::data_scope::{DataScope, DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::pagination::paginate_with_total;
 
@@ -392,7 +393,9 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 获取应付单详情
+    /// 获取应付单详情（无归属门，仅供内部无调用方语义的路径复用）。
+    /// 调用方：本模块 get_by_id_scoped 先经此取回整实体再做可见性判定；
+    /// 对外读口不得直连本函数，须走 get_by_id_scoped 或 get_list 的数据范围下推。
     pub async fn get_by_id(&self, id: i32) -> Result<ap_invoice::Model, AppError> {
         let invoice = ap_invoice::Entity::find_by_id(id)
             .one(&*self.db)
@@ -402,12 +405,61 @@ impl ApInvoiceService {
         Ok(invoice)
     }
 
-    /// 获取应付单列表（含分页、筛选）
+    /// 获取应付单详情（带行级数据范围归属门）。
+    ///
+    /// 功能：按 ID 取回应付单后做单行可见性判定——不存在返回 NotFound；
+    /// 存在但不可见返回 permission_denied（403+FORBIDDEN 权限码），不降级为空结果、不改状态码。
+    /// 入参：id 为主键；ctx 为调用方 handler 由 auth.to_data_scope_context() 构造的行级上下文。
+    /// 归属列取 created_by（ap_invoice 无 department_id 列，判定口径与列表侧
+    /// apply_data_scope 同源，不另造第二套规则）。
+    pub async fn get_by_id_scoped(
+        &self,
+        id: i32,
+        ctx: &DataScopeContext,
+    ) -> Result<ap_invoice::Model, AppError> {
+        let invoice = self.get_by_id(id).await?;
+        Self::ensure_visible_by_scope(ctx, invoice.created_by)?;
+        Ok(invoice)
+    }
+
+    /// 单行可见性判定：与 build_data_scope_condition 的 Dept 分支同语义——
+    /// ap_invoice 无 department_id 列，Dept 统一按「归属人 ∈ 可见部门成员集合」判断
+    /// （to_data_scope_context 已保证 dept 成员集合含本人）；All 放行、Self_ 仅本人。
+    /// 不可见返回 403 权限码，绝不放宽为无主可读。
+    fn ensure_visible_by_scope(ctx: &DataScopeContext, created_by: i32) -> Result<(), AppError> {
+        let visible = match ctx.scope {
+            DataScope::All => true,
+            DataScope::Dept => ctx.dept_member_user_ids.contains(&created_by),
+            DataScope::Self_ => created_by == ctx.user_id,
+        };
+        if !visible {
+            return Err(AppError::permission_denied(
+                "无权访问应付单（数据范围限制）",
+            ));
+        }
+        Ok(())
+    }
+
+    /// 获取应付单列表（含分页、筛选 + 行级数据范围下推）
+    ///
+    /// 功能：在查询构造处经 apply_data_scope 下推 created_by 归属过滤（非取回后内存过滤），
+    /// 保证分页 total 与可见集一致；ctx 为必传入参，读口无法绕过行级门（无裸路径）。
+    /// 入参：params 为筛选与分页条件；ctx 为 handler 由 auth.to_data_scope_context() 构造并传入。
+    /// 归属列两参同传 created_by（ap_invoice 无 department_id 列，Dept 走「归属人 ∈ 可见成员集合」）。
     pub async fn get_list(
         &self,
         params: ApInvoiceListQuery,
+        ctx: &DataScopeContext,
     ) -> Result<(Vec<ap_invoice::Model>, u64), AppError> {
         let mut query = ap_invoice::Entity::find();
+
+        // 行级数据范围下推：非授权角色不再能整表拉走全部应付单（含导出腿复用本调用点）
+        query = apply_data_scope(
+            query,
+            ctx,
+            ap_invoice::Column::CreatedBy,
+            ap_invoice::Column::CreatedBy,
+        );
 
         // 筛选条件
         if let Some(sid) = params.supplier_id {
