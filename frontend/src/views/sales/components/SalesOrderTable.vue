@@ -59,6 +59,27 @@ const canConvertContract = computed(() =>
   hasRoutePermission(PERMISSIONS.SALES_CONTRACT_CREATE, userStore.userInfo?.permissions || [])
 );
 
+// 行级动作按钮的双判据（状态 && 权限码）所消费的权限列表，与后端 matches_permission 同源。
+const userPermissions = computed(() => userStore.userInfo?.permissions || []);
+
+// 提交/撤销/删除归建单人（sales_rep），handler 内 assert_order_ownership 兜行级越权；
+// 审批/驳回归 sales_manager（SoD 建审分离）。无权限者不渲染入口，与 v-permission 指令同源口径。
+const canSubmitOrder = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_ORDER_SUBMIT, userPermissions.value)
+);
+const canDeleteOrder = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_ORDER_DELETE, userPermissions.value)
+);
+const canApproveOrder = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_ORDER_APPROVE, userPermissions.value)
+);
+const canRejectOrder = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_ORDER_REJECT, userPermissions.value)
+);
+const canCancelOrder = computed(() =>
+  hasRoutePermission(PERMISSIONS.SALES_ORDER_CANCEL, userPermissions.value)
+);
+
 /**
  * 销售订单列表 V2Table 包装组件
  * - 列定义由父组件通过 columns prop 传入（来自 useOlv.composables）
@@ -130,7 +151,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           )
         );
       }
-      if (row.status === 'draft') {
+      if (row.status === 'draft' && canSubmitOrder.value) {
         buttons.push(
           h(
             ElButton,
@@ -141,7 +162,11 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               onClick: () => emit('submitOrder', row),
             },
             { default: () => t('sales.table.submit') }
-          ),
+          )
+        );
+      }
+      if (row.status === 'draft' && canDeleteOrder.value) {
+        buttons.push(
           h(
             ElButton,
             {
@@ -155,7 +180,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
         );
       }
       // 待审核（提交后由后端写入 pending）：审核与驳回都只在这个状态下可用
-      if (row.status === 'pending') {
+      if (row.status === 'pending' && canApproveOrder.value) {
         buttons.push(
           h(
             ElButton,
@@ -166,7 +191,11 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
               onClick: () => emit('approve', row),
             },
             { default: () => t('sales.table.approve') }
-          ),
+          )
+        );
+      }
+      if (row.status === 'pending' && canRejectOrder.value) {
+        buttons.push(
           h(
             ElButton,
             {
@@ -226,7 +255,7 @@ const fullColumns = computed<ColumnDef<SalesOrder>[]>(() => [
           );
         }
       }
-      if (row.status === 'pending' || row.status === 'approved') {
+      if ((row.status === 'pending' || row.status === 'approved') && canCancelOrder.value) {
         buttons.push(
           h(
             ElButton,
