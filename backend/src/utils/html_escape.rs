@@ -1,6 +1,6 @@
 //! HTML 文本上下文转义与邮件正文危险标记检测
 //!
-//! 本模块只承担两件事，且都不改写输入：
+//! 本模块承担三件事，且都不改写输入（第三件为净化，丢弃不合法片段）：
 //!
 //! 1. [`escape_html`]：把人工录入的业务字段值（供应商名、客户名、仓库名、单据号、
 //!    订阅名等）转义成 HTML 文本，供调用方拼进邮件正文。转义集为 `& < > " ' /`，
@@ -23,6 +23,11 @@
 //!    [`ensure_markup_safe`] 拒绝发送并点名来源出口，绝不静默放行。
 //!    已知未覆盖项：`data:image/svg+xml`（SVG 内嵌脚本）与 CSS `@import` 远程样式，
 //!    二者在主流邮件客户端均不执行脚本，需要时再单独扩类。
+//!
+//! 3. [`sanitize_css_block`]：对 `<style>` 元素体内的原始 CSS 做上下文级净化。
+//!    采用显式白名单语义：移除非法尖括号、限制 @规则集合、校验 url() 协议、丢弃表达式调用。
+//!    调用方：`handlers/print_handler.rs` 的 `preview_print_template`，把数据库中存储的
+//!    用户自定义样式安全嵌入预览文档的 `<style>` 上下文。
 
 use crate::utils::error::AppError;
 
@@ -512,4 +517,114 @@ fn truncate_snippet(text: &str) -> String {
     }
     let kept: String = text.chars().take(DETAIL_MAX_CHARS).collect();
     format!("{}…", kept)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CSS 原始文本上下文净化（<style> 元素体）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 允许出现在打印模板样式块中的 @规则名（小写）。
+/// 设计意图：打印面样式只需排版与分页能力，不需要远程引入或行为指令。
+const ALLOWED_AT_RULES: [&str; 4] = ["@media", "@page", "@font-face", "@supports"];
+
+/// `url()` 内允许出现的前缀协议白名单（小写）。
+/// 设计意图：打印面只允许内联 data URI（图标/字体），不允许任何远程或脚本协议。
+const ALLOWED_URL_SCHEMES: [&str; 1] = ["data:"];
+
+/// 对 `<style>` 元素体内的原始 CSS 做上下文级净化，返回安全文本。
+///
+/// 白名单语义：
+/// 1. 尖括号（`<`、`>`）在合法 CSS 文本流中永远不会出现，一旦出现即代表越界标记，直接移除。
+/// 2. 以 `@` 开头的规则，只允许 [`ALLOWED_AT_RULES`] 中列出的名称通过；`@import` 不在名单，
+///    因为它会加载远程样式，可被用来注入任意内容。
+/// 3. `url(` 后的协议前缀必须在 [`ALLOWED_URL_SCHEMES`] 白名单中，否则整条声明丢弃；
+///    这挡的是 `url(javascript:...)` 和 `url(http://evil)` 一类。
+/// 4. `expression(` 与 `javascript:` 在合法 CSS 中永远不会出现，出现即执行意图，移除所在 token。
+///
+/// 入参：`css` 原始样式文本（来自数据库存储的用户录入值）。
+/// 返回：净化后的文本，可安全嵌入 `<style>...</style>` 上下文。
+/// 调用方：`handlers/print_handler.rs` 的 `preview_print_template`。
+pub fn sanitize_css_block(css: &str) -> String {
+    // 步骤 1：移除尖括号，阻止 `</style>` 或 `<script>` 越界
+    let without_angle = css.replace(['<', '>'], "");
+
+    // 步骤 2-4：逐声明扫描，按白名单丢弃不合法的 @规则、url 协议与表达式调用
+    let mut result = String::with_capacity(without_angle.len());
+    let mut pending_segment = String::new();
+
+    for line in without_angle.lines() {
+        let trimmed = line.trim();
+        // 检测 @规则：不在白名单则整行跳过
+        if trimmed.starts_with('@') {
+            let at_name = extract_at_rule_name(trimmed);
+            if !ALLOWED_AT_RULES.contains(&at_name.as_str()) {
+                continue;
+            }
+        }
+        // 检测 url( 中的协议
+        if let Some(cleaned) = sanitize_url_in_line(trimmed) {
+            pending_segment.clear();
+            pending_segment.push_str(&cleaned);
+        } else {
+            // url 协议不合法，丢弃整行
+            continue;
+        }
+
+        // 检测 expression( 与 javascript:（即使大小写或空白混淆，归一后比对）
+        let normalized_for_check: String = pending_segment
+            .chars()
+            .filter(|c| !c.is_whitespace())
+            .flat_map(char::to_lowercase)
+            .collect();
+        if normalized_for_check.contains("expression(")
+            || normalized_for_check.contains("javascript:")
+            || normalized_for_check.contains("vbscript:")
+        {
+            continue;
+        }
+
+        if !result.is_empty() {
+            result.push('\n');
+        }
+        result.push_str(&pending_segment);
+    }
+
+    result
+}
+
+/// 从以 `@` 开头的行提取规则名（小写，含 `@`），用于与白名单比对。
+/// 入参：trim 后以 `@` 起始的文本；传给谁：[`sanitize_css_block`]。
+fn extract_at_rule_name(line: &str) -> String {
+    let name_end = line
+        .find(|c: char| c.is_whitespace() || c == '(' || c == '{' || c == ';')
+        .unwrap_or(line.len());
+    line[..name_end].to_lowercase()
+}
+
+/// 检查一行中 `url(` 后的协议是否安全。返回 `Some(净化后文本)` 或 `None`（整行丢弃）。
+/// 入参：单行文本；传给谁：[`sanitize_css_block`]。
+fn sanitize_url_in_line(line: &str) -> Option<String> {
+    let lower = line.to_lowercase();
+    let url_fn_start = match lower.find("url(") {
+        Some(pos) => pos,
+        None => return Some(line.to_string()),
+    };
+    // 提取 url( 后的内容直到匹配的 ')'
+    let after_paren = &line[url_fn_start + 4..];
+    let close_paren = after_paren.find(')').unwrap_or(after_paren.len());
+    let url_content = after_paren[..close_paren].trim().trim_matches('"').trim_matches('\'');
+    let url_lower = url_content.to_lowercase();
+    // 无协议前缀（相对路径或 data:）则按白名单检查
+    let scheme_end = url_lower.find(':');
+    if let Some(idx) = scheme_end {
+        let scheme = &url_lower[..=idx];
+        if !ALLOWED_URL_SCHEMES.contains(&scheme) {
+            return None;
+        }
+    }
+    // 不含冒号 = 相对路径，打印预览场景中无远程加载需求，也安全丢弃
+    else if !url_lower.is_empty() {
+        return None;
+    }
+    Some(line.to_string())
 }
