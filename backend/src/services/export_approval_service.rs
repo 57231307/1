@@ -33,12 +33,14 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::models::bpm_process_instance;
 use crate::models::bpm_task;
 use crate::models::dto::bpm_dto::{ApproveTaskRequest, StartProcessRequest};
 use crate::models::export_approval_request::{
     ActiveModel as ExportApprovalActiveModel, ApprovalContext, ApprovalStatus, Column, Entity,
     ExportParams, Model, RiskLevel, sensitive_resources,
 };
+use crate::models::status::bpm_instance as instance_status;
 use crate::models::status::bpm_task as bpm_task_status;
 use crate::services::bpm_ops::process_key;
 use crate::services::bpm_service::BpmService;
@@ -332,9 +334,31 @@ impl ExportApprovalService {
             Some(approver_user_id),
         )
         .await?;
-        // 返回申请行当前真相：若流程已终审完成，事件监听可能尚未回写（异步），
-        // 调用方以详情查询/列表轮询回读最终状态，这里不假装 approved 已生效。
+        // 终审在同一请求内完成时，BpmProcessFinished 事件监听是异步的，直接回读会拿到
+        // 尚未回写的 pending。这里按实例终态同步补一次终审回写，回写本身幂等，监听稍后
+        // 重复投递会跳过；一级通过（实例未终结）仍保持 pending 不变。
+        if self.instance_finished(approval_id).await? {
+            self.on_bpm_approved(approval_id, approver_user_id).await?;
+        }
         self.get_request(approval_id).await
+    }
+
+    /// 判定该申请对应的 BPM 实例是否已正常终结。
+    ///
+    /// 调用方：审批通过后决定是否同步补终审回写。
+    /// 入参：申请 id。传给谁：无。存什么/存哪里：只读 bpm_process_instance，不写库。
+    async fn instance_finished(&self, approval_id: i64) -> Result<bool, AppError> {
+        let instance = bpm_process_instance::Entity::find()
+            .filter(
+                bpm_process_instance::Column::BusinessType.eq(BPM_BUSINESS_TYPE_EXPORT_APPROVAL),
+            )
+            .filter(bpm_process_instance::Column::BusinessId.eq(Some(approval_id)))
+            .order_by_desc(bpm_process_instance::Column::Id)
+            .one(self.db.as_ref())
+            .await?;
+        Ok(instance
+            .and_then(|row| row.status)
+            .is_some_and(|status| status == instance_status::COMPLETED))
     }
 
     /// 审批拒绝：代理到 BPM 引擎的当前待办任务（BPM 侧拒绝即终止实例，
