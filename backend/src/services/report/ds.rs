@@ -356,16 +356,18 @@ impl ReportEngineService {
         // 获取模板
         let template = self.get_template(&req.template_id).await?;
 
-        // 加载数据
+        // 加载数据：每枚预置模板走各自的装配腿，出参行键与模板声明列严格同源；
+        // 未登记的模板 id 走销售明细兜底腿（自定义模板既有契约，本腿不投影）。
         let data = match req.template_id.as_str() {
             "sales_summary" => self.query_sales_summary_report(&template, &req).await?,
+            "sales_detail" => self.query_sales_detail_report(&template, &req).await?,
+            "top_products" => self.query_top_products_report(&template, &req).await?,
+            "customer_analysis" => self.query_customer_analysis_report(&template, &req).await?,
+            "profit_analysis" => self.query_profit_analysis_report(&template, &req).await?,
             "inventory_status" => self.query_inventory_report(&template, &req).await?,
-            "top_products" | "customer_analysis" | "profit_analysis" => {
-                self.query_sales_report(&template, &req).await?
-            }
             "purchase_summary" => self.query_purchase_report(&template, &req).await?,
             _ => {
-                // 默认: 销售明细
+                // 默认: 销售明细（自定义模板兜底）
                 self.query_sales_report(&template, &req).await?
             }
         };
@@ -415,6 +417,7 @@ impl ReportEngineService {
                 })
             })
             .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
 
         Ok(ReportData {
             columns: template.columns.clone(),
@@ -529,6 +532,567 @@ impl ReportEngineService {
             entry.customer_ids.insert(order.customer_id);
         }
         groups
+    }
+
+    /// 装配腿末端护栏：出参行键集合与模板声明列键集合必须逐行双向相等
+    ///
+    /// 功能 在每枚预置模板的装配腿返回前，逐行比对行对象键集合与声明列键集合，
+    /// 缺键或多键都点名拒绝，把"声明列与实际行不同源"从静默漂移变为显式硬失败。
+    /// 调用方 各预置模板的 query_*_report 装配函数在构造 ReportData 之前。
+    /// 入参 template 取声明列键集合，rows 取装配完成的行对象列表。
+    /// 传给谁 不匹配时把带缺键与多键点名的错误交给调用 handler；匹配时放行。
+    /// 存什么 不存数据；非对象行同样点名拒绝，不静默跳过。
+    /// 存哪里 不落库，护栏只在本次请求内生效。
+    fn ensure_rows_match_declared_columns(
+        template: &super::ReportTemplate,
+        rows: &[serde_json::Value],
+    ) -> Result<(), AppError> {
+        let declared: std::collections::BTreeSet<&str> =
+            template.columns.iter().map(|c| c.key.as_str()).collect();
+        for (idx, row) in rows.iter().enumerate() {
+            let Some(obj) = row.as_object() else {
+                return Err(AppError::internal(format!(
+                    "报表 {} 第 {} 行不是对象行，无法与声明列对齐",
+                    template.id, idx
+                )));
+            };
+            let actual: std::collections::BTreeSet<&str> = obj.keys().map(String::as_str).collect();
+            if actual != declared {
+                let missing: Vec<&str> = declared.difference(&actual).copied().collect();
+                let extra: Vec<&str> = actual.difference(&declared).copied().collect();
+                return Err(AppError::internal(format!(
+                    "报表 {} 行键与声明列不同源：缺键 {:?}，多键 {:?}",
+                    template.id, missing, extra
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// 读取请求 filters 中指定键的字符串值
+    ///
+    /// 功能 从 ExecuteReportRequest.filters 里按键取出用户提交的过滤值。
+    /// 调用方 预置模板装配腿中支持 select 过滤的函数。
+    /// 入参 req 与过滤键名。
+    /// 传给谁 返回的裸串交给各腿的 parse 校验；未提交返回 None。
+    /// 存什么 不存数据。
+    /// 存哪里 不落库，只在本次请求内读取。
+    fn filter_value<'a>(req: &'a ExecuteReportRequest, key: &str) -> Option<&'a str> {
+        req.filters
+            .iter()
+            .find(|f| f.key == key)
+            .and_then(|f| f.value.as_deref())
+            .filter(|v| !v.is_empty())
+    }
+
+    /// 把请求过滤串解析为正整数 id
+    ///
+    /// 功能 将用户提交的 id 过滤值解析为 i32，非法值点名拒绝而不是忽略该过滤。
+    /// 调用方 预置模板装配腿的 customer_id / warehouse_id / supplier_id 过滤。
+    /// 入参 key 是过滤键名（用于报错点名），raw 是提交的裸串。
+    /// 传给谁 解析出的 id 交给各腿的 QueryFilter；失败把校验错误交给调用 handler。
+    /// 存什么 不存数据；空串与非数字都拒绝，不回退成"查全部"。
+    /// 存哪里 不落库。
+    fn parse_filter_id(key: &str, raw: &str) -> Result<i32, AppError> {
+        raw.parse::<i32>().map_err(|_| {
+            AppError::validation_displayable(format!("过滤参数 {} 需为整数 id，收到 {}", key, raw))
+        })
+    }
+
+    /// 按 id 集合批量取产品编码与名称
+    ///
+    /// 功能 用一次 in-list 查询取回产品维表映射，杜绝逐行查库的 N+1。
+    /// 调用方 销售族与库存族装配腿的产品列取数。
+    /// 入参 db 与产品 id 集合。
+    /// 传给谁 返回的映射交给装配闭包拼行；空集合直接返回空映射不触库。
+    /// 存什么 id 到（code, name）二元组。
+    /// 存哪里 不落库，映射只在本次查询内存活。
+    async fn load_product_map(
+        db: &DatabaseConnection,
+        ids: &HashSet<i32>,
+    ) -> Result<HashMap<i32, (String, String)>, AppError> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let id_list: Vec<i32> = ids.iter().copied().collect();
+        let products = crate::models::product::Entity::find()
+            .filter(crate::models::product::Column::Id.is_in(id_list))
+            .all(db)
+            .await?;
+        Ok(products
+            .into_iter()
+            .map(|p| (p.id, (p.code, p.name)))
+            .collect())
+    }
+
+    /// 按 id 集合批量取客户名称
+    ///
+    /// 功能 用一次 in-list 查询取回客户维表映射，杜绝逐行查库的 N+1。
+    /// 调用方 销售族与财务族装配腿的客户列取数。
+    /// 入参 db 与客户 id 集合。
+    /// 传给谁 返回的映射交给装配闭包拼行；空集合直接返回空映射不触库。
+    /// 存什么 id 到客户名称。
+    /// 存哪里 不落库，映射只在本次查询内存活。
+    async fn load_customer_name_map(
+        db: &DatabaseConnection,
+        ids: &HashSet<i32>,
+    ) -> Result<HashMap<i32, String>, AppError> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let id_list: Vec<i32> = ids.iter().copied().collect();
+        let customers = crate::models::customer::Entity::find()
+            .filter(crate::models::customer::Column::Id.is_in(id_list))
+            .all(db)
+            .await?;
+        Ok(customers
+            .into_iter()
+            .map(|c| (c.id, c.customer_name))
+            .collect())
+    }
+
+    /// 查询销售明细报表（按声明列投影的明细行）
+    ///
+    /// 功能 取销售订单行明细，关联订单号与客户、产品名称后，严格按模板声明的
+    /// 五列（order_no、customer_name、product_name、quantity、amount）逐行装配，
+    /// 不再返回整实体行。日期范围沿用明细行创建时间口径，客户过滤按订单维度下推。
+    /// 调用方 execute_report 在 template_id 为 sales_detail 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围与 customer_id 过滤。
+    /// 传给谁 行集合装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 quantity 与 amount 是 DECIMAL 线格式字符串；维度名是字符串。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_sales_detail_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let order_ids = Self::sales_detail_order_scope(&self.db, req).await?;
+        if matches!(order_ids, Some(ref ids) if ids.is_empty()) {
+            return Ok(Self::empty_report_data(template, req));
+        }
+        let items = Self::fetch_sales_items(&self.db, req.date_range.as_ref(), order_ids).await?;
+
+        let order_id_set: HashSet<i32> = items.iter().map(|i| i.order_id).collect();
+        let product_id_set: HashSet<i32> = items.iter().map(|i| i.product_id).collect();
+        let orders = Self::fetch_sales_orders_by_ids(&self.db, &order_id_set).await?;
+        let order_no_map: HashMap<i32, (String, i32)> = orders
+            .into_iter()
+            .map(|o| (o.id, (o.order_no, o.customer_id)))
+            .collect();
+        let customer_ids: HashSet<i32> = order_no_map.values().map(|(_, cid)| *cid).collect();
+        let customer_map = Self::load_customer_name_map(&self.db, &customer_ids).await?;
+        let product_map = Self::load_product_map(&self.db, &product_id_set).await?;
+
+        let mut staged: Vec<(String, String, String, String, String)> = items
+            .iter()
+            .map(|item| {
+                let (order_no, customer_id) = order_no_map
+                    .get(&item.order_id)
+                    .cloned()
+                    .unwrap_or_default();
+                let customer_name = customer_map.get(&customer_id).cloned().unwrap_or_default();
+                let product_name = product_map
+                    .get(&item.product_id)
+                    .map(|(_, name)| name.clone())
+                    .unwrap_or_default();
+                (
+                    order_no,
+                    customer_name,
+                    product_name,
+                    item.quantity.to_string(),
+                    item.total_amount.to_string(),
+                )
+            })
+            .collect();
+        staged.sort_by(|a, b| (&a.0, &a.2).cmp(&(&b.0, &b.2)));
+
+        let rows: Vec<serde_json::Value> = staged
+            .into_iter()
+            .map(
+                |(order_no, customer_name, product_name, quantity, amount)| {
+                    serde_json::json!({
+                        "order_no": order_no,
+                        "customer_name": customer_name,
+                        "product_name": product_name,
+                        "quantity": quantity,
+                        "amount": amount,
+                    })
+                },
+            )
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 销售明细的订单域（客户过滤下推）
+    ///
+    /// 功能 未提交客户过滤时返回 None 表示不限定订单域；提交时按 customer_id
+    /// 取该客户的订单 id 集合，非法 id 值点名拒绝。
+    /// 调用方 仅本文件的 query_sales_detail_report。
+    /// 入参 db 与请求。
+    /// 传给谁 订单 id 集合交给 fetch_sales_items 作 in-list 过滤。
+    /// 存什么 不存数据；过滤值存在但非法时按校验族拒绝，不静默忽略过滤。
+    /// 存哪里 不落库。
+    async fn sales_detail_order_scope(
+        db: &DatabaseConnection,
+        req: &ExecuteReportRequest,
+    ) -> Result<Option<Vec<i32>>, AppError> {
+        let Some(raw) = Self::filter_value(req, "customer_id") else {
+            return Ok(None);
+        };
+        let customer_id = Self::parse_filter_id("customer_id", raw)?;
+        let orders = SalesOrderEntity::find()
+            .filter(crate::models::sales_order::Column::CustomerId.eq(customer_id))
+            .all(db)
+            .await?;
+        Ok(Some(orders.into_iter().map(|o| o.id).collect()))
+    }
+
+    /// 查询畅销产品报表（按声明列聚合投影）
+    ///
+    /// 功能 把销售订单行按产品聚合，销售额取行总额合计、销量取行数量合计，
+    /// 按销售额降序取 TOP N 后严格装配模板声明的四列（product_code、product_name、
+    /// total_quantity、total_amount）。N 先取请求参数 top_n，缺失回落模板默认。
+    /// 调用方 execute_report 在 template_id 为 top_products 时分派到本函数。
+    /// 入参 template 取声明列与 top_n 默认值；req 取日期范围与参数。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 total_quantity 与 total_amount 是 DECIMAL 线格式字符串。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_top_products_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let top_n = Self::resolve_top_n(template, req)?;
+        let items = Self::fetch_sales_items(&self.db, req.date_range.as_ref(), None).await?;
+
+        let mut by_product: BTreeMap<i32, (rust_decimal::Decimal, rust_decimal::Decimal)> =
+            BTreeMap::new();
+        for item in &items {
+            let entry = by_product
+                .entry(item.product_id)
+                .or_insert((rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO));
+            entry.0 += item.quantity;
+            entry.1 += item.total_amount;
+        }
+
+        let product_ids: HashSet<i32> = by_product.keys().copied().collect();
+        let product_map = Self::load_product_map(&self.db, &product_ids).await?;
+
+        let mut ranked: Vec<(i32, rust_decimal::Decimal, rust_decimal::Decimal)> = by_product
+            .into_iter()
+            .map(|(pid, (qty, amount))| (pid, qty, amount))
+            .collect();
+        ranked.sort_by(|a, b| {
+            let name_of = |pid: &i32| {
+                product_map
+                    .get(pid)
+                    .map(|p| p.1.clone())
+                    .unwrap_or_default()
+            };
+            b.2.cmp(&a.2)
+                .then_with(|| name_of(&a.0).cmp(&name_of(&b.0)))
+                .then_with(|| a.0.cmp(&b.0))
+        });
+
+        let rows: Vec<serde_json::Value> = ranked
+            .into_iter()
+            .take(top_n)
+            .map(|(pid, qty, amount)| {
+                let (code, name) = product_map.get(&pid).cloned().unwrap_or_default();
+                serde_json::json!({
+                    "product_code": code,
+                    "product_name": name,
+                    "total_quantity": qty.to_string(),
+                    "total_amount": amount.to_string(),
+                })
+            })
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 解析 TOP N 参数
+    ///
+    /// 功能 先取请求参数 top_n，缺失回落模板默认，双缺失默认 20；
+    /// 非正整数按校验族点名拒绝。
+    /// 调用方 仅本文件的 query_top_products_report。
+    /// 入参 template 的 parameters 默认值与 req.parameters。
+    /// 传给谁 返回的条数交给畅销产品腿的截断。
+    /// 存什么 不存数据；0、负数、非数字都拒绝，不静默换成别的值。
+    /// 存哪里 不落库。
+    fn resolve_top_n(
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<usize, AppError> {
+        let raw = req
+            .parameters
+            .as_ref()
+            .and_then(|params| params.get("top_n"))
+            .cloned()
+            .or_else(|| {
+                template
+                    .parameters
+                    .iter()
+                    .find(|p| p.name == "top_n")
+                    .and_then(|p| p.default_value.clone())
+            });
+        match raw {
+            None => Ok(20),
+            Some(value) => {
+                let parsed = value
+                    .as_i64()
+                    .or_else(|| value.as_str().and_then(|s| s.parse::<i64>().ok()));
+                match parsed {
+                    Some(n) if n > 0 => Ok(n as usize),
+                    Some(other) => Err(AppError::validation_displayable(format!(
+                        "参数 top_n 需为正整数，收到 {}",
+                        other
+                    ))),
+                    None => Err(AppError::validation_displayable(format!(
+                        "参数 top_n 需为整数，收到 {}",
+                        value
+                    ))),
+                }
+            }
+        }
+    }
+
+    /// 查询客户分析报表（按声明列聚合投影）
+    ///
+    /// 功能 按客户聚合销售订单，订单数按订单计数、销售额累加总单金额、
+    /// 客单价为销售额除以订单数后按货币两位精度落形，行严格装配模板声明的
+    /// 四列（customer_name、order_count、total_amount、avg_order_amount）。
+    /// 日期范围按订单日过滤，与销售汇总同一条时间轴。
+    /// 调用方 execute_report 在 template_id 为 customer_analysis 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 total_amount 与 avg_order_amount 是 DECIMAL 线格式字符串，order_count 是整数。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_customer_analysis_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let orders = Self::fetch_sales_summary_orders(&*self.db, req.date_range.as_ref()).await?;
+
+        let mut by_customer: BTreeMap<i32, (u64, rust_decimal::Decimal)> = BTreeMap::new();
+        for order in &orders {
+            let entry = by_customer
+                .entry(order.customer_id)
+                .or_insert((0_u64, rust_decimal::Decimal::ZERO));
+            entry.0 += 1;
+            entry.1 += order.total_amount;
+        }
+
+        let customer_ids: HashSet<i32> = by_customer.keys().copied().collect();
+        let customer_map = Self::load_customer_name_map(&self.db, &customer_ids).await?;
+
+        let mut ranked: Vec<(i32, u64, rust_decimal::Decimal)> = by_customer
+            .into_iter()
+            .map(|(cid, entry)| (cid, entry.0, entry.1))
+            .collect();
+        ranked.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+
+        let rows: Vec<serde_json::Value> = ranked
+            .into_iter()
+            .map(|(cid, count, total)| {
+                let avg = (total / rust_decimal::Decimal::from(count)).round_dp(2);
+                serde_json::json!({
+                    "customer_name": customer_map.get(&cid).cloned().unwrap_or_default(),
+                    "order_count": count,
+                    "total_amount": total.to_string(),
+                    "avg_order_amount": avg.to_string(),
+                })
+            })
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 查询利润分析报表（按声明列聚合投影）
+    ///
+    /// 功能 按产品聚合销售收入（不含税小计合计），成本按产品成本价乘以销量折算，
+    /// 毛利为收入减成本，毛利率为毛利对收入之比（四位小数即百分两位）；
+    /// 成本价缺失或收入为零时成本、毛利、毛利率输出 null，表达不可计算而非编造数值。
+    /// 行严格装配模板声明的五列（product_name、revenue、cost、profit、profit_margin）。
+    /// 调用方 execute_report 在 template_id 为 profit_analysis 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围（明细行创建时间轴，与销售明细同源）。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 revenue 与 profit 是 DECIMAL 线格式字符串，margin 是比例字符串，
+    /// cost 在有成本价时为字符串、缺失时为 null。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_profit_analysis_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let items = Self::fetch_sales_items(&self.db, req.date_range.as_ref(), None).await?;
+
+        let mut by_product: BTreeMap<i32, (rust_decimal::Decimal, rust_decimal::Decimal)> =
+            BTreeMap::new();
+        for item in &items {
+            let entry = by_product
+                .entry(item.product_id)
+                .or_insert((rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO));
+            entry.0 += item.quantity;
+            entry.1 += item.subtotal;
+        }
+
+        let product_ids: HashSet<i32> = by_product.keys().copied().collect();
+        let products = if product_ids.is_empty() {
+            Vec::new()
+        } else {
+            let id_list: Vec<i32> = product_ids.iter().copied().collect();
+            crate::models::product::Entity::find()
+                .filter(crate::models::product::Column::Id.is_in(id_list))
+                .all(&*self.db)
+                .await?
+        };
+        let product_info: HashMap<i32, (String, Option<rust_decimal::Decimal>)> = products
+            .into_iter()
+            .map(|p| (p.id, (p.name, p.cost_price)))
+            .collect();
+
+        let mut ranked: Vec<(i32, rust_decimal::Decimal, rust_decimal::Decimal)> = by_product
+            .into_iter()
+            .map(|(pid, entry)| (pid, entry.1, entry.0))
+            .collect();
+        ranked.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
+        let rows: Vec<serde_json::Value> = ranked
+            .into_iter()
+            .map(|(pid, revenue, qty)| {
+                let (name, cost_price) = product_info
+                    .get(&pid)
+                    .cloned()
+                    .unwrap_or((String::new(), None));
+                let cost = cost_price.map(|cp| cp * qty);
+                let profit = cost.map(|c| revenue - c);
+                let margin = profit
+                    .filter(|_| !revenue.is_zero())
+                    .map(|p| (p / revenue).round_dp(4));
+                serde_json::json!({
+                    "product_name": name,
+                    "revenue": revenue.to_string(),
+                    "cost": cost.map(|c| c.round_dp(2).to_string()),
+                    "profit": profit.map(|p| p.round_dp(2).to_string()),
+                    "profit_margin": margin.map(|m| m.to_string()),
+                })
+            })
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 按日期范围与客户域过滤读取销售订单行
+    ///
+    /// 功能 明细族共用的取行函数：按明细行创建时间过滤，可选限定订单 id 集合。
+    /// 调用方 销售明细、畅销产品、利润分析三腿。
+    /// 入参 db、可选日期范围、可选订单 id 限定集合。
+    /// 传给谁 行集合交给各腿聚合或投影；边界值非法按校验族点名拒绝。
+    /// 存什么 不存数据。
+    /// 存哪里 不落库。
+    async fn fetch_sales_items(
+        db: &DatabaseConnection,
+        date_range: Option<&super::DateRange>,
+        order_ids: Option<Vec<i32>>,
+    ) -> Result<Vec<crate::models::sales_order_item::Model>, AppError> {
+        let mut select = SalesOrderItemEntity::find();
+        if let Some(range) = date_range {
+            select = select.filter(
+                crate::models::sales_order_item::Column::CreatedAt.gte(
+                    range
+                        .start
+                        .and_hms_opt(0, 0, 0)
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
+                        .and_utc(),
+                ),
+            );
+            select = select.filter(
+                crate::models::sales_order_item::Column::CreatedAt.lte(
+                    range
+                        .end
+                        .and_hms_opt(23, 59, 59)
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
+                        .and_utc(),
+                ),
+            );
+        }
+        if let Some(ids) = order_ids {
+            select = select.filter(crate::models::sales_order_item::Column::OrderId.is_in(ids));
+        }
+        Ok(select.all(db).await?)
+    }
+
+    /// 按 id 集合读取销售订单头
+    ///
+    /// 功能 用一次 in-list 查询取回订单号与归属客户，供明细腿关联维度。
+    /// 调用方 仅本文件的 query_sales_detail_report。
+    /// 入参 db 与订单 id 集合。
+    /// 传给谁 订单头交给明细腿建映射；空集合不触库。
+    /// 存什么 不存数据。
+    /// 存哪里 不落库。
+    async fn fetch_sales_orders_by_ids(
+        db: &DatabaseConnection,
+        ids: &HashSet<i32>,
+    ) -> Result<Vec<crate::models::sales_order::Model>, AppError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let id_list: Vec<i32> = ids.iter().copied().collect();
+        Ok(SalesOrderEntity::find()
+            .filter(crate::models::sales_order::Column::Id.is_in(id_list))
+            .all(db)
+            .await?)
+    }
+
+    /// 用模板声明与请求参数装配一份 ReportData（各腿共用的收尾构造）
+    ///
+    /// 功能 以模板声明列为 columns、装配行为 rows 构造报表结果对象，
+    /// 元数据的参数快照只取请求自身提交的值，不写入服务内部推导值。
+    /// 调用方 各预置模板装配腿的返回处。
+    /// 入参 template 取声明列与数据源，req 取参数快照，rows 取已护栏校验的行。
+    /// 传给谁 交给 execute_report 统一盖 query_time_ms 与缓存标记后进缓存与 handler。
+    /// 存什么 不新增字段，纯组装。
+    /// 存哪里 不落库。
+    fn build_report_data(
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+        rows: Vec<serde_json::Value>,
+    ) -> ReportData {
+        ReportData {
+            columns: template.columns.clone(),
+            total_rows: rows.len() as u64,
+            rows,
+            generated_at: Utc::now(),
+            summary: None,
+            metadata: ReportMetadata {
+                data_source: template.data_source.clone(),
+                query_time_ms: 0,
+                cache_hit: false,
+                parameters: req.parameters.clone(),
+            },
+        }
+    }
+
+    /// 构造一张空报表结果（请求过滤命中零对象时的快速返回）
+    ///
+    /// 功能 保留模板声明列与零行的合法空报表，不触库取维表。
+    /// 调用方 预置模板腿在过滤域为空集时。
+    /// 入参 template 与 req。
+    /// 传给谁 交给 execute_report 进缓存与 handler。
+    /// 存什么 columns 照声明、rows 为空。
+    /// 存哪里 不落库。
+    fn empty_report_data(
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> ReportData {
+        Self::build_report_data(template, req, Vec::new())
     }
 
     /// 查询销售报表
