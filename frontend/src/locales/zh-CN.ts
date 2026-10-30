@@ -8992,6 +8992,8 @@ export default {
         reveal: '揭示',
         concession: '让步接收',
         rejudge: '重新判定',
+        managerapprove: '经理审批',
+        directorapprove: '总监审批',
         download: '下载',
       },
       loadListFailed: '获取权限列表失败',
@@ -10307,6 +10309,7 @@ export default {
       labelMonthAmount: '本月销售额',
       labelGrossProfitRate: '毛利率',
       labelActiveCustomers: '活跃客户数',
+      trendNoData: '暂无可比数据',
     },
     customerRank: {
       cardTitle: '客户销售排名',

@@ -222,7 +222,8 @@ pub fn extract_segment3(path: &str) -> Option<&str> {
     }
 }
 
-/// 路径动作关键字集合（出现在 URL 末段时优先作为 action）
+/// 路径动作关键字集合（出现在 URL 末段时优先作为动作码；本表只登记**本身即合规
+/// 动作码**的末段，需要映射的末段走 `PATH_ACTION_SEGMENT_MAP`，两表分工不交叉）
 /// `reveal` = PII 按需揭示端点（POST /crm/customers/{id}/pii/reveal）的动作段，
 /// 与 `print` 同族：末段是动作而非资源 ID，提取资源 ID 时该关键字段一并跳过。
 /// `concession`/`rejudge` = 采购收货的让步接收与复检改判（POST
@@ -245,10 +246,43 @@ const PATH_ACTION_KEYWORDS: &[&str] = &[
     "rejudge",
 ];
 
-/// 从路径末段提取动作关键字，非关键字返回 None
+/// URL 末段 → 合规动作码的**显式映射表**（逐枚点名登记，左列是 URL 末段原文，
+/// 右列是派生出的动作码）。动作码正形约束（backend/tests/
+/// contract_wave11_role_code_parser_shape_lock_test.rs 的 `valid_action_code`）：
+/// 只容纯小写字母或 `*`；资源码容连字符而动作码不容，是刻意的不对称约定。
+/// 客户转移审批两腿的 URL 末段带连字符（`/manager-approve` 与 `/director-approve`，
+/// 路径保持原形——改 URL 会波及前端调用与路由快照），故经本表映射为
+/// `managerapprove` 与 `directorapprove` 两枚合规动作码。
+/// 映射按表点名而**不是**"去掉连字符"式的清洗：未登记进左列的末段一律按原形
+/// 判定、不被静默改写。调用方：`extract_action_from_path`（运行期键派生）与
+/// `assignable_actions`（可授予动作全集，授权目录与鉴权同源）。
+const PATH_ACTION_SEGMENT_MAP: &[(&str, &str)] = &[
+    ("manager-approve", "managerapprove"),
+    ("director-approve", "directorapprove"),
+];
+
+/// 判定一个路径段是否为"动作段形态"：命中关键字表或映射表左列即是。
+/// 调用方：`extract_resource_info` 扫描记录 ID 时跳过动作段（动作段既不是 ID
+/// 也不是资源）。末段动作派生走 `extract_action_from_path`（那里还需要映射表
+/// 右列的动作码本身，不止判"是不是动作段"）。
+fn is_path_action_segment(segment: &str) -> bool {
+    PATH_ACTION_KEYWORDS.contains(&segment)
+        || PATH_ACTION_SEGMENT_MAP
+            .iter()
+            .any(|(seg, _)| *seg == segment)
+}
+
+/// 从路径末段提取动作码：先查 `PATH_ACTION_SEGMENT_MAP`（连字符末段映射为
+/// 合规动作码），再查 `PATH_ACTION_KEYWORDS`（原形即动作码），非关键字返回 None
 pub fn extract_action_from_path(path: &str) -> Option<String> {
     // rfind 从后向前取第一个非空段，等价于 filter().next_back()
     let last_segment = path.split('/').rfind(|p| !p.is_empty())?;
+    if let Some((_, action)) = PATH_ACTION_SEGMENT_MAP
+        .iter()
+        .find(|(seg, _)| *seg == last_segment)
+    {
+        return Some((*action).to_string());
+    }
     if PATH_ACTION_KEYWORDS.contains(&last_segment) {
         Some(last_segment.to_string())
     } else {
@@ -320,8 +354,8 @@ pub fn extract_resource_info(path: &str) -> (String, Option<i32>) {
             None => (path_parts[3].to_string(), 4),
         };
         for part in path_parts.iter().skip(start_idx) {
-            // 跳过动作关键字，避免误判
-            if PATH_ACTION_KEYWORDS.contains(part) {
+            // 跳过动作关键字与映射表登记的末段动作，避免误判
+            if is_path_action_segment(part) {
                 continue;
             }
             if let Ok(id) = part.parse::<i32>() {
@@ -365,16 +399,21 @@ pub fn method_to_action(method: &Method) -> String {
 }
 
 /// 可授予动作全集（权限目录端点的动作侧权威来源）：方法派生动作 ∪ 路径末段动作
-/// 关键字（`PATH_ACTION_KEYWORDS`）∪ `?action=` 查询白名单动作
-/// （`QUERY_ACTION_KEYWORDS`），按首次出现顺序去重。
+/// 关键字（`PATH_ACTION_KEYWORDS`）∪ 末段映射表的合规动作码（`PATH_ACTION_SEGMENT_MAP`
+/// 右列）∪ `?action=` 查询白名单动作（`QUERY_ACTION_KEYWORDS`），按首次出现顺序去重。
 ///
-/// 权限中间件的键派生只可能产出这三组动作，目录与派生同源 ⇒ 目录里勾不出来的
+/// 权限中间件的键派生只可能产出这四组动作，目录与派生同源 ⇒ 目录里勾不出来的
 /// 键运行时也派生不出来，反之亦然，杜绝"目录/鉴权两套动作词表"漂移。
-pub(crate) fn assignable_actions() -> Vec<&'static str> {
+/// 可见性 `pub` 的必要性：权限目录端点（`handlers/role_handler.rs`）与测试侧
+/// 同源锁要判的都是**这一份**导出集，直接驱动生产数据，不在 tests/ 侧另抄
+/// 关键字或映射表副本（同 `all_role_permission_definition_groups` 与
+/// `find_unregistered_matrix_resources` 的口径）。
+pub fn assignable_actions() -> Vec<&'static str> {
     let mut actions: Vec<&'static str> = Vec::new();
     for action in METHOD_DERIVED_ACTIONS
         .iter()
         .chain(PATH_ACTION_KEYWORDS.iter())
+        .chain(PATH_ACTION_SEGMENT_MAP.iter().map(|(_, action)| action))
         .chain(QUERY_ACTION_KEYWORDS.iter())
     {
         let action: &'static str = *action;

@@ -4,18 +4,24 @@ import type { ApiResponse } from '@/types/api';
 /**
  * 销售分析概览卡出参，对齐后端 models/dto/sales_analysis_dto.rs::SalesOverviewStats。
  * 键名与线格式一律按后端实际序列化结果写（serde 未开 rename_all，出参是蛇形键；
- * 两个 Decimal 字段出参是字符串），消费方用 Object.assign 原样并入 reactive，
+ * Decimal 字段出参是字符串），消费方用 Object.assign 原样并入 reactive，
  * 键名对不上就会静默停在初值上，等于把假数据当统计值显示。
+ * 两态口径（null 与真 0 必须区分，不得折叠）：
+ * month_orders/month_amount/active_customers 恒在，本月无成交是真 0；
+ * gross_profit_rate 为 Decimal 可空（rust_decimal 无 serde-float ⇒ 有值时是字符串、
+ * 无除法口径时是 null），本月成交额为 0 时 null，不等于零毛利；
+ * 四枚 trend 为可空数值（后端 Option<f64>），上月桶缺失或为 0 时 null，
+ * 表达"不可比"，不等于持平 0%，禁止 `?? 0` 折成数字。
  */
 export interface SalesStats {
   month_orders: number;
   month_amount: string;
-  gross_profit_rate: string;
+  gross_profit_rate: string | null;
   active_customers: number;
-  order_trend: number;
-  amount_trend: number;
-  profit_trend: number;
-  customer_trend: number;
+  order_trend: number | null;
+  amount_trend: number | null;
+  profit_trend: number | null;
+  customer_trend: number | null;
 }
 
 /**
