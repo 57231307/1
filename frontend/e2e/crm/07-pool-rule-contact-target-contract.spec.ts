@@ -527,7 +527,7 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
       'active'
     );
 
-    // 派生三键按 to_target_dto（services/sales_analysis_service.rs:393-419）真算式钉成对不变量：
+    // 派生三键按 to_target_dto（services/sales_analysis_service.rs 唯一映射点）真算式钉成对不变量：
     // actual 为 null ⇒ completion_rate 与 variance 必须同为 null（不以 0 掩盖）；
     // actual 非 null 且 target 大于 0 ⇒ rate=round(actual÷target×100 取两位 MidpointAwayFromZero)、
     // variance=actual−target。E2E 随机周期对不齐 sales_orders 成交桶，常态走 null 分支。
@@ -590,15 +590,17 @@ test.describe('07 公海规则 / 联系人 / 销售目标 写口契约', () => {
     ).toBe(123456);
 
     const modelRows = await listTargetModels(page, period);
-    const createdModel = modelRows.find(item => item.id === created.data.id);
-    expect(createdModel, 'statistics 回读应仍含 POST 腿行').toBeTruthy();
+    const createdModelAfterPut = modelRows.find(item => item.id === created.data.id);
+    expect(createdModelAfterPut, 'statistics 回读应仍含 POST 腿行').toBeTruthy();
     expect(
-      createdModel!.dimension_name,
+      createdModelAfterPut!.dimension_name,
       'PUT 不挪用 dimension_name：create 侧起止日期拼接串应原样留存，不得被备注覆盖'
     ).toBe(`开始日期: ${startDate}, 结束日期: ${endDate}`);
     expect(
-      Number(createdModel!.total_amount),
-      `POST 腿存库列 total_amount 期望 123456，实际 ${JSON.stringify(createdModel!.total_amount)}`
+      Number(createdModelAfterPut!.total_amount),
+      `POST 腿存库列 total_amount 期望 123456，实际 ${JSON.stringify(
+        createdModelAfterPut!.total_amount
+      )}`
     ).toBe(123456);
     const updatedModel = modelRows.find(item => item.id === updated.data.id);
     expect(updatedModel, 'statistics 回读应含总体腿新建行').toBeTruthy();
