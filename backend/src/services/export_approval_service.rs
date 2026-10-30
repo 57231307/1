@@ -26,7 +26,7 @@
 use chrono::{DateTime, Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, Set,
+    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -337,28 +337,28 @@ impl ExportApprovalService {
         // 终审在同一请求内完成时，BpmProcessFinished 事件监听是异步的，直接回读会拿到
         // 尚未回写的 pending。这里按实例终态同步补一次终审回写，回写本身幂等，监听稍后
         // 重复投递会跳过；一级通过（实例未终结）仍保持 pending 不变。
-        if self.instance_finished(approval_id).await? {
+        if self.latest_instance_status(approval_id).await?.as_deref()
+            == Some(instance_status::COMPLETED)
+        {
             self.on_bpm_approved(approval_id, approver_user_id).await?;
         }
         self.get_request(approval_id).await
     }
 
-    /// 判定该申请对应的 BPM 实例是否已正常终结。
+    /// 取该申请最近一条 BPM 流程实例的状态原值。
     ///
-    /// 调用方：审批通过后决定是否同步补终审回写。
+    /// 调用方：审批通过/拒绝后判定实例是否已终结，以决定是否同步补终审回写。
     /// 入参：申请 id。传给谁：无。存什么/存哪里：只读 bpm_process_instance，不写库。
-    async fn instance_finished(&self, approval_id: i64) -> Result<bool, AppError> {
+    async fn latest_instance_status(&self, approval_id: i64) -> Result<Option<String>, AppError> {
         let instance = bpm_process_instance::Entity::find()
             .filter(
                 bpm_process_instance::Column::BusinessType.eq(BPM_BUSINESS_TYPE_EXPORT_APPROVAL),
             )
             .filter(bpm_process_instance::Column::BusinessId.eq(Some(approval_id)))
             .order_by_desc(bpm_process_instance::Column::Id)
-            .one(self.db.as_ref())
+            .one(&*self.db)
             .await?;
-        Ok(instance
-            .and_then(|row| row.status)
-            .is_some_and(|status| status == instance_status::COMPLETED))
+        Ok(instance.and_then(|row| row.status))
     }
 
     /// 审批拒绝：代理到 BPM 引擎的当前待办任务（BPM 侧拒绝即终止实例，
@@ -384,6 +384,13 @@ impl ExportApprovalService {
             Some(approver_user_id),
         )
         .await?;
+        // 拒绝即终止实例，BpmProcessFinished 事件同样是异步投递；这里按实例终态同步补
+        // 一次拒绝回写，回写幂等，监听稍后重复投递会跳过。
+        if self.latest_instance_status(approval_id).await?.as_deref()
+            == Some(instance_status::TERMINATED)
+        {
+            self.on_bpm_rejected(approval_id, approver_user_id).await?;
+        }
         self.get_request(approval_id).await
     }
 
@@ -474,7 +481,15 @@ impl ExportApprovalService {
         approver_user_id: i32,
     ) -> Result<Model, AppError> {
         let approver_username = self.resolve_username(approver_user_id).await;
-        let model = self.get_request(approval_id).await?;
+        // 行级锁串行化同步补写与事件监听两条回写路径，保证重复投递不会签发第二个令牌。
+        let txn = (*self.db).begin().await?;
+        let model = Entity::find_by_id(approval_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("导出审批请求不存在: id={}", approval_id))
+            })?;
         let status = ApprovalStatus::parse_status(&model.status).ok_or_else(|| {
             AppError::internal(format!("导出审批状态值不可解析: {}", model.status))
         })?;
@@ -525,7 +540,8 @@ impl ExportApprovalService {
             target_level,
         )));
 
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 
@@ -556,7 +572,15 @@ impl ExportApprovalService {
         approval_id: i64,
         approver_user_id: i32,
     ) -> Result<Model, AppError> {
-        let model = self.get_request(approval_id).await?;
+        // 行级锁串行化同步补写与事件监听两条回写路径，重复投递只落一次终态。
+        let txn = (*self.db).begin().await?;
+        let model = Entity::find_by_id(approval_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!("导出审批请求不存在: id={}", approval_id))
+            })?;
         let status = ApprovalStatus::parse_status(&model.status).ok_or_else(|| {
             AppError::internal(format!("导出审批状态值不可解析: {}", model.status))
         })?;
@@ -583,7 +607,8 @@ impl ExportApprovalService {
         active.rejected_at = Set(Some(now.into()));
         active.updated_at = Set(now.into());
         active.completed_at = Set(Some(now.into()));
-        let updated = active.update(&*self.db).await?;
+        let updated = active.update(&txn).await?;
+        txn.commit().await?;
         Ok(updated)
     }
 
