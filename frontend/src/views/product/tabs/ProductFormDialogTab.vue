@@ -165,7 +165,7 @@
                 </el-tooltip>
               </span>
             </template>
-            <!-- 每公斤出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
+            <!-- 出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
             <el-input
               :model-value="metersPerKgDisplay"
               readonly
@@ -607,7 +607,7 @@ const toInputText = (value: number | string | null | undefined): string =>
 // 是否面料类（坯布/成品布），判定源与后端 FABRIC_TYPES 同源；新建时据此动态加必填
 const isFabricType = computed(() => isFabricProductType(formData.product_type));
 
-// 每公斤出米数即时只读值：读表单当前克重与幅宽，算式与后端 DualUnitConverter::meters_per_kg
+// 出米数（每公斤出米数）即时只读值：读表单当前克重与幅宽，算式与后端 DualUnitConverter::meters_per_kg
 // 同源（向下取整一位小数）；缺值或非正返回 null，界面显示占位文案，不显示 0 冒充可算。
 const metersPerKgDisplay = computed(() => {
   const value = computeMetersPerKg(
@@ -792,7 +792,6 @@ const resetForm = () => {
   formData.finish = '';
   formData.width_needle_included_cm = '';
   formData.weight_tolerance = '';
-  formData.spandex_percent = '';
   formData.usage = '';
   formData.safety_category = '';
   formData.min_order_quantity = '';
@@ -822,7 +821,6 @@ watch(
         formData.gram_weight = toInputText(props.rowData.gram_weight);
         formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
         formData.weight_tolerance = toInputText(props.rowData.weight_tolerance);
-        formData.spandex_percent = toInputText(props.rowData.spandex_percent);
         formData.usage = props.rowData.usage ?? '';
         formData.safety_category = props.rowData.safety_category ?? '';
         formData.min_order_quantity = toInputText(props.rowData.min_order_quantity);
@@ -854,7 +852,7 @@ const buildSubmitPayload = (): Partial<Product> => ({
   barcode: formData.barcode,
   price: toSubmitNumber(formData.price),
   cost_price: toSubmitNumber(formData.cost_price),
-  // 幅宽与克重是报价单换算米数与公斤数的取数源，也是每公斤出米数的算式入参，
+  // 幅宽与克重是报价单换算米数与公斤数的取数源，也是出米数的算式入参，
   // 界面清空必须落得回库里，故经 toSubmitNumber 显式发 null 走三态清空通道
   width: toSubmitNumber(formData.width),
   gram_weight: toSubmitNumber(formData.gram_weight),
@@ -865,10 +863,9 @@ const buildSubmitPayload = (): Partial<Product> => ({
   density: formData.density,
   structure: formData.structure,
   finish: formData.finish,
-  // 带针幅宽/克重公差/氨纶含量为 DECIMAL，经 toSubmitNumber 归一：空文本显式发 null 走后端三态清空通道
+  // 带针幅宽/克重公差为 DECIMAL，经 toSubmitNumber 归一：空文本显式发 null 走后端三态清空通道
   width_needle_included_cm: toSubmitNumber(formData.width_needle_included_cm),
   weight_tolerance: toSubmitNumber(formData.weight_tolerance),
-  spandex_percent: toSubmitNumber(formData.spandex_percent),
   // 用途为自由文本单层条件更新，直发采集值（空串即清空文本，与其余文本列同口径）
   usage: formData.usage,
   // 安全类别为受 DB CHECK 约束的封闭枚举，空值发 undefined 让该键从载荷摘除（后端单层更新键缺席即不改），
