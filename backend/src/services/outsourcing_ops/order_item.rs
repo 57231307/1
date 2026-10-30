@@ -163,11 +163,13 @@ impl OutsourcingOrderItemService {
         if let Some(v) = req.remarks {
             active.remarks = Set(v);
         }
-        // NOT NULL 列（Some(None) 已在入口拒绝）：仅覆盖/保持
+        // NOT NULL 列（显式 null 已在入口拒绝）：有值即写入 quantity/unit_cost/unit 与两项费用列，
+        // 数量与单位成本同时喂给 total_cost 重算，保证三者同源。
         if let Some(v) = req.quantity.flatten() {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出数量不能为负"));
             }
+            active.quantity = Set(v);
             new_quantity = v;
             need_recompute_cost = true;
         }
@@ -178,6 +180,7 @@ impl OutsourcingOrderItemService {
             if v < Decimal::ZERO {
                 return Err(AppError::business("单位成本不能为负"));
             }
+            active.unit_cost = Set(v);
             new_unit_cost = v;
             need_recompute_cost = true;
         }
