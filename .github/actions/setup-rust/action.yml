@@ -26,7 +26,7 @@ runs:
   using: composite
   steps:
     - name: 缓存 Rustup
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.rustup
         key: rustup-${{ env.RUST_VERSION }}
@@ -39,7 +39,7 @@ runs:
 
     - name: 缓存 Cargo
       if: inputs.target-cache == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: |
           ~/.cargo/bin
@@ -52,13 +52,13 @@ runs:
 
     - name: 安装 sccache（编译缓存，加速重复编译）
       if: inputs.sccache == 'true'
-      uses: taiki-e/install-action@v2.56.0
+      uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0 # v2.56.0
       with:
         tool: sccache
 
     - name: 缓存 sccache
       if: inputs.sccache == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.cache/sccache
         key: sccache-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
