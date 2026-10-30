@@ -45,11 +45,11 @@ pub const COL_COST_PRICE: &str = "成本价格";
 const COL_COMPOSITION: &str = "面料成分";
 const COL_YARN_COUNT: &str = "纱支";
 const COL_DENSITY: &str = "密度";
-const COL_WIDTH: &str = "幅宽";
+const COL_WIDTH: &str = "有效幅宽";
 const COL_GRAM_WEIGHT: &str = "克重";
 const COL_STRUCTURE: &str = "组织结构";
 const COL_FINISH: &str = "后整理";
-const COL_MIN_ORDER_QUANTITY: &str = "最小起订量";
+const COL_MIN_ORDER_QUANTITY: &str = "订量";
 const COL_LEAD_TIME: &str = "交货期";
 const COL_STATUS: &str = "状态";
 const COL_DESCRIPTION: &str = "产品描述";
@@ -664,8 +664,8 @@ impl ProductService {
 
     /// 建品失败的列名归属：把行级错误的真实原因归到权威表的实际列名。
     /// 判据族（services::product_service::validate_product_create_fields 与
-    /// validate_product_numeric_domains）的每条文案都含对应列名（幅宽 克重 面料成分 产品类型
-    /// 最小起订量 交货期 标准价格 成本价格），按表列名子串命中即归属该列；
+    /// validate_product_numeric_domains）的每条文案都含对应列名（有效幅宽 克重 面料成分 产品类型
+    /// 订量 交货期 标准价格 成本价格），按表列名子串命中即归属该列；
     /// 外键预校验文案「产品分类 {id} 不存在」归到 类别ID；
     /// 其余无列指向的整行级失败（唯一约束 数据库故障等）归到行身份列 产品编码
     /// （错误 value 即携带该行编码，可直接定位行）。不再落「数据库」这种无信息列名。

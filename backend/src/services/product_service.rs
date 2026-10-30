@@ -119,7 +119,7 @@ pub struct CreateProductArgs {
     pub structure: Option<String>,
     /// 后整理
     pub finish: Option<String>,
-    /// 最小起订量（DECIMAL 列，同上）
+    /// 订量（档案面展示名；原口径最小起订量，DECIMAL 列，同上）
     pub min_order_quantity: Option<Decimal>,
     /// 交期（天）
     pub lead_time: Option<i32>,
@@ -261,7 +261,7 @@ pub fn validate_product_create_fields(
     let positive = |v: Option<Decimal>| v.is_some_and(|x| x > Decimal::ZERO);
     if !positive(width) {
         return Err(AppError::validation_displayable(
-            "面料类产品必须填写幅宽（单位 cm），且幅宽必须大于 0",
+            "面料类产品必须填写有效幅宽（单位 cm），且有效幅宽必须大于 0",
         ));
     }
     if !positive(gram_weight) {
@@ -289,7 +289,7 @@ pub fn validate_product_create_fields(
 ///
 /// 规则。产品类型出现时必须在词表 ALL_TYPES（坯布/成品布/辅料）内，词表外值点名拒绝，
 /// 不落库后再靠数据修正；幅宽出现必须大于 0（列语义为有效幅宽、单位 cm，0 与负数是非法录入）；
-/// 克重出现必须大于 0（g/m²）；最小起订量与交货期出现不得为负；价格两列出现在不得为负。
+/// 克重出现必须大于 0（g/m²）；订量与交货期出现不得为负；价格两列出现不得为负。
 /// 键缺席与显式空（None）不在本判据范围——必填性由 validate_product_create_fields 按品类分级判定，
 /// 本函数只管「提交了就必须是合法形态」。
 /// 文案走 validation_displayable：只描述用户自己提交字段的取值规则，不涉表名与 SQL，满足 fail-visible。
@@ -320,7 +320,7 @@ pub fn validate_product_numeric_domains(
         ));
     }
     if min_order_quantity.is_some_and(|q| q < Decimal::ZERO) {
-        return Err(AppError::validation_displayable("最小起订量不能为负数"));
+        return Err(AppError::validation_displayable("订量不能为负数"));
     }
     if lead_time.is_some_and(|l| l < 0) {
         return Err(AppError::validation_displayable("交货期（天）不能为负数"));
