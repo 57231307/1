@@ -174,14 +174,14 @@ test.describe.serial('新域业务流转链', () => {
       ),
       // 新建验布单默认评分制式为四分制（four_point），而 grade_inspection 四分制分支
       // 要求 fabric_width_inches 非空（fabric_inspection_service.rs:454-455），缺则定级被正当
-      // 拒绝（400「四分制评级需要幅宽」）。建单表单已有「门幅(英寸)」el-input-number
-      // （index.vue:116-123 绑 fabric_width_inches），保存前真实填入，保证后续定级可 2xx。
+      // 拒绝（400「四分制评级需要幅宽」）。建单表单的「门幅(英寸)」列为纯手写录入的数字
+      // 输入框（绑 fabric_width_inches），保存前真实填入，保证后续定级可 2xx。
       (async () => {
         await page.getByRole('button', { name: '新建验布单' }).click();
         const widthInput = page
           .locator('.el-dialog:visible .el-form-item')
           .filter({ has: page.locator('.el-form-item__label', { hasText: '门幅' }) })
-          .locator('.el-input-number input')
+          .locator('input')
           .first();
         await widthInput.waitFor({ state: 'visible', timeout: 10_000 });
         await widthInput.fill('60');
@@ -203,7 +203,14 @@ test.describe.serial('新域业务流转链', () => {
     });
     await row.getByRole('button', { name: '定级' }).click();
     const gradeDialog = page.locator('.el-dialog:visible').filter({ hasText: '验布定级' });
-    await gradeDialog.locator('.el-input-number input').first().fill('120');
+    // 「检验码数」列为纯手写录入的数字输入框（无步进加减按钮） 按 form-item 标签锚定
+    const yardsInput = gradeDialog
+      .locator('.el-form-item')
+      .filter({ has: page.locator('.el-form-item__label', { hasText: '检验码数' }) })
+      .first()
+      .locator('input')
+      .first();
+    await yardsInput.fill('120');
     await gradeDialog.getByRole('button', { name: '提交' }).click();
     await expect(page.locator('.el-message--success').first()).toBeVisible({ timeout: 8000 });
     // 定级结果落库校验：状态应转为 graded（关闭按钮只在 graded 态出现）
