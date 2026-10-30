@@ -584,16 +584,16 @@ impl ApReportService {
         let sql = format!(
             r#"
             SELECT
-                COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 1 AND 30 THEN unpaid_amount ELSE 0 END), 0) AS b1_amt,
-                COUNT(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 1 AND 30 THEN 1 END) AS b1_cnt,
-                COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS b2_amt,
-                COUNT(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN 1 END) AS b2_cnt,
-                COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS b3_amt,
-                COUNT(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN 1 END) AS b3_cnt,
-                COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 91 AND 180 THEN unpaid_amount ELSE 0 END), 0) AS b4_amt,
-                COUNT(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 91 AND 180 THEN 1 END) AS b4_cnt,
-                COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 180 THEN unpaid_amount ELSE 0 END), 0) AS b5_amt,
-                COUNT(CASE WHEN (CURRENT_DATE - due_date) > 180 THEN 1 END) AS b5_cnt,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 1 AND 30 THEN unpaid_amount ELSE 0 END), 0) AS b1_amt,
+                COUNT(CASE WHEN ($1 - due_date) BETWEEN 1 AND 30 THEN 1 END) AS b1_cnt,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS b2_amt,
+                COUNT(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN 1 END) AS b2_cnt,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS b3_amt,
+                COUNT(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN 1 END) AS b3_cnt,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 91 AND 180 THEN unpaid_amount ELSE 0 END), 0) AS b4_amt,
+                COUNT(CASE WHEN ($1 - due_date) BETWEEN 91 AND 180 THEN 1 END) AS b4_cnt,
+                COALESCE(SUM(CASE WHEN ($1 - due_date) > 180 THEN unpaid_amount ELSE 0 END), 0) AS b5_amt,
+                COUNT(CASE WHEN ($1 - due_date) > 180 THEN 1 END) AS b5_cnt,
                 COALESCE(SUM(unpaid_amount), 0) AS total_amt
             FROM ap_invoice
             WHERE due_date < $1
