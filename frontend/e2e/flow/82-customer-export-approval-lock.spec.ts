@@ -7,6 +7,9 @@ import { loginViaUI, loginAsRole, apiCall } from './helpers';
  * 锁定的根因行为链(逐点对着后端源码核实,非编造):
  * - 创建申请:POST /export-approvals,敏感清单含 customer;新建落库 status=pending
  *   且 download_token 恒为 null(令牌只在最终 approve 时签发);
+ *   export_params 落空对象,与下载腿实际携带的范围参数同形 — 客户导出端点真实读取的筛选
+ *   维度只有 keyword/customer_type/status,分页参数不是它的范围维度,写进申请会让受理门
+ *   的范围比对判成"批准里有而请求里没有的维度",与主体校验无关的 403 会掩盖本用例靶心。
  *   estimated_rows 低于 1000 命中 risk_level=low,approval_level=1,一次审批即终结。
  * - 审批权限门:能否审批(含申请人自批)由 RBAC 权限键 export-approvals:approve 决定,
  *   service 层不再对"审批人=申请人"做无条件硬拒;持键者自批同样 2xx 通过,
@@ -15,15 +18,27 @@ import { loginViaUI, loginAsRole, apiCall } from './helpers';
  *   （服务端 detail_masked 屏蔽凭据原文），凭据由申请人本人 POST /export-approvals/{id}
  *   /rotate-token 单独取一次，形如 exp_ + 32 位小写十六进制；
  *   GET /export-approvals/verify-token 可复核同一记录。
- * - 带令牌下载:GET /crm/customers/export?download_token=... 必须 200,
+ * - 带令牌下载:申请人本人会话 GET /crm/customers/export?download_token=... 必须 200,
  *   Content-Type 为 xlsx MIME,响应体以 ZIP 魔数 PK 开头且非空
  *   (CI 内唯一能真实验证"审批到令牌到下载"全通的证据面)。
+ * - 主体门:令牌只能由被批准的申请人本人消费,审批人(非申请人)会话带同一枚新鲜令牌必 403。
+ * - 一次性:同一条令牌在申请人会话二次消费必 403(download_count 达上限)。
  * - fail-closed:不带令牌直接下载 403;customer 令牌跨资源用于 products 导出 403。
  *
- * 角色安排(复用 39b/39d 已在 CI 验证可用的账号面):
+ * 会话主体口径:服务端导出受理门只放行令牌签发给的那位申请人,所以凭据取回与全部下载腿
+ * 一律走申请人会话,不得出现审批人会话消费令牌。两个 403(主体门与一次性门)不按文案区分 —
+ * PermissionDenied 出参文案被统一脱敏成同一个值,靠文案区分等于把后端脱敏加固当测试桩。
+ * 判据用会话顺序做控制组:非申请人会话先打一条新鲜未消费令牌得 403,紧接着同一条令牌在
+ * 申请人会话得 200,即证前一步的拒绝不是消费门,也不是数据或路由缺失。
+ *
+ * 角色安排:
  * - 申请人:manager 角色账号(loginAsRole,凭证由 global-setup 角色账号写入);
- * - 他人审批与下载:分片默认 admin 账号(权限中间件对 admin 短路,
- *   因此无令牌/跨资源的 403 必然来自 handler 的审批门,不会与权限层混淆);
+ *   该岗在产品与客户资源持通配授权,申请人会话能过 RBAC 真实到达 handler 的受理门;
+ * - 他人审批:分片默认 admin 账号(持 export-approvals:approve,同时也是越权负例里的
+ *   "非申请人"会话 — 超管过 RBAC,它的 403 只能来自主体门);
+ * - 跨资源负例走申请人会话:申请人过得了目标端点 RBAC,403 才能唯一归因到令牌资源绑定;
+ * - 无令牌与伪造令牌的 403 走 admin 会话:权限中间件对超管短路,
+ *   因此这些腿的 403 必然来自 handler 的审批门,不会与权限层混淆;
  * - 自批正向用 admin 本人申请 + admin 本人审批:admin 持 export-approvals:approve,
  *   当前契约下自批应 2xx 通过、状态转 approved 并签发令牌,审批人如实记为申请人本人。
  *
@@ -35,7 +50,7 @@ import { loginViaUI, loginAsRole, apiCall } from './helpers';
 const API_BASE = process.env.API_BASE || 'http://localhost:8082';
 const API_PREFIX = '/api/v1/erp';
 
-/** 导出审批记录(后端 Model 直出,snake_case 键名) */
+/** 导出审批记录(后端 Model 脱敏直出,snake_case 键名) */
 interface ApprovalModel {
   id: number;
   status: string;
@@ -46,6 +61,9 @@ interface ApprovalModel {
   applicant_user_id: number;
   approver_user_id: number | null;
   download_token: string | null;
+  download_count: number;
+  max_downloads: number;
+  token_consumed: boolean;
 }
 
 /** 统一失败信封(utils/error.rs ErrorResponse):code 字符串机器码 + trace_id */
@@ -56,14 +74,17 @@ interface FailureEnvelope {
   timestamp?: unknown;
 }
 
-/** 低风险 customer 导出申请:manager 创建,返回申请 id */
+/**
+ * 低风险 customer 导出申请:manager 创建,返回申请 id。
+ * export_params 落空对象,与本文件全部下载腿实际携带的范围参数同形(受理门逐项比对)。
+ */
 async function createCustomerApprovalAsManager(
   page: import('@playwright/test').Page
 ): Promise<number> {
   await loginAsRole(page, 'manager');
   const res = await apiCall<ApprovalModel>(page, 'POST', '/export-approvals', {
     resource_type: 'customer',
-    export_params: { page: 1, page_size: 10 },
+    export_params: {},
     estimated_rows: 10,
     file_format: 'xlsx',
   });
@@ -96,6 +117,40 @@ async function approveAsAdmin(
     `低风险一级审批通过后状态应为 approved,实际:${JSON.stringify(approved).slice(0, 200)}`
   ).toBe('approved');
   return approved;
+}
+
+/**
+ * 申请人本人重发并一次性取回下载令牌,返回后调用方会话停在申请人(manager)。
+ * 调用方:本文件的正向全链用例、跨资源负例与越权负例,均在 admin 审批之后执行。
+ * 入参:page 为当前页,approvalId 为已 approved 的申请 id。
+ * 传给谁:返回的令牌交回调用方用于带令牌下载、二次消费、跨资源与越权四腿。
+ * 判据源:服务端 rotate_token 只允许申请人本人调用(非申请人 403)且要求状态为 approved;
+ * 出参 available 为真时 token 即一次性凭据原文,形如 exp_ + 32 位小写十六进制。
+ */
+async function rotateTokenAsApplicant(
+  page: import('@playwright/test').Page,
+  approvalId: number
+): Promise<string> {
+  await loginAsRole(page, 'manager');
+  const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
+    page,
+    'POST',
+    `/export-approvals/${approvalId}/rotate-token`
+  );
+  expect(
+    rotated.data?.available === true,
+    `申请人重发令牌应 available,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  const token = rotated.data?.token ?? '';
+  expect(
+    token.length > 0,
+    `重发应下发非空令牌原文,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  expect(token, `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`).toMatch(
+    /^exp_[0-9a-f]{32}$/
+  );
+  console.warn(`[82] manager 已重发申请 ${approvalId} 的一次性下载令牌`);
+  return token;
 }
 
 /** 断言 403 响应为统一失败信封且 code=FORBIDDEN(禁止只判状态码的存在性) */
@@ -155,27 +210,10 @@ test.describe('customer 敏感导出审批链锁测', () => {
       maskedToken ?? null,
       `一次性读取契约下审批出参不应回显 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
     ).toBeNull();
-    // 凭据由申请人本人经 rotate-token 单独取一次(服务端只允许申请人轮换)
-    await loginAsRole(page, 'manager');
-    const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
-      page,
-      'POST',
-      `/export-approvals/${approvalId}/rotate-token`
-    );
-    expect(
-      rotated.data?.available === true,
-      `申请人重发令牌应 available,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
-    ).toBe(true);
-    const token = rotated.data?.token ?? '';
-    expect(
-      token.length > 0,
-      `重发应下发非空令牌原文,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
-    ).toBe(true);
-    expect(
-      token,
-      `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
-    ).toMatch(/^exp_[0-9a-f]{32}$/);
-    // 后续 verify-token 与下载腿回到 admin 会话执行,让结果只归因到令牌本身
+    // 凭据由申请人本人经 rotate-token 单独取一次(服务端只允许申请人轮换),取回后停在申请人会话
+    const token = await rotateTokenAsApplicant(page, approvalId);
+    // verify-token 是读审批记录、不消费凭据,留在 admin 会话(数据域 All,归属门必然放行);
+    // 它不参与主体口径,主体口径只约束真正消费令牌的下载腿。
     await loginViaUI(page, undefined, undefined, true);
 
     // 3. verify-token 复核同一记录(admin 数据域为 All,归属门必然放行)
@@ -188,11 +226,16 @@ test.describe('customer 敏感导出审批链锁测', () => {
     expect(verified.data?.status, 'verify-token 对已签发令牌应返回 approved').toBe('approved');
     expect(verified.data?.resource_type, 'verify-token 应回显 customer 资源绑定').toBe('customer');
 
-    // 4. 带令牌下载:200 且响应体是真实 xlsx 二进制(x-zip 魔数 PK 开头,非空)
+    // 4. 申请人本人会话带令牌下载:200 且响应体是真实 xlsx 二进制(x-zip 魔数 PK 开头,非空)
+    await loginAsRole(page, 'manager');
     const exportResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${encodeURIComponent(String(token))}`
     );
-    expect(exportResp.status(), '持有效令牌导出应 200').toBe(200);
+    expect(
+      exportResp.status(),
+      `申请人会话持有效令牌导出应 200,approvalId=${approvalId}、会话=manager、令牌已带上且非空` +
+        `(长度 ${token.length});这一步之前 verify-token 已判该令牌 approved 且绑定 customer`
+    ).toBe(200);
     const contentType = exportResp.headers()['content-type'] ?? '';
     expect(
       contentType,
@@ -202,6 +245,17 @@ test.describe('customer 敏感导出审批链锁测', () => {
     expect(bytes.byteLength, '导出文件内容必须非空').toBeGreaterThan(0);
     expect(bytes[0], 'xlsx 为 zip 容器,魔数首字节应为 P(0x50)').toBe(0x50);
     expect(bytes[1], 'xlsx 为 zip 容器,魔数次字节应为 K(0x4b)').toBe(0x4b);
+
+    // 5. 一次性语义:同一条令牌在同一个申请人会话二次消费必 403(download_count 达上限)。
+    // 与上一步唯一变的是"这条令牌已被消费过一次",主体/端点/参数完全相同。
+    const replayResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${encodeURIComponent(String(token))}`
+    );
+    expect(
+      replayResp.status(),
+      `同一条令牌在同一个申请人会话二次消费应 403(一次性门),approvalId=${approvalId};` +
+        `上一步已 200 并登记消费,本步与上步唯一变的是这条令牌的消费状态`
+    ).toBe(403);
   });
 
   test('正向:持审批权限的申请人自批通过(approve 接受 approver==applicant 并签发令牌)', async ({
@@ -261,10 +315,9 @@ test.describe('customer 敏感导出审批链锁测', () => {
       token.length > 0,
       `申请人自批后重发应下发令牌,实际:${JSON.stringify(rotatedSelf.data).slice(0, 200)}`
     ).toBe(true);
-    expect(
-      token,
-      `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
-    ).toMatch(/^exp_[0-9a-f]{32}$/);
+    expect(token, `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`).toMatch(
+      /^exp_[0-9a-f]{32}$/
+    );
 
     // verify-token 复核,证明自批签发的令牌已真实落库并可解析同一记录
     const verified = await apiCall<ApprovalModel>(
@@ -283,6 +336,47 @@ test.describe('customer 敏感导出审批链锁测', () => {
     await expectForbiddenEnvelope(resp, '无令牌直接导出 customer');
   });
 
+  test('越权负例:审批人(非申请人)会话消费申请人新鲜令牌 403,同一条未消费令牌申请人本人 200', async ({
+    page,
+  }) => {
+    const approvalId = await createCustomerApprovalAsManager(page);
+    await approveAsAdmin(page, approvalId, 'E2E 主体校验锁测');
+    const token = await rotateTokenAsApplicant(page, approvalId);
+
+    // 第一腿走审批人(admin)会话:超管过 RBAC 与数据域都靠短路放行,
+    // 令牌也确实有效(申请人刚轮换拿到、格式已核),所以这一步的 403 只能是主体校验命中。
+    await loginViaUI(page, undefined, undefined, true);
+    const outsiderResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${encodeURIComponent(String(token))}`
+    );
+    expect(
+      outsiderResp.status(),
+      `非申请人(审批人 admin)会话消费申请人令牌应 403,approvalId=${approvalId}、` +
+        `会话=admin 超管(RBAC 恒放行)、令牌新鲜未消费;此处 403 只能是主体校验命中`
+    ).toBe(403);
+
+    // 控制组:同一条令牌交回申请人本人会话,必须 200。服务端把消费登记放在受理门全部放行
+    // 之后,所以这一步的 200 反过来证明上一步的拒绝没有消耗令牌(不是消费门),
+    // 端点/参数/令牌完全相同,也就不是数据缺失或路由缺失。
+    await loginAsRole(page, 'manager');
+    const ownerResp = await page.request.get(
+      `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${encodeURIComponent(String(token))}`
+    );
+    expect(
+      ownerResp.status(),
+      `同一条未消费令牌在申请人会话应 200,approvalId=${approvalId};` +
+        `与上一步唯一变的是会话主体(admin→manager 申请人本人),端点/参数/令牌完全相同`
+    ).toBe(200);
+
+    // 状态回读:控制组兑现的这一次就是唯一一次消费,计数与终态与"只消费一次"一致
+    const detail = await apiCall<ApprovalModel>(page, 'GET', `/export-approvals/${approvalId}`);
+    expect(
+      detail.data?.download_count,
+      `回读消费计数应为 1(越权那一腿没计进),实际:${JSON.stringify(detail.data).slice(0, 200)}`
+    ).toBe(1);
+    expect(detail.data?.token_consumed, '申请人本人这一次消费后应置 token_consumed').toBe(true);
+  });
+
   test('负例:customer 令牌跨资源用于 product 导出 403(资源绑定不匹配)', async ({ page }) => {
     const approvalId = await createCustomerApprovalAsManager(page);
     const approved = await approveAsAdmin(page, approvalId, 'E2E 跨资源锁测');
@@ -290,24 +384,18 @@ test.describe('customer 敏感导出审批链锁测', () => {
       approved.download_token ?? null,
       `一次性读取契约下审批出参不应回显令牌,实际:${JSON.stringify(approved).slice(0, 200)}`
     ).toBeNull();
-    // 前置：由申请人本人重发取回凭据（服务端只允许申请人轮换）
-    await loginAsRole(page, 'manager');
-    const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
-      page,
-      'POST',
-      `/export-approvals/${approvalId}/rotate-token`
-    );
-    const token = rotated.data?.token ?? '';
-    expect(
-      token.length > 0,
-      `前置:申请人重发应下发令牌,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
-    ).toBe(true);
-    // 跨资源下载腿回到 admin 会话，让 403 只归因到令牌的资源绑定
-    await loginViaUI(page, undefined, undefined, true);
+    // 凭据由申请人本人重发取回,取回后停在申请人会话
+    const token = await rotateTokenAsApplicant(page, approvalId);
 
+    // 跨资源下载腿走申请人本人会话:申请人过得了 RBAC(该岗在产品资源持通配授权)、
+    // 主体也是令牌签发对象,所以这里的 403 才能唯一归因到令牌的资源绑定。
     const crossResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/products/export?download_token=${encodeURIComponent(String(token))}`
     );
-    await expectForbiddenEnvelope(crossResp, 'customer 令牌跨资源下载 product');
+    await expectForbiddenEnvelope(
+      crossResp,
+      `customer 令牌跨资源下载 product(approvalId=${approvalId}、会话=申请人 manager 本人,` +
+        `同一条令牌打 customer 导出是 200——正向全链已证,唯一变的是目标端点的资源类型)`
+    );
   });
 });

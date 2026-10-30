@@ -10,15 +10,20 @@
 //      （GeneralLedgerEntry :91-100）。
 //   4. 现金流量表装配恒等 net_change = operating+investing+financing；ending=beginning+net_change
 //      （CashFlowStatement :40-52）。
-//   5. finance_report 资源导出审批全链（manager 申请→admin 审批→令牌下载 xlsx 魔数→二次消费拒→
-//      假令牌/跨资源令牌 403），与 39b（customer 资源）互不重复。
+//   5. finance_report 资源导出审批全链（申请人建单→审批→申请人本人取令牌并下载 xlsx 魔数→
+//      同一条令牌二次消费拒→假令牌/无令牌 403），并补一枚越权负例（非申请人会话消费
+//      申请人新鲜令牌 403 + 申请人回读证该令牌未被消费），与 39b/39d/82（customer 与
+//      product 资源）互不重复。
 //   6. AP/AR/固定资产凭证导出真实 xlsx 字节（无令牌门端点严格 200+PK 魔数+content-type）。
 //   7. 期末报表快照 create→列表(PaginatedResponse)→详情逐字段（period_id/report_type/report_data
 //      回读，缺陷①靶心）；verify 端点严格健康（结果结构不作无据断言）。
-// 契约真值源：routes/finance.rs:103-163（报表+导出路由）、handlers/finance_report_handler.rs:20-53
-//   （DateRangeQuery/PeriodQuery 键 + download_token）、:131-160（general-ledger path code）；
-//   导出令牌 services/export_approval_service.rs:370-376（fail-closed 403）+ token 一次性消费
-//   （39b 已证 same-resource 二消费拒，本文件对 finance_report 资源复证）。
+// 契约真值源：routes/finance.rs（报表+导出路由）、handlers/finance_report_handler.rs
+//   （DateRangeQuery/PeriodQuery 键 + download_token、general-ledger path code）；
+//   导出令牌 services/export_approval_service.rs 的受理门（fail-closed 403 + 申请人本人主体门
+//   + 一次性消费，39b 已证 same-resource 二消费拒，本文件对 finance_report 资源复证）。
+// 会话主体口径：受理门只放行令牌签发给的那位申请人，故本文件全部令牌消费腿走申请人会话，
+//   两个 403（主体门与一次性门）用会话与消费状态顺序做控制组区分，不按响应文案区分
+//   （PermissionDenied 出参文案被统一脱敏，靠文案区分等于把后端加固当测试桩）。
 // 铁律：无 ?? 兜底 / 无 >=400 宽松 / 5xx 一律判红；跨分片共享前缀科目数据只作下界(>=)断言，
 //   唯一编码科目行作精确断言——两种口径都基于源码事实，不放宽。
 import { test, expect } from '../diagnose-fixture';
@@ -324,20 +329,31 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     ).toBeLessThan(0.01);
   });
 
-  test('15-05 finance_report 导出审批链：manager 申请→admin 批→令牌 xlsx→二消费拒；假令牌/无令牌 403', async ({
+  test('15-05 finance_report 导出审批链：申请人令牌 xlsx 200→二消费拒；假令牌/无令牌 403', async ({
     page,
   }) => {
-    // 双人分离：manager 申请，admin 审批（自审被后端禁止，39b 已证）
-    await loginAsRole(page, 'manager');
+    // 主体口径：令牌只能由被批准的申请人本人消费，所以建单、审批、轮换、下载全程走申请人会话，
+    // 不再出现"申请人持令牌、审批人发请求"。本例的申请人取分片 admin：后端审批门由
+    // export-approvals:approve 权限键决定、service 层不再硬拒审批人=申请人（自批应 2xx，
+    // 与 flow/82 的自批正向锁同口径），admin 自批即申请人会话全程。
+    // 刻意不用 manager 当本例申请人：六个报表导出端点的权限键按 URL 段派生
+    // （finance-balance-sheet:export 等），后端角色矩阵里没有任何非超管岗位持有这些键，
+    // manager 的申请腿能过（export-approvals:create）、消费腿会先被权限层拦，
+    // 200 在本资源上对非超管申请人无从谈起。该授权面缺口不在用例侧伪造补授，
+    // 主体门本身由 15-05b 与 flow/39b/39d/82 承担，缺口点名交裁定。
+    //
+    // export_params 必须与下载腿实际携带的范围参数同形：报表导出受理门把端点身份
+    // 写成 report_type 常量并按本次实带维度逐项比对，申请里少一个维度或多一个维度都会
+    // 被判成范围漂移 403，那是范围门不是主体门。
+    const balanceSheetScope = { report_type: 'balance_sheet', period: currentPeriod() };
     const created = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/export-approvals', {
       resource_type: 'finance_report',
-      export_params: { period: currentPeriod() },
+      export_params: balanceSheetScope,
       estimated_rows: 100,
       file_format: 'xlsx',
     });
     const approvalId = await requireId(created, '创建导出审批申请');
 
-    await loginViaUI(page, undefined, undefined, true); // 回到分片 admin
     const approved = await apiCallRaw<Record<string, unknown>>(
       page,
       'POST',
@@ -347,12 +363,11 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     expect(String(approved.status ?? '').toLowerCase(), '审批后应含 approved 态').toContain(
       'approved'
     );
-    // 一次性读取契约：审批出参不回显凭据，改由申请人本人重发取回一次
+    // 一次性读取契约：审批出参不回显凭据，由申请人本人重发取回一次
     expect(
       approved.download_token ?? null,
       `审批出参不应回显 download_token，实际=${JSON.stringify(approved).slice(0, 200)}`
     ).toBeNull();
-    await loginAsRole(page, 'manager');
     const rotated = await apiCallRaw<{ available?: boolean; token?: string | null }>(
       page,
       'POST',
@@ -361,25 +376,26 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     const token = rotated.token ?? '';
     expect(
       token.length > 0,
-      `申请人重发应下发令牌，实际=${JSON.stringify(rotated).slice(0, 200)}`
+      `申请人重发应下发令牌，approvalId=${approvalId}，实际=${JSON.stringify(rotated).slice(0, 200)}`
     ).toBe(true);
-    // 下载腿回到分片 admin 会话，令 200 与二次消费 403 只归因到令牌本身
-    await loginViaUI(page, undefined, undefined, true);
 
+    // 申请人本人会话持令牌下载：200 且是真 xlsx 字节
     await expectXlsx(
       page,
       `/finance/reports/balance-sheet/export?download_token=${token}&period=${currentPeriod()}`,
-      '令牌资产负债表导出'
+      `令牌资产负债表导出（申请人=本会话 admin、approvalId=${approvalId}、令牌已带上且非空）`
     );
-    // 一次性消费：max_downloads 建单即置 1（export_approval_service.rs:176），二消费命中
-    // verify_download_token 次数上限门（:429-433 AppError::permission_denied ⇒ error.rs:362/706
-    // = 403 + FORBIDDEN）⇒ 锁具体状态与机器码，禁止"任意 4xx"
+    // 一次性消费：max_downloads 建单即置 1，二消费命中下载上限门 ⇒ 403 + FORBIDDEN。
+    // 与上一步唯一变的是这条令牌已被消费，不是主体、不是范围、不是路由。
     const replay = await apiCallExpectFail(
       page,
       'GET',
       `/finance/reports/balance-sheet/export?download_token=${token}&period=${currentPeriod()}`
     );
-    expect(replay.status, `令牌二消费应 403（下载上限门），实际=${replay.status}`).toBe(403);
+    expect(
+      replay.status,
+      `同一条令牌在同一申请人会话二次消费应 403（下载上限门），approvalId=${approvalId}，实际=${replay.status}`
+    ).toBe(403);
     expect(failureCode(replay), '令牌二消费机器码').toBe('FORBIDDEN');
 
     // 假令牌 → 403 fail-closed
@@ -390,8 +406,7 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     );
     expect(fFake.status, '假令牌应 403').toBe(403);
     expect(failureCode(fFake), '403 机器码').toBe('FORBIDDEN');
-    // 无令牌 → 403（enforce_export_download fail-closed：token 空即 permission_denied，
-    // export_approval_service.rs:379-383 ⇒ 403+FORBIDDEN；对 profit 导出同样 enforce）
+    // 无令牌 → 403（受理门 token 空即拒；对 profit 导出同样 enforce）
     const fNo = await apiCallExpectFail(
       page,
       'GET',
@@ -399,6 +414,100 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     );
     expect(fNo.status, '无令牌利润表导出应 403').toBe(403);
     expect(failureCode(fNo), '无令牌导出机器码').toBe(APP_ERROR_CODES.FORBIDDEN);
+  });
+
+  test('15-05b 越权负例：非申请人（审批人）会话消费申请人新鲜令牌 403，回读证令牌未被消费', async ({
+    page,
+  }) => {
+    // manager 建单、admin 审批：申请人与审批人是两个主体，审批人会话过得了 RBAC（超管短路）
+    // 也过得了令牌有效性（同一枚刚签发的凭据），所以它那一步的 403 只能来自主体校验。
+    const scope = { report_type: 'balance_sheet', period: currentPeriod() };
+    await loginAsRole(page, 'manager');
+    const created = await apiCallRaw<Record<string, unknown>>(page, 'POST', '/export-approvals', {
+      resource_type: 'finance_report',
+      export_params: scope,
+      estimated_rows: 100,
+      file_format: 'xlsx',
+    });
+    const approvalId = await requireId(created, 'manager 侧创建导出审批申请');
+    const applicantId = Number(created.applicant_user_id);
+    expect(
+      Number.isFinite(applicantId) && applicantId > 0,
+      `建单响应应落 applicant_user_id，实际=${JSON.stringify(created).slice(0, 200)}`
+    ).toBe(true);
+
+    await loginViaUI(page, undefined, undefined, true);
+    const approved = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/approve`,
+      { comments: 'E2E15 主体校验负例' }
+    );
+    expect(String(approved.status ?? '').toLowerCase(), '审批后应含 approved 态').toContain(
+      'approved'
+    );
+    expect(
+      Number(approved.approver_user_id),
+      `审批人与申请人应为两个主体（本负例的前提），approvalId=${approvalId}`
+    ).not.toBe(applicantId);
+
+    // 凭据由申请人本人重发取回
+    await loginAsRole(page, 'manager');
+    const rotated = await apiCallRaw<{ available?: boolean; token?: string | null }>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/rotate-token`
+    );
+    const token = rotated.token ?? '';
+    expect(
+      token.length > 0,
+      `申请人重发应下发令牌，approvalId=${approvalId}，实际=${JSON.stringify(rotated).slice(0, 200)}`
+    ).toBe(true);
+
+    // 越权腿：审批人（非申请人）会话带这枚新鲜未消费令牌下载
+    await loginViaUI(page, undefined, undefined, true);
+    const outsider = await apiCallExpectFail(
+      page,
+      'GET',
+      `/finance/reports/balance-sheet/export?download_token=${token}&period=${currentPeriod()}`
+    );
+    expect(
+      outsider.status,
+      `非申请人（审批人 admin 会话）消费申请人令牌应 403，approvalId=${approvalId}、` +
+        `会话=admin 超管（RBAC 恒放行）、令牌刚签发未消费；实际=${outsider.status}`
+    ).toBe(403);
+
+    // 控制组一：越权那一腿没有把令牌判消费——消费登记放在受理门全部放行之后，
+    // 所以申请人回读自己的申请行应仍是 download_count=0 且 token_consumed=false。
+    // 这一步唯一变的是"读的是自己那条申请记录"，端点与参数不涉及令牌消费。
+    await loginAsRole(page, 'manager');
+    const row = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/export-approvals/${approvalId}`
+    );
+    expectKeyValue(
+      row,
+      'download_count',
+      0,
+      `越权 403 后申请行消费计数（approvalId=${approvalId}）`
+    );
+    expectKeyValue(
+      row,
+      'token_consumed',
+      false,
+      `越权 403 后申请行消费标记（approvalId=${approvalId}）`
+    );
+
+    // 控制组二：钉这枚令牌本身有效（不是"根本没签发/已作废"），排除另一种 403 解释。
+    // verify-token 只读审批记录、不消费凭据，且按申请人归属放行。
+    const verified = await apiCallRaw<Record<string, unknown>>(
+      page,
+      'GET',
+      `/export-approvals/verify-token?token=${encodeURIComponent(String(token))}`
+    );
+    expectKeyValue(verified, 'id', approvalId, 'verify-token 应命中同一申请记录');
+    expectKeyValue(verified, 'status', 'approved', '越权 403 后令牌仍应判有效');
   });
 
   test('15-06 无令牌门导出：AP/AR 发票与固定资产/预算导出均返回真实 xlsx 字节', async ({
