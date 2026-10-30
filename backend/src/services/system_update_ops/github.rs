@@ -137,9 +137,7 @@ impl SystemUpdateService {
         let repo = github_repo().map_err(UpdateError::ValidationError)?;
         let url = format!(
             "{}/repos/{}/releases/tags/v{}",
-            GITHUB_API_URL,
-            repo,
-            version
+            GITHUB_API_URL, repo, version
         );
 
         let (api_host, api_safe_addrs) = crate::utils::ssrf_guard::validate_url_and_resolve(&url)
