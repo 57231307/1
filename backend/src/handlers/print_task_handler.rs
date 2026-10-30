@@ -347,10 +347,12 @@ pub(crate) async fn submit_print_task(
     let target_kind = if target.is_pool { "pool" } else { "printer" }.to_string();
     let backend_kind = target.kind.clone();
 
-    // 单据存在性同步校验：经渲染路径同款 get_print_data，取数失败即拒绝受理（不静默接受无效 doc_id）。
+    // 单据存在性同步校验：经渲染路径同款 get_print_data，取数失败即拒绝受理（不静默接受无效 doc_id）；
+    // PRINT_SCOPE_GATED 单据的行级归属门同在此生效，越权受理即 403，不入库不派发。
     let service = PrintService::new(db.clone());
+    let accept_scope_ctx = auth.to_data_scope_context();
     service
-        .get_print_data(&req.doc_type, req.doc_id as i32)
+        .get_print_data(&accept_scope_ctx, &req.doc_type, req.doc_id as i32)
         .await?;
 
     // 生效打印参数：请求覆盖 > 模板缺省 > 列默认（DDL DEFAULT）。
@@ -442,12 +444,16 @@ pub(crate) async fn submit_print_task(
     let spawn_db = db.clone();
     let doc_type_for_spawn = req.doc_type.clone();
     let doc_id_for_spawn = req.doc_id;
+    // 受理者数据范围上下文随任务快照带入后台：后台取数与受理腿走同一行级归属门口径，
+    // 不以虚构上下文绕过门（受理未过门的单据根本走不到这里）。
+    let scope_ctx_for_spawn = auth.to_data_scope_context();
     tokio::spawn(async move {
         let outcome = AssertUnwindSafe(run_print_job(
             spawn_db.clone(),
             job_id,
             doc_type_for_spawn,
             doc_id_for_spawn,
+            scope_ctx_for_spawn,
         ))
         .catch_unwind()
         .await;
@@ -480,6 +486,9 @@ pub(crate) async fn submit_print_task(
 
 /// 后台执行体：取打印数据 → 解析布局（与受理入库同源的生效维度）→ 生成 docx → 派发。
 ///
+/// 入参 `scope_ctx` 为受理者数据范围上下文（由 submit_print_task 在受理时构造并随任务带入），
+/// 传给 `PrintService::get_print_data` 的行级归属门，后台腿与受理腿同口径。
+///
 /// 前派发的取数/生成错误以 `Err` 上抛给调用（由调用转 failed）；进入 `dispatch_task` 后其自身
 /// 已保证任意终态落库并返回 `Ok(())`，故此处仅在无法把结果落库时才继续报错。
 async fn run_print_job(
@@ -487,6 +496,7 @@ async fn run_print_job(
     job_id: i32,
     doc_type: String,
     doc_id: i64,
+    scope_ctx: crate::utils::data_scope::DataScopeContext,
 ) -> Result<(), AppError> {
     // 回读已入库的受理行，据其快照列（含生效维度）构造布局，确保 docx 版面与受理参数一致。
     let task = PrintTaskEntity::find_by_id(job_id)
@@ -505,7 +515,9 @@ async fn run_print_job(
     };
 
     let service = PrintService::new(db.clone());
-    let print_data = service.get_print_data(&doc_type, doc_id as i32).await?;
+    let print_data = service
+        .get_print_data(&scope_ctx, &doc_type, doc_id as i32)
+        .await?;
     let bytes = service.generate_docx(&print_data, &layout).await?;
 
     let config = global_print_config();

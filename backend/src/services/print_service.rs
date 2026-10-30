@@ -158,7 +158,7 @@ pub const PRINT_SCOPE_GATED: &[&str] = &[
 /// 这些单据的表模型不存在 `created_by` 或等效归属用户列（仅有 `created_at` 时间戳），
 /// 无法通过 `check_resource_owner_by_member_scope` 判定行级归属，因此永久豁免行级门。
 /// 若未来迁移补充了归属列，应将对应条目从本集合移至 `PRINT_SCOPE_GATED`。
-pub const PRINT_NO_OWNER_COLUMN: &[&str] = &[
+pub const PRINT_SCOPE_NO_OWNER: &[&str] = &[
     // dye_batch 表无 created_by / user_id 列，仅有 created_at 时间戳
     "dye_batch_card",
     // color_card_issue 表无归属用户列
@@ -263,8 +263,97 @@ impl PrintService {
         Self { db }
     }
 
-    /// 获取打印数据
-    pub async fn get_print_data(&self, doc_type: &str, doc_id: i32) -> Result<PrintData, AppError> {
+    /// 打印取数面的行级归属门：对 `PRINT_SCOPE_GATED` 已接门的单据类型，按实体主键读取其
+    /// `created_by` 归属值，交本仓统一判定器 `check_resource_owner_by_member_scope` 校验——
+    /// 与列表腿、详情腿同一判定器，不另写第二套归属判定。
+    ///
+    /// 调用方：[`Self::get_print_data`]（渲染腿由 print_handler 传请求者上下文，任务受理腿与
+    /// 后台执行腿由 print_task_handler 传受理者上下文）。
+    /// 入参：`ctx` 为调用方数据范围上下文；`doc_type`/`doc_id` 定位单据主行。
+    /// 传给谁：归属人 `Option<i32>` 交 `check_resource_owner_by_member_scope`，All 短路放行、
+    /// Dept 按归属人 ∈ 可见部门成员集合、Self 仅本人；归属人为 NULL 在 Dept/Self 一律拒绝
+    /// （判定器对 None 恒 false，fail-closed），不因脏数据留放行口子。
+    /// 口径：单据行不存在时返回 Ok，404 文案仍由装配 match 单一来源给出（此处不造第二份
+    /// not_found）；越权返回 403 固定脱敏文案，拒绝原因只进日志。不降级为空结果、不返回
+    /// 可猜测占位数据、不吞错。本函数只读判定，不落库、不存任何数据。
+    async fn ensure_print_row_scope(
+        &self,
+        ctx: &crate::utils::data_scope::DataScopeContext,
+        doc_type: &str,
+        doc_id: i32,
+    ) -> Result<(), AppError> {
+        if !PRINT_SCOPE_GATED.contains(&doc_type) {
+            return Ok(());
+        }
+        let db = self.db.as_ref();
+        let owner = match doc_type {
+            "voucher" => crate::models::voucher::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ap_invoice" => crate::models::ap_invoice::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ap_payment" => crate::models::ap_payment::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ap_payment_request" => crate::models::ap_payment_request::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ap_reconciliation" => crate::models::ap_reconciliation::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ar_collection" => crate::models::ar_collection::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| Some(row.created_by)),
+            "ar_reconciliation" => crate::models::ar_reconciliation::Entity::find_by_id(doc_id)
+                .one(db)
+                .await?
+                .map(|row| row.created_by),
+            _ => {
+                // GATED 已登记但本函数无对应取归属列分支＝登记漂移（契约锁禁止），
+                // fail-closed 拒绝并留 error 痕，绝不静默放行。
+                tracing::error!(doc_type, "打印归属门登记漂移：GATED 类型无归属取数分支");
+                return Err(AppError::permission_denied(
+                    "无权打印该单据（数据范围限制）".to_string(),
+                ));
+            }
+        };
+        let Some(owner) = owner else {
+            return Ok(());
+        };
+        if crate::utils::data_scope::check_resource_owner_by_member_scope(ctx, owner) {
+            return Ok(());
+        }
+        tracing::warn!(
+            actor = ctx.user_id,
+            scope = ctx.scope.as_str(),
+            doc_type,
+            doc_id,
+            resource_owner = ?owner,
+            "打印取数被拒：单据归属人不在调用方数据范围内"
+        );
+        Err(AppError::permission_denied(
+            "无权打印该单据（数据范围限制）".to_string(),
+        ))
+    }
+
+    /// 获取打印数据（渲染腿与任务腿统一入口）。
+    ///
+    /// 入参：`ctx` 调用方数据范围上下文，先经 [`Self::ensure_print_row_scope`] 行级归属门
+    /// （仅对 `PRINT_SCOPE_GATED` 登记的类型生效），再进入按 doc_type 的装配分支。
+    pub async fn get_print_data(
+        &self,
+        ctx: &crate::utils::data_scope::DataScopeContext,
+        doc_type: &str,
+        doc_id: i32,
+    ) -> Result<PrintData, AppError> {
+        self.ensure_print_row_scope(ctx, doc_type, doc_id).await?;
         match doc_type {
             "sales_order" => self.get_sales_order_print_data(doc_id).await,
             "sales_contract" => self.get_sales_contract_print_data(doc_id).await,
