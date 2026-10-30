@@ -133,7 +133,7 @@ frontend/docs/superpowers/
 frontend/.audit-reports/
 
 # 根目录临时文件
-CLI
+/CLI
 CLI_MAINTENANCE.md
 mock-server.js
 
