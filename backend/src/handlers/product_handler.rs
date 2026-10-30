@@ -540,6 +540,20 @@ pub async fn update_product(
         return Err(AppError::from(e));
     }
 
+    // 成本价的写侧门与读侧掩码同源：读侧对非 admin 把该列置空，写侧若不判就会把"回显出来的空值"
+    // 当成用户意图落库，冲掉库里的真实成本价（读侧掩码与写侧载荷未配对即本列既往红因）。
+    // 非 admin 的载荷里出现该键即点名拒绝，不做静默忽略——静默忽略会让调用方以为改成功了。
+    // admin 判定沿用唯一权威源 admin_checker::is_admin_role（role_id 缺失 fail-closed 为 false）。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    if !is_admin && req.cost_price.is_some() {
+        return Err(AppError::validation_displayable(
+            "无权修改成本价，请清空该字段后重新提交",
+        ));
+    }
+
     let product_service = ProductService::new(state.db.clone(), state.search_client.clone());
 
     let product = product_service

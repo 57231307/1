@@ -574,7 +574,7 @@ const formData = reactive({
   // 数字列一律以输入框文本形态存（el-input，禁带加减按钮的数字输入框），
   // 提交前经 toSubmitNumber 归一：空文本 → null（三态清空通道），有效数字文本 → Number
   price: '0',
-  cost_price: '0',
+  cost_price: '',
   width: '',
   gram_weight: '',
   // 主档文本列：产品类型存中文词表值，其余按后端键名直存
@@ -598,6 +598,11 @@ const formData = reactive({
   description: '',
   is_active: true,
 });
+
+// 成本价的载入快照。本列对非 admin 出参被掩码成 null，若不加判定就把输入框当前值原样提交回去，
+// 会把库里真实成本价冲成空值（读侧掩码与写侧载荷未配对）。提交腿只在"用户真改过这一列"时带该键，
+// 键缺席即后端单层更新不改此列；显式清空成本价因此必须是一次可观测的改动，而不是回显的副产物。
+let costPriceLoadedSnapshot = '';
 
 // 数字列提交值归一：null/undefined/空文本 → null（后端三态按显式空清空该列），
 // 有效数字文本 → Number（后端 DECIMAL 入参收 JSON 数字与十进制字符串两形态）。
@@ -789,7 +794,10 @@ const resetForm = () => {
   formData.unit = '';
   formData.barcode = '';
   formData.price = '0';
-  formData.cost_price = '0';
+  // 成本价初始留空而不是 0：0 等于替用户声明"这匹货成本为零"，且新建态无原值可比，
+  // 空值提交时该键被摘除，交后端按未填处理
+  formData.cost_price = '';
+  costPriceLoadedSnapshot = '';
   formData.width = '';
   formData.gram_weight = '';
   formData.product_type = '';
@@ -825,6 +833,8 @@ watch(
         // 空值归一为 ''，不写 0，避免历史未录入在产品编辑里被显示成 0 再落回库里
         formData.price = toInputText(props.rowData.price);
         formData.cost_price = toInputText(props.rowData.cost_price);
+        // 掩码后的 null 也走这条归一，落成空文本；快照同步记下，提交腿据此判"用户是否改过"
+        costPriceLoadedSnapshot = formData.cost_price;
         formData.width = toInputText(props.rowData.width);
         formData.gram_weight = toInputText(props.rowData.gram_weight);
         formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
@@ -859,7 +869,11 @@ const buildSubmitPayload = (): Partial<Product> => ({
   unit: formData.unit,
   barcode: formData.barcode,
   price: toSubmitNumber(formData.price),
-  cost_price: toSubmitNumber(formData.cost_price),
+  // 成本价只在"用户真改过"时进载荷：非 admin 的出参被掩码成 null、回显为空文本，
+  // 原样提交会把库里成本价冲成空。键缺席即后端单层更新不改此列（与 safety_category 同口径）
+  ...(formData.cost_price !== costPriceLoadedSnapshot
+    ? { cost_price: toSubmitNumber(formData.cost_price) }
+    : {}),
   // 幅宽与克重是报价单换算米数与公斤数的取数源，也是出米数的算式入参，
   // 界面清空必须落得回库里，故经 toSubmitNumber 显式发 null 走三态清空通道
   width: toSubmitNumber(formData.width),
