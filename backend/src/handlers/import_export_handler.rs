@@ -189,6 +189,19 @@ pub async fn describe_import_template(
     }))))
 }
 
+/// 判定当前调用方是否 admin 角色，用于决定导出面是否下发产品成本价列。
+/// 调用方：本文件三条导出腿（export/xlsx、export/excel、export/stream）。
+/// 入参：state 取连接池，auth 取本次请求解析出的角色主键。
+/// 传给谁：布尔结果作为 ImportExportService::export_data 的 show_cost_price 实参。
+/// 判定源走本仓唯一权威 admin_checker::is_admin_role（roles.code='admin'），
+/// role_id 缺失或角色查询失败按 false 处理，与 JSON 列表腿的默认脱敏方向一致。
+async fn caller_can_see_cost_price(state: &AppState, auth: &AuthContext) -> bool {
+    match auth.role_id {
+        Some(role_id) => crate::utils::admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    }
+}
+
 /// GET /api/v1/erp/export/xlsx/:export_type - 数据导出（xlsx）
 pub async fn export_xlsx(
     State(state): State<AppState>,
@@ -201,7 +214,13 @@ pub async fn export_xlsx(
 
     let service = ImportExportService::new(state.db.clone());
 
-    let (headers, data) = service.export_data(&export_type, &query).await?;
+    let (headers, data) = service
+        .export_data(
+            &export_type,
+            &query,
+            caller_can_see_cost_price(&state, &auth).await,
+        )
+        .await?;
 
     // 规则 3：导出统一使用 xlsx 格式
     let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;
@@ -259,7 +278,13 @@ pub async fn export_excel_type(
 
     let service = ImportExportService::new(state.db.clone());
 
-    let (headers, data) = service.export_data(&export_type, &query).await?;
+    let (headers, data) = service
+        .export_data(
+            &export_type,
+            &query,
+            caller_can_see_cost_price(&state, &auth).await,
+        )
+        .await?;
 
     // 规则 3：导出统一使用 xlsx 格式
     let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;
@@ -318,7 +343,13 @@ pub async fn export_stream(
 
     let service = ImportExportService::new(state.db.clone());
 
-    let (headers, data) = service.export_data(&export_type, &query).await?;
+    let (headers, data) = service
+        .export_data(
+            &export_type,
+            &query,
+            caller_can_see_cost_price(&state, &auth).await,
+        )
+        .await?;
 
     // 规则 3：导出统一使用 xlsx 格式
     let xlsx_bytes = ImportExportService::generate_xlsx(&headers, &data)?;

@@ -82,6 +82,25 @@ pub fn mask_sensitive_fields(mut value: Value, is_admin: bool) -> Value {
     value
 }
 
+/// 按表头文本清空表格导出面的某一列：保留表头与列序，只把该列每行取值置空。
+/// 调用方：产品两条导出腿（/products/export 与通用导出中心 export/xlsx|excel|stream 的
+/// products 类型），由 handler 在装配响应前按调用方是否 admin 决定是否调用。
+/// 入参：headers 为已装配的表头文本；rows 为与表头同行序的行集合；title 为待清空列名。
+/// 传给谁：置空后的 rows 交回调用方继续生成 xlsx 或流式响应；本函数不判定角色，
+/// 策略口径与 mask_sensitive_fields 一致（非 admin 不见成本价），且只在内存改值不落库。
+/// 为什么置空而不是删列：导出列集与导入腿共用同一张产品权威表，删列会让导出件回填
+/// 再导时按列序整体错位；表头里没有该列时什么都不做（该列本就不在这份导出里）。
+pub fn blank_column_by_title(headers: &[String], rows: &mut [Vec<String>], title: &str) {
+    let Some(index) = headers.iter().position(|header| header == title) else {
+        return;
+    };
+    for row in rows.iter_mut() {
+        if let Some(cell) = row.get_mut(index) {
+            cell.clear();
+        }
+    }
+}
+
 /// P1-08-5：银行卡号脱敏（保留前 4 后 4，例 6228480000001234567→6228****4567）
 pub fn mask_bank_card(card: &str) -> String {
     let digits: Vec<char> = card.chars().filter(|c| c.is_ascii_digit()).collect();

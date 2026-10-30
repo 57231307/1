@@ -432,6 +432,16 @@ pub async fn get_product(
     append_meters_per_kg(&mut product_json);
     attach_category_names(&state.db, std::slice::from_mut(&mut product_json)).await;
 
+    // 成本价掩码补到详情腿：列表腿早已对非 admin 置空 cost_price，详情腿此前原样下发，
+    // 任何持 products:read 的角色都能用详情端点绕开列表掩码读到成本价。
+    // admin 判定与列表腿同源（admin_checker::is_admin_role，role_id 缺失 fail-closed=false），
+    // 放在别名与派生键装配之后，确保别名位不会把已置空的成本价再带出来。
+    let is_admin = match auth.role_id {
+        Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+        None => false,
+    };
+    let product_json = mask_sensitive_fields(product_json, is_admin);
+
     Ok(Json(ApiResponse::success(product_json)))
 }
 
@@ -777,11 +787,19 @@ pub async fn export_products(
             let audit_search = query.search.clone();
 
             // 直接获取结构化数据，去除 CSV 中转
+            // 成本价列与 JSON 列表腿同源收口：非 admin 导出整表时该列置空（保留列位不删列，
+            // 否则导出件回填再导会按权威表列序错位）。admin 判定走唯一权威源
+            // admin_checker::is_admin_role，在调用前算一次，不下放进逐行闭包。
+            let show_cost_price = match auth.role_id {
+                Some(role_id) => admin_checker::is_admin_role(&state.db, role_id).await,
+                None => false,
+            };
             let (headers, rows) = product_service
                 .export_products_to_xlsx(
                     query.category_id,
                     query.status.clone(),
                     query.search.clone(),
+                    show_cost_price,
                 )
                 .await?;
 

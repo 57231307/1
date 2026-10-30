@@ -449,7 +449,10 @@ pub fn user_notification_settings() -> Router<AppState> {
 /// Advanced 分析路由（nest 到 /api/v1/erp/advanced）；内部 path 与前端 `/advanced/ai/...`、`/advanced/reports/...` 完全一致。；V15 P0-S26：AI 端点权限码注册（对应 PERMISSION_RESOURCES 中 ai-* 资源） 权限映射：/ai/sales-forecast → ai-forecast:read
 /// /ai/inventory-optimization → ai-inventory-opt:read， /ai/anomaly-detection → ai-anomaly:read， /ai/recommendations → ai-recommendation:read， /ai/recipe-optimization → ai-recipe-opt:read， /ai/quality-prediction → ai-quality-pred:read
 pub fn advanced() -> Router<AppState> {
-    Router::new()
+    // AI 推理腿专用速率限制（10 req/min/user），只挂在下面逐条点名的六条推理腿上。
+    // 报表模板、执行与导出三条腿不产推理开销，挂进同一限流面会让路由层的限流先于入参
+    // 校验短路，把非法入参的拒绝伪装成限流响应，与"AI 端点专用"的口径相互矛盾。
+    let ai_routes = Router::new()
         .route("/ai/sales-forecast", post(advanced::sales_forecast))
         .route(
             "/ai/inventory-optimization",
@@ -459,11 +462,13 @@ pub fn advanced() -> Router<AppState> {
         .route("/ai/recommendations", post(advanced::recommendations))
         .route("/ai/recipe-optimization", post(advanced::optimize_recipe))
         .route("/ai/quality-prediction", post(advanced::quality_prediction))
+        .layer(axum::middleware::from_fn(rate_limit_ai_endpoint));
+
+    Router::new()
         .route("/reports/templates", get(advanced::list_report_templates))
         .route("/reports/execute", post(advanced::execute_report))
         .route("/reports/export", post(advanced::export_report))
-        // 缺陷 16.4-D4 修复：AI 端点专用速率限制（10 req/min/user）
-        .layer(axum::middleware::from_fn(rate_limit_ai_endpoint))
+        .merge(ai_routes)
 }
 
 /// BI 多维分析路由（P3-4 关键路径 demo）；16 个端点： - 8 维度聚合：by-time / by-customer / by-product / by-region / by-category / trend / profit

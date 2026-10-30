@@ -481,7 +481,8 @@ test.describe.serial('Shard 2: 订货模式 O2C 闭环（finished_trading）', (
 
   test('2-11 验证审计日志包含销售操作', async ({ page }) => {
     const hasLog = await verifyAuditLog(page, 'CREATE', 'sales');
-    expect(typeof hasLog).toBe('boolean');
+    // 2-4 已真实创建销售订单，此处要求审计管道留下该销售域创建行，无行即判红。
+    expect(hasLog, '[2-11] 2-4 创建销售订单后，审计管道应存在 CREATE 且资源为 sales 的记录').toBe(true);
   });
 
   test('2-12 验证销售订单详情页渲染（状态显示映射）', async ({ page }) => {

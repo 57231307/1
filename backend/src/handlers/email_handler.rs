@@ -21,6 +21,7 @@ use crate::services::email_template_service::{
     UpdateEmailTemplateRequest,
 };
 use crate::utils::error::AppError;
+use crate::utils::html_escape::{ensure_markup_safe, escape_html};
 use crate::utils::response::ApiResponse;
 
 /// M-1 修复：每用户每小时邮件发送配额；安全原因：避免邮件炸弹/DoS 滥用组织 SMTP 配额。 设计：使用进程内 DashMap
@@ -89,6 +90,7 @@ pub async fn send_email(
     // v11 批次 151 P2-A：接入 template_params 模板参数渲染
     let mut req = req;
     apply_template_rendering(&state, &mut req).await?;
+    reject_dangerous_html_before_queue(&req)?;
 
     // 缺陷 6.3 修复：附件解码 + 大小/扩展名校验 + ClamAV 病毒扫描
     let attachment_payload = decode_and_validate_attachments(&req).await?;
@@ -230,7 +232,7 @@ async fn apply_template_rendering(
                 ));
             }
             req.subject = render_template(&template.subject_template, &params);
-            req.html_content = Some(render_template(&template.body_template, &params));
+            req.html_content = Some(render_html_template(&template.body_template, &params));
         } else {
             // 仅提供 template_id 无 params：直接使用模板原始内容（不替换占位符）
             req.subject = template.subject_template;
@@ -239,6 +241,28 @@ async fn apply_template_rendering(
     } else if req.template_params.is_some() {
         return Err(AppError::validation_displayable(
             "template_params 必须配合 template_id 使用",
+        ));
+    }
+    Ok(())
+}
+
+/// 入队前对最终 HTML 正文做危险标记检测。
+/// 调用方：`send_email`（邮件发送端点的处理函数）。
+/// 入参：已完成模板渲染的请求体，只读 `html_content`、`template_id` 与 `subject`。
+/// 传给谁：命中时先把完整点名（入队腿、模板编号、主题、命中类别）写进 warn 日志，
+/// 再返回一条只描述"该怎么改"的可外显提示；未命中则原样放行到入队逻辑。
+/// 存什么：本函数不写库，被拒的正文不进 `email_logs`。
+/// 存哪里：真正发送前 `EmailService` 的通用发信出口还会复检一次，队列腿上的拒绝
+/// 由后台 worker 写进 `email_logs.error_message`。
+fn reject_dangerous_html_before_queue(req: &SendEmailRequest) -> Result<(), AppError> {
+    let Some(html_content) = req.html_content.as_deref() else {
+        return Ok(());
+    };
+    let source_label = format!("邮件入队腿（template_id={:?}）", req.template_id);
+    if let Err(e) = ensure_markup_safe(html_content, &source_label, &req.subject) {
+        tracing::warn!(error = %e, "邮件正文含危险 HTML 标记，入队前拒绝");
+        return Err(AppError::business_displayable(
+            "邮件正文含脚本、事件属性或伪协议链接，请删除这些标记后再发送",
         ));
     }
     Ok(())
@@ -274,24 +298,46 @@ pub async fn get_email_statistics(
     )?)))
 }
 
-/// 渲染邮件模板：将 {{key}} / {{ key }} 占位符替换为 params 中对应的值；v11 批次 151 P2-A：接入 SendEmailRequest.template_params - params
-/// 必须为 JSON 对象，key 为占位符名称，value 为替换值 - value 为字符串时直接替换；为其他类型时使用 JSON 字符串表示 - 模板中未匹配到 params 的占位符保持原样（不删除，便于排查模板问题）
+/// 渲染邮件主题等纯文本模板：把 `{{key}}` / `{{ key }}` 占位符替换为 params 中的值原样。
+/// 入参：`template` 纯文本模板（邮件主题不是 HTML，不做实体转义）、`params` 必须为 JSON 对象。
+/// 传给谁：`apply_template_rendering` 的主题分支。
+/// 未匹配到 params 的占位符保持原样，便于排查模板问题。
 pub fn render_template(template: &str, params: &serde_json::Value) -> String {
+    substitute_placeholders(template, params, |value| value.to_string())
+}
+
+/// 渲染邮件 HTML 正文模板：模板本体的标记（管理员编制，视为结构可信）原样保留，
+/// 每个占位符的替换值按 HTML 文本上下文转义后再注入。
+/// 入参：`template` HTML 正文模板、`params` 必须为 JSON 对象。
+/// 传给谁：`apply_template_rendering` 的正文分支。
+/// 效果：值里的尖括号只以 `&lt;` 文本形态出现，管理员写的 `<table>`、`<strong>` 不被吃掉。
+pub fn render_html_template(template: &str, params: &serde_json::Value) -> String {
+    substitute_placeholders(template, params, escape_html)
+}
+
+/// 占位符替换内核：字符串值直接参与替换，其他类型取其 JSON 文本形态，
+/// 两者都先经 `encode_value` 做上下文编码。
+/// 入参：`encode_value` 决定编码口径——纯文本途传恒等，HTML 途传 `escape_html`。
+/// 传给谁：[`render_template`] 与 [`render_html_template`]，两条途共用同一套匹配规则。
+fn substitute_placeholders(
+    template: &str,
+    params: &serde_json::Value,
+    encode_value: impl Fn(&str) -> String,
+) -> String {
     let mut result = template.to_string();
-    if let Some(obj) = params.as_object() {
-        for (key, value) in obj {
-            // 转换 value 为字符串：字符串类型去掉引号，其他类型使用 JSON 表示
-            let replacement = if let Some(s) = value.as_str() {
-                s.to_string()
-            } else {
-                value.to_string()
-            };
-            // 替换 {{ key }} 和 {{key}} 两种格式
-            let pattern_with_spaces = format!("{{{{ {} }}}}", key);
-            let pattern_without_spaces = format!("{{{{{}}}}}", key);
-            result = result.replace(&pattern_with_spaces, &replacement);
-            result = result.replace(&pattern_without_spaces, &replacement);
-        }
+    let Some(obj) = params.as_object() else {
+        return result;
+    };
+    for (key, value) in obj {
+        let raw = match value.as_str() {
+            Some(s) => s.to_string(),
+            None => value.to_string(),
+        };
+        let replacement = encode_value(&raw);
+        let pattern_with_spaces = format!("{{{{ {} }}}}", key);
+        let pattern_without_spaces = format!("{{{{{}}}}}", key);
+        result = result.replace(&pattern_with_spaces, &replacement);
+        result = result.replace(&pattern_without_spaces, &replacement);
     }
     result
 }

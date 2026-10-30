@@ -11,10 +11,18 @@
  * - 角色凭据从环境变量注入（fail-secure 模式，禁止硬编码）
  * - 协作场景使用真实后端登录（与 color-card.spec.ts 一致）
  * - smoke 场景可使用 mock 凭据（与 auth.ts 一致）
+ *
+ * 会话态来源（authMode）分三档，缺省一律保持历史行为，既有 mocked 消费者零改动：
+ * - anonymous：只建空 context，既不注入 mock 也不登录（createIsolatedSession 的历史语义）
+ * - mocked：注入假 JWT 与 mock 用户信息，不连后端（createMockedIsolatedSession 的历史语义）
+ * - real：按角色码取凭证并在该 context 内走后端的 auth 登录接口拿真 cookie，
+ *   凭证来源与 loginAsRole 完全同源（env 优先，回退 role-credentials.json），
+ *   登录腿复用 flow/helpers 的 loginInIsolatedContext，全仓只此一套真实登录实现
  */
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { injectAuthToken, mockInitStatus } from './auth';
 import { workerPasswordFromEnv, workerUsernameFromEnv } from '../worker-auth';
+import { getRoleCredential, loginInIsolatedContext } from '../flow/helpers';
 
 /**
  * 角色凭据配置
@@ -29,11 +37,40 @@ export interface RoleCredentials {
 }
 
 /**
+ * 会话鉴权来源档位。
+ * 调用方：createIsolatedSession 与 createCollaborationContext 的 options。
+ * 入参形态：字符串字面量联合，无运行时枚举对象，不参与后端契约。
+ * anonymous 与 mocked 是历史既有语义；real 为新增能力，只有显式传入才会启用。
+ */
+export type SessionAuthMode = 'anonymous' | 'mocked' | 'real';
+
+/**
+ * 建会话的可选参数。
+ * 调用方：createIsolatedSession、createMockedIsolatedSession、createCollaborationContext。
+ * authMode 缺省为 anonymous（保持既有裸 context 语义）；permissions 仅在 mocked 档生效；
+ * credentialRole 仅在 real 档生效，用于把"会话显示名"与"取凭证用的角色码"解耦
+ * （同一角色码在多角色场景里需要各自独立显示名时传 role，取凭证用 credentialRole）。
+ */
+export interface IsolatedSessionOptions {
+  authMode?: SessionAuthMode;
+  /** mocked 档写入 mock 用户信息的权限码集合，缺省为通配一枚 */
+  permissions?: string[];
+  /** real 档取凭证用的角色码，缺省用 role */
+  credentialRole?: string;
+}
+
+/**
  * 隔离会话：一个 BrowserContext + 一个 Page + 角色信息
  */
 export interface IsolatedSession {
   /** 角色名称 */
   role: string;
+  /**
+   * 该会话绑定的登录账号名。
+   * real 档为凭证文件里的真账号名，mocked 档为 mock 用户名，
+   * anonymous 档不绑定任何身份故为 undefined（不伪装成已登录）。
+   */
+  username?: string;
   /** 隔离的浏览器上下文（cookie/localStorage 独立） */
   context: BrowserContext;
   /** 会话页面 */
@@ -76,50 +113,18 @@ export function loadRoleCredentials(role: string): RoleCredentials {
 }
 
 /**
- * 创建隔离的浏览器会话（独立 context）
- *
- * 使用场景：
- * - 多用户角色协作测试（每个角色一个 context，互不干扰）
- * - 多设备/多浏览器会话模拟（不同 context 模拟不同设备）
- *
- * @example
- * const adminSession = await createIsolatedSession(browser, 'admin')
- * const managerSession = await createIsolatedSession(browser, 'manager')
+ * 给会话套上 mock 鉴权（注入假 token、mock 用户信息、mock 初始化状态）。
+ * 调用方：createIsolatedSession 的 mocked 档，以及经它转调的 createMockedIsolatedSession。
+ * 入参：会话、角色名、权限码集合。传给谁：fixtures/auth 的 addInitScript 与 context.route。
+ * 存什么：只存浏览器上下文内的假 token 与拦截规则，不落任何持久化数据。
+ * 三步的注册先后与改动前逐字一致（假 token、用户信息拦截、初始化状态拦截），
+ * 刻意不调整：既有 mock 消费者依赖这一份规则集，顺序变动会让拦截面与历史行为不再等价。
  */
-export async function createIsolatedSession(
-  browser: Browser,
-  role: string
-): Promise<IsolatedSession> {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-
-  return {
-    role,
-    context,
-    page,
-    close: async () => {
-      await context.close();
-    },
-  };
-}
-
-/**
- * 创建带 mock 鉴权的隔离会话（smoke 测试用，不依赖真实后端）
- *
- * 使用场景：
- * - smoke 测试中多角色协作（mock 不同角色的权限）
- * - 无后端环境下的多角色 UI 交互测试
- *
- * @param role 角色名称（用于日志）
- * @param permissions 该角色的权限列表（写入 mock /auth/me 响应）
- */
-export async function createMockedIsolatedSession(
-  browser: Browser,
+async function applyMockedAuth(
+  session: IsolatedSession,
   role: string,
-  permissions: string[] = ['*']
-): Promise<IsolatedSession> {
-  const session = await createIsolatedSession(browser, role);
-
+  permissions: string[]
+): Promise<void> {
   // 注入 mock token（绕过鉴权）
   await injectAuthToken(session.context);
 
@@ -146,8 +151,102 @@ export async function createMockedIsolatedSession(
 
   // 拦截 init/status 返回 initialized: true
   await mockInitStatus(session.context);
+}
+
+/**
+ * 取一个真实登录的角色会话：凭证来源与 loginAsRole 同源，登录腿复用既有隔离会话实现。
+ * 调用方：createIsolatedSession 的 real 档（接力夹具与多角色协作场景）。
+ * 入参：browser、角色显示名、取凭证用的角色码。传给谁：getRoleCredential 读 env 与
+ * role-credentials.json，loginInIsolatedContext 向后端登录接口发请求并把 cookie 落进新 context。
+ * 存什么：该 context 的 access_token、refresh_token、csrf_token 三条真 cookie。
+ * 存哪里：只存在这个 BrowserContext 的 cookie jar 里，不写会话态文件，避免与其他 worker 争抢。
+ * 凭证缺失即抛错点名角色码与两处来源，绝不退回其它账号（退号会让接力退化成同账号自问自答）。
+ */
+async function createRealLoginSession(
+  browser: Browser,
+  role: string,
+  credentialRole: string
+): Promise<IsolatedSession> {
+  const cred = getRoleCredential(credentialRole);
+  if (!cred) {
+    throw new Error(
+      `real 档会话取凭证失败：角色码 ${credentialRole} 在 env ` +
+        `E2E_${credentialRole.toUpperCase()}_USERNAME 与 e2e/.auth/role-credentials.json 两处都不存在。` +
+        `禁止改用其它账号顶替，接力链上两个身份必须各自真实存在`
+    );
+  }
+  const authed = await loginInIsolatedContext(browser, cred.username, cred.password);
+  return {
+    role,
+    username: authed.username,
+    context: authed.context,
+    page: authed.page,
+    close: authed.close,
+  };
+}
+
+/**
+ * 创建隔离的浏览器会话（独立 context）
+ *
+ * 使用场景：
+ * - 多用户角色协作测试（每个角色一个 context，互不干扰）
+ * - 多设备/多浏览器会话模拟（不同 context 模拟不同设备）
+ *
+ * 缺省第三参时行为与历史完全一致：只建空 context，不做任何鉴权。
+ * 需要真登录时显式传 authMode real 或字符串 real。
+ *
+ * @example
+ * const adminSession = await createIsolatedSession(browser, 'admin')
+ * const managerSession = await createIsolatedSession(browser, 'manager', { authMode: 'real' })
+ */
+export async function createIsolatedSession(
+  browser: Browser,
+  role: string,
+  options: SessionAuthMode | IsolatedSessionOptions = {}
+): Promise<IsolatedSession> {
+  const opts: IsolatedSessionOptions =
+    typeof options === 'string' ? { authMode: options } : options;
+  const mode: SessionAuthMode = opts.authMode ?? 'anonymous';
+
+  if (mode === 'real') {
+    return createRealLoginSession(browser, role, opts.credentialRole ?? role);
+  }
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const session: IsolatedSession = {
+    role,
+    context,
+    page,
+    close: async () => {
+      await context.close();
+    },
+  };
+
+  if (mode === 'mocked') {
+    await applyMockedAuth(session, role, opts.permissions ?? ['*']);
+    session.username = `mock_${role}`;
+  }
 
   return session;
+}
+
+/**
+ * 创建带 mock 鉴权的隔离会话（smoke 测试用，不依赖真实后端）
+ *
+ * 使用场景：
+ * - smoke 测试中多角色协作（mock 不同角色的权限）
+ * - 无后端环境下的多角色 UI 交互测试
+ *
+ * @param role 角色名称（用于日志）
+ * @param permissions 该角色的权限列表（写入 mock /auth/me 响应）
+ */
+export async function createMockedIsolatedSession(
+  browser: Browser,
+  role: string,
+  permissions: string[] = ['*']
+): Promise<IsolatedSession> {
+  return createIsolatedSession(browser, role, { authMode: 'mocked', permissions });
 }
 
 /**
@@ -217,11 +316,21 @@ export async function runParallelSessions(
  * 创建多角色协作上下文（一次性创建多个隔离会话）
  *
  * 使用场景：
- * - 业务流程协作测试（创建 → 审批 → 查看多角色流转）
+ * - 业务流程协作测试（一个角色建单，另一个角色审批，再一个角色查看，逐棒传递）
  * - 需要多个角色同时在线的复杂场景
+ *
+ * 鉴权档位口径（第三参保持历史布尔语义，第四参是新增的显式覆盖）：
+ * - 只给第三参：true 走 mocked、false 走 anonymous，与改动前逐字一致
+ * - 给了 options.authMode：以它为准，real 档即"多个角色各自真登录"
  *
  * @example
  * const { sessions, close } = await createCollaborationContext(browser, ['admin', 'manager'])
+ * const { sessions, close } = await createCollaborationContext(
+ *   browser,
+ *   ['sales_manager', 'warehouse_keeper'],
+ *   false,
+ *   { authMode: 'real' }
+ * )
  * try {
  *   await sessions.admin.page.goto('/admin')
  *   await sessions.manager.page.goto('/dashboard')
@@ -232,15 +341,15 @@ export async function runParallelSessions(
 export async function createCollaborationContext(
   browser: Browser,
   roles: string[],
-  useMock = true
+  useMock = true,
+  options: IsolatedSessionOptions = {}
 ): Promise<{
   sessions: Record<string, IsolatedSession>;
   close: () => Promise<void>;
 }> {
+  const mode: SessionAuthMode = options.authMode ?? (useMock ? 'mocked' : 'anonymous');
   const sessionList = await Promise.all(
-    roles.map(role =>
-      useMock ? createMockedIsolatedSession(browser, role) : createIsolatedSession(browser, role)
-    )
+    roles.map(role => createIsolatedSession(browser, role, { ...options, authMode: mode }))
   );
 
   const sessions: Record<string, IsolatedSession> = {};

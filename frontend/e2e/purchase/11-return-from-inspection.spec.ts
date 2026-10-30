@@ -156,7 +156,11 @@ async function seedCompletedFailInspection(page: import('@playwright/test').Page
   );
   const inspectionId = insp.data?.id;
   expect(inspectionId, `建质检单未返回 id`).toBeTruthy();
-  CLEANUP.push({ path: `/purchase/inspections/${inspectionId}`, label: 'purchase_inspection' });
+  // 此处不登记清理路径。后端对采购质检单根记录只注册查询、更新与 complete 跃迁，没有删除腿，
+  // 而 complete 真腿已在 seed 流程内消费，明细删除真腿只清行项目且根行照样残留，
+  // 还会把已完成单改成"零明细"的失真形态，污染其他列表与统计口径，故甲路线不成立。
+  // 质检单号为后端生成的业务唯一列，后续行定位与明细回读只按本轮 inspectionId 过滤，
+  // 残留行不参与任何判定。本段入参为 insp 出参，数据落在采购质检单表。
 
   // 4) 添加一条质检明细（不合格数量 > 0）
   await apiCall(page, 'POST', `/purchase/inspections/${inspectionId}/items`, {

@@ -627,10 +627,25 @@ impl InitService {
                     ("orders", "read"),
                     ("orders", "create"),
                     ("orders", "update"),
+                    // 销售订单流转：提交、撤销、删除都是建单人推进自身草稿的动作，
+                    // 四个端点（POST /{id}/submit、POST /{id}/cancel、DELETE /{id}、
+                    // PUT /{id}）在 handler 内先经 assert_order_ownership 证归属
+                    // 再触达 service，故本岗只授 RBAC 键，行级越权由归属门兜底；
+                    // 审批通过/拒绝仍归 sales_manager（SoD 建审分离，与 quotations 同口径）。
+                    ("orders", "submit"),
+                    ("orders", "cancel"),
+                    ("orders", "delete"),
                     ("fabric-orders", "read"),
                     ("fabric-orders", "create"),
                     ("quotations", "read"),
                     ("quotations", "create"),
+                    // 报价单流转：改单、提交、撤销都是建单人推进自身草稿的动作，
+                    // 三个端点（PUT /quotations/{id}、POST /{id}/submit、POST /{id}/cancel）
+                    // 在 handler 内先经 get_by_id_scoped 证归属再触达 service，
+                    // 故本岗只授 RBAC 键，行级越权由归属门兜底；审批通过/拒绝仍归 sales_manager。
+                    ("quotations", "update"),
+                    ("quotations", "submit"),
+                    ("quotations", "cancel"),
                     // 销售合同建单与订单转合同：本岗负责起草合同（手工建单 POST
                     // /sales/sales-contracts 与销售订单转合同 POST /sales/sales-contracts/
                     // from-order/{id} 运行期同派生为 sales-contracts:create；转合同预填读口
