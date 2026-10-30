@@ -36,6 +36,8 @@ pub mod number_generator;
 pub mod pagination;
 // V15 P2 20.8-C：PII（个人身份信息）脱敏工具（待集成）
 pub mod pii_mask;
+// HTML 文本上下文转义与邮件正文危险标记检测（服务端拼接 HTML 的构造点与发信出口共用）
+pub mod html_escape;
 pub mod process_state_machine;
 pub mod random;
 pub mod sql_escape;
