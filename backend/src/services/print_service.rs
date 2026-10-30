@@ -137,6 +137,127 @@ pub const SUPPORTED_DOC_TYPES: &[&str] = &[
     "inventory_piece_label",
 ];
 
+/// 已启用行级归属门的打印单据类型（本批＝财务域 7 枚，前七枚表模型均含 created_by）。
+///
+/// 判定逻辑：在 `get_print_data` 中，当 doc_type 属于本集合时，先按实体主键取 `created_by`
+/// 列值，经 `check_resource_owner_by_member_scope` 做单行归属门——不在调用方数据范围内的单据
+/// 返回 403（固定脱敏常量），不降级为空结果。后续工单扩展其他域只需在此登记 doc_type，
+/// 由契约锁保证每枚单据类型必须属于 GATED / PENDING / NO_OWNER 三者之一。
+pub const PRINT_SCOPE_GATED: &[&str] = &[
+    "voucher",
+    "ap_invoice",
+    "ap_payment",
+    "ap_payment_request",
+    "ap_reconciliation",
+    "ar_collection",
+    "ar_reconciliation",
+];
+
+/// 永久无归属列的打印单据类型（豁免行级门，每条写清为什么无法过门）。
+///
+/// 这些单据的表模型不存在 `created_by` 或等效归属用户列（仅有 `created_at` 时间戳），
+/// 无法通过 `check_resource_owner_by_member_scope` 判定行级归属，因此永久豁免行级门。
+/// 若未来迁移补充了归属列，应将对应条目从本集合移至 `PRINT_SCOPE_GATED`。
+pub const PRINT_NO_OWNER_COLUMN: &[&str] = &[
+    // dye_batch 表无 created_by / user_id 列，仅有 created_at 时间戳
+    "dye_batch_card",
+    // color_card_issue 表无归属用户列
+    "color_card_issue",
+    // bulk_color_approval 表无归属用户列
+    "bulk_color_approval",
+    // quality_inspection_record 表无归属用户列
+    "quality_inspection_record",
+    // logistics_waybill 表无归属用户列
+    "logistics_waybill",
+    // unqualified_product 表无归属用户列
+    "unqualified_product",
+    // purchase_inspection 表无归属用户列
+    "purchase_inspection",
+    // material_shortage 表无归属用户列
+    "material_shortage",
+    // quality_8d_report 表无归属用户列（d5_action_owner 是文本描述非用户 ID）
+    "quality_8d_report",
+    // supplier_evaluation_record 表无归属用户列
+    "supplier_evaluation_record",
+    // safety_accident_report 表无归属用户列
+    "safety_accident_report",
+    // dye_batch_rework 表无归属用户列
+    "dye_batch_rework",
+    // bad_debt_writeoff 表无 created_by，归属语义由 applicant_user_id 承载（审批流申请人），
+    // 与通用行级门口径不同源，待后续工单裁定是否以 applicant_user_id 建等效门
+    "bad_debt_writeoff",
+    // after_sales 表无归属用户列
+    "after_sales",
+    // quality_issue 表无 created_by（permanent_action_owner 是整改责任人非记录创建者）
+    "quality_issue",
+];
+
+/// 待启用行级归属门的打印单据类型（逐条点名，归属后续工单按域启用）。
+///
+/// 这些单据的表模型含有 `created_by` 列，技术上可以过行级门，但本批只对财务域启用，
+/// 其余域须按业务裁定逐批纳入 `PRINT_SCOPE_GATED`。契约锁断言：任何不在 GATED 也不在
+/// NO_OWNER 的 doc_type 必须在此集合中——不存在"未登记"状态的单据类型。
+pub const PRINT_SCOPE_PENDING: &[&str] = &[
+    "sales_order",
+    "sales_contract",
+    "purchase_order",
+    "purchase_receipt",
+    "inventory_transfer",
+    "production_flow_card",
+    "fabric_inspection",
+    "lab_dip_request",
+    "production_order",
+    "production_recipe",
+    "sales_delivery",
+    "sales_quotation",
+    "sales_return",
+    "purchase_return",
+    "outsourcing_order",
+    "outsourcing_receipt",
+    "certificate_of_origin",
+    "export_customs_declaration",
+    "solid_waste_disposal",
+    "chemical_requisition",
+    "export_inspection",
+    "inventory_adjustment",
+    "bom",
+    "labor_contract",
+    "wage_record",
+    "energy_consumption_record",
+    "purchase_contract",
+    "occupational_hazard_monitoring",
+    "pollution_permit",
+    "process_route",
+    "foreign_exchange_verification",
+    "export_refund_declaration",
+    "fixed_asset",
+    "scheduling_result",
+    "inventory_write_down",
+    "fixed_asset_count",
+    "social_insurance_record",
+    "occupational_health_exam",
+    "custom_order",
+    "ppe_distribution",
+    "customer_credit",
+    "inventory_piece_label",
+];
+
+/// 打印出参中成本与价格敏感键的权威集合（装配层统一剔除，非 admin 不可见）。
+///
+/// 这些键在 print_service 各装配函数中向 `PrintData.data` 与 `PrintData.items` 写入；
+/// 打印出 docx 时由服务端直出字节，渲染层与前端无法介入，因此剔除必须在本集合所在
+/// 装配层完成。与 `field_mask::mask_sensitive_fields` 的 `cost_price` 单键口径同源
+/// 并扩展为本集合，避免在多个装配函数内各写一份 if 判定。
+pub const PRINT_COST_SENSITIVE_KEYS: &[&str] = &[
+    "unit_cost",
+    "total_cost",
+    "material_cost",
+    "rework_cost",
+    "original_cost",
+    "piece_price",
+    "cost_price",
+];
+
 impl PrintService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
