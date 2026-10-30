@@ -161,7 +161,11 @@ impl ChemicalCategoryService {
             .count(&*self.db)
             .await?;
         if children_count > 0 {
-            return Err(AppError::business("存在子分类，无法删除"));
+            // 删除腿引用门：存在未清理的子分类即拒绝，归业务族；
+            // 文案点名公开规则与出路，不含计数与标识，可外显
+            return Err(AppError::business_displayable(
+                "存在子分类，无法删除，请先处理子分类",
+            ));
         }
 
         let model = self.get_by_id(id).await?;

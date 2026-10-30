@@ -608,6 +608,14 @@ impl InitService {
                     ("bpm-instances", "read"),
                     ("bpm-business-relation", "read"),
                     ("bpm-visualization", "read"),
+                    // 客户转移审批经理腿（POST /crm/transfer-approvals/{id}/manager-approve
+                    // 的运行时动作码 managerapprove，URL 末段经理审批的合规形态，经
+                    // PATH_ACTION_SEGMENT_MAP 显式映射派生）。只授读与经理审批动作、**不授**
+                    // create：建单归 sales_rep、审批归本岗，"能建单的人不能自批"与
+                    // orders/quotations 的建审分离同口径（SoD）。拒绝分支与通过共用本腿
+                    // （请求体 approved 布尔），无独立 reject 端点，故无 reject 成对行。
+                    ("transfer-approvals", "read"),
+                    ("transfer-approvals", "managerapprove"),
                 ],
             ),
             (
@@ -620,6 +628,13 @@ impl InitService {
                     ("fabric-orders", "create"),
                     ("quotations", "read"),
                     ("quotations", "create"),
+                    // 报价单流转：改单、提交、撤销都是建单人推进自身草稿的动作，
+                    // 三个端点（PUT /quotations/{id}、POST /{id}/submit、POST /{id}/cancel）
+                    // 在 handler 内先经 get_by_id_scoped 证归属再触达 service，
+                    // 故本岗只授 RBAC 键，行级越权由归属门兜底；审批通过/拒绝仍归 sales_manager。
+                    ("quotations", "update"),
+                    ("quotations", "submit"),
+                    ("quotations", "cancel"),
                     // 销售合同建单与订单转合同：本岗负责起草合同（手工建单 POST
                     // /sales/sales-contracts 与销售订单转合同 POST /sales/sales-contracts/
                     // from-order/{id} 运行期同派生为 sales-contracts:create；转合同预填读口
@@ -642,6 +657,25 @@ impl InitService {
                     // 出口商检：销售代表可读自己出口订单对应的商检单与结论（只读，
                     // 建单/登记结果属报关岗，不越界授予）。
                     ("export-inspections", "read"),
+                    // 客户转移审批建单面：本岗发起转移申请（POST /crm/transfer-approvals
+                    // 派生 create 键）并回读自己提交的单（read 键，行级可见面仍由数据范围
+                    // 按申请人下推）。**不授** managerapprove/directorapprove 两枚审批键
+                    // ——能建单的人不能自批（SoD，与本域 orders/quotations 建审分离同口径）。
+                    ("transfer-approvals", "read"),
+                    ("transfer-approvals", "create"),
+                ],
+            ),
+            // 销售总监：大客户转单二级审批的终审腿（POST /crm/transfer-approvals/{id}/
+            // director-approve 的运行时动作码 directorapprove，URL 末段总监审批的合规形态，
+            // 经 PATH_ACTION_SEGMENT_MAP 显式映射派生、与经理腿彼此独立）。
+            // 只授读与总监审批动作、不授 create 与 managerapprove——总监不建单、不代经理批，
+            // 三级动作各归各岗（建单 sales_rep、经理腿 sales_manager、总监腿本岗）。
+            // 角色码必须同步在 role.rs::build_front_business_roles 在册，否则闸门②点名判红。
+            (
+                "sales_director",
+                &[
+                    ("transfer-approvals", "read"),
+                    ("transfer-approvals", "directorapprove"),
                 ],
             ),
         ]

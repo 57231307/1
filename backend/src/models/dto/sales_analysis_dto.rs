@@ -1,16 +1,23 @@
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+/// 销售概览统计出参 —— 现算 `sales_orders` 月桶（构造点唯一：
+/// `sales_analysis_service::SalesAnalysisService::get_overview_stats`，
+/// 消费方为前端销售分析概览卡片）。
+/// 两态口径：`month_orders`/`month_amount` 本桶缺失为真 0（当月无成交是事实）；
+/// 四枚 trend 与 `gross_profit_rate` 为 Option——null 表达"不可比/无除法口径"
+/// （上月桶缺失或为 0 ⇒ trend null；本桶成交额 0 ⇒ 毛利率 null），
+/// 禁止用 0 兜底冒充"持平/零毛利"。
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct SalesOverviewStats {
     pub month_orders: i64,
     pub month_amount: Decimal,
-    pub gross_profit_rate: Decimal,
+    pub gross_profit_rate: Option<Decimal>,
     pub active_customers: i64,
-    pub order_trend: f64,
-    pub amount_trend: f64,
-    pub profit_trend: f64,
-    pub customer_trend: f64,
+    pub order_trend: Option<f64>,
+    pub amount_trend: Option<f64>,
+    pub profit_trend: Option<f64>,
+    pub customer_trend: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -58,14 +65,21 @@ pub struct UpdateSalesTargetRequest {
     pub remarks: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+/// 销售目标出参行 —— GET 列表与 PUT 出参共用的唯一 DTO
+/// （唯一构造点 `sales_analysis_service::SalesAnalysisService::to_target_dto`，
+/// 消费方为前端 `api/sales-analysis.ts::SalesTarget` 的五列渲染）。
+/// 线格式口径：rust_decimal 仅启用 serde 未启用 serde-float，金额/比率键序列化为字符串；
+/// `actual_amount`/`completion_rate`/`variance` 为 Option：null 表达"无口径"
+/// （`completion_rate` null 含"未设目标"与"周期无法对齐取数口径"两态，
+/// "0.00" 才是"零完成"），禁止用 0 兜底掩盖两态区分。
+#[derive(Debug, Clone, Serialize)]
 pub struct SalesTargetDto {
     pub id: i32,
     pub period: String,
     pub target_amount: Decimal,
-    pub actual_amount: Decimal,
-    pub completion_rate: Decimal,
-    pub variance: Decimal,
+    pub actual_amount: Option<Decimal>,
+    pub completion_rate: Option<Decimal>,
+    pub variance: Option<Decimal>,
     pub status: String,
 }
 

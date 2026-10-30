@@ -155,7 +155,8 @@ impl RoleService {
 
         // 系统角色不允许删除
         if role_model.is_system {
-            return Err(AppError::business("系统角色不允许删除"));
+            // 删除腿状态门：系统内置角色拒绝删除，公开业务规则、不含标识，可外显
+            return Err(AppError::business_displayable("系统角色不允许删除"));
         }
 
         // 外部主体引用预校验：仍有用户绑定该角色（users.role_id → fk_users_role）即拒绝，

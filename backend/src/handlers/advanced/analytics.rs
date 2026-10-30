@@ -126,6 +126,24 @@ pub async fn export_report(
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = ReportEngineService::new(state.db.clone());
 
+    // 导出格式白名单，判据源唯一：非法值点名拒绝并列出可选值，不静默回落成 json。
+    // 回落会让调用方以为请求的格式已生效，实际拿到的是另一种载体，属假可供性。
+    // 大小写先归一再比，与 ExportFormat::from_str 同一口径（那边也是 to_lowercase），
+    // 否则同一个词面在两条腿上大小写敏感度不同，属词表三端漂移。
+    // 判定先于任何取数与导出，拒绝路径零副作用。
+    // 入参：请求体 format 字面量；传给谁：仅用于本函数后续 export_report 的格式分派。
+    let format_str = match payload.format.to_lowercase().as_str() {
+        "csv" => "csv",
+        "excel" | "xlsx" => "excel",
+        "pdf" => "pdf",
+        "json" => "json",
+        other => {
+            return Err(AppError::validation_displayable(format!(
+                "不支持的导出格式 {other}，可选值：csv、excel、xlsx、pdf、json"
+            )));
+        }
+    };
+
     let req = ExecuteReportRequest {
         template_id: payload.template_code.clone(),
         filters: Vec::<ReportFilter>::new(),
@@ -136,13 +154,6 @@ pub async fn export_report(
     };
 
     let report_data = service.execute_report(req).await?;
-
-    let format_str = match payload.format.as_str() {
-        "csv" => "csv",
-        "excel" | "xlsx" => "excel",
-        "pdf" => "pdf",
-        _ => "json",
-    };
 
     let bytes = service
         .export_report(&report_data, format_str, &payload.template_code)

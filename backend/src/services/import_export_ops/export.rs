@@ -16,6 +16,7 @@
 //! 3. 过滤已删除数据（is_deleted=false）
 
 use crate::services::import_export_service::{ExportQuery, ImportExportService};
+use crate::services::product_ops::import_export::COL_COST_PRICE;
 use crate::services::product_service::ProductService;
 use crate::utils::error::AppError;
 use crate::utils::sql_escape::safe_like_pattern;
@@ -23,20 +24,34 @@ use sea_orm::{ColumnTrait, EntityTrait, ExprTrait, QueryFilter, QuerySelect};
 
 impl ImportExportService {
     /// 导出数据
+    /// show_cost_price 由 handler 按调用方是否 admin 传入：成本价对非 admin 在 JSON 列表腿
+    /// 已置空，导出面整表带出即绕过同一策略，故在本入口统一收口，三条导出腿不再各自判定。
+    /// 入参：export_type 决定取哪张业务表，query 为筛选与限量条件，show_cost_price 控制成本列。
+    /// 传给谁：返回的表头与行交回 handler 生成 xlsx、excel 或流式响应。
     pub async fn export_data(
         &self,
         export_type: &str,
         query: &ExportQuery,
+        show_cost_price: bool,
     ) -> Result<(Vec<String>, Vec<Vec<String>>), AppError> {
-        match export_type {
-            "products" => self.export_products(query).await,
-            "customers" => self.export_customers(query).await,
-            "inventory" => self.export_inventory(query).await,
-            _ => Err(AppError::validation_displayable(format!(
-                "不支持的导出类型: {}",
-                export_type
-            ))),
+        let (headers, mut data) = match export_type {
+            "products" => self.export_products(query).await?,
+            "customers" => self.export_customers(query).await?,
+            "inventory" => self.export_inventory(query).await?,
+            _ => {
+                return Err(AppError::validation_displayable(format!(
+                    "不支持的导出类型: {}",
+                    export_type
+                )));
+            }
+        };
+
+        // 成本价列只在产品导出里出现；其余类型表头无此列，置空函数自然零命中。
+        if !show_cost_price {
+            crate::utils::field_mask::blank_column_by_title(&headers, &mut data, COL_COST_PRICE);
         }
+
+        Ok((headers, data))
     }
 
     /// 导出产品数据（数据导入中心 products 导出面）。

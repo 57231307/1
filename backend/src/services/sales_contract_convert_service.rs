@@ -408,6 +408,14 @@ impl SalesContractConvertService {
                 .or_else(|| order.shipping_address.clone()),
             remark: req.remark.clone(),
             source_order_id: Some(order_id),
+            // 转合同入参 ConvertFromOrderRequest 由订单表头与订单行带出，不含模板主键、
+            // 条款填充值、内外销标记与含税标记，四项如实保持未采集：条款固化腿因无模板
+            // 而整段跳过（合同条款快照为空），sales_contracts 的 contract_market 与
+            // tax_inclusive 落 NULL，详情与打印按未选模板签约的口径回显。
+            template_id: None,
+            clause_values: None,
+            contract_market: None,
+            tax_inclusive: None,
             items: None,
         };
         let stamp_tax = SalesContractService::calculate_stamp_tax(

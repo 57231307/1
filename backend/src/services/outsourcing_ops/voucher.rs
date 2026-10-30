@@ -129,7 +129,9 @@ impl OutsourcingVoucherService {
     pub async fn delete(&self, id: i32) -> Result<(), AppError> {
         let model = self.get_by_id(id).await?;
         if model.is_posted {
-            return Err(AppError::business("已过账凭证不可删除"));
+            // 删除腿状态门：已过账凭证拒绝删除，前置状态不满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable("已过账凭证不可删除"));
         }
         VoucherEntity::delete_by_id(id)
             .exec(&*self.db)

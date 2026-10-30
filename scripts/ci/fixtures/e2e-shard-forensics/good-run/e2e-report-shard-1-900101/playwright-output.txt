@@ -1,0 +1,10 @@
+Running 17 tests using 4 workers
+
+
+✓  1 [chromium] › e2e/demo/other.spec.ts:4:7 › 另一示例套件 › 正常用例 (3.1s)
+
+  17 passed (2.1m)
+
+To open last HTML report run:
+
+  npx playwright show-report

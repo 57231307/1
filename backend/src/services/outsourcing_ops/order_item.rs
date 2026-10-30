@@ -168,6 +168,8 @@ impl OutsourcingOrderItemService {
             if v < Decimal::ZERO {
                 return Err(AppError::business("发出数量不能为负"));
             }
+            // 局部值只用于重算 total_cost，落库与出参要回显新值必须写进 ActiveModel 本身
+            active.quantity = Set(v);
             new_quantity = v;
             need_recompute_cost = true;
         }
@@ -178,6 +180,7 @@ impl OutsourcingOrderItemService {
             if v < Decimal::ZERO {
                 return Err(AppError::business("单位成本不能为负"));
             }
+            active.unit_cost = Set(v);
             new_unit_cost = v;
             need_recompute_cost = true;
         }
