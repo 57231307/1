@@ -12,18 +12,29 @@
 //!
 //! 关联：审批通过后调用 `CrmAssignService::transfer_lead` 执行实际转移。
 //!
-//! 二级分支的真实可达性（如实说明，勿当已就绪能力）：`check_large_customer` 的唯一输入是
-//! 线索 `converted_customer_id` 所指向客户的分层列（`customers.tier` 是否落在
-//! `constants::customer_tier::MAJOR`）。而 `converted_customer_id` 仅在线索转化时与
-//! `lead_status=CONVERTED` 同时写入；创建门 `fetch_and_validate_lead` 又拒绝 `CONVERTED`
-//! 线索。因此按正常生命周期，能通过创建门的线索其 `converted_customer_id` 恒为 NULL，
-//! `check_large_customer` 恒判非大客户、`max_level` 恒为 1，二级（总监）分支对正常生命周期
-//! 数据不可达；该分支仅在线索同时携带 `converted_customer_id` 且状态非 `CONVERTED`（正常
-//! 生命周期不产出此组合）时命中。总监层审批逻辑本身完整、未被删减，只是无正常来源触发它。
+//! 二级分支（总监审批）的可达性与执行形态（如实说明，与源码行为逐字一致）：
+//! 创建门 `fetch_and_validate_lead` 对 `lead_status=CONVERTED` 线索**有条件放行**——仅当
+//! 其挂链客户（`converted_customer_id`）的分层列 `customers.tier` 落在
+//! `constants::customer_tier::MAJOR` 高档集合；其余 CONVERTED 形态（未挂链/未定档/低档）
+//! 一律仍拒，一级审批门前置不因放开二级而松动。分层列的受控写入口是
+//! `handlers/customer_handler.rs::update_customer_tier`（PUT /customers/{id}/tier，
+//! 全仓唯一 HTTP 分层写腿），因此二级链路对正常生命周期数据真实可达。
+//!
+//! 审批通过后的执行腿按来源线索形态分派（`execute_transfer_in` 单点判型）：
+//! - CONVERTED 且挂链客户 → 转移**挂链客户归属**（`customers.owner_id`，客户才是审批对象，
+//!   表名 customer_transfer_approvals 与此对齐）；线索行不写：`lead_status` 保持终态
+//!   CONVERTED、`converted_customer_id` 不清空、`lead.rs` 转化腿的"禁止从 CONVERTED 回退"
+//!   门与本链无关且原样有效；
+//! - 非 CONVERTED（含"已挂链未转化"历史杂交形态）→ 走既有线索归属腿
+//!   `CrmAssignService::transfer_lead_in`，其 CONVERTED 拒绝门与自转门判据逐字不变。
+//!
+//! 状态跃迁与转移执行**同事务原子提交**（`manager_approve` 单级分支与 `director_approve`
+//! 通过分支）：执行腿失败整体回滚，审批单保持 pending，杜绝旧形态"先 commit approved
+//! 再转移"留下的"已批准未转移"半态。
 
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, Order, PaginatorTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait, Order,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -33,14 +44,20 @@ use crate::constants::customer_tier;
 use crate::models::status::crm_lead as lead_status;
 use crate::models::{
     crm_lead::{self, Entity as CrmLeadEntity},
-    customer::Entity as CustomerEntity,
+    customer::{self, Entity as CustomerEntity},
     customer_transfer_approval::{self, Entity as TransferApprovalEntity},
+    user,
 };
+use crate::services::assignment_history_service::{
+    AssignmentHistoryService, CreateAssignmentHistoryRequest,
+};
+use crate::services::audit_log_service::AuditLogService;
 use crate::services::crm::assign::{CrmAssignService, TransferLeadRequest, TransferLeadResult};
 use crate::utils::data_scope::{
     DataScopeContext, apply_data_scope, check_resource_owner_by_member_scope,
 };
 use crate::utils::error::AppError;
+use crate::utils::redis_cache::{cache_key, redis_cache_del};
 
 /// 创建转移审批请求
 #[derive(Debug, Clone, Deserialize)]
@@ -149,12 +166,13 @@ impl CustomerTransferApprovalService {
 
     /// 创建转移审批申请。
     /// 业务规则：
-    /// 1. 线索必须存在且未转化为客户（`lead_status=CONVERTED` 在本步被拒）；
+    /// 1. 线索必须存在；`lead_status=CONVERTED` 的线索仅在其挂链客户分层命中
+    ///    `constants::customer_tier::MAJOR`（大客户二级链准入）时放行，其余 CONVERTED
+    ///    形态一律仍拒（详见 `fetch_and_validate_lead` 的准入门与模块文档「二级分支」段）；
     /// 2. 新归属人必须不等于当前归属人；
     /// 3. `max_level` 由 `check_large_customer` 计算：线索关联客户分层落在高档集合为 2，
-    ///    否则为 1；由于本步已拒绝 CONVERTED 线索、而 `converted_customer_id` 只在转化时
-    ///    与 CONVERTED 同时写入，正常生命周期进入本函数的线索恒得 `max_level=1`
-    ///    （二级分支可达性详见模块文档「二级分支的真实可达性」）；
+    ///    否则为 1；放行进来的 CONVERTED 大客户线索恒得 `max_level=2`（二级完整可达），
+    ///    正常未转化线索仍恒为 1；
     /// 4. 同一线索不能存在 pending 状态的审批单。
     pub async fn create_approval(
         &self,
@@ -214,7 +232,7 @@ impl CustomerTransferApprovalService {
         Ok(())
     }
 
-    /// 创建审批：查询线索并校验状态/归属人
+    /// 创建审批：查询线索并校验准入（状态门 + 大客户准入门 + 自转门）
     async fn fetch_and_validate_lead(
         &self,
         lead_id: i32,
@@ -225,11 +243,19 @@ impl CustomerTransferApprovalService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
         if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
-            // 状态门：线索已处于「转为客户」终态，前置状态未满足，归业务族；文案含内部线索 ID 保持脱敏
-            return Err(AppError::business(format!(
-                "线索 {} 已转化为客户，无法转移",
-                lead_id
-            )));
+            // 大客户准入门（用户终裁放开形态）：CONVERTED 线索只有挂链客户分层落在
+            // `customer_tier::MAJOR` 时可发起转移审批——审批对象随之为挂链客户归属
+            // （执行腿分派见 `execute_transfer_in`；线索状态保持终态，不解除转化腿的
+            // "禁止从 CONVERTED 回退"门）。其余形态（未挂链/未定档/低档）一律仍拒：
+            // 放开二级不得顺手拆掉一级审批的门前置，该负向不变量由
+            // `tests/contract_wave17_converted_non_major_create_reject_lock_test.rs` 钉死。
+            // 状态门语义未满足归业务族；文案含内部线索 ID 保持脱敏。
+            if !self.check_large_customer(&lead).await? {
+                return Err(AppError::business(format!(
+                    "线索 {} 已转化为客户且所挂客户非大高档分层，无法转移",
+                    lead_id
+                )));
+            }
         }
         if lead.owner_id == to_user_id {
             // 状态门：新归属人已是当前归属人，属「已处于某态不可重复动作」，归业务族；文案可外显
@@ -328,27 +354,32 @@ impl CustomerTransferApprovalService {
         if req.approved {
             // 经理通过
             if max_level == 1 {
-                // 普通客户：直接执行转移
+                // 普通客户：执行转移与状态跃迁同事务——先在事务内转移成功、再落 approved
+                // 一并提交，任一失败整体回滚（旧形态先 commit approved 再转移，转移失败
+                // 留下"已批准未转移"半态，属独立缺陷，本处一并消除）
+                let (transfer_result, transferred_customer_id) = self
+                    .execute_transfer_in(
+                        &txn,
+                        lead_id,
+                        to_user_id,
+                        manager_id,
+                        manager_name,
+                        &reason,
+                        ctx,
+                    )
+                    .await?;
                 active.approval_status =
                     Set(customer_transfer_approval::STATUS_APPROVED.to_string());
                 active.completed_at = Set(Some(now));
                 // to_user_name 语义是**被转移人（第三方 to_user_id）**的展示名，唯一真实来源
-                // = transfer_lead 内部 fetch_and_validate_new_owner 已查得的 new_owner.username
-                // （assign.rs::build_transfer_result 的 to_user_name）。审批行先落状态，
-                // 转移成功后把该真实姓名透传回写（零额外查询，不造名、不落空、不顶替）。
+                // = 执行腿透传的 TransferLeadResult.to_user_name（新归属人真实用户名，
+                // 线索腿由 transfer_lead_in 原样带回、客户腿在执行腿内查得）。审批行与
+                // 转移同事务一次落齐，不造名、不落空、不顶替，也不再需要事后第二笔回写。
+                active.to_user_name = Set(Some(transfer_result.to_user_name));
 
                 let updated = active.update(&txn).await?;
-                // 显式 commit 审批状态变更，再执行实际转移（transfer_lead 内部会自开事务）
                 txn.commit().await?;
-
-                let transfer_result = self
-                    .execute_transfer(lead_id, to_user_id, manager_id, manager_name, &reason)
-                    .await?;
-
-                let mut named: customer_transfer_approval::ActiveModel = updated.into();
-                named.to_user_name = Set(Some(transfer_result.to_user_name));
-                named.updated_at = Set(chrono::Utc::now());
-                let updated = named.update(&*self.db).await?;
+                Self::invalidate_customer_cache(transferred_customer_id).await;
 
                 info!(
                     "销售经理 {} 审批通过转移单 {}（普通客户，已完成转移，被转移人 {}）",
@@ -384,7 +415,10 @@ impl CustomerTransferApprovalService {
     }
 
     /// 总监审批（仅大客户转移需要）
-    /// 业务规则：1. 审批单必须存在且为 pending 状态；2. current_level 必须为 2（总监审批层）；3. max_level 必须为 2（大客户）；4. 通过：执行转移并标记 completed；5. 拒绝：标记 rejected，不执行转移
+    /// 业务规则：1. 审批单必须存在且为 pending 状态；2. current_level 必须为 2（总监审批层）；
+    /// 3. max_level 必须为 2（大客户）；4. 通过：执行转移与状态跃迁**同事务**提交——转移
+    ///    执行腿任一步失败整体回滚，审批单保持 pending，不留"已批准未转移"半态；
+    /// 5. 拒绝：标记 rejected，不执行转移
     pub async fn director_approve(
         &self,
         req: ApproveRequest,
@@ -415,24 +449,27 @@ impl CustomerTransferApprovalService {
         active.updated_at = Set(now);
 
         if req.approved {
-            // 总监通过：执行转移
+            // 总监通过：执行转移与状态跃迁同事务（先转移成功、再落 approved，一并提交）
+            let (transfer_result, transferred_customer_id) = self
+                .execute_transfer_in(
+                    &txn,
+                    lead_id,
+                    to_user_id,
+                    director_id,
+                    director_name,
+                    &reason,
+                    ctx,
+                )
+                .await?;
             active.approval_status = Set(customer_transfer_approval::STATUS_APPROVED.to_string());
             active.completed_at = Set(Some(now));
-            // to_user_name 与 manager_approve 同一口径：transfer_lead 已解析的真实新归属人
-            // 用户名透传回写（零额外查询），不在审批行造名。
+            // to_user_name 与 manager_approve 同一口径：执行腿透传的 TransferLeadResult
+            // 真实用户名随状态跃迁一次落齐（同事务、零事后回写），不在审批行造名。
+            active.to_user_name = Set(Some(transfer_result.to_user_name));
 
             let updated = active.update(&txn).await?;
-            // 显式 commit 审批状态变更，再执行实际转移
             txn.commit().await?;
-
-            let transfer_result = self
-                .execute_transfer(lead_id, to_user_id, director_id, director_name, &reason)
-                .await?;
-
-            let mut named: customer_transfer_approval::ActiveModel = updated.into();
-            named.to_user_name = Set(Some(transfer_result.to_user_name));
-            named.updated_at = Set(chrono::Utc::now());
-            let updated = named.update(&*self.db).await?;
+            Self::invalidate_customer_cache(transferred_customer_id).await;
 
             info!(
                 "总监 {} 审批通过转移单 {}（大客户，已完成转移，被转移人 {}）",
@@ -632,27 +669,202 @@ impl CustomerTransferApprovalService {
         Ok(approval)
     }
 
-    /// 执行实际转移（调用 CrmAssignService::transfer_lead）。
-    /// 返回其 `TransferLeadResult`：其中 `to_user_name` 是 transfer_lead 内部
-    /// `fetch_and_validate_new_owner(to_user_id)` 已查得的真实新归属人用户名
-    /// （assign.rs::build_transfer_result），审批侧据此回写审批行，避免第二次查库。
-    async fn execute_transfer(
+    /// 审批通过后的执行腿分派（单点判型，`manager_approve` 单级分支与 `director_approve`
+    /// 通过分支共用；在调用方事务内执行，随审批状态跃迁同事务提交）。
+    /// 返回值 `(TransferLeadResult, Option<i32>)`：前者是被转移人真实姓名的透传载体
+    /// （两腿共用 `TransferLeadResult`，审批行写回只消费它的 `to_user_name`，契约锁
+    /// `tests/contract_wave6_crm_transfer_approval_to_user_name_test.rs` 钉的就是这一
+    /// 字面来源可追溯形态）；后者是本次执行腿是否写了客户行的信号（客户腿 Some 挂链
+    /// 客户号、线索腿 None），调用方据此在**事务提交后**失效客户读缓存。
+    ///
+    /// 判型规则（与模块文档「二级分支」段逐字同源）：
+    /// - 来源线索为 CONVERTED 终态 → 转移**挂链客户归属**（`transfer_customer_owner_in`），
+    ///   线索行零改动：`lead_status` 保持 CONVERTED、`converted_customer_id` 不清空、
+    ///   转化腿"禁止从 CONVERTED 回退"门与本链无关且原样有效；
+    /// - 非 CONVERTED（正常未转化线索，或历史杂交形态"已挂链未转化"）→ 既有线索归属腿
+    ///   `CrmAssignService::transfer_lead_in`，其存在/未转化/非自转/新归属人活跃各门
+    ///   判据逐字不变（`fetch_lead_for_transfer` 的 CONVERTED 拒绝门未放开）。
+    /// 入参：事务 + 线索 ID + 目标归属人 + 操作人（审批人，用于审计与历史 actor）+
+    /// 申请原因（写入历史 reason）+ 数据范围上下文（客户行级归属门用）。
+    async fn execute_transfer_in(
         &self,
+        txn: &DatabaseTransaction,
         lead_id: i32,
         to_user_id: i32,
         operator_id: i32,
         operator_name: &str,
         reason: &str,
-    ) -> Result<TransferLeadResult, AppError> {
-        let req = TransferLeadRequest {
-            lead_id,
-            to_user_id,
-            reason: reason.to_string(),
-            notes: Some("审批通过后自动执行".to_string()),
-        };
+        ctx: &DataScopeContext,
+    ) -> Result<(TransferLeadResult, Option<i32>), AppError> {
+        let lead = CrmLeadEntity::find_by_id(lead_id)
+            .one(&*self.db)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("线索 {} 不存在", lead_id)))?;
+        if lead.lead_status.as_deref() == Some(lead_status::CONVERTED) {
+            let result = self
+                .transfer_customer_owner_in(
+                    txn,
+                    &lead,
+                    to_user_id,
+                    operator_id,
+                    operator_name,
+                    reason,
+                    ctx,
+                )
+                .await?;
+            // 客户腿执行成功即必写了客户行（挂链号为 NULL 时该腿已点名拒绝），
+            // 回传挂链客户号供调用方提交后失效客户读缓存
+            Ok((result, lead.converted_customer_id))
+        } else {
+            let req = TransferLeadRequest {
+                lead_id,
+                to_user_id,
+                reason: reason.to_string(),
+                notes: Some("审批通过后自动执行".to_string()),
+            };
+            // 线索腿的 TransferLeadResult 原样透传，不重构造；未写客户行，缓存失效信号为 None
+            let result = self
+                .assign_service
+                .transfer_lead_in(txn, &req, operator_id, operator_name)
+                .await?;
+            Ok((result, None))
+        }
+    }
 
-        self.assign_service
-            .transfer_lead(req, operator_id, operator_name)
-            .await
+    /// 转移挂链客户归属（`customers.owner_id`）——审批执行腿的服务内受控写函数。
+    /// **不开放 HTTP 面**：唯一入口是经理/总监审批通过后的 `execute_transfer_in` 分派，
+    /// 授权来源是收细后的两枚独立审批动作键（managerapprove/directorapprove，由
+    /// PATH_ACTION_SEGMENT_MAP 从 URL 末段显式映射派生，与建单 create 键分离）
+    /// 叠加审批单行级归属门（`get_pending_approval` 已把门）。
+    ///
+    /// 语义件全部复用既有形态，不造第二套：
+    /// - 行级归属门：与本服务审批单门同一判据源 `check_resource_owner_by_member_scope`，
+    ///   施加于客户行 `owner_id` 列（与客户读腿 `get_customer` 的归属列同列同源；
+    ///   "读可 All"的 `check_resource_owner` 不在此复用）；
+    /// - 新归属人校验：复用 `CrmAssignService::fetch_and_validate_new_owner`（存在+活跃，
+    ///   真实用户名即审批行 to_user_name 唯一来源）；
+    /// - 自转门：新归属人已是该客户当前归属人 → 业务族可展示拒绝（与线索腿同语义）；
+    /// - 落痕：`AssignmentHistoryService::create_with_txn` 同事务写 TRANSFER 历史——
+    ///   线索侧即"只作为审批来源留痕"（lead_id 挂审批来源线索，不写线索行任何列）；
+    /// - 审计：`AuditLogService::update_with_audit`（resource_type=customer，与整行更新
+    ///   腿、软删腿同一范式，事务内原子）。
+    ///
+    /// ES 同步判据（如实说明，非旁路）：客户 ES 文档构造器
+    /// `customer_ops/update.rs::build_customer_doc` 的字段面不含归属列（id/编码/名称/
+    /// 联系人/渠道），纯归属变化不产生 ES 文档漂移，故本腿不重推索引；若日后 ES 面
+    /// 纳入归属字段，本腿必须同步接入。
+    /// 只写 `owner_id`、`owner_assigned_at`（保护期既有语义列，转移即重新起算）、`updated_at`
+    /// 三列；`department_id` 由 DB 触发器随 owner 变更自动维护，应用侧不写。
+    /// 返回与线索腿同形的 `TransferLeadResult`（透传载体）：`to_user_name` 即本腿内
+    /// `fetch_and_validate_new_owner` 查得的真实用户名，调用方据此回写审批行；
+    /// `from_user_name` 为 None 表示原归属人不可解析出展示名（公海或悬空引用），
+    /// 该形态维持既有放行语义，不是拒绝条件。
+    async fn transfer_customer_owner_in(
+        &self,
+        txn: &DatabaseTransaction,
+        lead: &crm_lead::Model,
+        to_user_id: i32,
+        operator_id: i32,
+        operator_name: &str,
+        reason: &str,
+        ctx: &DataScopeContext,
+    ) -> Result<TransferLeadResult, AppError> {
+        // 建单门已保证 CONVERTED 准入线索必带挂链客户；走到这里仍为 NULL 即脏数据，
+        // 点名拒绝（业务族、含 ID 脱敏），不静默不造值
+        let customer_id = lead.converted_customer_id.ok_or_else(|| {
+            AppError::business(format!(
+                "线索 {} 已转化但无挂链客户记录，客户归属转移不可执行",
+                lead.id
+            ))
+        })?;
+        // 新归属人存在+活跃门（与线索腿同一判据源，先于任何写操作，失败零漂移）
+        let new_owner = self
+            .assign_service
+            .fetch_and_validate_new_owner(to_user_id)
+            .await?;
+        let customer = CustomerEntity::find_by_id(customer_id)
+            .lock_exclusive()
+            .one(txn)
+            .await?
+            .ok_or_else(|| {
+                // 转移前提缺失（挂链客户行不存在）：业务族拒绝并整体回滚，
+                // 审批单保持 pending，绝不"批准了一个无处可去的转移"
+                AppError::business(format!(
+                    "挂链客户 {} 不存在，客户归属转移不可执行",
+                    customer_id
+                ))
+            })?;
+        if customer.owner_id == to_user_id {
+            return Err(AppError::business_displayable(
+                "转移审批执行失败：新归属人已是该客户当前归属人",
+            ));
+        }
+        // 行级归属门：审批人对客户现行归属人不可见即拒绝（判据源与审批单门同一，
+        // 原因只进日志，出参固定脱敏）
+        if !check_resource_owner_by_member_scope(ctx, Some(customer.owner_id)) {
+            tracing::warn!(
+                actor = ctx.user_id,
+                customer_id,
+                resource_owner = customer.owner_id,
+                "审批执行腿客户归属转移未过行级归属门，整体回滚（原因不外显）"
+            );
+            return Err(AppError::permission_denied(
+                "无权执行该客户归属转移（数据范围限制）".to_string(),
+            ));
+        }
+        let now = chrono::Utc::now();
+        let from_user_id = customer.owner_id;
+        // 原归属人展示名取自 users 的单次查得（与历史行同一来源，不造名）。
+        // 公海（owner_id=0）与悬空引用查不到用户行时取 None——表达"无原归属人
+        // 展示名"的空值形态，维持既有放行语义（历史行照旧落 NULL、转移照常提交）；
+        // 对这类形态的收紧属独立工单，不在本审批链夹带走。
+        let from_user_name: Option<String> = user::Entity::find_by_id(from_user_id)
+            .one(txn)
+            .await?
+            .map(|u| u.username);
+        let mut active: customer::ActiveModel = customer.into();
+        active.owner_id = Set(to_user_id);
+        active.owner_assigned_at = Set(Some(now));
+        active.updated_at = Set(now);
+        let updated =
+            AuditLogService::update_with_audit(txn, "customer", active, Some(operator_id)).await?;
+        AssignmentHistoryService::new(self.db.clone())
+            .create_with_txn(
+                txn,
+                operator_id,
+                operator_name,
+                CreateAssignmentHistoryRequest {
+                    lead_id: lead.id,
+                    lead_no: lead.lead_no.clone(),
+                    company_name: Some(updated.customer_name.clone()),
+                    from_user_id: Some(from_user_id),
+                    from_user_name: from_user_name.clone(),
+                    to_user_id: Some(new_owner.id),
+                    to_user_name: Some(new_owner.username.clone()),
+                    action: "TRANSFER".to_string(),
+                    reason: Some(reason.to_string()),
+                    notes: Some("审批通过后自动执行客户归属转移".to_string()),
+                },
+            )
+            .await?;
+        Ok(TransferLeadResult {
+            lead_id: lead.id,
+            lead_no: lead.lead_no.clone(),
+            from_user_id,
+            // 原归属人不可解析（公海 0 或悬空引用）时如实带 None，不拒绝、不造名、不空串顶替
+            from_user_name,
+            to_user_id: new_owner.id,
+            to_user_name: new_owner.username,
+            transferred_at: now,
+        })
+    }
+
+    /// 事务提交后的收尾：本次执行腿写了客户行时失效客户读缓存
+    /// （键与 `customer_ops` 读腿缓存逐字同源；必须在 commit 之后调用——
+    /// 提交前删除会被并发读以旧行重建回缓存）。
+    async fn invalidate_customer_cache(transferred_customer_id: Option<i32>) {
+        if let Some(customer_id) = transferred_customer_id {
+            redis_cache_del(&cache_key("customer", customer_id)).await;
+        }
     }
 }

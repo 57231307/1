@@ -50,16 +50,21 @@ pub async fn list_ap_invoices(
     let service = ApInvoiceService::new(state.db.clone());
     let page = params.page.unwrap_or(1).clamp(1, 1000); // 批次 95 P3-3~8：分页 clamp 防 DoS
     let page_size = params.page_size.unwrap_or(20).clamp(1, 100);
+    // 行级数据范围：构造 ctx 下推 created_by 归属过滤，分页 total 与可见集一致
+    let ctx = auth.to_data_scope_context();
     let (invoices, total) = service
-        .get_list(ApInvoiceListQuery {
-            supplier_id: params.supplier_id,
-            invoice_status: params.invoice_status,
-            invoice_type: params.invoice_type,
-            start_date: params.start_date,
-            end_date: params.end_date,
-            page,
-            page_size,
-        })
+        .get_list(
+            ApInvoiceListQuery {
+                supplier_id: params.supplier_id,
+                invoice_status: params.invoice_status,
+                invoice_type: params.invoice_type,
+                start_date: params.start_date,
+                end_date: params.end_date,
+                page,
+                page_size,
+            },
+            &ctx,
+        )
         .await?;
 
     info!("查询成功，共 {} 条记录", total);
@@ -79,7 +84,9 @@ pub async fn get_ap_invoice(
     info!("用户 {} 查询应付单详情 ID: {}", auth.username, id);
 
     let service = ApInvoiceService::new(state.db.clone());
-    let invoice = service.get_by_id(id).await?;
+    // 行级数据范围归属门：构造 ctx 传给 get_by_id_scoped，跨范围单号返回 403 而非整实体
+    let ctx = auth.to_data_scope_context();
+    let invoice = service.get_by_id_scoped(id, &ctx).await?;
 
     info!("查询成功：{}", invoice.invoice_no);
 
@@ -432,23 +439,29 @@ fn record_ap_invoices_export_audit(
 }
 
 /// GET /api/v1/erp/ap/invoices/export - 导出应付发票列表（带水印 + 异步审计日志）；V15 P0-S12 修复（Batch 475e）：导出接入后端 -
-/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 直接调 service.get_list 取全量数据（page=1/page_size=10000）
+/// 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export） - 调 service.get_list 取数据（page=1/page_size=10000）
+/// 注：get_list 现按 auth.to_data_scope_context() 下推行级数据范围，导出集为「当前用户可见集」而非全表
 pub async fn export_ap_invoices(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<ApInvoiceQueryParams>,
 ) -> Result<axum::response::Response, AppError> {
     let service = ApInvoiceService::new(state.db.clone());
+    // 导出腿复用 get_list：接同一 ctx 下推行级数据范围，非授权角色不再能整表导出全部应付单
+    let ctx = auth.to_data_scope_context();
     let (invoices, _total) = service
-        .get_list(ApInvoiceListQuery {
-            supplier_id: query.supplier_id,
-            invoice_status: query.invoice_status,
-            invoice_type: query.invoice_type,
-            start_date: query.start_date,
-            end_date: query.end_date,
-            page: 1,
-            page_size: 10000,
-        })
+        .get_list(
+            ApInvoiceListQuery {
+                supplier_id: query.supplier_id,
+                invoice_status: query.invoice_status,
+                invoice_type: query.invoice_type,
+                start_date: query.start_date,
+                end_date: query.end_date,
+                page: 1,
+                page_size: 10000,
+            },
+            &ctx,
+        )
         .await?;
     let row_count = invoices.len();
     let invoices_json: Vec<serde_json::Value> = invoices

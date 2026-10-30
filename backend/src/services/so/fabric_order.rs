@@ -272,10 +272,11 @@ impl SalesService {
             .ok_or_else(|| AppError::not_found("订单不存在"))?;
 
         if order.status != fabric_status::PENDING {
-            return Err(AppError::business(format!(
-                "只有待审核状态的订单可以删除，当前状态：{}",
-                order.status
-            )));
+            // 删除腿状态门：仅待审核可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，去掉词表原值插值（真实状态只进 tracing），可外显
+            return Err(AppError::business_displayable(
+                "只有待审核状态的面料订单可以删除",
+            ));
         }
 
         // 明细行随主表级联清理（显式删除，防止外键 fk 阻断主表删除）

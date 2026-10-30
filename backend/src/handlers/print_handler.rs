@@ -21,6 +21,7 @@ use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::{PrintService, SUPPORTED_DOC_TYPES};
 use crate::utils::error::AppError;
+use crate::utils::html_escape::{escape_html, sanitize_css_block};
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -1520,6 +1521,9 @@ pub async fn update_print_template(
         .status
         .clone()
         .unwrap_or_else(|| existing.status.clone());
+    // 生效默认位，撞位点名守卫判据用。请求未带 is_default 时沿用存量值，存量默认位
+    // 会随启用一起生效。existing 随后被移入 ActiveModel 就读不到了，在这里先算好。
+    let effective_is_default = req.is_default.unwrap_or(existing.is_default);
 
     let mut active: print_template::ActiveModel = existing.into_active_model();
     if let Some(v) = req.template_name {
@@ -1597,6 +1601,28 @@ pub async fn update_print_template(
         )));
     }
 
+    // 默认位撞位的本行自降位处理，只读探测，置于非竞位腿一切写入之前。判据是"写完之后的
+    // 生效形态恰好是 启用且默认"，且生效默认位来自存量留存（竞位腿已在上方处理显式请求置
+    // 默认位并返回，走到这里说明本次没有显式请求上任）。同一判据涉及两类形态：把带默认位的
+    // 停用行只改状态重新启用，以及把启用默认行只改单据类型移进别的单据类型——二者都会让本行
+    // 落到"启用且默认"，撞上库侧部分唯一索引 uq_print_template_active_default（同 doc_type
+    // 至多一行启用且默认）。本次未显式请求置默认，本行不该夺在任默认行的位，故只把本行自身
+    // is_default 降为 false 再写状态，在任默认行与其余行一律不动：重新启用只恢复出件资格不竞位，
+    // 更新在唯一索引下照常成功。停用行留存自身默认位本就合法（生效状态非启用即不撞位），
+    // 建模板与设默认口各自竞位不经此处。
+    if effective_is_default && effective_status == print_template_status::ACTIVE {
+        let occupying = print_template::Entity::find()
+            .filter(print_template::Column::DocType.eq(doc_type_for_default.as_str()))
+            .filter(print_template::Column::Status.eq(print_template_status::ACTIVE))
+            .filter(print_template::Column::IsDefault.eq(true))
+            .filter(print_template::Column::Id.ne(id))
+            .one(&*state.db)
+            .await?;
+        if occupying.is_some() {
+            active.is_default = Set(false);
+        }
+    }
+
     if let Some(v) = req.is_default {
         active.is_default = Set(v);
     }
@@ -1657,16 +1683,23 @@ pub async fn preview_print_template(
         .0
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
+
+    // 层 1：文本上下文一律转义，防 template_name 与请求体变量值成注入载体
+    let safe_name = escape_html(&record.template_name);
+    let safe_css = sanitize_css_block(&record.css_styles);
+    // 层 3：CSP 禁脚本执行，仅放样式与内联图片，纵深兜住 content 与净化残留
     let mut html = format!(
-        "<html><head><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
-        record.template_name,
-        record.css_styles.replace('\n', " "),
-        record.template_name,
-        record.content
+        "<html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:\"><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
+        safe_name, safe_css, safe_name, record.content
     );
     for (key, value) in &variables {
         let placeholder = format!("{{{{{}}}}}", key);
-        html = html.replace(&placeholder, &value.to_string());
+        // JSON 字符串按标量取原文再转义，避免 to_string() 把引号当业务文本塞进页面
+        let value_text = match value {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+        html = html.replace(&placeholder, &escape_html(&value_text));
     }
 
     Ok(axum::Json(ApiResponse::success(

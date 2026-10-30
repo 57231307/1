@@ -1,0 +1,12 @@
+Running 44 tests using 4 workers
+
+
+✓  1 [chromium] › e2e/demo/ok.spec.ts:5:7 › 示例套件 › 正常用例一 (1.2s)
+✓  2 [chromium] › e2e/demo/ok.spec.ts:9:7 › 示例套件 › 正常用例二 (2.8s)
+
+  42 passed (3.4m)
+  2 skipped
+
+To open last HTML report run:
+
+  npx playwright show-report

@@ -48,6 +48,12 @@ pub fn customers() -> Router<AppState> {
             "/customers/{id}/credit",
             get(customer_credit_handler::get_credit),
         )
+        // 客户分层受控写腿：tier 列的唯一 HTTP 入口，值域门与词表同源、写审计、
+        // 出参只回必要字段；权限键按方法派生为 customers:update（与整行更新腿同键）
+        .route(
+            "/customers/{id}/tier",
+            put(customer_handler::update_customer_tier),
+        )
         // batch-13 P3：客户多地址支持
         .route(
             "/customers/{id}/addresses",

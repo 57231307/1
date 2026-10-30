@@ -1135,10 +1135,11 @@ impl SalesReturnService {
 
         // 状态门在 txn 内，基于 lock_exclusive 读出的 model
         if return_order.status != sr_status::DRAFT {
-            return Err(AppError::business(format!(
-                "退货单状态不允许删除，当前状态：{}",
-                return_order.status
-            )));
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的销售退货单可以删除",
+            ));
         }
 
         // 先删除明细

@@ -115,7 +115,10 @@ impl PurchaseReceiptService {
         }
         // 词表外取值只能来自坏数据/历史遗留：按数据完整性问题整单拒绝（脱敏族，
         // 与既有状态门控 `lock_and_validate_receipt_txn` 的 business 口径一致），不猜测归类；
-        // 允许值清单直接取权威词表 ALL，避免手写清单与词表演进漂移
+        // 允许值清单直接取权威词表 ALL，避免手写清单与词表演进漂移。
+        // 保持脱敏的理由（非疏漏）：文案内嵌查询所得入库单号与词表外状态原值，
+        // 属内部标识与查询实体数据，且坏数据核查不是用户可自行解决的拒绝——
+        // 真实详情只进 tracing 日志。
         Err(AppError::business(format!(
             "入库单 {} 的检验状态「{inspection}」不在词表内（{}），无法判定入库资格，需人工核查数据",
             receipt.receipt_no,

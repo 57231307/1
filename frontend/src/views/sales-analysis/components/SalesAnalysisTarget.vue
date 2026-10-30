@@ -1,7 +1,8 @@
 <!--
-  SalesAnalysisTarget.vue - 销售目标表（含完成率/差异/状态标签）
-  拆分自 sales-analysis/index.vue（P14 批 2 I-3 第 6 批）
-  行为完全保持一致（仅结构重构）
+  SalesAnalysisTarget.vue - 销售目标表（含完成率、差额、状态标签列）
+  出参派生列可空，后端契约对齐 api/sales-analysis.ts 的 SalesTarget。
+  null（目标未设或实际额无法判定）走公共缺值占位，不渲染进度条、不渲染百分号、
+  不渲染货币符号、不合并成 0；着色与比较分支前显式判 null。
 -->
 <template>
   <el-card shadow="hover" class="target-card">
@@ -48,12 +49,14 @@
         align="center"
       >
         <template #default="{ row }">
-          <!-- completion_rate/variance 为 rust_decimal 出参字符串（"85.00"），
-               el-progress 与数值比较前需 Number() 归一 -->
+          <!-- completion_rate 为 null 含"目标未设"与"实际额无法判定"两态（由目标列与
+               实际列区分），此处一律走缺值占位；不渲染进度条、不渲染百分号、不以 0 兜底 -->
           <el-progress
+            v-if="row.completion_rate !== null"
             :percentage="Number(row.completion_rate)"
             :color="getProgressColor(row.completion_rate)"
           />
+          <span v-else>{{ t('common.valueMissing') }}</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -63,7 +66,10 @@
         align="right"
       >
         <template #default="{ row }">
-          <span :class="Number(row.variance) >= 0 ? 'text-success' : 'text-danger'">
+          <!-- variance 仅在 actual_amount 为 null 时为 null；着色与正负号分支前显式判 null，
+               不依赖 Number(null) 为 0 的隐式转换 -->
+          <span v-if="row.variance === null">{{ t('common.valueMissing') }}</span>
+          <span v-else :class="Number(row.variance) >= 0 ? 'text-success' : 'text-danger'">
             {{ Number(row.variance) >= 0 ? '+' : '' }}{{ formatCurrency(row.variance) }}
           </span>
         </template>

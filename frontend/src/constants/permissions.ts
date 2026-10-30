@@ -111,6 +111,10 @@ export const PERMISSIONS = {
   QUOTATION_UPDATE: 'quotations:update',
   QUOTATION_DELETE: 'quotations:delete',
   QUOTATION_CANCEL: 'quotations:cancel',
+  // 提交/通过/拒绝是三条独立端点，运行时键由 URL 末段动作派生，各用各的键，禁止互相兼职放行。
+  QUOTATION_SUBMIT: 'quotations:submit',
+  QUOTATION_APPROVE: 'quotations:approve',
+  QUOTATION_REJECT: 'quotations:reject',
 
   // 销售价格（后端资源：sales-prices）
   SALES_PRICE_READ: 'sales-prices:read',
@@ -289,6 +293,11 @@ export const PERMISSIONS = {
   // 销售订单（后端资源：orders——`/sales/orders` 的 sales 是模块前缀，消歧映射未登记
   // sales+orders 组合，资源段保留 URL 第四段原名 orders；sales-orders 不是后端派生名）
   SALES_ORDER_CREATE: 'orders:create',
+  SALES_ORDER_SUBMIT: 'orders:submit',
+  SALES_ORDER_CANCEL: 'orders:cancel',
+  SALES_ORDER_DELETE: 'orders:delete',
+  SALES_ORDER_APPROVE: 'orders:approve',
+  SALES_ORDER_REJECT: 'orders:reject',
 
   // 采购订单（后端资源：purchase-orders）
   PURCHASE_ORDER_READ: 'purchase-orders:read',

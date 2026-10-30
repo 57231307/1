@@ -76,6 +76,8 @@ pub mod customer_credit_handler;
 pub mod fixed_asset_handler;
 pub mod fund_management_handler;
 pub mod purchase_contract_handler;
+// 合同模板管理面 handler（routes/contract_template.rs 挂载）
+pub mod contract_template_handler;
 pub mod quality_standard_handler;
 pub mod sales_contract_handler;
 // P2 模块

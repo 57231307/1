@@ -189,6 +189,14 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "customers",
     "customer-credits",
     "five-dimension",
+    // 客户转移审批流（/crm/transfer-approvals 族）：URL 第四段 transfer-approvals 即派生
+    // 资源名（crm 为模块前缀、该段不在消歧映射表内，保留原名）。建单、详情、取消、经理审批、
+    // 总监审批五面共用本资源名，动作键分别为 create/read/cancel/managerapprove/
+    // directorapprove。后两者由 PATH_ACTION_SEGMENT_MAP 把 URL 末段（manager-approve/
+    // director-approve）显式映射为合规动作码派生（动作码正形约束为纯小写字母或 `*`，
+    // URL 保持连字符形态），与建单 create 键分离（SoD 职责分锁，
+    // 见 init_service_ops/permission.rs 销售域分组）。
+    "transfer-approvals",
     // ===== 物流与贸易域 =====
     "logistics",
     "ship-orders",
@@ -233,6 +241,10 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "audit-logs",
     "slow-queries",
     "print-templates",
+    // 合同模板体系读写腿（模板主数据与条款项，routes/contract_template.rs 根级挂载）：
+    // URL 段即权威资源名，与 path_utils 直接资源表同词登记；未登记则派生死键、全员 403。
+    // 动作面只消费 read/create/update/delete/approve 五个已派生动作，不扩动作词表也不新增授予。
+    "contract-templates",
     // 打印任务提交/查询、打印目标管理：与 print-templates 同族的根级直接资源，未登记则路由派生键
     // 命中不了任何授权行、对非超管恒 fail-closed 403。
     "print-tasks",

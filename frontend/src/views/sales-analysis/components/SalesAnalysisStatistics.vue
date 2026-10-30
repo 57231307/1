@@ -13,9 +13,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthOrders') }}</div>
-            <div class="stat-value">{{ stats.monthOrders }}</div>
-            <div class="stat-trend" :class="stats.orderTrend > 0 ? 'up' : 'down'">
-              {{ stats.orderTrend > 0 ? '+' : '' }}{{ stats.orderTrend }}%
+            <div class="stat-value">{{ stats.month_orders }}</div>
+            <div class="stat-trend" :class="trendTone(stats.order_trend)">
+              {{ trendText(stats.order_trend) }}
             </div>
           </div>
         </div>
@@ -29,9 +29,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelMonthAmount') }}</div>
-            <div class="stat-value">{{ formatCurrency(stats.monthAmount) }}</div>
-            <div class="stat-trend" :class="stats.amountTrend > 0 ? 'up' : 'down'">
-              {{ stats.amountTrend > 0 ? '+' : '' }}{{ stats.amountTrend }}%
+            <div class="stat-value">{{ formatCurrency(stats.month_amount) }}</div>
+            <div class="stat-trend" :class="trendTone(stats.amount_trend)">
+              {{ trendText(stats.amount_trend) }}
             </div>
           </div>
         </div>
@@ -45,9 +45,15 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelGrossProfitRate') }}</div>
-            <div class="stat-value">{{ stats.grossProfitRate }}%</div>
-            <div class="stat-trend" :class="stats.profitTrend > 0 ? 'up' : 'down'">
-              {{ stats.profitTrend > 0 ? '+' : '' }}{{ stats.profitTrend }}%
+            <div class="stat-value">
+              {{
+                stats.gross_profit_rate === null
+                  ? t('common.valueMissing')
+                  : `${stats.gross_profit_rate}%`
+              }}
+            </div>
+            <div class="stat-trend" :class="trendTone(stats.profit_trend)">
+              {{ trendText(stats.profit_trend) }}
             </div>
           </div>
         </div>
@@ -61,9 +67,9 @@
           </div>
           <div class="stat-info">
             <div class="stat-label">{{ t('salesAnalysis.stat.labelActiveCustomers') }}</div>
-            <div class="stat-value">{{ stats.activeCustomers }}</div>
-            <div class="stat-trend" :class="stats.customerTrend > 0 ? 'up' : 'down'">
-              {{ stats.customerTrend > 0 ? '+' : '' }}{{ stats.customerTrend }}%
+            <div class="stat-value">{{ stats.active_customers }}</div>
+            <div class="stat-trend" :class="trendTone(stats.customer_trend)">
+              {{ trendText(stats.customer_trend) }}
             </div>
           </div>
         </div>
@@ -75,23 +81,36 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { Document, Money, TrendCharts, User } from '@element-plus/icons-vue';
+import type { SalesStats } from '@/api/sales-analysis';
 import { formatCurrency } from '../composables/saFmts';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// 销售分析统计数据（reactive 对象，父组件传入）
+// 销售分析统计数据（父组件传入的只读快照；形态直接取后端概览出参的契约类型，
+// 环比与毛利率在契约里就是可空，这里不再另抄一份非空声明）
 defineProps<{
-  stats: {
-    monthOrders: number;
-    monthAmount: number;
-    grossProfitRate: number;
-    activeCustomers: number;
-    orderTrend: number;
-    amountTrend: number;
-    profitTrend: number;
-    customerTrend: number;
-  };
+  stats: SalesStats;
 }>();
+
+/**
+ * 环比涨跌行的样式档位。
+ * 调用方，本组件模板的四枚涨跌行。
+ * 入参，后端概览出参的环比值：null 表不可比（上月桶缺失或为 0），正数表上涨，
+ * 0 与负数表下跌。
+ * 传给谁，仅返回 class 名给模板绑定，不参与取数、不存储、不打印。
+ */
+const trendTone = (trend: number | null): 'none' | 'up' | 'down' =>
+  trend === null ? 'none' : trend > 0 ? 'up' : 'down';
+
+/**
+ * 环比涨跌行的可见文本。
+ * 调用方，本组件模板的四枚涨跌行。
+ * 入参，同 trendTone 的可空环比值；null 出"暂无可比数据"文案，不带正负号与百分号，
+ * 非 null 按后端原值出数并加百分号（不做任何换算与舍入）。
+ * 传给谁，仅返回字符串给模板渲染，不存储、不打印。
+ */
+const trendText = (trend: number | null): string =>
+  trend === null ? t('salesAnalysis.stat.trendNoData') : `${trend > 0 ? '+' : ''}${trend}%`;
 </script>
 
 <style scoped>
@@ -166,5 +185,11 @@ defineProps<{
 
 .stat-trend.down {
   color: #f5222d;
+}
+
+/* 环比不可比时的中性档：既不绿也不红，避免把"无数据"读成"下跌"；
+   取色沿用本组件统计标签既用的中性灰，保证 12px 文本对白底达 WCAG AA 对比度 */
+.stat-trend.none {
+  color: #666;
 }
 </style>

@@ -1,40 +1,42 @@
 #!/usr/bin/env node
 /**
- * main push 轮 E2E 核心链分片选择锁 + ci-e2e 矩阵同源发射。
+ * E2E 核心链分片清单锁 + ci-e2e 矩阵同源发射。
  *
- * 门禁用途（对应缺陷：ci-e2e 的 job 级 if 只认 pull_request，main push 轮全部
- * "🎭 E2E" job 结论为 skipped，而收尾门把 skipped 计为通过，于是主线轮次零 E2E 覆盖
- * 却全绿；判据来自 main push 轮的 job 结论本身，本步把它做成硬断言而非注释承诺）：
- *   本脚本是"main push 跑哪几片"的唯一决定者，并把决定做成硬断言。它同时被
+ * 门禁用途（对应缺陷：检查范围开关放行了一轮，而该轮全部 "🎭 E2E" job 结论为 skipped，
+ * 收尾门把 skipped 计为通过，于是那一轮零 E2E 覆盖却全绿；判据来自该轮 ci-e2e 的
+ * job 结论本身，本步把它做成硬断言而非注释承诺）：
+ *   本脚本是"本轮发射哪几片"的唯一决定者，并把决定做成硬断言。它同时被
  *   ci-build-fe 调用两件事：判红（任一判据不成立就 exit 1）与发射（把本轮矩阵
- *   写成 JSON 交给 ci-e2e 的 strategy.matrix 消费）。
+ *   写成 JSON 交给 ci-e2e 的 strategy.matrix 消费）。主干不由合并 PR 自动触发，
+ *   主线运行改人工发起，因此真实 run 上只剩两种形态，全量发射，或整族按开关跳过。
  *
  * 为什么选片必须落在"整组只有一片"的分片上（S 层，最关键的假绿防线）：
  *   ci-cd.yml 的分片语义是 Playwright 的 --shard=no/total 按用例 hash 分配，同一
  *   目录分组拆成 N 片时，只跑其中 1 片等于只跑约 1/N 的用例，而那片 job 的结论仍是
  *   success（它确实"跑完了自己的 1/N"）。所以凡 total 大于 1 的分组，其成员片一律
- *   不得单独选入 main push：要么整组全选（会突破片数上界），要么不选。
+ *   不得单独选入子集模式：要么整组全选（会突破片数上界），要么不选。
  *   本仓库三条重灾区链路的实际归属：
  *     报价审批  frontend/e2e/quotations/02-approval.spec.ts 落在分片 38，total 1
  *     验布四分制 frontend/e2e/quality/03-four-point.spec.ts 落在分片 34，total 1
  *     验布码单与染色 frontend/e2e/fabric/05-piece-label-print.spec.ts 落在分片 37，total 1
  *   报废审批链只存在于 frontend/e2e/flow/44e-state-machines-extended.spec.ts，
  *   属 flow 分组（total 20），按上面的判据不可单片选入，因此不在本清单内，
- *   该链在 main push 轮仍无覆盖，需另立改造工单（把该 spec 登记成独立 total 1 分组）。
+ *   该链在子集模式仍无覆盖，需另立改造（把该 spec 登记成独立 total 1 分组）。
  *
  * 校验层次（任一层失败即 exit 1，绝不"取不到就跳过"）：
- *   W. 接线锁：ci-e2e 的 job 级 if 必须同时放行 pull_request 与 main/master push，
+ *   W. 接线锁：ci-e2e 的 job 级 if 必须消费 ci-info 的 full_suite 开关（测试面唯一的
+ *      执行位），且不得直写主干分支名。
  *      needs 必须含 ci-build-fe 与 ci-build-rust，strategy.matrix 必须是消费本脚本
  *      输出的 fromJSON 表达式（载荷为 {include:[{shard,label},...]}，与 GitHub 文档
  *      的 dynamic matrix 写法一致），且块内不得再残留静态 "- shard: N" 条目
- *      （残留即两处事实来源，且意味着 main push 仍会被静态矩阵支配）。
+ *      （残留即两处事实来源，且意味着选片仍会被静态矩阵支配）。
  *   R. 同源锁：E2E_SHARD_MATRIX 的 shard 集合与 ci-cd.yml 分片编排解析出的集合
  *      双向相等，label 唯一且非空。
  *   S. 选片锁：显式目录清单（MAIN_PUSH_CORE_TARGETS）逐条真实存在且含 spec 文件；
  *      每个目录在分片编排里恰好归属一个分片；所属分片所在分组必须 total 1 且仅一片；
  *      命中片数落在 MAIN_PUSH_SHARD_MIN 到 MAIN_PUSH_SHARD_MAX 之间。
  *      S 层在 pull_request 轮同样执行：清单腐坏要第一时间在 PR 上红，而不是等
- *      main push 轮才发现选不出片。
+ *      真正要按子集选片的那一轮才发现选不出片。
  *   E. 发射锁：本轮矩阵非空（空矩阵会让 job 被 GitHub 直接判 skipped，正是本门禁
  *      要消灭的形态），写入 GITHUB_OUTPUT 与可下载的 reports 产物。
  *
@@ -121,7 +123,10 @@ if (!GITHUB_OUTPUT_FILE) {
 let mode;
 if (EVENT === 'pull_request') mode = 'full';
 else if (EVENT === 'push' && MAIN_PUSH_REFS.includes(REF)) mode = 'main-push-core';
-else mode = 'full'; // 其余事件（tag push / workflow_dispatch）由 ci-e2e 的 job 级 if 排除，这里仍发射全量以保证矩阵非空
+else mode = 'full'; // 其余事件（tag push 与手动运行）由 ci-e2e 的 job 级 if 决定跑不跑，这里仍发射全量以保证矩阵非空
+// 主干 push 已不是 ci-cd.yml 的触发事件（合并 PR 不再自动跑主线），main-push-core 分支因此
+// 不会在真实 run 上命中。保留它不是因为"以后可能加回触发器"，而是 S 层的核心链清单与
+// total 1 分组判据每轮都要跑（见下），那条约束的执行位就在这段选片逻辑里，删了等于放弃约束。
 
 // ------------------------------------------------------------------ W 层：接线锁
 const wf = readWorkflowText(WORKFLOW_PATH);
@@ -136,11 +141,12 @@ if (jobIfs.length !== 1) {
   fail(`W. ci-e2e 的 job 级 if 应恰好 1 条，实得 ${jobIfs.length} 条（锚点 ^ 四空格 if: 失配）`);
 } else {
   const cond = jobIfs[0][1];
-  if (!cond.includes("github.event_name == 'pull_request'")) {
-    fail(`W. ci-e2e 的 job 级 if 未放行 pull_request，PR 轮 45 片全量会被摘掉：${cond}`);
+  const FULL_SUITE_SWITCH = "needs.ci-info.outputs.full_suite == 'true'";
+  if (!cond.includes(FULL_SUITE_SWITCH)) {
+    fail(`W. ci-e2e 的 job 级 if 未消费 ci-info 的测试面开关（应为 ${FULL_SUITE_SWITCH}），测试面的执行位无法单点收口：${cond}`);
   }
-  if (!MAIN_PUSH_REFS.some(r => cond.includes(`'${r}'`))) {
-    fail(`W. ci-e2e 的 job 级 if 未放行 main/master push（本门禁的目的本身），main 轮仍会整族 skipped：${cond}`);
+  if (MAIN_PUSH_REFS.some(r => cond.includes(`'${r}'`))) {
+    fail(`W. ci-e2e 的 job 级 if 仍直写主干分支名，与"合并 PR 不自动触发主线、放行与否只看检查范围开关"的口径冲突：${cond}`);
   }
 }
 const jobNeeds = block.match(/^ {4}needs: \[([^\]]*)\]/m);

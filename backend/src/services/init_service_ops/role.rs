@@ -151,6 +151,16 @@ impl InitService {
             // 销售域
             ("销售经理", "sales_manager", "销售业务管理与审批", "dept"),
             ("销售代表", "sales_rep", "销售订单录入与客户跟进", "self"),
+            // 销售总监：大客户转单二级审批的终审岗（权限矩阵分组见
+            // init_service_ops/permission.rs::sales_role_resources，两侧必须同码在册，
+            // 缺任一侧即"角色无授权面"或"授权无角色落点"）。data_scope=all 取管理层口径：
+            // 终审单跨部门可见，与 gm/deputy_gm 同档。
+            (
+                "销售总监",
+                "sales_director",
+                "大客户转移终审与销售条线监督",
+                "all",
+            ),
             // V15 P1 Batch-10 12.1：补齐 customer_service 角色
             ("客户服务", "customer_service", "客户服务与售后跟进", "self"),
             // 采购域

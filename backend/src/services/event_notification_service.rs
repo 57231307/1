@@ -9,6 +9,7 @@ use crate::services::email_service::{EmailService, EmailTemplate};
 use crate::services::notification_service::{CreateNotificationRequest, NotificationService};
 use crate::services::user_notification_setting_service::UserNotificationSettingService;
 use crate::utils::error::AppError;
+use crate::utils::html_escape::escape_html;
 use sea_orm::{DatabaseConnection, EntityTrait};
 use std::sync::Arc;
 
@@ -81,6 +82,59 @@ impl EventNotificationService {
             sender_name: Some("系统".to_string()),
             dedup_key: Some(format!("inventory_alert:{}", product_id)),
         }
+    }
+
+    /// 构造销售订单创建邮件正文。
+    /// 入参：`order_no` 销售订单号，属人工可录入的文本，按 HTML 文本上下文转义。
+    /// 传给谁：`Self::notify_order_created`，再由 `Self::send_email_notification` 交给
+    /// `EmailService::send_html_email`，只走服务商接口，本腿不落库。
+    /// 存什么：订单号的转义文本与 `<h2>`/`<p>` 排版标记，标记本身不被转义。
+    pub fn build_order_created_email_html(order_no: &str) -> String {
+        format!(
+            "<h2>销售订单已创建</h2><p>销售订单 {} 已创建，当前为草稿状态</p>",
+            escape_html(order_no)
+        )
+    }
+
+    /// 构造采购订单创建邮件正文。
+    /// 入参：`order_no` 采购订单号、`supplier_name` 供应商名称、`amount` 金额展示串，
+    /// 三者都可能是人工录入文本，一律按 HTML 文本上下文转义。
+    /// 传给谁：`Self::notify_purchase_order_created`，最终交给 `EmailService::send_html_email`。
+    /// 存什么：三个字段的转义文本与排版标记；供应商名里的尖括号只会以文本形态出现。
+    pub fn build_purchase_order_created_email_html(
+        order_no: &str,
+        supplier_name: &str,
+        amount: &str,
+    ) -> String {
+        format!(
+            "<h2>采购订单已创建</h2><p>采购订单 {}（供应商：{}，金额：{}）已创建成功</p>",
+            escape_html(order_no),
+            escape_html(supplier_name),
+            escape_html(amount)
+        )
+    }
+
+    /// 构造采购订单到货邮件正文。
+    /// 入参：`order_no` 采购订单号、`warehouse_name` 仓库名称（人工录入），按文本上下文转义。
+    /// 传给谁：`Self::notify_purchase_arrived`，最终交给 `EmailService::send_html_email`。
+    pub fn build_purchase_arrived_email_html(order_no: &str, warehouse_name: &str) -> String {
+        format!(
+            "<h2>采购订单到货</h2><p>采购订单 {} 的货物已到达 {}，请安排入库</p>",
+            escape_html(order_no),
+            escape_html(warehouse_name)
+        )
+    }
+
+    /// 构造应收账款到期提醒邮件正文。
+    /// 入参：`customer_name` 客户名称（人工录入）、`amount` 金额展示串、`due_date` 到期日展示串。
+    /// 传给谁：`Self::notify_ar_due`，最终交给 `EmailService::send_html_email`。
+    pub fn build_ar_due_email_html(customer_name: &str, amount: &str, due_date: &str) -> String {
+        format!(
+            "<h2>应收账款到期提醒</h2><p>客户 {} 的应收账款 {} 将于 {} 到期，请及时跟进</p>",
+            escape_html(customer_name),
+            escape_html(amount),
+            escape_html(due_date)
+        )
     }
 
     /// 获取指定用户的通知设置（v17 批次 47 新增：供 handler 循环外预加载设置）
@@ -162,10 +216,7 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = format!(
-                "<h2>销售订单已创建</h2><p>销售订单 {} 已创建，当前为草稿状态</p>",
-                order_no
-            );
+            let html = Self::build_order_created_email_html(order_no);
             self.send_email_notification(user_id, "销售订单创建通知", html)
                 .await;
         }
@@ -594,10 +645,8 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = format!(
-                "<h2>采购订单已创建</h2><p>采购订单 {}（供应商：{}，金额：{}）已创建成功</p>",
-                order_no, supplier_name, amount
-            );
+            let html =
+                Self::build_purchase_order_created_email_html(order_no, supplier_name, amount);
             self.send_email_notification(user_id, "采购订单创建通知", html)
                 .await;
         }
@@ -644,10 +693,7 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = format!(
-                "<h2>采购订单到货</h2><p>采购订单 {} 的货物已到达 {}，请安排入库</p>",
-                order_no, warehouse_name
-            );
+            let html = Self::build_purchase_arrived_email_html(order_no, warehouse_name);
             self.send_email_notification(user_id, "采购订单到货通知", html)
                 .await;
         }
@@ -697,10 +743,7 @@ impl EventNotificationService {
         }
 
         if should_email {
-            let html = format!(
-                "<h2>应收账款到期提醒</h2><p>客户 {} 的应收账款 {} 将于 {} 到期，请及时跟进</p>",
-                customer_name, amount, due_date
-            );
+            let html = Self::build_ar_due_email_html(customer_name, amount, due_date);
             self.send_email_notification(user_id, "应收账款到期提醒", html)
                 .await;
         }

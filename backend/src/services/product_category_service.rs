@@ -165,7 +165,11 @@ impl ProductCategoryService {
             .await?;
 
         if children_count > 0 {
-            return Err(AppError::business("该类别存在子类别，无法删除".to_string()));
+            // 删除腿引用门：存在未清理的子类别即拒绝，归业务族；
+            // 文案点名公开规则与出路，不含计数与标识，可外显
+            return Err(AppError::business_displayable(
+                "该类别存在子类别，无法删除，请先处理子类别".to_string(),
+            ));
         }
 
         // P0 8-3 修复：delete 操作补审计日志
