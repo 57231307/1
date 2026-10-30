@@ -167,8 +167,9 @@ test.describe.serial('Shard 6: 多角色协作 + 权限隔离 + 状态显示', (
 
   test('6-7 验证审计日志记录所有操作', async ({ page }) => {
     // 前面的测试创建了角色/用户，审计日志应该有记录
-    const hasLog = await verifyAuditLog(page, 'create');
-    expect(typeof hasLog).toBe('boolean');
+    // 6-2 已真实创建测试角色，审计动作枚举为大写 CREATE 且请求路径含 roles 段。
+    const hasLog = await verifyAuditLog(page, 'CREATE', undefined, '/roles');
+    expect(hasLog, '[6-7] 6-2 创建测试角色后，审计管道应存在 CREATE 且请求路径含 roles 的记录').toBe(true);
   });
 
   test('6-8 验证列表页路由可达（状态显示映射入口）', async ({ page }) => {
