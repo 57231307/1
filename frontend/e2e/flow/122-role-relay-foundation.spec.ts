@@ -21,10 +21,15 @@
  * 接力棒次不能跨文件；跨 test 会把接力句柄与会话拆到不同 worker，棒间传标识随之失真。
  *
  * 三个角色码的权限面来源（不是推测）：
- * sales_manager 由既有角色页访问用例证明可 POST 与 GET 客户；
+ * sales_rep 由后端初始化角色种子授予 customers:read 与 customers:create，行级范围为 self；
  * purchase_clerk 在同一用例里被证明越权读客户列表 403 且客户页被守卫挡住；
  * admin 由初始化与角色种子证明持有通配权限与全部数据范围，能读到他人建的行。
  * 侧栏菜单项的可见性判据取路由元权限，与守卫同源，因此菜单差异与端点差异是同一张权限表的两个投影。
+ *
+ * 建单棒为什么用 self 档而不选部门级角色（如 sales_manager）：建单棒要按 id 回读自建行，
+ * 而部门级读门只认资源部门，e2e 角色账号由 global-setup 建号时不带部门、既有数据范围
+ * 可达性用例又明文禁止给角色账号补部门，资源部门为空即 fail-closed 403；换用 self 档角色后
+ * 这条腿判的是接力本身，不再取决于夹具是否给账号分了部门。
  */
 import { test, expect } from '../diagnose-fixture';
 import { apiCallRaw, genCode, getRoleCredential } from './helpers';
@@ -57,7 +62,7 @@ test.describe.serial('角色接力地基：建单棒、可见棒、越权棒', (
     try {
       await relay.runSteps([
         {
-          role: 'sales_manager',
+          role: 'sales_rep',
           label: '建一条客户',
           run: async ({ session }) => {
             const uniqueName = genCode('E2E-RELAY-CUS');
@@ -168,7 +173,7 @@ test.describe.serial('角色接力地基：建单棒、可见棒、越权棒', (
       ]);
 
       // 链尾总钉一：三棒各自登录成功，账号名逐棒等于该角色码凭证里的账号
-      const expectedUsernames = ['sales_manager', 'admin', 'purchase_clerk'].map(role => {
+      const expectedUsernames = ['sales_rep', 'admin', 'purchase_clerk'].map(role => {
         const cred = getRoleCredential(role);
         if (!cred) {
           throw new Error(
