@@ -484,10 +484,9 @@ fn find_close_tag(haystack: &[char], from: usize, name: &str) -> Option<usize> {
 /// `at` 起是否匹配 `needle`（大小写不敏感）
 fn matches_text_ignore_case(haystack: &[char], at: usize, needle: &str) -> bool {
     let mut iter = haystack[at..].iter();
-    needle.chars().all(|c| {
-        iter.next()
-            .is_some_and(|h| h.to_ascii_lowercase() == c.to_ascii_lowercase())
-    })
+    needle
+        .chars()
+        .all(|c| iter.next().is_some_and(|h| h.eq_ignore_ascii_case(&c)))
 }
 
 fn skip_whitespace(chars: &[char], from: usize) -> usize {
