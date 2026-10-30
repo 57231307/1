@@ -67,12 +67,44 @@ async function approveAsAdmin(
     approved?.status,
     `低风险一级审批通过后状态应为 approved，实际：${JSON.stringify(approved).slice(0, 200)}`
   ).toBe('approved');
+  // 一次性读取契约：审批出参恒不回显令牌原文（服务端 detail_masked 屏蔽 download_token 与
+  // token_hash），凭据只能通过申请人本人的 rotate-token 单独取一次。这里钉"必须为空"，
+  // 一旦哪天出参又带出令牌，本断言立刻判红，而不是让下游用例误打误撞继续通过。
   expect(
-    approved?.download_token,
-    `审批通过后应签发 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
-  ).toBeTruthy();
+    approved?.download_token ?? null,
+    `审批出参不应回显 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
+  ).toBeNull();
   console.log(`[39d] admin 已审批产品导出申请 ${approvalId}`);
   return approved;
+}
+
+/// 申请人本人重发并一次性读取下载令牌。
+/// 调用方：本文件的完整链用例与跨资源防护用例，审批通过后由 manager 会话执行。
+/// 入参：page 为当前 Playwright 页，approvalId 为已 approved 的申请 id。
+/// 传给谁：返回的令牌串交给 verify-token 与带令牌导出与二次消费三腿，以及跨资源负例。
+/// 判据源：服务端 rotate_token 只允许申请人本人调用（非申请人 403），且要求状态为 approved；
+/// 出参含 available 与 token 两键，token 为原文、指纹另列，故这里只回令牌。
+async function rotateTokenAsApplicant(
+  page: import('@playwright/test').Page,
+  approvalId: number
+): Promise<string> {
+  await loginAsRole(page, 'manager');
+  const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
+    page,
+    'POST',
+    `/export-approvals/${approvalId}/rotate-token`
+  );
+  expect(
+    rotated.data?.available === true,
+    `申请人重发令牌应返回 available，实际：${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  const token = rotated.data?.token ?? '';
+  expect(
+    token.length > 0,
+    `重发应下发非空令牌原文，实际：${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  console.warn(`[39d] manager 已重发申请 ${approvalId} 的一次性下载令牌`);
+  return token;
 }
 
 test.describe('产品导出完整审批链', () => {
@@ -90,8 +122,8 @@ test.describe('产品导出完整审批链', () => {
 
   test('完整链：申请至审批至verify-token有效至持令牌200至二次用token被拒', async ({ page }) => {
     const approvalId = await createProductApproval(page);
-    const approved = await approveAsAdmin(page, approvalId);
-    const token = approved.download_token;
+    await approveAsAdmin(page, approvalId);
+    const token = await rotateTokenAsApplicant(page, approvalId);
 
     // verify-token：GET 安全方法直连；后端出参为完整审批 Model（非 valid 布尔信封），
     // 有效令牌判据是 status approved 且 resource_type product
@@ -126,8 +158,11 @@ test.describe('产品导出完整审批链', () => {
 
   test('跨资源防护：product 令牌不可用于客户导出', async ({ page }) => {
     const approvalId = await createProductApproval(page);
-    const approved = await approveAsAdmin(page, approvalId);
-    const token = approved.download_token;
+    await approveAsAdmin(page, approvalId);
+    const token = await rotateTokenAsApplicant(page, approvalId);
+    // 切回 admin 会话再拿 product 令牌打客户导出：确保这里的 403 只能归因到
+    // 令牌的资源绑定，而不是调用方角色本身无客户导出权。
+    await loginViaUI(page, undefined, undefined, true);
     const crossResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/crm/customers/export?download_token=${token}`
     );

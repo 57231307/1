@@ -11,8 +11,10 @@ import { loginViaUI, loginAsRole, apiCall } from './helpers';
  * - 审批权限门:能否审批(含申请人自批)由 RBAC 权限键 export-approvals:approve 决定,
  *   service 层不再对"审批人=申请人"做无条件硬拒;持键者自批同样 2xx 通过,
  *   并如实记录 approver_user_id(自批时 approver_user_id 等于 applicant_user_id)。
- * - 令牌下发:低风险一级 approve 后返回 status=approved 且 download_token 形如
- *   exp_ + 32 位小写十六进制;GET /export-approvals/verify-token 可复核同一记录。
+ * - 令牌一次性读取:低风险一级 approve 后出参 status=approved 但 download_token 恒为 null
+ *   （服务端 detail_masked 屏蔽凭据原文），凭据由申请人本人 POST /export-approvals/{id}
+ *   /rotate-token 单独取一次，形如 exp_ + 32 位小写十六进制；
+ *   GET /export-approvals/verify-token 可复核同一记录。
  * - 带令牌下载:GET /crm/customers/export?download_token=... 必须 200,
  *   Content-Type 为 xlsx MIME,响应体以 ZIP 魔数 PK 开头且非空
  *   (CI 内唯一能真实验证"审批到令牌到下载"全通的证据面)。
@@ -148,15 +150,33 @@ test.describe('customer 敏感导出审批链锁测', () => {
     expect(approved.approver_user_id, '审批人与申请人必须为不同用户(严格分离)').not.toBe(
       approved.applicant_user_id
     );
-    const token = approved.download_token;
+    const maskedToken = approved.download_token;
+    expect(
+      maskedToken ?? null,
+      `一次性读取契约下审批出参不应回显 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeNull();
+    // 凭据由申请人本人经 rotate-token 单独取一次(服务端只允许申请人轮换)
+    await loginAsRole(page, 'manager');
+    const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/rotate-token`
+    );
+    expect(
+      rotated.data?.available === true,
+      `申请人重发令牌应 available,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
+    ).toBe(true);
+    const token = rotated.data?.token ?? '';
+    expect(
+      token.length > 0,
+      `重发应下发非空令牌原文,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
+    ).toBe(true);
     expect(
       token,
-      `审批通过后应签发 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
-    ).toBeTruthy();
-    expect(
-      String(token),
-      `download_token 应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
+      `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
     ).toMatch(/^exp_[0-9a-f]{32}$/);
+    // 后续 verify-token 与下载腿回到 admin 会话执行,让结果只归因到令牌本身
+    await loginViaUI(page, undefined, undefined, true);
 
     // 3. verify-token 复核同一记录(admin 数据域为 All,归属门必然放行)
     const verified = await apiCall<ApprovalModel>(
@@ -226,14 +246,24 @@ test.describe('customer 敏感导出审批链锁测', () => {
       applicantId
     );
 
-    const token = approved.download_token;
+    // 一次性读取契约：审批出参不回显凭据，由申请人本人（本例即持权自批者）重发取回
+    expect(
+      approved.download_token ?? null,
+      `自批出参不应回显 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeNull();
+    const rotatedSelf = await apiCall<{ available?: boolean; token?: string | null }>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/rotate-token`
+    );
+    const token = rotatedSelf.data?.token ?? '';
+    expect(
+      token.length > 0,
+      `申请人自批后重发应下发令牌,实际:${JSON.stringify(rotatedSelf.data).slice(0, 200)}`
+    ).toBe(true);
     expect(
       token,
-      `自批通过后应签发 download_token,实际:${JSON.stringify(approved).slice(0, 200)}`
-    ).toBeTruthy();
-    expect(
-      String(token),
-      `download_token 应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
+      `下发的令牌应为 exp_ 前缀加 32 位小写十六进制,实际 ${token}`
     ).toMatch(/^exp_[0-9a-f]{32}$/);
 
     // verify-token 复核,证明自批签发的令牌已真实落库并可解析同一记录
@@ -256,11 +286,24 @@ test.describe('customer 敏感导出审批链锁测', () => {
   test('负例:customer 令牌跨资源用于 product 导出 403(资源绑定不匹配)', async ({ page }) => {
     const approvalId = await createCustomerApprovalAsManager(page);
     const approved = await approveAsAdmin(page, approvalId, 'E2E 跨资源锁测');
-    const token = approved.download_token;
     expect(
-      token,
-      `前置:审批后应签发令牌,实际:${JSON.stringify(approved).slice(0, 200)}`
-    ).toBeTruthy();
+      approved.download_token ?? null,
+      `一次性读取契约下审批出参不应回显令牌,实际:${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeNull();
+    // 前置：由申请人本人重发取回凭据（服务端只允许申请人轮换）
+    await loginAsRole(page, 'manager');
+    const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/rotate-token`
+    );
+    const token = rotated.data?.token ?? '';
+    expect(
+      token.length > 0,
+      `前置:申请人重发应下发令牌,实际:${JSON.stringify(rotated.data).slice(0, 200)}`
+    ).toBe(true);
+    // 跨资源下载腿回到 admin 会话，让 403 只归因到令牌的资源绑定
+    await loginViaUI(page, undefined, undefined, true);
 
     const crossResp = await page.request.get(
       `${API_BASE}${API_PREFIX}/products/export?download_token=${encodeURIComponent(String(token))}`

@@ -347,11 +347,24 @@ test.describe('15 财务报表/导出/快照契约链', () => {
     expect(String(approved.status ?? '').toLowerCase(), '审批后应含 approved 态').toContain(
       'approved'
     );
-    const token = approved.download_token;
+    // 一次性读取契约：审批出参不回显凭据，改由申请人本人重发取回一次
     expect(
-      typeof token === 'string' && token.length > 0,
-      `应签发 download_token，实际=${JSON.stringify(approved).slice(0, 200)}`
+      approved.download_token ?? null,
+      `审批出参不应回显 download_token，实际=${JSON.stringify(approved).slice(0, 200)}`
+    ).toBeNull();
+    await loginAsRole(page, 'manager');
+    const rotated = await apiCallRaw<{ available?: boolean; token?: string | null }>(
+      page,
+      'POST',
+      `/export-approvals/${approvalId}/rotate-token`
+    );
+    const token = rotated.token ?? '';
+    expect(
+      token.length > 0,
+      `申请人重发应下发令牌，实际=${JSON.stringify(rotated).slice(0, 200)}`
     ).toBe(true);
+    // 下载腿回到分片 admin 会话，令 200 与二次消费 403 只归因到令牌本身
+    await loginViaUI(page, undefined, undefined, true);
 
     await expectXlsx(
       page,

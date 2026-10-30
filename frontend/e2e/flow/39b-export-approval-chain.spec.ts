@@ -49,7 +49,7 @@ async function createApprovalAsManager(page: import('@playwright/test').Page): P
   return id as number;
 }
 
-/** 切回分片 admin 账号审批该申请，返回审批后的模型（含 download_token） */
+/** 切回分片 admin 账号审批该申请，返回审批后的模型（出参按一次性读取契约不回显令牌） */
 async function approveAsAdmin(
   page: import('@playwright/test').Page,
   approvalId: number,
@@ -67,8 +67,46 @@ async function approveAsAdmin(
     approved?.status ?? '',
     `审批后状态应含 approved，实际：${JSON.stringify(approved).slice(0, 200)}`
   ).toContain('approved');
+  // 一次性读取契约：审批出参恒不回显令牌原文（服务端 detail_masked 屏蔽 download_token
+  // 与 token_hash），凭据只能由申请人本人经 rotate-token 单独取一次。钉"必须为空"，
+  // 哪天出参又漏出令牌，本断言立即判红，而不是让下游用例误打误撞继续绿。
+  expect(
+    approved?.download_token ?? null,
+    `审批出参不应回显 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
+  ).toBeNull();
   console.log(`[39b] admin 已审批申请 ${approvalId}，status=${approved?.status}`);
   return approved as ApprovalModel;
+}
+
+/**
+ * 申请人本人重发并一次性读取下载令牌。
+ * 调用方：本文件的完整链用例与跨资源用例，均在 admin 审批之后执行。
+ * 入参：page 为当前页，approvalId 为已 approved 的申请 id。
+ * 传给谁：返回的令牌交回调用方用于持令牌导出、二次消费与跨资源三腿。
+ * 判据源：服务端 rotate_token 只允许申请人本人调用（非申请人 403）且要求状态为 approved，
+ * 出参 available 为真时 token 即一次性凭据原文。
+ */
+async function rotateTokenAsApplicant(
+  page: import('@playwright/test').Page,
+  approvalId: number
+): Promise<string> {
+  await loginAsRole(page, 'manager');
+  const rotated = await apiCall<{ available?: boolean; token?: string | null }>(
+    page,
+    'POST',
+    `/export-approvals/${approvalId}/rotate-token`
+  );
+  expect(
+    rotated.data?.available === true,
+    `申请人重发令牌应返回 available，实际：${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  const token = rotated.data?.token ?? '';
+  expect(
+    token.length > 0,
+    `重发应下发非空令牌原文，实际：${JSON.stringify(rotated.data).slice(0, 200)}`
+  ).toBe(true);
+  console.warn(`[39b] manager 已重发申请 ${approvalId} 的一次性下载令牌`);
+  return token;
 }
 
 test.describe('P5.9b 敏感导出完整审批链', () => {
@@ -79,14 +117,13 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
   test('客户导出审批链：创建→审批→令牌导出→二次消费拒', async ({ page }) => {
     // 1-2. manager 创建申请 + admin 审批（自审被后端禁止，必须双人）
     const approvalId = await createApprovalAsManager(page);
-    const approved = await approveAsAdmin(page, approvalId, 'E2E 审批链测试');
+    await approveAsAdmin(page, approvalId, 'E2E 审批链测试');
 
-    // 3. 一级审批通过必须签发下载令牌（无令牌 = 链断在这里，不能再降级为可选分支）
-    const token = approved.download_token;
-    expect(
-      token,
-      `审批通过后应签发 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
-    ).toBeTruthy();
+    // 3. 一次性读取凭据：无凭据 = 链断在这里，不能降级为可选分支
+    const token = await rotateTokenAsApplicant(page, approvalId);
+    // 取凭据走的是申请人会话；导出腿切回 admin，让 200 与随后的二次消费 403
+    // 只归因到令牌自身，而不是调用方角色。
+    await loginViaUI(page, undefined, undefined, true);
 
     // 4. 持令牌导出
     const exportResp = await page.request.get(
@@ -104,12 +141,10 @@ test.describe('P5.9b 敏感导出完整审批链', () => {
   test('跨资源令牌拒绝：customer 令牌用于 product 导出', async ({ page }) => {
     // 创建 customer 审批并拿到令牌（manager 申请 + admin 审批）
     const approvalId = await createApprovalAsManager(page);
-    const approved = await approveAsAdmin(page, approvalId, 'E2E 跨资源测试');
-    const token = approved.download_token;
-    expect(
-      token,
-      `审批通过后应签发 download_token，实际：${JSON.stringify(approved).slice(0, 200)}`
-    ).toBeTruthy();
+    await approveAsAdmin(page, approvalId, 'E2E 跨资源测试');
+    const token = await rotateTokenAsApplicant(page, approvalId);
+    // 同完整链用例：切回 admin，让 403 只能归因到令牌的资源绑定
+    await loginViaUI(page, undefined, undefined, true);
 
     // customer 令牌用于 product 导出 → resource_type 不匹配 403
     const crossResp = await page.request.get(
