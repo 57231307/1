@@ -27,6 +27,21 @@ pub struct ExportData {
     pub summary: Option<Vec<(String, String)>>,
 }
 
+/// printpdf 内建字体加载失败映射。
+/// 调用方 本模块两个 PDF 生成器（通用导出与对账单），两者共用同一文案，
+/// 避免同一条 internal 映射在每处 doc 构造里各抄一遍。
+/// 入参 printpdf 字体错误，传给谁 上抛成 AppError::internal 出参，不落库。
+fn font_load_error(e: impl std::fmt::Display) -> AppError {
+    AppError::internal(format!("加载字体失败: {}", e))
+}
+
+/// PDF 字节流写缓冲失败映射。
+/// 调用方 本模块两个 PDF 生成器，入参 printpdf 保存错误，
+/// 传给谁 上抛成 AppError::internal 出参，不落库。
+fn pdf_save_error(e: impl std::fmt::Display) -> AppError {
+    AppError::internal(format!("PDF 保存失败: {}", e))
+}
+
 /// 导出服务
 pub struct ExportService;
 
@@ -58,7 +73,7 @@ impl ExportService {
         let mut layer = doc.get_page(page1).get_layer(layer1);
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
-            .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
+            .map_err(font_load_error)?;
         let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
         // 标题与生成时间
@@ -126,8 +141,7 @@ impl ExportService {
         let mut buffer = Vec::new();
         {
             let mut writer = std::io::BufWriter::new(&mut buffer);
-            doc.save(&mut writer)
-                .map_err(|e| AppError::internal(format!("PDF 保存失败: {}", e)))?;
+            doc.save(&mut writer).map_err(pdf_save_error)?;
         }
         Ok(buffer)
     }
@@ -193,7 +207,7 @@ impl ExportService {
         let layer = doc.get_page(page1).get_layer(layer1);
         let font = doc
             .add_builtin_font(BuiltinFont::Helvetica)
-            .map_err(|e| AppError::internal(format!("加载字体失败: {}", e)))?;
+            .map_err(font_load_error)?;
 
         // 标题与抬头信息
         let mut y_pos = RECON_TITLE_Y_MM;
@@ -268,8 +282,7 @@ impl ExportService {
         let mut buffer = Vec::new();
         {
             let mut writer = std::io::BufWriter::new(&mut buffer);
-            doc.save(&mut writer)
-                .map_err(|e| AppError::internal(format!("PDF 保存失败: {}", e)))?;
+            doc.save(&mut writer).map_err(pdf_save_error)?;
         }
         Ok(buffer)
     }
