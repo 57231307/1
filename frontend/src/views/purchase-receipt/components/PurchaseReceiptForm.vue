@@ -116,12 +116,7 @@
                   }
                 "
               />
-              <NumericInput
-                :model-value="item.amount"
-                :precision="2"
-                class="col-amount"
-                readonly
-              />
+              <NumericInput :model-value="item.amount" :precision="2" class="col-amount" readonly />
               <el-button
                 v-if="(localForm.items || []).length > 1"
                 size="small"

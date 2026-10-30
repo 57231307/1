@@ -126,12 +126,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="门幅(英寸)">
-          <NumericInput
-            v-model="form.fabric_width_inches"
-            :min="0"
-            :precision="2"
-            class="w-full"
-          />
+          <NumericInput v-model="form.fabric_width_inches" :min="0" :precision="2" class="w-full" />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remarks" type="textarea" :rows="2" />
@@ -224,12 +219,7 @@
           <NumericInput v-model="rollForm.warehouse_id" :min="1" class="w-full" />
         </el-form-item>
         <el-form-item label="卷长 m" prop="roll_length" required>
-          <NumericInput
-            v-model="rollForm.roll_length"
-            :min="0.01"
-            :precision="2"
-            class="w-full"
-          />
+          <NumericInput v-model="rollForm.roll_length" :min="0.01" :precision="2" class="w-full" />
         </el-form-item>
         <!-- 裁定 §3：卷重/幅宽/克重由可选改必填，口径与后端 RollFabricRequest
              逐字段一致（validate(required) + >0 范围校验，无上限）；初值为空不预填 0，
