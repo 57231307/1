@@ -388,7 +388,8 @@ fn test_check_update_response_no_current_release_honest_null() {
 fn test_fetch_release_by_tag_url_has_v_prefix() {
     let version = "2026.9.29.1111";
     let tag_url = format!(
-        "https://api.github.com/repos/57231307/1/releases/tags/v{}",
+        "https://api.github.com/repos/{}/releases/tags/v{}",
+        bingxi_backend::services::system_update_service::github_repo(),
         version
     );
     assert!(
