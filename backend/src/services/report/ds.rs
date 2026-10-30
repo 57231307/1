@@ -365,6 +365,10 @@ impl ReportEngineService {
             "customer_analysis" => self.query_customer_analysis_report(&template, &req).await?,
             "profit_analysis" => self.query_profit_analysis_report(&template, &req).await?,
             "inventory_status" => self.query_inventory_report(&template, &req).await?,
+            "inventory_turnover" => {
+                self.query_inventory_turnover_report(&template, &req)
+                    .await?
+            }
             "purchase_summary" => self.query_purchase_report(&template, &req).await?,
             _ => {
                 // 默认: 销售明细（自定义模板兜底）
@@ -1161,44 +1165,231 @@ impl ReportEngineService {
         })
     }
 
-    /// 查询库存报表
+    /// 查询库存报表（按声明列投影的名称化行）
+    ///
+    /// 功能 取库存批次行，把仓库与产品 id 关联成名称与编码后，严格按模板声明的
+    /// 五列（warehouse_name、product_code、product_name、quantity_on_hand、
+    /// quantity_available）逐行装配，不再输出主键 id 与声明外数量列；
+    /// 仓库过滤按提交值下推，非法 id 点名拒绝。行序按库存行 id 稳定。
+    /// 调用方 execute_report 在 template_id 为 inventory_status 时分派到本函数。
+    /// 入参 template 取声明列；req 取 warehouse_id 过滤。
+    /// 传给谁 行集合装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 两个数量列是 DECIMAL 线格式字符串，维度列是字符串。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
     pub async fn query_inventory_report(
         &self,
         template: &super::ReportTemplate,
-        _req: &ExecuteReportRequest,
+        req: &ExecuteReportRequest,
     ) -> Result<ReportData, AppError> {
-        let stocks = InventoryStockEntity::find()
+        let mut select = InventoryStockEntity::find();
+        if let Some(raw) = Self::filter_value(req, "warehouse_id") {
+            let warehouse_id = Self::parse_filter_id("warehouse_id", raw)?;
+            select =
+                select.filter(crate::models::inventory_stock::Column::WarehouseId.eq(warehouse_id));
+        }
+        let stocks = select
             .order_by_asc(crate::models::inventory_stock::Column::Id)
             .all(&*self.db)
             .await?;
 
+        let product_ids: HashSet<i32> = stocks.iter().map(|s| s.product_id).collect();
+        let warehouse_ids: HashSet<i32> = stocks.iter().map(|s| s.warehouse_id).collect();
+        let product_map = Self::load_product_map(&self.db, &product_ids).await?;
+        let warehouse_map = Self::load_warehouse_name_map(&self.db, &warehouse_ids).await?;
+
         let rows: Vec<serde_json::Value> = stocks
             .iter()
             .map(|stock| {
+                let (product_code, product_name) = product_map
+                    .get(&stock.product_id)
+                    .cloned()
+                    .unwrap_or_default();
                 serde_json::json!({
-                    "warehouse_id": stock.warehouse_id,
-                    "product_id": stock.product_id,
+                    "warehouse_name": warehouse_map.get(&stock.warehouse_id).cloned().unwrap_or_default(),
+                    "product_code": product_code,
+                    "product_name": product_name,
                     "quantity_on_hand": stock.quantity_on_hand.to_string(),
                     "quantity_available": stock.quantity_available.to_string(),
-                    "quantity_reserved": stock.quantity_reserved.to_string(),
-                    "reorder_point": stock.reorder_point.to_string(),
                 })
             })
             .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
 
-        Ok(ReportData {
-            columns: template.columns.clone(),
-            total_rows: rows.len() as u64,
-            rows,
-            generated_at: Utc::now(),
-            summary: None,
-            metadata: ReportMetadata {
-                data_source: template.data_source.clone(),
-                query_time_ms: 0,
-                cache_hit: false,
-                parameters: None,
-            },
-        })
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 查询库存周转率报表（按声明列聚合投影）
+    ///
+    /// 功能 出库量取期间内销售出库流水的数量合计，期初库存由该批次首笔流水的
+    /// 变动前存量倒推、期间无流水时等于现存量，平均库存取（期初+期末）除以二，
+    /// 周转率为出库量除以平均库存（两位小数）；平均库存为零且有出库时输出 null
+    /// 表达不可计算。行严格装配模板声明的四列（product_name、avg_stock、
+    /// outbound、turnover_rate），按产品合并各仓库批次。时间轴用流水创建时间，
+    /// 基准取自请求日期范围，不忽略请求侧参数。
+    /// 调用方 execute_report 在 template_id 为 inventory_turnover 时分派到本函数。
+    /// 入参 template 取声明列；req 取日期范围。
+    /// 传给谁 聚合行装进 ReportData.rows，交给 handler 与导出器按列键取值。
+    /// 存什么 三个数量列与比率是 DECIMAL 线格式字符串，turnover_rate 可为 null。
+    /// 存哪里 不落库，结果随缓存键进内存缓存。
+    pub async fn query_inventory_turnover_report(
+        &self,
+        template: &super::ReportTemplate,
+        req: &ExecuteReportRequest,
+    ) -> Result<ReportData, AppError> {
+        let transactions =
+            Self::fetch_inventory_transactions(&self.db, req.date_range.as_ref()).await?;
+
+        // 每批次（产品+仓库）：期末存量取最近一笔流水的变动后存量；无流水批次取现存量表。
+        let mut batch_close: HashMap<(i32, i32), rust_decimal::Decimal> = HashMap::new();
+        let mut batch_open: HashMap<(i32, i32), Option<rust_decimal::Decimal>> = HashMap::new();
+        let mut outbound: HashMap<i32, rust_decimal::Decimal> = HashMap::new();
+        for txn in &transactions {
+            let key = (txn.product_id, txn.warehouse_id);
+            batch_open.entry(key).or_insert(txn.quantity_before_meters);
+            batch_close.insert(key, txn.quantity_after_meters);
+            if txn.transaction_type == "SALES_DELIVERY" {
+                *outbound
+                    .entry(txn.product_id)
+                    .or_insert(rust_decimal::Decimal::ZERO) += txn.quantity_meters;
+            }
+        }
+
+        let stocks = InventoryStockEntity::find().all(&*self.db).await?;
+        // 批次级现存量快照：(产品, 仓库) 维度，与流水批次键同构
+        let mut stock_by_batch: HashMap<(i32, i32), rust_decimal::Decimal> = HashMap::new();
+        for s in &stocks {
+            *stock_by_batch
+                .entry((s.product_id, s.warehouse_id))
+                .or_insert(rust_decimal::Decimal::ZERO) += s.quantity_on_hand;
+        }
+
+        // 批次全集：流水覆盖过的批次加现存量表覆盖的批次，逐批次定期初期末，
+        // 无流水批次的期初期末都取现存量快照，跨仓批次不再互相吞掉存量。
+        let mut batch_keys: HashSet<(i32, i32)> = HashSet::new();
+        batch_keys.extend(batch_close.keys().copied());
+        batch_keys.extend(stock_by_batch.keys().copied());
+
+        let mut product_ids: HashSet<i32> = batch_keys.iter().map(|(pid, _)| *pid).collect();
+        product_ids.extend(outbound.keys().copied());
+
+        let mut per_product: BTreeMap<i32, (rust_decimal::Decimal, rust_decimal::Decimal)> =
+            BTreeMap::new();
+        for key in &batch_keys {
+            let close = batch_close.get(key).copied().unwrap_or_else(|| {
+                stock_by_batch
+                    .get(key)
+                    .copied()
+                    .unwrap_or(rust_decimal::Decimal::ZERO)
+            });
+            let open = batch_open.get(key).copied().flatten().unwrap_or(close);
+            let entry = per_product
+                .entry(key.0)
+                .or_insert((rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO));
+            entry.0 += open;
+            entry.1 += close;
+        }
+        // 只有出库没有存量与流水批次的产品（理论不该发生，如实入表）：期初期末都记零
+        for pid in product_ids
+            .iter()
+            .filter(|pid| !per_product.contains_key(pid))
+        {
+            per_product.insert(
+                *pid,
+                (rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO),
+            );
+        }
+
+        let product_map = Self::load_product_map(&self.db, &product_ids).await?;
+
+        let two = rust_decimal::Decimal::TWO;
+        let rows: Vec<serde_json::Value> = per_product
+            .into_iter()
+            .map(|(pid, (open, close))| {
+                let avg = ((open + close) / two).round_dp(4);
+                let out = outbound.get(&pid).copied().unwrap_or(rust_decimal::Decimal::ZERO);
+                let rate = if avg.is_zero() {
+                    if out.is_zero() {
+                        Some(rust_decimal::Decimal::ZERO)
+                    } else {
+                        None
+                    }
+                } else {
+                    Some((out / avg).round_dp(2))
+                };
+                serde_json::json!({
+                    "product_name": product_map.get(&pid).map(|(_, n)| n.clone()).unwrap_or_default(),
+                    "avg_stock": avg.to_string(),
+                    "outbound": out.to_string(),
+                    "turnover_rate": rate.map(|r| r.to_string()),
+                })
+            })
+            .collect();
+        Self::ensure_rows_match_declared_columns(template, &rows)?;
+
+        Ok(Self::build_report_data(template, req, rows))
+    }
+
+    /// 按期间读取库存流水
+    ///
+    /// 功能 取日期范围内的全部库存流水（含变动前后存量），行序按流水 id 升序，
+    /// 保证逐批次折叠时首笔即期初、末笔即期末。
+    /// 调用方 仅本文件的 query_inventory_turnover_report。
+    /// 入参 db 与可选日期范围。
+    /// 传给谁 流水交给周转率腿折算；边界非法按校验族点名拒绝。
+    /// 存什么 不存数据。
+    /// 存哪里 不落库。
+    async fn fetch_inventory_transactions(
+        db: &DatabaseConnection,
+        date_range: Option<&super::DateRange>,
+    ) -> Result<Vec<crate::models::inventory_transaction::Model>, AppError> {
+        let mut select = crate::models::inventory_transaction::Entity::find();
+        if let Some(range) = date_range {
+            select = select.filter(
+                crate::models::inventory_transaction::Column::CreatedAt.gte(
+                    range
+                        .start
+                        .and_hms_opt(0, 0, 0)
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
+                        .and_utc(),
+                ),
+            );
+            select = select.filter(
+                crate::models::inventory_transaction::Column::CreatedAt.lte(
+                    range
+                        .end
+                        .and_hms_opt(23, 59, 59)
+                        .ok_or_else(|| AppError::validation_displayable("报表日期范围结束值非法"))?
+                        .and_utc(),
+                ),
+            );
+        }
+        Ok(select
+            .order_by_asc(crate::models::inventory_transaction::Column::Id)
+            .all(db)
+            .await?)
+    }
+
+    /// 按 id 集合批量取仓库名称
+    ///
+    /// 功能 一次 in-list 查询取回仓库维表映射，杜绝逐行查库的 N+1。
+    /// 调用方 库存族装配腿的仓库列取数。
+    /// 入参 db 与仓库 id 集合。
+    /// 传给谁 映射交给装配闭包拼行；空集合不触库。
+    /// 存什么 id 到仓库名。
+    /// 存哪里 不落库。
+    async fn load_warehouse_name_map(
+        db: &DatabaseConnection,
+        ids: &HashSet<i32>,
+    ) -> Result<HashMap<i32, String>, AppError> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let id_list: Vec<i32> = ids.iter().copied().collect();
+        let rows = crate::models::warehouse::Entity::find()
+            .filter(crate::models::warehouse::Column::Id.is_in(id_list))
+            .all(db)
+            .await?;
+        Ok(rows.into_iter().map(|w| (w.id, w.name)).collect())
     }
 
     /// 查询采购报表（P2-2 修复（v12 复审）：原实现返回空数据桩代码，；现真实查询 purchase_order_item 明细，按日期范围过滤，返回订单明细行。）
