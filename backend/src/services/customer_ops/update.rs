@@ -306,4 +306,51 @@ impl CustomerService {
             .await;
         Ok(updated)
     }
+
+    /// 更新客户分层（tier 受控写腿，全仓唯一的服务内分层写口）。
+    ///
+    /// 功能：把 `customers.tier` 单列改为词表内合法档位，事务 + lock_exclusive + 审计，
+    /// 与 `update_customer` 同范式；不改其余列，整行更新面不向本腿开放。
+    /// 调用方：`handlers/customer_handler.rs::update_customer_tier`（PUT /customers/{id}/tier）。
+    /// 入参：`customer_id` 客户行 ID；`tier` 档位 token；`user_id` 操作人（写入审计 actor）。
+    /// 值域门：唯一词表 `constants::customer_tier::ALLOWED` 逐字符精确匹配，词表外值拒绝
+    /// 且零写入；错误走可展示业务族（HTTP 400），文案只说该怎么做，不含表名列名与内部细节。
+    /// NULL（未定档）不是本腿的写入目标——撤销档位属数据取舍，未授权前不开放清空面。
+    /// 传给谁：更新行与审计事件同事务落库，提交后走 `publish_customer_updated_side_effects`
+    /// （缓存失效 + 事件 + ES 同步），与整行更新腿同源收尾，不另造第二套副作用序列。
+    /// 存什么 / 存哪里：客户行落 `customers.tier`；审计落 `audit_logs`（action=UPDATE、
+    /// resource_type=customer、before/after 快照含新旧档位），供合规追溯"谁定的档"。
+    pub async fn update_customer_tier(
+        &self,
+        customer_id: i32,
+        tier: &str,
+        user_id: i32,
+    ) -> Result<customer::Model, AppError> {
+        if !crate::constants::customer_tier::ALLOWED.contains(&tier) {
+            // 值域门：词表外档位，前置输入未满足，归可展示业务族；文案只列可选档位
+            return Err(AppError::business_displayable(
+                "客户分层更新失败：请从 VIP、GOLD、SILVER、NORMAL 中选择一档",
+            ));
+        }
+        let txn = (*self.db).begin().await?;
+        let customer = CustomerEntity::find_by_id(customer_id)
+            .lock_exclusive()
+            .one(&txn)
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("客户 {} 未找到", customer_id)))?;
+        let mut tier_update: customer::ActiveModel = customer.into();
+        tier_update.tier = Set(Some(tier.to_string()));
+        tier_update.updated_at = Set(Utc::now());
+        let updated = crate::services::audit_log_service::AuditLogService::update_with_audit(
+            &txn,
+            "customer",
+            tier_update,
+            Some(user_id),
+        )
+        .await?;
+        txn.commit().await?;
+        self.publish_customer_updated_side_effects(&updated, customer_id, user_id)
+            .await;
+        Ok(updated)
+    }
 }

@@ -85,11 +85,26 @@
 //!   同事务改造的 DB 先决约束；存量重复 fail-visible 中止不洗数据，down 显式 DROP INDEX；
 //!   四表均由 v15 域建表，置于链尾为新的顶层条目（链尾执行时表必然已存在，无跨域尾调问题；
 //!   并入已应用域会被台账整体跳过，复用库永不生效），复用库上也必然执行
+
 //! - sales_contract_source_order: 销售合同与合同明细补 source_order_id 与
 //!   source_order_item_id 两条溯源列（外键随源单删除置空），明细行另补折扣率与折扣额与税率
 //!   与税额四列和行级色号列，两表各补一条检索索引；新增列一律可空且不带默认，历史合同保持
 //!   空值即「非订单转来」的判据，域内绝不 UPDATE 或 DELETE 业务数据。置于链尾为新的顶层
 //!   条目，台账名取域名 m_sales_contract_source_order
+//! - contract_clause_snapshot_provenance: 合同条款快照来源指针独立域。给 contract_clauses 追加
+//!   一列可空无默认的 template_clause_id INTEGER，记录固化当时引用的模板条款项行主键，
+//!   供详情腿单义回查必填标记。为什么另立独立域 该列本可塞进 contract_template_schema 域尾，
+//!   但后者已在复用测试库上入账，域内新增子迁移在复用库上永不重放，只有让本域名处于 pending
+//!   才能被 migrate run 拾起。up 与 down 互逆（加一列撤一列），绝不 UPDATE、不回填、不建外键、
+//!   不建索引，历史快照行留空即「无溯源指针」，读侧对空指针走 (模板, 条款码) 唯一行回落，
+//!   多义如实给空值不伪造。台账名取域名 m_contract_clause_snapshot_provenance，
+//!   挂在链尾 contract_template_schema 之后
+//! - print_template_default_slot: 打印模板默认位库侧唯一门域。给 print_templates 按单据
+//!   类型 doc_type 建"启用且默认至多一行"的部分唯一索引 uq_print_template_active_default，
+//!   谓词三条件与出件解析过滤逐字符同源；存量违例只读探测 fail-visible 中止，不 UPDATE
+//!   不 DELETE 洗数据；并更正 is_default 列注释，如实描述互斥域是 doc_type 而非 module。
+//!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的 print_subsystem 域
+//!   会被台账整体跳过，索引与注释更正永不落地。台账名取域名 m_print_template_default_slot
 
 pub mod system;
 pub mod business;
@@ -135,3 +150,6 @@ pub mod product_spec_extension_columns;
 pub mod product_vocab_check;
 // 产品每卷米数列探测式下线域，晚于代码面下线（先改代码摘除读写，再收列形态）。
 pub mod product_roll_column_drop;
+// 合同条款快照来源指针域。独立顶层域，理由见域头（域内新增子迁移在复用库永不重放）。
+pub mod contract_clause_snapshot_provenance;
+pub mod print_template_default_slot;

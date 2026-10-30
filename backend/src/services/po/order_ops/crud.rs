@@ -641,10 +641,11 @@ impl PurchaseOrderService {
         if order.order_status != status::purchase_order::DRAFT
             && order.order_status != status::purchase_order::REJECTED
         {
-            return Err(AppError::business(format!(
-                "订单状态不允许修改，当前状态：{}",
-                order.order_status
-            )));
+            // 状态门：仅草稿/已驳回可修改，前置状态未满足，归业务族；
+            // 文案点名公开规则与出路，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿或已驳回状态的采购订单可以修改",
+            ));
         }
         if order.created_by != user_id {
             return Err(AppError::permission_denied(
@@ -707,10 +708,11 @@ impl PurchaseOrderService {
 
         // 2. 检查状态
         if order.order_status != status::purchase_order::DRAFT {
-            return Err(AppError::business(format!(
-                "订单状态不允许删除，当前状态：{}",
-                order.order_status
-            )));
+            // 删除腿状态门：仅草稿可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的采购订单可以删除",
+            ));
         }
 
         // 3. 检查权限

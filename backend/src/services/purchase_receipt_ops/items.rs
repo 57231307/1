@@ -194,10 +194,11 @@ impl PurchaseReceiptService {
                         AppError::not_found(format!("采购订单明细 {}", order_item_id))
                     })?;
                 if linked.product_id != material_id {
-                    return Err(AppError::business(format!(
-                        "该明细已挂在采购订单明细 {}（产品 {}）上，不能改选其他产品；如需换货请删除本行后重新添加",
-                        order_item_id, linked.product_id
-                    )));
+                    // 字段非法族：已挂订单明细的行改选其他产品被拒，归业务族；
+                    // 文案点名规则与出路，去掉内嵌的订单明细 ID 与产品 ID（只进 tracing），可外显
+                    return Err(AppError::business_displayable(
+                        "该明细已关联采购订单行，不能改选其他产品；如需换货请删除本行后重新添加",
+                    ));
                 }
             }
             item_active.product_id = Set(material_id);
@@ -296,10 +297,11 @@ impl PurchaseReceiptService {
 
         // 3. 检查状态
         if receipt.receipt_status != status::purchase_receipt::DRAFT {
-            return Err(AppError::business(format!(
-                "入库单状态不允许删除明细，当前状态：{}",
-                receipt.receipt_status
-            )));
+            // 删除腿状态门：仅草稿可删除明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不回显词表原值与任何标识，可外显
+            return Err(AppError::business_displayable(
+                "仅草稿状态的入库单可以删除明细",
+            ));
         }
 
         // 4. 检查权限（P2 3-19 修复：admin 可绕过 owner 检查）

@@ -3,10 +3,10 @@
  *
  * 真相源是后端可授予动作全集 `assignable_actions()`
  * （backend/src/middleware/permission.rs：方法派生动作 ∪ 路径末段动作关键字 ∪
- * `?action=` 查询白名单，去重后按首次出现顺序），权限目录端点 GET /permissions 的
- * 动作侧即由它派生。本表只做 token → 展示文案键的映射，不新增取值；token 集合与
- * 后端动作词表逐字一致，后端增删动作时本表与语言包必须同步，否则消费页会原样显示
- * token 并留 warn（不猜含义、不伪造文案）。
+ * 末段映射表的合规动作码 ∪ `?action=` 查询白名单，去重后按首次出现顺序），
+ * 权限目录端点 GET /permissions 的动作侧即由它派生。本表只做 token → 展示文案键的
+ * 映射，不新增取值；token 集合与后端动作词表逐字一致，后端增删动作时本表与语言包
+ * 必须同步，否则消费页会原样显示 token 并留 warn（不猜含义、不伪造文案）。
  *
  * labelKey 写完整 i18n 路径：check-i18n 把 labelKey 字面量当引用校验存在性，
  * 半截路径会落在动态拼接不判定里、拼错就直接把原始键显示到界面。
@@ -36,6 +36,8 @@ export const PERMISSION_ACTION_OPTIONS: PermissionActionOption[] = [
   { value: 'reveal', labelKey: 'system.permission.action.reveal' },
   { value: 'concession', labelKey: 'system.permission.action.concession' },
   { value: 'rejudge', labelKey: 'system.permission.action.rejudge' },
+  { value: 'managerapprove', labelKey: 'system.permission.action.managerapprove' },
+  { value: 'directorapprove', labelKey: 'system.permission.action.directorapprove' },
   { value: 'download', labelKey: 'system.permission.action.download' },
 ];
 

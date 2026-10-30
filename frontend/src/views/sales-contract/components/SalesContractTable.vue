@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { h } from 'vue';
+import { computed, h } from 'vue';
 import { PERMISSIONS } from '@/constants/permissions';
 import { useI18n } from 'vue-i18n';
 import { ElButton, ElTag } from 'element-plus';
@@ -129,12 +129,15 @@ const buildActionButtons = (row: SalesContract): ReturnType<typeof h>[] => {
 };
 
 /**
- * 列定义
+ * 列定义（computed 响应式：语言切换只改 i18n locale、不重挂载组件，
+ * 非 computed 写法会让列标题冻在求值时的语言上；本仓多数派参照
+ * views/logistics/components/LogisticsTable.vue::columns 与
+ * views/production/components/ProductionTable.vue::columns 的同形写法）
  * - 合同金额：formatCurrency 格式化为人民币
  * - 状态：el-tag 渲染（类型由 getStatusType 映射）
  * - 操作列：按 status 条件渲染不同按钮组（编辑/删除受权限控制）
  */
-const columns: ColumnDef<SalesContract>[] = [
+const columns = computed<ColumnDef<SalesContract>[]>(() => [
   { key: 'contract_no', title: t('salesContract.table.columnContractNo'), width: 150 },
   { key: 'contract_name', title: t('salesContract.table.columnContractName'), minWidth: 200 },
   { key: 'customer_name', title: t('salesContract.table.columnCustomer'), width: 150 },
@@ -182,7 +185,7 @@ const columns: ColumnDef<SalesContract>[] = [
     align: 'center',
     renderCell: row => h('div', { class: 'action-cell' }, buildActionButtons(row)),
   },
-];
+]);
 </script>
 
 <style scoped>

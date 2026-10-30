@@ -334,7 +334,7 @@
 <script setup lang="ts">
 import { isDialogDismissal } from '@/utils/monitor';
 import { PERMISSIONS } from '@/constants/permissions';
-import { ref, reactive } from 'vue';
+import { ref, reactive, h } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage, ElMessageBox, type TabsPaneContext } from 'element-plus';
 import { Plus, Promotion } from '@element-plus/icons-vue';
@@ -581,16 +581,24 @@ const handleViewTemplate = async (row: EmailTemplate) => {
     const res = await getEmailTemplateById(row.id!);
     const detail = res.data;
     if (!detail) return;
+    // 模板四字段均为其他录入者手输的正文内容，消息走 VNode 通道、值以文本节点渲染，
+    // 不得回退为「HTML 字符串 + dangerouslyUseHTMLString」拼接口径（结构型注入面）。
     ElMessageBox.alert(
-      [
-        `<p><strong>${t('email.index.colTemplateName')}:</strong> ${detail.name}</p>`,
-        `<p><strong>${t('email.index.colTemplateCode')}:</strong> ${detail.code}</p>`,
-        `<p><strong>${t('email.index.labelSubject')}:</strong> ${detail.subject_template}</p>`,
-        `<p><strong>${t('email.index.labelBody')}:</strong></p>`,
-        `<pre style="white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto;">${detail.body_template}</pre>`,
-      ].join(''),
-      t('email.index.titleViewTemplate'),
-      { dangerouslyUseHTMLString: true }
+      h('div', [
+        h('p', [h('strong', `${t('email.index.colTemplateName')}: `), detail.name]),
+        h('p', [h('strong', `${t('email.index.colTemplateCode')}: `), detail.code]),
+        h('p', [h('strong', `${t('email.index.labelSubject')}: `), detail.subject_template]),
+        h('p', [h('strong', `${t('email.index.labelBody')}:`)]),
+        h(
+          'pre',
+          {
+            style:
+              'white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto;',
+          },
+          detail.body_template
+        ),
+      ]),
+      t('email.index.titleViewTemplate')
     );
   } catch (error) {
     logger.error(t('email.index.messageFetchTemplateFailed'), error);

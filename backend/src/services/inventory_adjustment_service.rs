@@ -635,7 +635,9 @@ impl InventoryAdjustmentService {
             .ok_or_else(|| AppError::not_found(format!("调整单 {} 不存在", adjustment_id)))?;
 
         if adjustment_model.status != adjustment_status::PENDING {
-            return Err(AppError::business(
+            // 删除腿状态门：仅待审核可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable(
                 "只有待审核状态的调整单可以删除".to_string(),
             ));
         }
@@ -822,7 +824,9 @@ impl InventoryAdjustmentService {
             })?;
 
         if adjustment_model.status != adjustment_status::PENDING {
-            return Err(AppError::business(
+            // 删除腿状态门：仅待审核可删除明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable(
                 "只有待审核状态的调整单可以删除明细".to_string(),
             ));
         }

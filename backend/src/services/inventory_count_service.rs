@@ -365,7 +365,9 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", count_id)))?;
         if count_model.status != count_status::PENDING {
-            return Err(AppError::business(
+            // 删除腿状态门：仅待盘点可删除，前置状态未满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable(
                 "只有待盘点状态的盘点单可以删除".to_string(),
             ));
         }
@@ -718,7 +720,9 @@ impl InventoryCountService {
             .await?
             .ok_or_else(|| AppError::not_found(format!("盘点单 {} 不存在", item.count_id)))?;
         if count_model.status != count_status::PENDING {
-            return Err(AppError::business(
+            // 删除腿状态门：仅待盘点可删除盘点明细，前置状态未满足，归业务族；
+            // 文案点名公开规则，不含标识，可外显
+            return Err(AppError::business_displayable(
                 "只有待盘点状态的盘点单可以删除盘点明细".to_string(),
             ));
         }

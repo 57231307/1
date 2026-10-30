@@ -1,15 +1,27 @@
 import { request } from './request';
 import type { ApiResponse } from '@/types/api';
 
+/**
+ * 销售分析概览卡出参，对齐后端 models/dto/sales_analysis_dto.rs::SalesOverviewStats。
+ * 键名与线格式一律按后端实际序列化结果写（serde 未开 rename_all，出参是蛇形键；
+ * Decimal 字段出参是字符串），消费方用 Object.assign 原样并入 reactive，
+ * 键名对不上就会静默停在初值上，等于把假数据当统计值显示。
+ * 两态口径（null 与真 0 必须区分，不得折叠）：
+ * month_orders/month_amount/active_customers 恒在，本月无成交是真 0；
+ * gross_profit_rate 为 Decimal 可空（rust_decimal 无 serde-float ⇒ 有值时是字符串、
+ * 无除法口径时是 null），本月成交额为 0 时 null，不等于零毛利；
+ * 四枚 trend 为可空数值（后端 Option<f64>），上月桶缺失或为 0 时 null，
+ * 表达"不可比"，不等于持平 0%，禁止 `?? 0` 折成数字。
+ */
 export interface SalesStats {
-  monthOrders: number;
-  monthAmount: number;
-  grossProfitRate: number;
-  activeCustomers: number;
-  orderTrend: number;
-  amountTrend: number;
-  profitTrend: number;
-  customerTrend: number;
+  month_orders: number;
+  month_amount: string;
+  gross_profit_rate: string | null;
+  active_customers: number;
+  order_trend: number | null;
+  amount_trend: number | null;
+  profit_trend: number | null;
+  customer_trend: number | null;
 }
 
 /**
@@ -35,14 +47,23 @@ export interface CustomerRanking {
 }
 
 /**
- * 销售目标行 —— 对齐 SalesTargetDto；四个金额/比率列均为 rust_decimal 出参字符串。
+ * 销售目标行 —— 对齐后端销售分析域 SalesTargetDto（唯一构造点 to_target_dto，
+ * GET 列表与 PUT 出参共用）。金额线格式为 rust_decimal 序列化字符串（定点两位，
+ * 如 "1250.00"），前端按字符串消费，禁止再舍入，禁止反算成数值后相加。
+ * null 与真 0 两态必须区分，不得合并渲染：
+ * actual_amount，null 表示该周期无法对齐聚合桶口径、实际额无法判定，"0.00" 才是真零；
+ * completion_rate，null 含"未设目标"与"无法判定"两态，未设目标须结合 target_amount
+ * 非正判定，本列不以 0 表达任何缺口语义；
+ * variance，仅当 actual_amount 为 null 时为 null，未设目标行仍出数（语义为溢出额）；
+ * target_amount 与 status 恒在。数值比较与着色分支前必须显式判 null，
+ * 禁止依赖 JS 对 null 的隐式转换（null 参与比较与乘法会得出假结论）。
  */
 export interface SalesTarget {
   period: string;
   target_amount: string;
-  actual_amount: string;
-  completion_rate: string;
-  variance: string;
+  actual_amount: string | null;
+  completion_rate: string | null;
+  variance: string | null;
   status: string;
 }
 
