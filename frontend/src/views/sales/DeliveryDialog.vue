@@ -124,7 +124,7 @@
           />
           <el-table-column :label="t('sales.delivery.currentDelivery')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 :model-value="row.deliver_quantity"
                 :min="0"
                 :max="row.quantity - (row.delivered_quantity || 0)"
@@ -164,6 +164,7 @@ import { ElMessage } from 'element-plus';
 import type { InventoryStock } from '@/api/inventory';
 import type { InventoryPieceRow } from '@/api/inventory-transfer';
 import { stockRowKey, deliveryPiecesKey, type DeliveryItemForm } from './composables/useOlv';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

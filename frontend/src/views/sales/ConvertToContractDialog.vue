@@ -4,7 +4,7 @@
   打开即按 orderId 拉取 preview 带出客户、结算口径、交期与明细行，用户可改后提交；
   提交调用转换端点，服务端回读来源订单行折扣率/税率并经 so/amounts 重算金额，
   前端只送可编辑白名单字段（数量、单价、色号、允差、备注、交期、表头口径字段）。
-  数值录入项一律用 el-input + 提交前校验（全项目禁 el-input-number 红线），
+  数值录入项一律用 el-input 加提交前校验（全项目禁带加减按钮的数字输入框这条红线），
   范围与精度靠校验器，不靠步进按钮。
 -->
 <template>
@@ -257,7 +257,7 @@ interface ItemForm {
   width: string | null;
   gram_weight: string | null;
   unit: string;
-  // 数值录入项用字符串承载、提交前解析校验（禁 el-input-number）
+  // 数值录入项用字符串承载、提交前解析校验（禁带加减按钮的数字输入框）
   quantity: string;
   unit_price: string;
   color_no: string;

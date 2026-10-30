@@ -2,7 +2,7 @@
  * 坯布页数值录入校验器。
  *
  * 功能：给坯布建档、编辑与出入库表单的数值项做格式与范围校验，取代带加减按钮的步进输入框
- * （全项目禁 el-input-number 与自造步进按钮，范围与精度靠校验器表达，不靠按钮步进）。
+ * （全项目禁带加减按钮的数字输入框与自造步进按钮，范围与精度靠校验器表达，不靠按钮步进）。
  * 调用方：components/GreigeFormDialog.vue 的库存与规格字段，components/GreigeStockDialog.vue
  * 的出入库数量字段。
  * 入参：Element Plus 表单校验回调形式的 value，以及文案 key 所需的字段名。

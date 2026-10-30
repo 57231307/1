@@ -78,7 +78,7 @@
               >
                 <el-option v-for="p in products" :key="p.value" :label="p.label" :value="p.value" />
               </el-select>
-              <el-input-number
+              <NumericInput
                 :model-value="item.quantity"
                 class="col-qty"
                 @update:model-value="
@@ -93,7 +93,7 @@
                 DB 可空列（models/purchase_receipt_item 的 quantity_alt: Option<Decimal>）——留空=未采集
                 （undefined，不得 ?? 0 伪装成实测量）；更新契约行留空按三态处理（usePrcProc）。
               -->
-              <el-input-number
+              <NumericInput
                 :model-value="item.quantity_alt"
                 class="col-qty"
                 :placeholder="t('purchaseReceipt.form.placeholder.quantityAlt')"
@@ -105,7 +105,7 @@
               />
               <!-- 主单位取自产品档案，不可手工录入（后端 unit_master 为必填契约字段） -->
               <span class="col-unit">{{ item.unit_master || '-' }}</span>
-              <el-input-number
+              <NumericInput
                 :model-value="item.unit_price"
                 :precision="2"
                 class="col-price"
@@ -116,7 +116,7 @@
                   }
                 "
               />
-              <el-input-number
+              <NumericInput
                 :model-value="item.amount"
                 :precision="2"
                 class="col-amount"
@@ -201,6 +201,7 @@ import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReceiptItem } from '@/api/purchase-receipt';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 
