@@ -1119,7 +1119,9 @@ impl ReportEngineService {
                         date_range
                             .start
                             .and_hms_opt(0, 0, 0)
-                            .ok_or_else(|| AppError::validation_displayable("报表日期范围起始值非法"))?
+                            .ok_or_else(|| {
+                                AppError::validation_displayable("报表日期范围起始值非法")
+                            })?
                             .and_utc(),
                     ),
             );
@@ -1292,13 +1294,16 @@ impl ReportEngineService {
             entry.0 += open;
             entry.1 += close;
         }
-        // 只有出库没有存量与流水批次的产品（理论不该发生，如实入表）：期初期末都记零
-        for pid in product_ids
+        // 只有出库没有存量与流水批次的产品（理论不该发生，如实入表）：期初期末都记零。
+        // 先收齐待补键再写，边遍历 product_ids 对 per_product 的只读判定边插入会撞借用冲突。
+        let only_outbound: Vec<i32> = product_ids
             .iter()
             .filter(|pid| !per_product.contains_key(pid))
-        {
+            .copied()
+            .collect();
+        for pid in only_outbound {
             per_product.insert(
-                *pid,
+                pid,
                 (rust_decimal::Decimal::ZERO, rust_decimal::Decimal::ZERO),
             );
         }
