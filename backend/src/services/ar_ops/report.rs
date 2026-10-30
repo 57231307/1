@@ -10,7 +10,7 @@
 //! - 报表基于 ar_invoices + ar_collection 聚合查询
 //! - 统计/账龄报表使用 SQL 层聚合（v14 P0-2 修复，避免全表加载到内存）
 //! - 规则 12 合规：全部参数使用参数化绑定，禁止字符串拼接
-//! - 账龄分桶：0-30 / 31-60 / 61-90 / 90+，按 due_date 与 CURRENT_DATE 计算
+//! - 账龄分桶：0-30 / 31-60 / 61-90 / 90+，按 due_date 与基准日 $1 计算
 //! - 统计口径：DRAFT 与 CANCELLED 一律不计入（AR 发票创建即写入 DRAFT，草稿不是
 //!   既成应收），与 BI 聚合、仪表盘排除门同口径；状态取值唯一来源
 //!   `crate::models::status::common::{STATUS_DRAFT, STATUS_CANCELLED}`，SQL 中一律
@@ -382,10 +382,10 @@ impl ArService {
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
-                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND ($1 - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
                 WHERE status NOT IN ($2, $3)
@@ -405,10 +405,10 @@ impl ArService {
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
-                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND ($1 - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
                 WHERE status NOT IN ($2, $3)
@@ -426,10 +426,10 @@ impl ArService {
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
-                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND ($1 - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
                 WHERE status NOT IN ($2, $3)
@@ -447,10 +447,10 @@ impl ArService {
                 r#"
                 SELECT
                     COALESCE(SUM(CASE WHEN due_date >= $1 THEN unpaid_amount ELSE 0 END), 0) AS not_due,
-                    COALESCE(SUM(CASE WHEN due_date < $1 AND (CURRENT_DATE - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
-                    COALESCE(SUM(CASE WHEN (CURRENT_DATE - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
+                    COALESCE(SUM(CASE WHEN due_date < $1 AND ($1 - due_date) <= 30 THEN unpaid_amount ELSE 0 END), 0) AS bucket_0_30,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 31 AND 60 THEN unpaid_amount ELSE 0 END), 0) AS bucket_31_60,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) BETWEEN 61 AND 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_61_90,
+                    COALESCE(SUM(CASE WHEN ($1 - due_date) > 90 THEN unpaid_amount ELSE 0 END), 0) AS bucket_90_plus,
                     COUNT(*) AS invoice_count
                 FROM ar_invoices
                 WHERE status NOT IN ($2, $3)
