@@ -1242,8 +1242,9 @@ impl ReportEngineService {
         let transactions =
             Self::fetch_inventory_transactions(&self.db, req.date_range.as_ref()).await?;
 
-        // 每批次（产品+仓库）：期末存量取最近一笔流水的变动后存量；无流水批次取现存量表。
-        let mut batch_close: HashMap<(i32, i32), rust_decimal::Decimal> = HashMap::new();
+        // 每批次（产品+仓库）：期末存量取最近一笔流水的变动后存量；流水未记变动后存量
+        // （该列为 NULL）与无流水的批次都退到现存量快照，故本表按可空承载，不在取数点补零。
+        let mut batch_close: HashMap<(i32, i32), Option<rust_decimal::Decimal>> = HashMap::new();
         let mut batch_open: HashMap<(i32, i32), Option<rust_decimal::Decimal>> = HashMap::new();
         let mut outbound: HashMap<i32, rust_decimal::Decimal> = HashMap::new();
         for txn in &transactions {
@@ -1278,12 +1279,12 @@ impl ReportEngineService {
         let mut per_product: BTreeMap<i32, (rust_decimal::Decimal, rust_decimal::Decimal)> =
             BTreeMap::new();
         for key in &batch_keys {
-            let close = batch_close.get(key).copied().unwrap_or_else(|| {
-                stock_by_batch
-                    .get(key)
-                    .copied()
-                    .unwrap_or(rust_decimal::Decimal::ZERO)
-            });
+            let close = batch_close
+                .get(key)
+                .copied()
+                .flatten()
+                .or_else(|| stock_by_batch.get(key).copied())
+                .unwrap_or(rust_decimal::Decimal::ZERO);
             let open = batch_open.get(key).copied().flatten().unwrap_or(close);
             let entry = per_product
                 .entry(key.0)
@@ -1539,7 +1540,7 @@ impl ReportEngineService {
             .map(|(cid, buckets)| {
                 let total = buckets
                     .iter()
-                    .fold(rust_decimal::Decimal::ZERO, |acc, b| *acc + *b);
+                    .fold(rust_decimal::Decimal::ZERO, |acc, b| acc + *b);
                 (cid, buckets, total)
             })
             .collect();
