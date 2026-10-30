@@ -137,7 +137,7 @@ test.describe('15 供应商评估排名链路契约', () => {
     expect(Number(created.score), '落库 score 应等于提交 88.5').toBe(88.5);
     expect(Number(created.max_score), '落库 max_score 应取指标行 100').toBe(100);
     // weighted_score 的线格式契约：服务侧按 score*weight/max_score 得 0.885 不取整，落库列是
-    // DECIMAL(10,2)（v15 域建表口径）由数据库半进位存 0.89，rust_decimal 出参为 JSON 字符串。
+    // DECIMAL(10,2)（供应商评估域建表口径）由数据库半进位存 0.89，rust_decimal 出参为 JSON 字符串。
     // 断言只认这条序列化事实，绝不在测试里再实现一遍舍入（换个入参就会与库侧不同向造偶发红）。
     expect(
       String(created.weighted_score),
