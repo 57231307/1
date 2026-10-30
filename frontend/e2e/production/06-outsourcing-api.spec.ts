@@ -129,6 +129,81 @@ async function listItems(page: import('@playwright/test').Page, orderId: number)
   return res.data;
 }
 
+/**
+ * 造一枚可用的胚布生产匹，返回匹号与入仓库。
+ *
+ * 发料门控（piece_domain_service::validate_pieces_for_issue）要求明细逐条引用
+ * 真实存在且状态可用的生产匹，空明细或缺匹号都拒绝，故走到 issued 必须先有匹。
+ * 链路与真实写入方一致：生产订单→流转卡→排产→备布→工序报工（匹记在报工收尾）。
+ */
+async function seedAvailableGreigePiece(
+  page: import('@playwright/test').Page,
+  tag: string
+): Promise<{ pieceNo: string; warehouseId: number }> {
+  const ctx = getCtx();
+  const productId = ctx.productIds[0];
+  if (!productId) throw new Error(`[${tag}] 前置：夹具需产出 productIds`);
+
+  const whRes = await apiCallRaw<{ items?: Array<{ id?: number; warehouse_type?: string }> }>(
+    page,
+    'GET',
+    '/warehouses?page=1&page_size=200'
+  );
+  const whRows = Array.isArray(whRes.items) ? whRes.items : [];
+  // 胚布匹入仓不得为成品仓（validate_warehouse_for_piece_type），优先取胚布仓
+  const warehouse =
+    whRows.find(w => w.warehouse_type === 'greige') ?? whRows.find(w => w.warehouse_type !== 'finished');
+  const warehouseId = Number(warehouse?.id ?? 0);
+  if (!warehouseId) throw new Error(`[${tag}] 无可用非成品仓，生产匹无法入仓，链断`);
+
+  const planned = 100;
+  const po = await apiCall<{ id?: number }>(page, 'POST', '/production/production-orders/orders', {
+    order_no: `E2E-PO-${tag}`,
+    product_id: productId,
+    planned_quantity: planned,
+  });
+  const poId = po.data?.id;
+  if (!poId) throw new Error(`[${tag}] 生产订单创建未返回 id：${JSON.stringify(po).slice(0, 200)}`);
+
+  const card = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards', {
+    production_order_id: poId,
+    product_id: productId,
+    product_name: `E2E委外胚布${tag}`,
+    planned_fabric_weight: planned,
+  });
+  const cardId = card.data?.id;
+  if (!cardId) throw new Error(`[${tag}] 流转卡创建未返回 id：${JSON.stringify(card).slice(0, 200)}`);
+
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/schedule`, {});
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/start-preparing`);
+  await apiCall(page, 'POST', `/production/flow-cards/${cardId}/complete-preparing`, {
+    actual_fabric_weight: planned,
+  });
+
+  const step = await apiCall<{ id?: number }>(page, 'POST', '/production/flow-cards/steps/start', {
+    flow_card_id: cardId,
+  });
+  const stepId = step.data?.id;
+  if (!stepId) throw new Error(`[${tag}] 工序启动未返回 id：${JSON.stringify(step).slice(0, 200)}`);
+
+  const pieceNo = `GR-${tag}-001`;
+  await apiCall(page, 'POST', `/production/flow-cards/steps/${stepId}/complete`, {
+    actual_quantity: planned,
+    qualified_quantity: planned,
+    pieces: [
+      {
+        piece_no: pieceNo,
+        machine_no: 'M-E2E-ISSUE',
+        machine_operator: 'E2E报工人',
+        length: planned,
+        weight: planned / 2,
+        warehouse_id: warehouseId,
+      },
+    ],
+  });
+  return { pieceNo, warehouseId };
+}
+
 test.describe('06 委外加工单 API 契约', () => {
   test.beforeEach(async ({ page, context }) => {
     await applyAuthMocks(context);
@@ -211,6 +286,14 @@ test.describe('06 委外加工单 API 契约', () => {
   test('06-04 issued 订单可标记加工中并回读终值', async ({ page }) => {
     const stamp = Date.now();
     const order = await createDraftOrder(page, `PROC-${stamp}`);
+    // 发料前置：后端按匹校验，空明细与缺匹号都会被拒，先造一枚真实可用的胚布生产匹并挂进明细
+    const piece = await seedAvailableGreigePiece(page, `PROC${stamp}`);
+    await createItem(page, order.id, {
+      quantity: 100,
+      piece_no: piece.pieceNo,
+      dye_lot_no: `LOT-${stamp}`,
+      warehouse_id: piece.warehouseId,
+    });
 
     // draft → issued（POST /issue 为已覆盖前置端点，此处仅用作 processing 的合法前置）
     const issued = await apiCallRaw<OutsourcingOrder>(
