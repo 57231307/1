@@ -150,7 +150,7 @@ impl QuotationService {
         let mut net_sum = Decimal::ZERO;
         let mut tax_sum = Decimal::ZERO;
         let mut gross_sum = Decimal::ZERO;
-        for item in &dto.items {
+        for (idx, item) in dto.items.iter().enumerate() {
             let line = compute_quotation_line(
                 item.quantity,
                 item.unit_price,
@@ -159,7 +159,13 @@ impl QuotationService {
                 dto.tax_inclusive,
                 Some(dto.tax_rate),
             )
-            .map_err(|e| ServiceError::Validation(e.to_string()))?;
+            .map_err(|e| {
+                ServiceError::Validation(format!(
+                    "报价明细第 {} 条（产品 {}）{e}",
+                    idx + 1,
+                    item.product_id
+                ))
+            })?;
             net_sum += line.net_amount;
             tax_sum += line.tax_amount;
             gross_sum += line.gross_amount;

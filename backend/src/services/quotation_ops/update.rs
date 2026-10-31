@@ -212,7 +212,13 @@ impl QuotationService {
                 tax_inclusive,
                 Some(tax_rate),
             )
-            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
+            .map_err(|e| {
+                AppError::validation_displayable(format!(
+                    "报价明细第 {} 条（产品 {}）{e}",
+                    idx + 1,
+                    item_dto.product_id
+                ))
+            })?;
             models.push(ItemActive {
                 id: Default::default(),
                 quotation_id: Set(quotation_id),
@@ -303,7 +309,13 @@ impl QuotationService {
                 updated.tax_inclusive,
                 Some(updated.tax_rate),
             )
-            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
+            .map_err(|e| {
+                AppError::validation_displayable(format!(
+                    "报价明细第 {} 行（产品 {}）按当前含税口径换算被拒绝，{e}",
+                    item.sequence + 1,
+                    item.product_id
+                ))
+            })?;
 
             if line.unit_price != item.unit_price
                 || line.unit_price_with_tax != item.unit_price_with_tax
@@ -329,7 +341,11 @@ impl QuotationService {
             crate::services::quotation_ops::calc::compute_quotation_header(
                 net_sum, tax_sum, gross_sum,
             )
-            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
+            .map_err(|e| {
+                AppError::validation_displayable(format!(
+                    "报价单明细合计与表头价税三值不钩稽，净额合计 {net_sum} 税额合计 {tax_sum} 含税合计 {gross_sum}，{e}"
+                ))
+            })?;
 
         let mut re_active: QuotationActive = updated.clone().into();
         re_active.subtotal = Set(subtotal);

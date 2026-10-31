@@ -182,7 +182,13 @@ impl QuotationService {
                 tax_inclusive,
                 Some(tax_rate),
             )
-            .map_err(|e| AppError::validation(e.to_string()))?;
+            .map_err(|e| {
+                AppError::validation(format!(
+                    "报价明细第 {} 条（产品 {}）{e}",
+                    idx + 1,
+                    item_dto.product_id
+                ))
+            })?;
             item_active_models.push(ItemActive {
                 id: Default::default(),
                 quotation_id: Set(quotation_id),
