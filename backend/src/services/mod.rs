@@ -96,6 +96,10 @@ pub mod permission_compliance_service;
 pub mod so;
 pub mod user_service;
 pub mod piece_domain_service;
+// 扫码入库，布卷二维码定长切分（纯函数腿，无库访问）
+pub mod inbound_qr_code;
+// 扫码入库，解析定位查重与逐匹登记腿
+pub mod scan_inbound;
 pub mod warehouse_service;
 // V15 P1 batch-19：物流运单服务（运单关联采购订单/跟踪历史/运费核算）
 pub mod logistics_service;

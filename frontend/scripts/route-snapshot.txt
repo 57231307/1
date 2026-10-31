@@ -1,4 +1,4 @@
-# layers=8 endpoints=1821
+# layers=8 endpoints=1822
 DELETE	/api/v1/erp/aging-alert-rules/*	crate::handlers::aging_alert_rule_handler::delete_rule	finance
 DELETE	/api/v1/erp/aging-grades/*	crate::handlers::aging_grade_handler::delete_aging_grade	finance
 DELETE	/api/v1/erp/ai/process-optimizations/*	ai_extend_handler::delete_process_optimization	system
@@ -1599,6 +1599,7 @@ POST	/api/v1/erp/sales/sales-returns/*/execute	execute_sales_return	sales_return
 POST	/api/v1/erp/sales/sales-returns/*/items	create_return_item	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/reject	reject_sales_return	sales_return_handler
 POST	/api/v1/erp/sales/sales-returns/*/submit	submit_sales_return	sales_return_handler
+POST	/api/v1/erp/scanner/scan-receipt	barcode_scanner_handler::scan_receipt_post	analytics
 POST	/api/v1/erp/scanner/scan-to-ship	barcode_scanner_handler::scan_to_ship_post	analytics
 POST	/api/v1/erp/scanner/ship-by-piece	barcode_scanner_handler::ship_by_piece_no	analytics
 POST	/api/v1/erp/scheduling/auto-schedule	scheduling_handler::auto_schedule	mod
