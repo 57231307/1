@@ -21,6 +21,7 @@ use crate::models::status::print::print_template_status;
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::print_service::{PrintService, SUPPORTED_DOC_TYPES};
 use crate::utils::error::AppError;
+use crate::utils::html_escape::{escape_html, sanitize_css_block};
 use crate::utils::optional_json::OptionalJson;
 use crate::utils::response::ApiResponse;
 use axum::{
@@ -1682,16 +1683,23 @@ pub async fn preview_print_template(
         .0
         .and_then(|v| v.as_object().cloned())
         .unwrap_or_default();
+
+    // 层 1：文本上下文一律转义，防 template_name 与请求体变量值成注入载体
+    let safe_name = escape_html(&record.template_name);
+    let safe_css = sanitize_css_block(&record.css_styles);
+    // 层 3：CSP 禁脚本执行，仅放样式与内联图片，纵深兜住 content 与净化残留
     let mut html = format!(
-        "<html><head><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
-        record.template_name,
-        record.css_styles.replace('\n', " "),
-        record.template_name,
-        record.content
+        "<html><head><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src data:\"><title>{}</title><style>{}</style></head><body><h3>{}</h3><div>{}</div></body></html>",
+        safe_name, safe_css, safe_name, record.content
     );
     for (key, value) in &variables {
         let placeholder = format!("{{{{{}}}}}", key);
-        html = html.replace(&placeholder, &value.to_string());
+        // JSON 字符串按标量取原文再转义，避免 to_string() 把引号当业务文本塞进页面
+        let value_text = match value {
+            serde_json::Value::String(s) => s.clone(),
+            other => other.to_string(),
+        };
+        html = html.replace(&placeholder, &escape_html(&value_text));
     }
 
     Ok(axum::Json(ApiResponse::success(

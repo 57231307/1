@@ -293,6 +293,11 @@ export const PERMISSIONS = {
   // 销售订单（后端资源：orders——`/sales/orders` 的 sales 是模块前缀，消歧映射未登记
   // sales+orders 组合，资源段保留 URL 第四段原名 orders；sales-orders 不是后端派生名）
   SALES_ORDER_CREATE: 'orders:create',
+  SALES_ORDER_SUBMIT: 'orders:submit',
+  SALES_ORDER_CANCEL: 'orders:cancel',
+  SALES_ORDER_DELETE: 'orders:delete',
+  SALES_ORDER_APPROVE: 'orders:approve',
+  SALES_ORDER_REJECT: 'orders:reject',
 
   // 采购订单（后端资源：purchase-orders）
   PURCHASE_ORDER_READ: 'purchase-orders:read',
