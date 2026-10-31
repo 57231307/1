@@ -5,6 +5,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 /**
  * 测试套件：销售报价单创建
@@ -51,9 +52,12 @@ test.describe('01 创建报价单', () => {
     // 产品选择：QuotationItemEditor 内 el-select placeholder='选择产品'
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await pickSelect(page, itemsTable.locator('.el-select').first());
-    // 数量/单价（el-input-number → spinbutton 在明细行内）
-    await itemsTable.getByRole('spinbutton').first().fill('100');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    // 数量/单价 两列为纯手写录入的数字输入框（无步进加减按钮）按列头锚定该行录入框
+    const quoteRow03 = itemsTable.locator('.el-table__row').first();
+    const qtyInput03 = await cellInputByColumn(itemsTable, quoteRow03, '数量');
+    await qtyInput03.fill('100');
+    const priceInput03 = await cellInputByColumn(itemsTable, quoteRow03, '单价');
+    await priceInput03.fill('50');
     // 税率必录（落 sales_quotations.tax_rate NOT NULL，系统不设默认档位），13 是本例录入样本值
     await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 提交（quotations.create.saveDraft = '保存草稿'）
@@ -76,8 +80,11 @@ test.describe('01 创建报价单', () => {
     await page.getByRole('button', { name: '添加产品' }).click();
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await pickSelect(page, itemsTable.locator('.el-select').first());
-    await itemsTable.getByRole('spinbutton').first().fill('100');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('50');
+    const quoteRow05 = itemsTable.locator('.el-table__row').first();
+    const qtyInput05 = await cellInputByColumn(itemsTable, quoteRow05, '数量');
+    await qtyInput05.fill('100');
+    const priceInput05 = await cellInputByColumn(itemsTable, quoteRow05, '单价');
+    await priceInput05.fill('50');
     // 税率必录，同 01-03，否则表单校验先拦住保存草稿
     await page.getByPlaceholder('按百分数填写，如 13 表示 13%').fill('13');
     // 保存草稿 → 专属草稿落库，真实提示 quotations.create.draftSaved = '草稿保存成功'
