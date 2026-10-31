@@ -474,10 +474,28 @@ pub async fn resolve_sku(
     Query(params): Query<ResolveQuery>,
 ) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
     let service = SkuMappingService::new(state.db.clone());
-    let resolved = service
+    let resolved = match service
         .resolve_supplier_sku(params.product_id, params.color_id, params.supplier_id)
         .await?
-        .ok_or_else(|| AppError::business("该产品色号暂无供应商对照，请先维护对照表"))?;
+    {
+        Some(resolved) => resolved,
+        None => {
+            // 拒绝措辞分两路且必须可外显：`AppError::business` 的 message 在出参侧被脱敏，
+            // 操作员在界面上只看到"请求失败"，学不会下一步做什么。已建"不分色号的通用对照"
+            // 却缺本行色号的色号级对照，与压根没建对照，是两件事，补救入口也不同。
+            // 口径不变：仍不拿通用行冒充色号级行（供应商色号缺失会把错色风险压到收货环节）。
+            let reason = if params.color_id.is_some()
+                && service
+                    .has_product_level_mapping(params.product_id, params.supplier_id)
+                    .await?
+            {
+                "该产品与当前供应商已有不分色号的通用对照，但缺本行色号的色号级对照，请在SKU对照表为该色号新增一条"
+            } else {
+                "该产品与当前供应商尚未建立SKU对照，请先在SKU对照表新增对照后再转采购"
+            };
+            return Err(AppError::business_displayable(reason));
+        }
+    };
 
     Ok(Json(ApiResponse::success(serde_json::to_value(resolved)?)))
 }

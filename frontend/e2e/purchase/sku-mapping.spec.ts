@@ -27,8 +27,9 @@ import {
  * SUP-DEMO-FAB-01/02 + FAB-P001/P002/P101/P102 + 色号 + 对照表种子）。
  *
  * 本文件覆盖：
- *  A. 对照表 API 契约：keyword 过滤分页形状、validate_refs 真实链路、resolve 无映射中性拒 +
- *     出参脱敏、供应商商品/色号目录 create/duplicate/supplier-not-exist 的真实错误词表。
+ *  A. 对照表 API 契约：keyword 过滤分页形状、validate_refs 真实链路、resolve 无映射按两路口径
+ *     点名拒绝原因且可外显（不泄库内实现）、供应商商品/色号目录 create/duplicate/supplier-not-exist
+ *     的真实错误词表。
  *  B. 保密矩阵：salesperson/sales_manager 对 sku-mappings、supplier-products、supplier-product-colors
  *     全 403；销售订单列表/详情响应体递归扫描无任何 supplier_ 前缀键。
  *  C. 角色可达：admin 对照表可达；purchase_clerk 维护页「新增对照」按钮可见；salesperson 直航被路由守卫拦截。
@@ -57,8 +58,19 @@ function collectKeys(node: unknown, out: Set<string>): void {
   }
 }
 
-/** 保密负向：外显文案不得出现的调货/供应商内部实现词。 */
+/**
+ * 保密负向：销售可见面（转采购 hook 的中性拒绝文案）不得出现的调货/供应商内部实现词。
+ * 作用域仅限销售可达的那条链——采购侧 resolve 端点对销售本就 403，其拒绝文案按 2026-10-31
+ * 口径必须点名两路原因并可外显，故不受本式约束（受 FORBIDDEN_IMPLEMENTATION 约束）。
+ */
 const FORBIDDEN_SECRETS = /供应商|对照|supplier|调货|自制/i;
+
+/**
+ * 实现泄漏负向：可外显的业务拒绝原因只许描述用户看得见的对象与动作，
+ * 不得把库表名、列名、SQL 片段、内部类型或源码文件名原样带进 HTTP 出参。
+ */
+const FORBIDDEN_IMPLEMENTATION =
+  /product_supplier_mappings|supplier_product_id|product_color_id|SELECT\s|INSERT\s|UPDATE\s|panic|AppError|\.rs\b/i;
 
 // 下拉/字段交互统一委托 flow/ui-helpers 唯一事实源（本文件旧内联 formItem/chooseOption/
 // v2IsDisabled/fieldInputValue/fillFieldByLabel 已删除，改调共享 API）：
@@ -171,7 +183,7 @@ async function discoverDemoFixture(page: Page): Promise<DemoFixture> {
 }
 
 // ===========================================================================
-// A. 对照表 API 契约 + validate_refs + resolve 脱敏
+// A. 对照表 API 契约 + validate_refs + resolve 两路点名式可外显拒绝
 // ===========================================================================
 
 test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
@@ -217,7 +229,9 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
     ).toBe('VALIDATION_ERROR');
   });
 
-  test('resolve 无映射 → 400 BUSINESS_ERROR（中性拒绝，非 500）', async ({ page }) => {
+  test('resolve 无映射 → 400 BUSINESS_ERROR 且拒绝原因点名该补哪一级对照（非 500、不泄库内实现）', async ({
+    page,
+  }) => {
     await loginAsRole(page, 'admin');
     const fx = await discoverDemoFixture(page);
     // 选一个对 (productId, color IS NULL) 无映射的供应商：用 SUP-DEMO-FAB-02（种子只给 01 建了映射，
@@ -229,11 +243,28 @@ test.describe('SKU 对照表 - 采购维护契约与保密矩阵', () => {
       `/purchase/sku-mappings/resolve?product_id=${fx.productId}&supplier_id=${fx.sup2Id}`
     );
     expect(res.status, `resolve 无映射应 400，实际 ${res.status}`).toBe(400);
-    expect(res.code).toBe('BUSINESS_ERROR');
-    // 出参脱敏（AppError::business → "业务处理失败"），不泄露对照细节/供应商字样
-    expect(res.message ?? '', `resolve 出参 message 应被脱敏，实际="${res.message}"`).not.toMatch(
-      FORBIDDEN_SECRETS
+    expect(res.code, `resolve 无映射应 BUSINESS_ERROR，实际 code=${res.code}`).toBe(
+      'BUSINESS_ERROR'
     );
+    // 采购侧 resolve 的拒绝必须可外显并点名补救入口（2026-10-31 改口径，与
+    // backend/tests/sku_mapping_contract_test.rs 的 resolve_preview_must_show_actionable_displayable_reason
+    // 同源）：旧断言钉「出参脱敏、不得出现供应商/对照字样」，而脱敏常量在界面上只剩
+    // 「业务处理失败」，操作员学不会下一步做什么，已被 business_displayable 点名式拒绝取代。
+    // 保密面不靠这句话守：销售域对 sku-mappings 全部端点是 403（见下方保密矩阵），
+    // 转采购 hook 的中性文案另有不含保密词的独立断言（见 E2 两条）。
+    expect(
+      res.message ?? '',
+      `resolve 未命中必须点名"压根没建对照"这一路并给出补救入口，实际="${res.message}"`
+    ).toMatch(/尚未建立SKU对照/);
+    expect(
+      res.message ?? '',
+      `拒绝原因必须点名补救动作（去SKU对照表新增对照），实际="${res.message}"`
+    ).toMatch(/新增对照/);
+    // 可外显不等于可以外泄实现：库表名/列名/SQL/内部类型仍必须缺席。
+    expect(
+      res.message ?? '',
+      `resolve 出参不得泄露库内实现细节，实际="${res.message}"`
+    ).not.toMatch(FORBIDDEN_IMPLEMENTATION);
   });
 });
 
