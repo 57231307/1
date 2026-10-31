@@ -196,6 +196,15 @@
 //!    老行按 token_expires_at 自然过期、校验侧对 token_hash IS NULL 回退明文比对。依赖 system
 //!    建的 bpm_process_instance 与 finance 建并 v15 扩展的
 //!    export_approval_request 全部早于本域；置于全链尾为新的顶层条目，复用库上必然执行。
+//! 35. scan_receipt_grant: 仓储两岗补授扫码入库细键的存量库通道（m0121）——按 roles.code
+//!    反查 id，为 warehouse_keeper 与 warehouse_manager 幂等补授 scan-receipt:create，与
+//!    init_service_ops/permission.rs 的矩阵授予面、init_service.rs::PERMISSION_RESOURCES 的
+//!    资源名登记三通道逐字符同源（该细键由 `POST /api/v1/erp/scanner/scan-receipt` 的模块前缀
+//!    下第四段派生，matches_permission 精确匹配，任何既有 inventory/pieces 授权都不覆盖它，
+//!    缺授权行即除通配超管外全员 403）。只授 create，不授永不命中的 read/update/delete；
+//!    NOT EXISTS 守卫使重跑等价，命中 0 角色以 NOTICE 点名不静默通过，down 只回收本域
+//!    角色码的该行。依赖 system 建的 roles 与 role_permissions 早于本域；新建顶层域而不
+//!    并入已应用域（复用库上整域跳过会让补授永不执行），置于链尾必然执行。
 
 pub use sea_orm_migration::prelude::*;
 
@@ -257,6 +266,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),
+            // 仓储两岗补授扫码入库细键，链尾独立域（roles 与 role_permissions 由 system 域先建）
+            Box::new(domain::scan_receipt_grant::Migration),
         ]
     }
 }

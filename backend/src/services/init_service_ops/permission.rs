@@ -873,6 +873,13 @@ impl InitService {
                     ("transfers", "create"),
                     ("counts", "read"),
                     ("counts", "create"),
+                    // 逐匹扫码入库（`POST /scanner/scan-receipt`）：仓管是收货现场持扫码枪的
+                    // 执行人，缺这一枚细键则扫码入库对仓管一律 403。`scanner` 是模块前缀，
+                    // 资源段取其下第四段 scan-receipt（utils/path_utils.rs），运行时键
+                    // `scan-receipt:create` 不被 inventory:* 与 pieces:* 覆盖（精确匹配）。
+                    // 只授 create（写面就是这一件事），不授 read/update/delete——该端点只有
+                    // POST 一面，多授的动作是永不命中的死码授权。
+                    ("scan-receipt", "create"),
                     ("products", "read"),
                     ("warehouses", "read"),
                     // 发货必须读已批销售订单与本厂定制单：`/sales/orders` 派生键是默认分支的
@@ -905,6 +912,11 @@ impl InitService {
                     ("greige-fabrics", "read"),
                     ("greige-fabrics", "create"),
                     ("suppliers", "read"),
+                    // 仓库经理与仓管同为收货执行岗（坯布建档口径即同授这两岗，见上一分组），
+                    // 扫码入库面同样需要；键派生与只授 create 的理由同 warehouse_keeper 分组。
+                    // 库存经理 inventory_manager 的 inventory:*/stock:* 通配不覆盖本键，是否
+                    // 也给该岗发放属扩权裁定，本波不顺手扩。
+                    ("scan-receipt", "create"),
                 ],
             ),
         ]

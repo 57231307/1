@@ -46,11 +46,12 @@ pub struct ScanInboundCommand<'a> {
 }
 
 /// 定位成功后交付的内部身份，登记腿按这些值落库。
+///
+/// 只交付登记腿真正要写进匹行的字段：匹表的色号面是 `color_no` 字符串冗余列，没有内部色号
+/// ID 外键列，色号 ID 的作用止于定位腿内部（按它取色号行、核存在与归属），不外传。
 pub struct ResolvedRollIdentity {
     /// 我方产品 ID
     pub product_id: i32,
-    /// 内部色号 ID
-    pub product_color_id: i32,
     /// 内部色号编码，落进匹行的色号列
     pub internal_color_no: String,
     /// 库位 ID
@@ -171,11 +172,12 @@ impl ResolveRejection {
     /// 做什么，只做拒绝原因到文案的映射，判据是文案里有没有点名记录 ID 一类内部标识，
     /// 本函数不查库也不记日志，材料在产生点已经带齐。
     /// 调用方，From<ResolveFailure> for AppError 这一条路径。
-    /// 入参，self，一个定位或查重的拒绝原因。
+    /// 入参，&self，一个定位或查重的拒绝原因的只读借用——本函数只把材料格式化进文案，
+    /// 不取走任何字段，因此按引用收（to_* 前缀配 &self 是 clippy 的判定口径）。
     /// 出参消费方，扫码入库端点的错误响应体 message 字段。
     /// 存什么，不存任何东西。
     /// 存哪里，无落库。
-    fn to_app_error(self) -> AppError {
+    fn to_app_error(&self) -> AppError {
         match self {
             ResolveRejection::ProductNotFound { product_code } => {
                 AppError::business_displayable(format!(
@@ -192,7 +194,7 @@ impl ResolveRejection {
                 external_color_no,
                 supplier_scoped,
             } => {
-                let scope = if supplier_scoped {
+                let scope = if *supplier_scoped {
                     "，本次已限定在选定的供应商范围内查找"
                 } else {
                     "，本次已在该款全部启用中的对照里查找"
@@ -235,7 +237,7 @@ impl ResolveRejection {
                 warehouse_code,
                 warehouse_in_at,
             } => {
-                if duplicate_count > 1 {
+                if *duplicate_count > 1 {
                     return AppError::business_displayable(
                         "同款号同缸号同匹号的染色匹在库里已有多行重复记录，系统不会任选一行来处理，本次不入库，请让主数据维护人先查清这些重复匹行",
                     );
@@ -259,11 +261,8 @@ impl ResolveRejection {
                 warehouse_code,
                 warehouse_in_at,
             } => {
-                let existing = match existing_position_no {
-                    Some(no) => no,
-                    None => "未记录库位".to_string(),
-                };
-                let prior = match (&warehouse_code, warehouse_in_at) {
+                let existing = existing_position_no.as_deref().unwrap_or("未记录库位");
+                let prior = match (warehouse_code, warehouse_in_at) {
                     (Some(code), Some(at)) => format!(
                         "先前入到仓库 {code}，入库时间 {}",
                         at.format("%Y-%m-%d %H:%M:%S")
@@ -400,13 +399,14 @@ async fn resolve_product_id<C: ConnectionTrait>(
 
 /// 染厂侧外部色号到内部色号的定位。
 ///
-/// 做什么，经供应商 SKU 对照表把二维码里的染厂色号换成内部色号 ID 与内部色号编码，
+/// 做什么，经供应商 SKU 对照表把二维码里的染厂色号换成内部色号编码，
 /// 给出 supplier_id 时把查找限定在该供应商的启用对照内，否则扫该款全部启用对照。
 /// 调用方，resolve_roll_identity。
 /// 入参，db 只读连接，product_id 已定位的我方产品 ID，parsed 切分得出的四段，
 /// supplier_id 可选的供应商范围。
-/// 出参消费方，resolve_roll_identity 把内部色号 ID 与编码装进 ResolvedRollIdentity，
-/// 编码最终写进匹行的色号列。
+/// 出参消费方，resolve_roll_identity 把内部色号编码装进 ResolvedRollIdentity，
+/// 编码最终写进匹行的色号列。对照行指向的内部色号 ID 只在本函数内用于取色号行并核
+/// 存在与归属，匹表没有色号 ID 外键列，故不随出参交付。
 /// 存什么，什么都不存，本函数只读。
 /// 存哪里，无落库，多候选的具体候选 ID 只在本函数记日志。
 async fn resolve_internal_color<C: ConnectionTrait>(
@@ -414,7 +414,7 @@ async fn resolve_internal_color<C: ConnectionTrait>(
     product_id: i32,
     parsed: &ParsedRollQr,
     supplier_id: Option<i32>,
-) -> Result<(i32, String), ResolveFailure> {
+) -> Result<String, ResolveFailure> {
     // 染厂色号是外部编码，只有供应商色号行携带它，所以对照表到供应商色号行走内连。
     // 只取对照行的内部色号列，候选收敛成去重列表后再判条数，绝不排序取第一条。
     let mut mapping_query = product_supplier_mapping::Entity::find()
@@ -502,7 +502,7 @@ async fn resolve_internal_color<C: ConnectionTrait>(
             );
             Err(ResolveRejection::InternalColorProductMismatch.into())
         }
-        Some((internal_color_no, _)) => Ok((product_color_id, internal_color_no)),
+        Some((internal_color_no, _)) => Ok(internal_color_no),
     }
 }
 
@@ -600,7 +600,7 @@ async fn assert_not_already_inbound<C: ConnectionTrait>(
 
 /// 二维码四段加库位编码到内部身份的定位与查重。
 ///
-/// 做什么，款号换产品 ID，库位编码换库位与仓库，染厂色号换内部色号，
+/// 做什么，款号换产品 ID，库位编码换库位与仓库，染厂色号换内部色号编码，
 /// 最后查该染色匹是否已入库。
 /// 调用方，register_scanned_roll。
 /// 入参，db 只读连接，parsed 定长切分的四段，supplier_id 可选的供应商范围，
@@ -617,13 +617,11 @@ async fn resolve_roll_identity<C: ConnectionTrait>(
     let product_id = resolve_product_id(db, &parsed.product_code).await?;
     // 库位先定位，操作工先扫到的是库位，库位不合形时报库位比报色号更贴近他刚做的事
     let (location_id, warehouse_id) = resolve_position(db, position_no).await?;
-    let (product_color_id, internal_color_no) =
-        resolve_internal_color(db, product_id, parsed, supplier_id).await?;
+    let internal_color_no = resolve_internal_color(db, product_id, parsed, supplier_id).await?;
     assert_not_already_inbound(db, product_id, parsed, position_no).await?;
 
     Ok(ResolvedRollIdentity {
         product_id,
-        product_color_id,
         internal_color_no,
         location_id,
         warehouse_id,

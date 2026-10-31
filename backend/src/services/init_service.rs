@@ -65,6 +65,15 @@ pub const PERMISSION_RESOURCES: &[&str] = &[
     "counts",
     "batches",
     "stock-alerts",
+    // 逐匹扫码入库（`POST /scanner/scan-receipt`，routes/analytics.rs 的 scanner 路由族）。
+    // `scanner` 是模块前缀（utils/path_utils.rs::is_business_module_prefix），资源段取其下
+    // 第四段 `scan-receipt`，该段在 `RESOURCE_NAME_MAP` 里无消歧条目故保留 URL 原名，运行时
+    // 权限键是 `scan-receipt:create`（POST 按方法派生，末段不在动作关键字表内）。未登记即
+    // 派生死键：`matches_permission` 是资源段精确匹配，`inventory:*` 与 `pieces:*` 都不覆盖
+    // 它，除通配超管外任何角色都授予不了、访问一律 403。授予面见
+    // `init_service_ops/permission.rs` 的仓储执行岗分组，存量库同口径补授见迁移
+    // `scan_receipt_grant` 域。
+    "scan-receipt",
     // ===== 销售域 =====
     "orders",
     "fabric-orders",
