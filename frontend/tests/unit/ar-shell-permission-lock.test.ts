@@ -75,15 +75,20 @@ const AR_FAMILY_RESOURCES = [
   'ar-statistics',
 ];
 
-/** 从 router 源文本取 /ar 的 meta.permission（守卫实际消费的口径，与 e2e 派生侧同一解析器） */
+/**
+ * 从 router 源文本取 /ar 的 meta.permission（守卫实际消费的口径，与 e2e 派生侧同一解析器）。
+ * 路由键取 AR_SHELL_ROUTE 单点常量，注入夹具与正向判据共用同一个键，不在此处再落一份字面量。
+ */
 function shellGateFromRouter(routerSrc: string): string[] {
-  const gate = parseRouterPermissions(routerSrc)['/ar'];
+  const gate = parseRouterPermissions(routerSrc)[AR_SHELL_ROUTE];
   if (gate === null || gate === undefined) {
-    throw new Error('router 中 /ar 无 meta.permission——应收壳页退化为「登录即可达」，判红交人工');
+    throw new Error(
+      `router 中 ${AR_SHELL_ROUTE} 无 meta.permission——应收壳页退化为「登录即可达」，判红交人工`
+    );
   }
   if (!Array.isArray(gate)) {
     throw new Error(
-      `/ar 的 meta.permission 不是数组（实际 ${JSON.stringify(gate)}）——本锁按细键集合口径校验，` +
+      `${AR_SHELL_ROUTE} 的 meta.permission 不是数组（实际 ${JSON.stringify(gate)}）——本锁按细键集合口径校验，` +
         '粗域键单值形态已按缺陷回收，恢复它必须先过本锁评审'
     );
   }
