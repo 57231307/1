@@ -23,7 +23,7 @@
 //!
 //! ## 幂等与安全
 //! `NOT EXISTS` 守卫使重跑等价；命中 0 个角色时以 NOTICE 报出而不静默通过
-//! （新装库里「迁移早于系统初始化建角色」是合法时序）。down 只按本迁移的角色码回收
+//! （新装库里迁移早于系统初始化建角色属合法时序）。down 只按本迁移的角色码回收
 //! `scan-receipt/create` 行，不动人工另行授予的其它权限。
 
 use sea_orm_migration::prelude::*;
@@ -80,7 +80,7 @@ BEGIN
          WHERE NOT EXISTS (SELECT 1 FROM "roles" r WHERE r."code" = a)
       ) m;
     IF hit = 0 THEN
-        RAISE NOTICE 'm0121：scan-receipt:create 的目标受授角色在当前库中一个都不存在，本次未授予任何权限。若是「迁移早于系统初始化建角色」的新装库属正常时序（init 角色矩阵按同口径授予），否则请核对 roles.code 是否被改名。';
+        RAISE NOTICE 'm0121：scan-receipt:create 的目标受授角色在当前库中一个都不存在，本次未授予任何权限。若是迁移早于系统初始化建角色的新装库属正常时序（init 角色矩阵按同口径授予），否则请核对 roles.code 是否被改名。';
     ELSE
         RAISE NOTICE 'm0121：scan-receipt:create 授予命中 % 个角色；当前库不存在的角色码：%（自动跳过）', hit, COALESCE(miss, '无');
     END IF;
