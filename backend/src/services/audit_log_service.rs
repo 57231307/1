@@ -309,9 +309,43 @@ impl AuditEvent {
     }
 }
 
+/// 审计资源类型占位符（历史调用方在 update_with_audit 的 resource_type 入参上传入该值，
+/// 它不带实体信息，读取侧只能拿到一池混填的审计行，无法按"哪个实体的审计"定位）。
+/// 调用方 各业务 service 的 update_with_audit 调用点。
+/// 传给谁 只进 update_with_audit，由该函数按泛型实体的存储表名换成真实标识后落库。
+/// 存什么 不再作为列值存储，仅作"调用方未指定实体名"的输入约定。
+/// 存哪里 不单独存储，换真结果写 audit_logs 表的 resource_type 列。
+pub const RESOURCE_TYPE_PLACEHOLDER: &str = "auto_audit";
+
+/// 把主键列的 sea-orm 值取成整数（覆盖 i16/i32/i64 三类有符号整数主键列）
+/// 调用方 update_with_audit，用于 resource_id 落位判断与主键缺值点名。
+/// 入参 主键 ActiveValue 解包后的 Value。
+/// 传给谁 结果只在本文件内消费，非整数或缺值返回 None 由调用方点名拒绝。
+/// 存什么 不存储，纯取值判定。
+fn integer_pk_value(value: &sea_orm::Value) -> Option<i64> {
+    match value {
+        sea_orm::Value::SmallInt(Some(v)) => Some(*v as i64),
+        sea_orm::Value::Int(Some(v)) => Some(*v as i64),
+        sea_orm::Value::BigInt(Some(v)) => Some(*v),
+        _ => None,
+    }
+}
+
 impl AuditLogService {
     /// 作为 SeaORM 中间件，自动拦截并生成 Update 审计日志
-    /// P2 8-8 修复（批次 59）：update 前先查 old_model 序列化为 before_snapshot，；update 后用 new_model 序列化为 after_snapshot。；原实现 old_value/new_value/before_snapshot/after_snapshot 全部为 None，；审计日志只能看到"更新了"但不知道从什么变什么，合规失效。；仅 i32 主键支持 before_snapshot 查询；其他主键类型保持 None（避免泛型膨胀）。
+    /// update 前先查 old_model 序列化为 before_snapshot，update 后用 new_model 序列化为 after_snapshot，
+    /// 保证审计行可见"从什么变什么"，缺任一侧快照即合规失效。
+    ///
+    /// 入参 resource_type 为调用方给定的资源标识，两类取值口径（出参侧与读取侧必须同源）：
+    /// 一 调用方传入真实体名（如 customer / purchase_order），原样落 resource_type 列。
+    /// 二 调用方传入历史占位符 RESOURCE_TYPE_PLACEHOLDER（"auto_audit"），该值不带实体信息，
+    /// 本函数按泛型实体 E 取存储表名落 resource_type 列，使审计行可按实体定位。
+    /// 占位符换真是写入侧单点收口，逐点换字面量会让四十余个 service 文件与读取侧各自漂移。
+    ///
+    /// 主键处理（i32 与 i64 主键列同等对待）：resource_id 落主键真实字符串；
+    /// before_snapshot 用主键列等值查询取更新前整行序列化。主键缺值或不是整数列时
+    /// 点名报错拒绝落行，不再沿用旧实现静默写 "0" 占位的形态（旧形态曾把 BIGSERIAL
+    /// 主键实体的 resource_id 全部塌成 "0"，审计行连记录号都定位不到）。
     pub async fn update_with_audit<E, A, C>(
         db: &C,
         resource_type: &str,
@@ -326,31 +360,32 @@ impl AuditLogService {
             Serialize + serde::de::DeserializeOwned + Sync + Send + Clone + IntoActiveModel<A>,
         <<E as EntityTrait>::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: From<i32>,
     {
-        // 获取主键
+        // 获取主键列与主键值，缺值或非整数列直接点名拒绝（不写占位值）
         let pk_col = E::PrimaryKey::iter()
             .next()
             .ok_or_else(|| AppError::business("Entity has no primary key"))?
             .into_column();
-        let pk_val_unwrapped = active_model
-            .get(pk_col)
-            .into_value()
-            .unwrap_or(sea_orm::Value::Int(None));
-        let record_id = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
-            id.to_string()
-        } else {
-            "0".to_string()
-        };
-        // P2 8-8 修复：update 前查询 old_model 序列化为 before_snapshot
-        let before_snapshot = if let sea_orm::Value::Int(Some(id)) = pk_val_unwrapped.clone() {
-            let old_model = E::find_by_id(id).one(db).await?;
-            old_model.and_then(|m| serde_json::to_value(&m).ok())
-        } else {
-            None
-        };
+        let pk_val_unwrapped = active_model.get(pk_col).into_value();
+        let pk_integer = integer_pk_value(&pk_val_unwrapped).ok_or_else(|| {
+            AppError::business(format!(
+                "审计写入被拒绝，实体 {} 的主键列缺值或不是整数列，resource_id 与 before_snapshot 无法落位",
+                E::default().table_name()
+            ))
+        })?;
+        let record_id = pk_integer.to_string();
+        // update 前查询 old_model 序列化为 before_snapshot（按主键列等值查询，i32 与 i64 主键同权）
+        let old_model = E::find().filter(pk_col.eq(pk_val_unwrapped)).one(db).await?;
+        let before_snapshot = old_model.and_then(|m| serde_json::to_value(&m).ok());
         let new_model = active_model.update(db).await?;
         let after_snapshot = serde_json::to_value(&new_model).ok();
         // P3 8-20 修复：如果有 user_id，查询 users 表填充 username
         let username = Self::fetch_username(db, user_id).await?;
+        // 占位符换真，真实体名原样保留
+        let resource_type = if resource_type == RESOURCE_TYPE_PLACEHOLDER {
+            E::default().table_name()
+        } else {
+            resource_type
+        };
         // 记录审计日志
         let log = Self::build_update_audit_log(
             resource_type,

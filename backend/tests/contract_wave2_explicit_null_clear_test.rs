@@ -562,7 +562,7 @@ async fn live_purchase_update_null_clears_nullable_and_absent_keeps_with_audit_t
 
     // 3) 审计快照反映变更后真实值：after_snapshot.remark/delivery_date 为 null
     let log = audit_log::Entity::find()
-        .filter(audit_log::Column::ResourceType.eq("auto_audit"))
+        .filter(audit_log::Column::ResourceType.eq("purchase_contracts"))
         .filter(audit_log::Column::ResourceId.eq(created.id.to_string()))
         .order_by(audit_log::Column::Id, Order::Desc)
         .one(&db)
