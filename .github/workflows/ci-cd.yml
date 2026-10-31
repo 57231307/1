@@ -1015,14 +1015,21 @@ jobs:
             fi
           } > reports/clippy-explain.txt
 
-          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI）
-          # D08-1 教训：clippy 编译失败（退出码 101）时 current.txt 不完整，
-          # 误触发自动刷新把 baseline 缩小。修复：记录 CLIPPY_MAIN_EXIT，自动刷新需 clippy 正常退出。
-          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" > reports/clippy-main-exit.txt
+          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI，error 级诊断一律判红）
+          # 判据取本步可直接观测的事实：结构化输出第五列是诊断级别，出现 error 级记录即
+          # 编译错误或硬 lint 失败。跨 job 的 shell 变量在这里取不到（每个 job 独立环境），
+          # 因此不依赖上游 job 的退出码变量。自动重建 baseline 同样以"无 error"为前提，
+          # 避免用不完整的 current 替换 baseline 让下次 CI 误报新警告。
+          CLIPPY_ERROR_COUNT=$(awk -F'\t' '$5 == "error" {c++} END {print c+0}' reports/clippy-structured.tsv 2>/dev/null)
+          CLIPPY_ERROR_COUNT="${CLIPPY_ERROR_COUNT:-0}"
+          case "$CLIPPY_ERROR_COUNT" in
+            ''|*[!0-9]*) echo "::error::clippy error 级计数取不到非负整数（实得 '${CLIPPY_ERROR_COUNT}'），按扫描器异常判红"; exit 1 ;;
+          esac
+          echo "CLIPPY_ERROR_COUNT=$CLIPPY_ERROR_COUNT" > reports/clippy-error-count.txt
 
-          if [ "$CLIPPY_MAIN_EXIT" -ne "0" ]; then
+          if [ "$CLIPPY_ERROR_COUNT" != "0" ]; then
             echo ""
-            echo "❌ clippy 主命令退出码为 $CLIPPY_MAIN_EXIT，存在编译错误或基础设施异常，CI 失败"
+            echo "❌ clippy 结构化输出里有 $CLIPPY_ERROR_COUNT 条 error 级诊断，存在编译错误或硬 lint 失败，CI 失败"
             echo ""
             echo "=== clippy 短格式错误日志（file:line:col 定位）==="
             cat reports/clippy-log.txt 2>/dev/null || true
@@ -1059,7 +1066,7 @@ jobs:
           echo "CLIPPY_FIXED_COUNT=$FIXED_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_CURRENT_COUNT=$CURRENT_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_BASELINE_COUNT=$BASELINE_COUNT" >> "$GITHUB_ENV"
-          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" >> "$GITHUB_ENV"
+          echo "CLIPPY_ERROR_COUNT=$CLIPPY_ERROR_COUNT" >> "$GITHUB_ENV"
 
           echo "✅ 无新增 clippy 警告"
           exit 0
@@ -1162,26 +1169,27 @@ jobs:
             if [ -f "backend/.clippy-baseline.txt" ]; then
               BASELINE_PATH="backend/.clippy-baseline.txt"
             fi
-            # 从文件读取 clippy 主退出码（NEW_COUNT > 0 时 step 提前 exit 1，$GITHUB_ENV 未写入）
-            CLIPPY_MAIN_EXIT_VAL="unknown"
-            if [ -f "backend/reports/clippy-main-exit.txt" ]; then
-              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' backend/reports/clippy-main-exit.txt | cut -d= -f2)
-            elif [ -f "reports/clippy-main-exit.txt" ]; then
-              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' reports/clippy-main-exit.txt | cut -d= -f2)
+            # 从文件读取 error 级诊断数（有新增警告时前一步提前退出，$GITHUB_ENV 未写入，
+            # 故只能读落盘文件；读不到记 unknown，unknown 不允许触发自动重建）
+            CLIPPY_ERROR_COUNT_VAL="unknown"
+            if [ -f "backend/reports/clippy-error-count.txt" ]; then
+              CLIPPY_ERROR_COUNT_VAL=$(grep -E '^CLIPPY_ERROR_COUNT=' backend/reports/clippy-error-count.txt | cut -d= -f2)
+            elif [ -f "reports/clippy-error-count.txt" ]; then
+              CLIPPY_ERROR_COUNT_VAL=$(grep -E '^CLIPPY_ERROR_COUNT=' reports/clippy-error-count.txt | cut -d= -f2)
             fi
-            echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
+            echo "CLIPPY_ERROR_COUNT_VAL=$CLIPPY_ERROR_COUNT_VAL"
             if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
               # main 分支自动重建 baseline（每次 CI 后用当前真实警告完全替换 baseline）
               # 2026-07-30 修订：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时
               # （如 ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）。
-              # 新机制：main 分支每次 CI 后，只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），
+              # 新机制：main 分支每次 CI 后，只要 clippy 无 error 级诊断（CLIPPY_ERROR_COUNT=0），
               # 无论 FIXED_COUNT 是否 > 0，都用当前真实警告完全重建 baseline。
               # 这样 baseline 永远反映 main 最新真实状态，过时项在下次 main CI 时自动清除。
               # PR 分支保留 NEW_COUNT > 0 阻塞机制（在主 clippy step 中处理）。
               # Batch 488 D08-1 教训保留：clippy 编译失败（退出码 101）时不重建 baseline，
               # 避免用不完整的 current 替换 baseline 导致下次 CI 误报新警告。
-              if [ "$CI_REF" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
+              if [ "$CI_REF" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_ERROR_COUNT_VAL" = "0" ]; then
                 echo "📝 自动重建 baseline：用当前真实警告完全替换（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条，新增 $CLIPPY_NEW_COUNT 条）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt

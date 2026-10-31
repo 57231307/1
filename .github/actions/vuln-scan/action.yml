@@ -204,17 +204,97 @@ runs:
         # 配置走仓库根 .gitleaks.toml（默认读取，含测试/文档合成凭据 allowlist）
         config-path: .gitleaks.toml
 
-    - name: 静态安全扫描（semgrep 社区规则）
-      # 同 gitleaks：不再被前序失败连带跳过（同一实测轮次里 SAST 面也是零覆盖）。
-      # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
+    - name: 静态安全扫描（semgrep 社区规则 · 命中记录，扫描器没跑成判红）
+      # 功能：用固定版本 semgrep 跑三枚社区规则集，把 SAST 命中记录下来；规则命中本身
+      #   不阻塞（误报面未评估），但"扫描器没跑成"一律判红 —— 下载失败、产物 sha256 与
+      #   钉死值不符、版本对不上、任一规则集 --validate 不通过、结果 JSON 不可解析或
+      #   results 不是数组，任一命中即点名退出，不再被 continue-on-error 吞掉。
+      # 调用方：本复合动作的两个调用 job（PR 与 v 前缀标签轮、主干每日轮）。
+      # 入参：env 里的版本、轮子文件名、sha256、下载直链与规则集清单四枚常量。
+      # 传给谁：结构化结果交调用方的依赖审计 artifact 一并带走，不外发。
+      # 存什么：semgrep 的 JSON 结果（results 逐条含 check_id 与路径与行号）、本轮实际
+      #   解析出的依赖闭包（pip freeze，供版本可审计）、stderr 原文日志。
+      # 存哪里：$GITHUB_WORKSPACE/reports/audit/semgrep.json 与 semgrep-tools.txt 与 semgrep.log。
+      # 换实现的理由：原 uses: returntocorp/semgrep-action 是 docker 型第三方入口，该组织
+      #   下同名仓库已从 GitHub 消失（取仓库根目录回 404），入参怎么被拼进命令行已无法
+      #   核对；实测每轮报 "invalid configuration file found (3 configs were invalid)"，
+      #   即三枚规则集一条都没加载，配上 continue-on-error 就成了永久假阴。改成自持命令
+      #   后每一步都可单独自证。依赖闭包只按版本钉（根包 sha256 校验），要做全量哈希钉
+      #   需另出一枚 constraints 锁文件，属后续独立改动，这里不假装已经做到。
       if: ${{ !cancelled() }}
-      uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
-      continue-on-error: true
-      with:
-        config: >-
-          --config=p/ci-detect-secrets
-          --config=p/typescript
-          --config=p/rust
+      shell: bash
+      env:
+        SEMGREP_VERSION: "1.183.0"
+        SEMGREP_WHEEL: "semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
+        SEMGREP_SHA256: "f36115c4d0cb43056ceb308273421a2f6a35e055e7e029601e130850f836646e"
+        SEMGREP_URL: "https://files.pythonhosted.org/packages/c5/fd/85ac31a5ec53feee54ebdce933ab1c94af81695a2b244b0baefdbcdba92a/semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
+        SEMGREP_RULESETS: "p/ci-detect-secrets p/typescript p/rust"
+      run: |
+        set -uo pipefail
+        R="$GITHUB_WORKSPACE/reports/audit"
+        mkdir -p "$R"
+        WORK="${RUNNER_TEMP:?runner 未提供 RUNNER_TEMP}/semgrep-work"
+        rm -rf "$WORK"
+        mkdir -p "$WORK"
+        trap 'rm -rf "$WORK"' EXIT
+        curl -sSfL --retry 3 -o "$WORK/semgrep.whl" "$SEMGREP_URL"           || { echo "::error::semgrep 轮子下载失败（固定版本 ${SEMGREP_VERSION}），拒绝把 SAST 面当已通过"; exit 1; }
+        ACTUAL="$(sha256sum "$WORK/semgrep.whl" | awk '{print $1}')"
+        if [ "$ACTUAL" != "$SEMGREP_SHA256" ]; then
+          echo "::error::semgrep 轮子 sha256 与钉死值不符（期望 ${SEMGREP_SHA256}，实得 ${ACTUAL}）：下载截断或内容被替换"
+          exit 1
+        fi
+        python3 -m venv "$WORK/venv" || { echo "::error::semgrep 独立环境创建失败"; exit 1; }
+        "$WORK/venv/bin/pip" install --quiet "$WORK/semgrep.whl"           || { echo "::error::semgrep 安装失败（轮子校验已过，依赖解析阶段出错）"; exit 1; }
+        "$WORK/venv/bin/pip" freeze > "$R/semgrep-tools.txt" 2>/dev/null || true
+        SGV="$("$WORK/venv/bin/semgrep" --version 2>&1)"           || { echo "::error::semgrep 二进制无法执行，扫描未开始"; exit 1; }
+        case "$SGV" in
+          *"${SEMGREP_VERSION}"*) echo "semgrep 版本核对通过：${SGV}" ;;
+          *) echo "::error::semgrep 版本与钉死值不符（期望 ${SEMGREP_VERSION}，实得 ${SGV}）"; exit 1 ;;
+        esac
+        for rs in $SEMGREP_RULESETS; do
+          "$WORK/venv/bin/semgrep" --validate --config "$rs" > "$WORK/validate.log" 2>&1             || { echo "::error::规则集 ${rs} 校验不通过（注册表取不到或内容无效），本轮 SAST 面属未覆盖"; tail -20 "$WORK/validate.log"; exit 1; }
+          echo "规则集 ${rs} 校验通过"
+        done
+        CFG_ARGS=()
+        for rs in $SEMGREP_RULESETS; do CFG_ARGS+=(--config "$rs"); done
+        set +e
+        "$WORK/venv/bin/semgrep" scan --quiet --metrics=off --exclude 'miniprogram_npm' --exclude 'node_modules' --exclude 'target'           "${CFG_ARGS[@]}" --json --output "$R/semgrep.json" . > "$R/semgrep.log" 2>&1
+        SRC=$?
+        set -e
+        echo "semgrep exit=$SRC（0=无命中 1=有命中 2 及以上=用法或运行错误）"
+        if [ "$SRC" -gt 1 ]; then
+          echo "::error::semgrep 未正常完成（exit $SRC），按扫描器异常判红，不得当成通过"
+          tail -30 "$R/semgrep.log" || true
+          exit 1
+        fi
+        python3 - "$R" <<'PYV'
+        import json, os, sys
+        R = sys.argv[1]
+        def die(msg):
+            print('::error::' + msg)
+            sys.exit(1)
+        try:
+            with open(R + '/semgrep.json') as fh:
+                data = json.load(fh)
+        except Exception as e:
+            die('semgrep 结果无法解析为 JSON（扫描未真正完成）: %s' % e)
+        if not isinstance(data, dict) or not isinstance(data.get('results'), list):
+            die('semgrep 结果缺 results 数组（实得 %s），无法区分"扫过且零命中"与"没扫成"' % type(data).__name__)
+        errs = data.get('errors')
+        n_err = len(errs) if isinstance(errs, list) else int(errs or 0)
+        if n_err > 0:
+            die('semgrep 自报 errors=%d 条（本轮存在未成功处理的规则集或文件），不记为通过' % n_err)
+        scanned = (data.get('paths') or {}).get('scanned') or []
+        print('semgrep 命中 %d 条（规则集 %s 枚，实际扫描文件 %d 枚），命中仅记录不阻塞'
+              % (len(data['results']), len(os.environ.get('SEMGREP_RULESETS', '').split()),
+                 len(scanned)))
+        for r in data['results'][:20]:
+            rule = r.get('check_id', '?')
+            loc = (r.get('path') or '?') + ':' + str(((r.get('start') or {}).get('line')) or '?')
+            print('  - [%s] %s' % (rule, loc))
+        if len(data['results']) > 20:
+            print('  - 其余 %d 条见 reports/audit/semgrep.json' % (len(data['results']) - 20))
+        PYV
         generateSarif: "false"
 
     - name: 工作流定义自身安全审计（zizmor · high 阻塞 CI）
