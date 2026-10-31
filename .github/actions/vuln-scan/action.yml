@@ -277,6 +277,16 @@ runs:
         "$WORK/zizmor" --format json . > "$R/zizmor.json" 2> "$R/zizmor.log"
         RC=$?
         set -e
+        # 第二份输出：无视一切豁免重跑，供本步末尾的对账判定"豁免面有没有被悄悄扩大"
+        set +e
+        "$WORK/zizmor" --no-ignores --format json . > "$R/zizmor-no-ignores.json" 2> "$R/zizmor-no-ignores.log"
+        RCNI=$?
+        set -e
+        if [ "$RCNI" -eq 1 ] || [ "$RCNI" -eq 2 ] || [ "$RCNI" -eq 3 ] || { [ "$RCNI" -ne 0 ] && [ "$RCNI" -lt 11 ]; }; then
+          echo "::error::zizmor 无视豁免的复跑未正常完成（exit $RCNI），抑制清单无法对账，按扫描器异常判红"
+          tail -30 "$R/zizmor-no-ignores.log" || true
+          exit 1
+        fi
         echo "zizmor exit=$RC（0=无发现 11/12/13/14=有发现且最高为 informational/low/medium/high 1=审计出错 2=参数错误 3=未收集到任何输入）"
         if [ "$RC" -eq 1 ] || [ "$RC" -eq 2 ] || [ "$RC" -eq 3 ]; then
           echo "::error::zizmor 未正常完成（exit $RC），按扫描器异常判红，不得当成通过"
@@ -317,3 +327,11 @@ runs:
         if items:
             print('::warning::zizmor 发现 %d 个 medium 及以下问题（记录在案，不阻塞）' % len(items))
         PY
+
+        # 抑制清单对账：.github/zizmor.yml 里每条豁免都必须与无视豁免那份输出的实测位点
+        # 逐条一致（位点与条数都相等），失效条目、清单外新位点、清单与配置不一致一律判红。
+        # 调用方：本步；入参：两份 zizmor JSON 与配置、清单路径；存哪里：不落盘，只看退出码。
+        if ! node scripts/ci/check-zizmor-ignore-drift.mjs "$R/zizmor.json" "$R/zizmor-no-ignores.json" .github/zizmor.yml .github/zizmor-ignore-manifest.json; then
+          echo "::error::zizmor 豁免清单与实测位点漂移，禁止带未登记的豁免判绿"
+          exit 1
+        fi

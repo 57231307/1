@@ -177,6 +177,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+          # 本工作流全程不跑 npm ci 与 npm install（安卓链装的是 JDK、Android SDK 与 Rust
+          # 工具链），内置依赖缓存没有消费者，关掉即消除投毒面。
+          package-manager-cache: false
 
       - name: 设置 Rust 与 Android 目标三元组
         uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable

@@ -131,15 +131,20 @@ jobs:
           fi
 
       - name: 收集环境信息
+        env:
+          CI_RUNNER_OS: ${{ runner.os }}
+          CI_RUNNER_ARCH: ${{ runner.arch }}
+          CI_SHA: ${{ github.sha }}
+          CI_REF: ${{ github.ref }}
         run: |
           mkdir -p reports
           {
             echo "# 环境信息报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')  "
-            echo "**Runner**: ${{ runner.os }} / ${{ runner.arch }}  "
-            echo "**Commit**: ${{ github.sha }}  "
-            echo "**Ref**: ${{ github.ref }}  "
+            echo "**Runner**: $CI_RUNNER_OS / $CI_RUNNER_ARCH  "
+            echo "**Commit**: $CI_SHA  "
+            echo "**Ref**: $CI_REF  "
             echo ""
             echo "## 工具链版本"
             echo ""
@@ -192,10 +197,10 @@ jobs:
           {
             echo "{"
             echo "  \"generated_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\","
-            echo "  \"runner\": \"${{ runner.os }}\","
-            echo "  \"arch\": \"${{ runner.arch }}\","
-            echo "  \"commit\": \"${{ github.sha }}\","
-            echo "  \"ref\": \"${{ github.ref }}\","
+            echo "  \"runner\": \"$CI_RUNNER_OS\","
+            echo "  \"arch\": \"$CI_RUNNER_ARCH\","
+            echo "  \"commit\": \"$CI_SHA\","
+            echo "  \"ref\": \"$CI_REF\","
             echo "  \"rustc\": \"$(rustc --version 2>&1 || echo N/A)\","
             echo "  \"cargo\": \"$(cargo --version 2>&1 || echo N/A)\","
             echo "  \"node\": \"$(node --version 2>&1 || echo N/A)\","
@@ -1149,6 +1154,8 @@ jobs:
 
       - name: 提交 baseline 文件（首次运行时）+ 自动重建 baseline（main 分支每次 CI 后）
         if: always()
+        env:
+          CI_REF: ${{ github.ref }}
         run: |
           if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
             BASELINE_PATH=".clippy-baseline.txt"
@@ -1174,7 +1181,7 @@ jobs:
               # PR 分支保留 NEW_COUNT > 0 阻塞机制（在主 clippy step 中处理）。
               # Batch 488 D08-1 教训保留：clippy 编译失败（退出码 101）时不重建 baseline，
               # 避免用不完整的 current 替换 baseline 导致下次 CI 误报新警告。
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
+              if [ "$CI_REF" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
                 echo "📝 自动重建 baseline：用当前真实警告完全替换（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条，新增 $CLIPPY_NEW_COUNT 条）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt
@@ -2111,6 +2118,9 @@ jobs:
         uses: ./.github/actions/setup-rust
 
       - name: 缓存 criterion 基线数据
+        # 发布轮（v* tag）不读也不写缓存：基准数据一旦能被任意先前运行写入，
+        # 正式版本轮的对比结果就可能被投毒，宁可冷跑也不消费可变缓存。
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: backend/target/criterion
@@ -2120,6 +2130,9 @@ jobs:
 
       - name: 运行 cargo bench（V15 批次 06 P1-10）
         working-directory: backend
+        env:
+          CI_REF_NAME: ${{ github.ref_name }}
+          CI_SHA: ${{ github.sha }}
         run: |
           mkdir -p reports
           set +e
@@ -2148,8 +2161,8 @@ jobs:
             echo "# 性能基准回归监控报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**分支**: ${{ github.ref_name }}  "
-            echo "**Commit**: ${{ github.sha }}  "
+            echo "**分支**: $CI_REF_NAME  "
+            echo "**Commit**: $CI_SHA  "
             echo ""
             echo "## 基准项目"
             echo ""
@@ -4747,15 +4760,21 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 动态校验——全部 E2E job 必须真实执行成功
+        env:
+          CI_E2E_RESULT: ${{ needs.ci-e2e.result }}
+          SETUP_WIZARD_RESULT: ${{ needs.ci-e2e-setup-wizard.result }}
+          ROLE_MATRIX_RESULT: ${{ needs.role-permission-matrix.result }}
+          GATE_EVENT_NAME: ${{ github.event_name }}
+          GATE_REF: ${{ github.ref }}
         run: |
-          for r in "${{ needs.ci-e2e.result }}" "${{ needs.ci-e2e-setup-wizard.result }}" "${{ needs.role-permission-matrix.result }}"; do
+          for r in "$CI_E2E_RESULT" "$SETUP_WIZARD_RESULT" "$ROLE_MATRIX_RESULT"; do
             if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               echo "::error::E2E 真实性门禁：上游 E2E job 状态 $r（非 success），E2E 未全部基于真实链路通过"
               exit 1
             fi
           done
           echo "上游 E2E job（ci-e2e / setup-wizard / role-permission-matrix）本轮结论均为 success 或 skipped"
-          echo "本轮事件=${{ github.event_name }} ref=${{ github.ref }}，ci-e2e 结论=${{ needs.ci-e2e.result }}（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
+          echo "本轮事件=$GATE_EVENT_NAME ref=$GATE_REF，ci-e2e 结论=$CI_E2E_RESULT（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
 
       - name: 放行测试面的轮次 ci-e2e 不得为 skipped
         # 上一条动态步把 skipped 与 success 同计入通过，于是"测试面开关已放行而 ci-e2e 整族
@@ -4849,6 +4868,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # 本 job 只跑 node 脚本对账，全程没有 npm ci 与 npm install（实测该 job 体内
+          # 零包管理命令），setup-node 的内置依赖缓存没有消费者，一律关掉而不是留位豁免。
+          package-manager-cache: false
 
       - name: 空片与用例总数对账
         # 判据一，每片实际执行用例数必须大于 0，各片执行数之和不得低于分片数乘以
@@ -5003,6 +5025,9 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # 本 job 只跑 node 脚本对账，全程没有 npm ci 与 npm install（实测该 job 体内
+          # 零包管理命令），setup-node 的内置依赖缓存没有消费者，一律关掉而不是留位豁免。
+          package-manager-cache: false
 
       - name: E2E 显式日志合规扫描
         run: |
