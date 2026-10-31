@@ -24,7 +24,7 @@ use crate::models::product::{self, Entity as ProductEntity};
 use crate::models::product_category;
 use crate::services::product_service::{
     CreateProductArgs, ProductService, UpdateProductArgs, validate_product_create_fields,
-    validate_product_numeric_domains, validate_product_safety_category,
+    validate_product_grade, validate_product_numeric_domains, validate_product_safety_category,
 };
 use crate::utils::error::AppError;
 use crate::utils::messages::err_msg;
@@ -178,9 +178,9 @@ impl ProductService {
         Ok(result)
     }
 
-    /// 建品判据三连：面料类必录门、取值域门、安全类别门，调用次序与既有形态一致。
+    /// 建品判据四连：面料类必录门、取值域门、安全类别门与产品等级门，调用次序与既有形态一致。
     /// 调用方 `create_product`（单条 HTTP 与产品 CSV 导入共用入口）与 通用数据导入中心产品腿。
-    /// 判据本体是 services::product_service 的三个纯函数（batch_service 直调同组函数为先例），
+    /// 判据本体是 services::product_service 的四个纯函数（batch_service 直调同组函数为先例），
     /// 本函数只固化次序与入参取用，不复制第二套规则。
     /// 幅宽与克重入参到落库全程 Decimal（DECIMAL(10,2) 列真相形态），与批量侧同型直接比较，无 f64 往返。
     pub(crate) fn validate_product_create_gates(args: &CreateProductArgs) -> Result<(), AppError> {
@@ -204,7 +204,10 @@ impl ProductService {
             args.cost_price,
         )?;
         // 安全类别取值域（GB 18401 三类）与必录门、数值域门分权：出现即必须在词表内，缺席或未录入放行。
-        validate_product_safety_category(args.safety_category.as_deref())
+        validate_product_safety_category(args.safety_category.as_deref())?;
+        // 产品等级取值域（优等品 一等品 合格品）同门分权。出现即必须在词表内，缺席或未录入放行。
+        // 判据与 DB CHECK（product_grade_vocab_check 域）单源，词表本体在 models::status::general::product_grade。
+        validate_product_grade(args.product_grade.as_deref())
     }
 
     /// 由建品入参组装产品 ActiveModel。
@@ -262,7 +265,15 @@ impl ProductService {
             execution_standard: Set(args.execution_standard.clone()),
             factory_name: Set(args.factory_name.clone()),
             factory_address: Set(args.factory_address.clone()),
-            product_grade: Set(args.product_grade.clone()),
+            // 产品等级是受 DB CHECK 约束的封闭枚举列（product_grade_vocab_check 域收口）。
+            // 去两端空白后为空即未录入、落 NULL，非空按去空白后的规范档落库，
+            // 形态与色牢度列同源（见 product_ops::color 的更新注释），避免带空白的值撞词表字面量。
+            product_grade: Set(args
+                .product_grade
+                .as_deref()
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)),
             // m0106 扩的规格列：带针幅宽/克重公差/氨纶含量/用途/安全类别，透传录入值，未录入落 NULL。
             // 带针幅与公差与氨纶含量全程 Decimal 不 f64 往返；安全类别取值已由服务层词表判据把关。
             width_needle_included_cm: Set(args.width_needle_included_cm),
@@ -432,6 +443,8 @@ impl ProductService {
         )?;
         // 安全类别出现时按词表判据把关（与创建侧共用同一函数，不抄第二套），键缺席不判。
         validate_product_safety_category(args.safety_category.as_deref())?;
+        // 产品等级出现时按词表判据把关（与创建侧共用同一函数，不抄第二套），键缺席不判。
+        validate_product_grade(args.product_grade.as_deref())?;
 
         let mut product = self.fetch_product_active(id).await?;
         Self::apply_product_basic_fields(&mut product, &mut args);
@@ -532,7 +545,14 @@ impl ProductService {
             product.factory_address = Set(Some(fa));
         }
         if let Some(pg) = args.product_grade.take() {
-            product.product_grade = Set(Some(pg));
+            // 产品等级单层条件更新，键缺席即不改列。出现值时去两端空白后为空视为清空该列（落 NULL），
+            // 非空按去空白后的规范档落库，形态与色牢度列同源，避免带空白的值撞 DB CHECK 的词表字面量。
+            let trimmed = pg.trim().to_string();
+            product.product_grade = Set(if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed)
+            });
         }
         // m0106 扩的规格列三态更新：带针幅宽/克重公差/氨纶含量为 DECIMAL，外层 Some 即本次带了这个键，
         // 内层 None 清空为 NULL、Some(v) 覆盖，形态同幅宽克重。

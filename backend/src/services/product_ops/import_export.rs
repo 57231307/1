@@ -19,6 +19,7 @@
 
 use crate::models::product;
 use crate::models::status::master_data;
+use crate::models::status::product_grade;
 use crate::models::status::product_type;
 use crate::services::product_service::{CreateProductArgs, ProductService};
 use crate::utils::error::AppError;
@@ -568,6 +569,22 @@ impl ProductService {
                 });
             }
         };
+        // 产品等级为可选收口列（DB CHECK 见 product_grade_vocab_check 域）。单元格缺失或空白即未录入放行；
+        // 出现值时必须在 product_grade::ALL_GRADES 三档内，越界值在解析级点名"列名与原文"拦下，
+        // 不放行到落库腿去撞数据库约束，也不静默吞成空。文案与服务层 validate_product_grade 逐字相等，
+        // 两支由纸面锁钉彼此一致，禁止任一侧单独改动。
+        if let Some(raw) = row.get(COL_PRODUCT_GRADE) {
+            let trimmed = raw.trim();
+            if !trimmed.is_empty() && !product_grade::ALL_GRADES.contains(&trimmed) {
+                return Err(RowFieldIssue {
+                    column: COL_PRODUCT_GRADE,
+                    message: format!(
+                        "产品等级「{trimmed}」不在词表内，允许值：优等品、一等品、合格品"
+                    ),
+                    value: raw.clone(),
+                });
+            }
+        }
         Ok(ValidatedRowFields {
             code,
             name,
@@ -665,7 +682,7 @@ impl ProductService {
     /// 建品失败的列名归属：把行级错误的真实原因归到权威表的实际列名。
     /// 判据族（services::product_service::validate_product_create_fields 与
     /// validate_product_numeric_domains）的每条文案都含对应列名（幅宽 克重 面料成分 产品类型
-    /// 最小起订量 交货期 标准价格 成本价格），按表列名子串命中即归属该列；
+    /// 最小起订量 交货期 标准价格 成本价格 产品等级），按表列名子串命中即归属该列；
     /// 外键预校验文案「产品分类 {id} 不存在」归到 类别ID；
     /// 其余无列指向的整行级失败（唯一约束 数据库故障等）归到行身份列 产品编码
     /// （错误 value 即携带该行编码，可直接定位行）。不再落「数据库」这种无信息列名。
@@ -681,6 +698,7 @@ impl ProductService {
             COL_STANDARD_PRICE,
             COL_COST_PRICE,
             COL_PRODUCT_TYPE,
+            COL_PRODUCT_GRADE,
         ] {
             if message.contains(title) {
                 return title;
