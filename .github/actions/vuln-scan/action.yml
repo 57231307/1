@@ -231,7 +231,9 @@ runs:
         #   轮子直链一律用 *WHEEL_URL 命名，并在调用处显式剔除这两个基址变量的继承值。
         SEMGREP_WHEEL_SHA256: "f36115c4d0cb43056ceb308273421a2f6a35e055e7e029601e130850f836646e"
         SEMGREP_WHEEL_URL: "https://files.pythonhosted.org/packages/c5/fd/85ac31a5ec53feee54ebdce933ab1c94af81695a2b244b0baefdbcdba92a/semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
-        SEMGREP_RULESETS: "p/ci-detect-secrets p/typescript p/rust"
+        # 注册包名必须真实存在：semgrep 按 https://semgrep.dev/c/p/<name> 取规则，包名不存在时
+        #   取回 404，--validate 直接判失败。四个包名逐一按该直链探过，全部回 200 才写进这里。
+        SEMGREP_RULESETS: "p/secrets p/security-audit p/typescript p/rust"
       run: |
         set -uo pipefail
         R="$GITHUB_WORKSPACE/reports/audit"
