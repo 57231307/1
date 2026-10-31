@@ -36,7 +36,7 @@ import {
   AR_SHELL_ENTRY_PERMISSIONS,
   PERMISSIONS,
 } from '@/constants/permissions';
-import { hasRoutePermission } from '../../e2e/traversal/permission-model';
+import { hasRoutePermission, parseRouterPermissions } from '../../e2e/traversal/permission-model';
 import {
   BACKEND_MATRIX_RS,
   BACKEND_REGISTRY_RS,
@@ -77,8 +77,8 @@ const AR_FAMILY_RESOURCES = [
 
 /** 从 router 源文本取 /ar 的 meta.permission（守卫实际消费的口径，与 e2e 派生侧同一解析器） */
 function shellGateFromRouter(routerSrc: string): string[] {
-  const gate = parseRoutePermissionEntry(routerSrc, 'ar');
-  if (gate === undefined) {
+  const gate = parseRouterPermissions(routerSrc)['/ar'];
+  if (gate === null || gate === undefined) {
     throw new Error('router 中 /ar 无 meta.permission——应收壳页退化为「登录即可达」，判红交人工');
   }
   if (!Array.isArray(gate)) {
@@ -88,6 +88,19 @@ function shellGateFromRouter(routerSrc: string): string[] {
     );
   }
   return gate;
+}
+
+/**
+ * 取某页签入口判据的守卫命中判据（写面按钮那条判据的可注入形态）。
+ * 抽成函数是为了让"摘掉一枚 v-permission"的注入能走同一条判定路径复算，
+ * 而不是只检查替换字符串本身有没有生效。
+ */
+function guardedByKey(tabSrc: string, key: string): boolean {
+  const identifier = Object.keys(PERMISSIONS).find(
+    k => (PERMISSIONS as unknown as Record<string, string>)[k] === key
+  );
+  if (!identifier) return false;
+  return tabSrc.includes(`v-permission="PERMISSIONS.${identifier}"`);
 }
 
 /** 权限码 `资源:动作` → 资源段 */
@@ -150,61 +163,110 @@ function keysOfRole(role: string): string[] {
  * 每条形如 [api 函数名, 该方法在后端派生出的权限码, 该 api 调用在 route-snapshot 里的行片段]，
  * 判据是：该页签的 vue 源文本里必须存在一条 v-permission 指向解析后等于该权限码的常量标识符，
  * 并且该权限码至少被一个能进该页签的角色持有。
+ * snapshotPath 取 route-snapshot 的整行前缀形态（METHOD TAB /api/v1/erp/<路径> TAB），
+ * 与快照文件的实际列布局逐字同形，不另写一套"去掉 api 前缀"的简写口径。
  */
-const WRITE_ENTRY_TABLE: Record<string, Array<{ api: string; key: string; snapshotPath: string }>> =
-  {
-    'frontend/src/views/ar/tabs/InvoiceTab.vue': [
-      { api: 'createARInvoice', key: 'ar-invoices:create', snapshotPath: 'POST\t/ar/invoices\t' },
-      {
-        api: 'approveARInvoice',
-        key: 'ar-invoices:approve',
-        snapshotPath: 'POST\t/ar/invoices/*/approve\t',
-      },
-      {
-        api: 'cancelARInvoice',
-        key: 'ar-invoices:cancel',
-        snapshotPath: 'POST\t/ar/invoices/*/cancel\t',
-      },
-    ],
-    'frontend/src/views/ar/tabs/PaymentTab.vue': [
-      { api: 'createARPayment', key: 'ar-payments:create', snapshotPath: 'POST\t/ar/payments\t' },
-      {
-        api: 'updateARPayment',
-        key: 'ar-payments:update',
-        snapshotPath: 'PUT\t/ar/payments/*\t',
-      },
-      {
-        api: 'confirmARPayment',
-        key: 'ar-payments:confirm',
-        snapshotPath: 'POST\t/ar/payments/*/confirm\t',
-      },
-      {
-        api: 'printARCollectionDocx',
-        key: 'ar-collections:print',
-        snapshotPath: 'GET\t/ar/collections/*/print\t',
-      },
-    ],
-    'frontend/src/views/ar/tabs/VerificationTab.vue': [
-      {
-        api: 'autoVerifyAR',
-        key: 'ar-verifications:create',
-        snapshotPath: 'POST\t/ar/verifications/auto\t',
-      },
-      {
-        api: 'manualVerifyAR',
-        key: 'ar-verifications:create',
-        snapshotPath: 'POST\t/ar/verifications/manual\t',
-      },
-      {
-        api: 'cancelARVerification',
-        key: 'ar-verifications:cancel',
-        snapshotPath: 'POST\t/ar/verifications/*/cancel\t',
-      },
-    ],
-  };
+const WRITE_ENTRY_TABLE: Record<
+  string,
+  Array<{ api: string; key: string; snapshotPath: string }>
+> = {
+  'frontend/src/views/ar/tabs/InvoiceTab.vue': [
+    {
+      api: 'createARInvoice',
+      key: 'ar-invoices:create',
+      snapshotPath: 'POST\t/api/v1/erp/ar/invoices\t',
+    },
+    {
+      api: 'approveARInvoice',
+      key: 'ar-invoices:approve',
+      snapshotPath: 'POST\t/api/v1/erp/ar/invoices/*/approve\t',
+    },
+    {
+      api: 'cancelARInvoice',
+      key: 'ar-invoices:cancel',
+      snapshotPath: 'POST\t/api/v1/erp/ar/invoices/*/cancel\t',
+    },
+  ],
+  'frontend/src/views/ar/tabs/PaymentTab.vue': [
+    {
+      api: 'createARPayment',
+      key: 'ar-payments:create',
+      snapshotPath: 'POST\t/api/v1/erp/ar/payments\t',
+    },
+    {
+      api: 'updateARPayment',
+      key: 'ar-payments:update',
+      snapshotPath: 'PUT\t/api/v1/erp/ar/payments/*\t',
+    },
+    {
+      api: 'confirmARPayment',
+      key: 'ar-payments:confirm',
+      snapshotPath: 'POST\t/api/v1/erp/ar/payments/*/confirm\t',
+    },
+    {
+      api: 'printARCollectionDocx',
+      key: 'ar-collections:print',
+      snapshotPath: 'GET\t/api/v1/erp/ar/collections/*/print\t',
+    },
+  ],
+  'frontend/src/views/ar/tabs/VerificationTab.vue': [
+    {
+      api: 'autoVerifyAR',
+      key: 'ar-verifications:create',
+      snapshotPath: 'POST\t/api/v1/erp/ar/verifications/auto\t',
+    },
+    {
+      api: 'manualVerifyAR',
+      key: 'ar-verifications:create',
+      snapshotPath: 'POST\t/api/v1/erp/ar/verifications/manual\t',
+    },
+    {
+      api: 'cancelARVerification',
+      key: 'ar-verifications:cancel',
+      snapshotPath: 'POST\t/api/v1/erp/ar/verifications/*/cancel\t',
+    },
+  ],
+};
 
 /** 页签登记表（模块级一份解析结果，三处判据共用，避免同一源被解两遍给出不同结论） */
 const TAB_REGISTRATIONS = parseArTabRegistrations(AR_SHELL_SRC);
+/** 前端 api 层源文本（写面调用点的方法与路径在此，逐个入口与快照行对照） */
+const AR_API_SRC = readRepoSource('frontend/src/api/ar.ts');
+
+/**
+ * 把 route-snapshot 的行片段还原成前端 api 层的调用形态。
+ * 快照列布局是 METHOD TAB /api/v1/erp/<路径> TAB，记录 id 位在快照里写成 `*`，
+ * 前端源码里是模板串的 `${id}`；本函数只做这两处字面替换，不另立第三套路径口径。
+ */
+function snapshotToCall(snapshotPath: string): { verb: string; literalForms: string[] } {
+  const [method, rawPath] = snapshotPath.split('\t');
+  if (!method || !rawPath || !rawPath.startsWith('/api/v1/erp/')) {
+    throw new Error(
+      `键表的 snapshotPath 形态不符合 route-snapshot 的列布局（实得 ${JSON.stringify(
+        snapshotPath
+      )}）——快照口径已变，本锁需同步修订`
+    );
+  }
+  const apiPath = rawPath.slice('/api/v1/erp'.length);
+  const withId = apiPath.replace(/\*/g, '${id}');
+  return {
+    verb: method.toLowerCase(),
+    literalForms: apiPath.includes('*') ? [`\`${withId}\``] : [`'${apiPath}'`, `\`${apiPath}\``],
+  };
+}
+
+/** 取 ar.ts 里某个 api 函数的函数体（从定义点到下一个 export），用于判"这个调用点用的是哪条腿"。 */
+function apiFunctionBody(fnName: string): string {
+  const start = AR_API_SRC.search(new RegExp(`export (async )?function ${fnName}\\(`));
+  if (start < 0) {
+    throw new Error(
+      `frontend/src/api/ar.ts 里没有 export function ${fnName}——键表指向的调用已退场`
+    );
+  }
+  const rest = AR_API_SRC.slice(start);
+  const next = rest.indexOf('\nexport ', 'export'.length);
+  return next > 0 ? rest.slice(0, next) : rest;
+}
 
 describe('应收壳页门控形态（细键、在册、无粗键兼职）', () => {
   it('/ar 的 router 门控必须是后端在册的应收族细键数组', () => {
@@ -231,9 +293,10 @@ describe('应收壳页门控形态（细键、在册、无粗键兼职）', () =
     const fromConstants = [...AR_SHELL_ENTRY_PERMISSIONS];
     const fromModel = parseRoutePermissionEntry(PERMISSION_MODEL_SRC, 'ar');
     expect(fromRouter, 'router 与 constants 的壳页入口判据分叉').toEqual(fromConstants);
-    expect(fromRouter, 'router 与 e2e 权限模型的评审锚分叉（防漂移门禁会判红，这里同口径拦下）').toEqual(
-      Array.isArray(fromModel) ? fromModel : [fromModel ?? '']
-    );
+    expect(
+      fromRouter,
+      'router 与 e2e 权限模型的评审锚分叉（防漂移门禁会判红，这里同口径拦下）'
+    ).toEqual(Array.isArray(fromModel) ? fromModel : [fromModel ?? '']);
   });
 });
 
@@ -287,7 +350,7 @@ describe('收细前后端能力面与前端可见面同起同落', () => {
 
   it('出纳只经资金账户页签可达，且可见页签集合恰为该一个', () => {
     const cashierKeys = keysOfRole('cashier');
-    const visible = registrationsOfTabs().filter(reg =>
+    const visible = TAB_REGISTRATIONS.filter(reg =>
       hasRoutePermission(resolveTabEntry(reg.identifier), cashierKeys)
     );
     expect(
@@ -299,11 +362,6 @@ describe('收细前后端能力面与前端可见面同起同落', () => {
       '出纳在应收壳页里只应看到资金账户一页'
     ).toEqual(['fund']);
   });
-
-  /** 页签登记表（局部函数，供上面两条共用同一份解析结果） */
-  function registrationsOfTabs() {
-    return parseArTabRegistrations(AR_SHELL_SRC);
-  }
 });
 
 describe('应收页签写面与出文面无 403 裸口', () => {
@@ -323,21 +381,35 @@ describe('应收页签写面与出文面无 403 裸口', () => {
           src.includes(entry.api),
           `${entry.api} 未在 ${tabFile} 出现——键表指向的入口已退场，须同步删条目`
         ).toBe(true);
-        // 守卫存在且解析值等于该键
-        const identifier = Object.keys(PERMISSIONS).find(
-          k => (PERMISSIONS as unknown as Record<string, string>)[k] === entry.key
-        );
+        // 前端调用点就是快照里的同一条腿（方法匹配 加 路径字面量匹配），
+        // 否则本锁钉的键与页面真正打的请求不是同一个请求
+        const call = snapshotToCall(entry.snapshotPath);
+        const body = apiFunctionBody(entry.api);
+        // 泛型形态（request.get<Blob>(）必须一起认，否则带类型参数的调用会被判成没有调用
         expect(
-          identifier,
+          new RegExp(`request\\.${call.verb}(<[^>]*>)?\\(`).test(body),
+          `${entry.api} 的函数体里没有 request.${call.verb}(...) ——在册腿的方法与前端调用方法不一致`
+        ).toBe(true);
+        expect(
+          call.literalForms.some(form => body.includes(form)),
+          `${entry.api} 未调用 ${entry.snapshotPath.trim()} 这条在册腿（前端路径字面量与快照对不上）`
+        ).toBe(true);
+        // 守卫存在且解析值等于该键（与注入夹具走同一个判定函数，不在此重复写判定式）
+        expect(
+          Object.keys(PERMISSIONS).some(
+            k => (PERMISSIONS as unknown as Record<string, string>)[k] === entry.key
+          ),
           `constants 里没有取值等于 ${entry.key} 的权限码——守卫无从写出`
-        ).toBeTruthy();
+        ).toBe(true);
         expect(
-          src.includes(`v-permission="PERMISSIONS.${identifier}"`),
+          guardedByKey(src, entry.key),
           `${tabFile} 里 ${entry.key} 的入口没有 v-permission 守卫：不持该键的角色看得见点不得，必 403`
         ).toBe(true);
         // 守卫不是死守卫：至少一个能进该页签的角色真持有
         const holder = allReachingRoles.some(role => keysOfRole(role).includes(entry.key));
-        expect(holder, `${entry.key} 没有任何财务岗持有——该守卫会让入口对所有人隐去，属死面`);
+        expect(holder, `${entry.key} 没有任何财务岗持有——该守卫会让入口对所有人隐去，属死面`).toBe(
+          true
+        );
       });
     }
   }
@@ -364,49 +436,69 @@ describe('应收页签写面与出文面无 403 裸口', () => {
 });
 
 describe('判定器自身检测力（四处注入必须被抓到）', () => {
-  it('注入「门控改回粗键 finance:read」必须被判红', () => {
-    const mutated = ROUTER_SRC.replace(
-      "  path: 'ar',\n        name: 'AR',",
-      "  path: 'ar',\n        name: 'AR_MUTATED_PROBE',"
-    );
-    expect(mutated).not.toBe(ROUTER_SRC);
-    const coarse = coarseOffenders(['finance:read'], COARSE_DOMAINS);
-    expect(coarse, '粗域判据失效：finance 被判成非粗域，说明 COARSE_DOMAIN_RESOURCES 解析没跑起来').toEqual(
-      ['finance']
-    );
+  it('注入「门控里一枚细键换成粗键 finance:read」必须被粗域判据抓到', () => {
+    // 对照向：现值必须判不出任何粗域项，否则下面注入的「抓到」无从证明
+    expect(coarseOffenders(shellGateFromRouter(ROUTER_SRC), COARSE_DOMAINS)).toEqual([]);
+    // 注入向：把 /ar 数组里一枚细键换成粗域键，同一判据必须点名 finance
+    const mutated = ROUTER_SRC.replace("'ar-invoices:read',", "'finance:read',");
+    expect(mutated, '夹具替换未生效（router 文本形态已变，本自证需同步修订）').not.toBe(ROUTER_SRC);
+    const offenders = coarseOffenders(shellGateFromRouter(mutated), COARSE_DOMAINS);
+    expect(offenders, '粗域判据失效：finance 被展开成整域并集放行却没被判为越权入口').toEqual([
+      'finance',
+    ]);
   });
 
   it('注入「页签登记改成注册表外的资源名」必须被 unregisteredResources 抓到', () => {
-    const offenders = unregisteredResources(['ar-canary-not-a-real-resource:read'], BACKEND_RESOURCES);
+    // 对照向：现值全部在册；注入向：注册表外资源段必须点名
+    expect(unregisteredResources(shellGateFromRouter(ROUTER_SRC), BACKEND_RESOURCES)).toEqual([]);
+    const offenders = unregisteredResources(
+      ['ar-canary-not-a-real-resource:read'],
+      BACKEND_RESOURCES
+    );
     expect(offenders, '注册表判据失去分辨力：注册表外的资源段没被判为在册缺失').toEqual([
       'ar-canary-not-a-real-resource',
     ]);
   });
 
-  it('注入「摘掉确认收款的 v-permission」必须让该页签的守卫判据转假', () => {
+  it('注入「摘掉确认收款的 v-permission」必须让守卫判据转假（同函数双向自证）', () => {
     const src = readRepoSource('frontend/src/views/ar/tabs/PaymentTab.vue');
     const stripped = src.replace(
       'v-permission="PERMISSIONS.AR_PAYMENT_CONFIRM"',
       'data-probe="removed"'
     );
-    expect(stripped).not.toBe(src);
+    expect(stripped, '夹具替换未生效').not.toBe(src);
+    // 同一条判定式在注入文本上必须为假、在真实文本上必须为真，两端都成立才说明判据活着
     expect(
-      stripped.includes('v-permission="PERMISSIONS.AR_PAYMENT_CONFIRM"'),
-      '注入未生效（替换目标没命中），本条自证不作数'
+      guardedByKey(stripped, 'ar-payments:confirm'),
+      '摘掉守卫后判据仍判真，说明守卫判定恒真'
     ).toBe(false);
-    expect(src.includes('v-permission="PERMISSIONS.AR_PAYMENT_CONFIRM"')).toBe(true);
+    expect(guardedByKey(src, 'ar-payments:confirm'), '真实文本上判据就为假，注入比对无意义').toBe(
+      true
+    );
   });
 
   it('注入「e2e 评审锚少一枚键」必须被三处一致判据抓到', () => {
     const fromRouter = shellGateFromRouter(ROUTER_SRC);
-    const shortModel = fromRouter.slice(1);
-    expect(shortModel).not.toEqual(fromRouter);
+    const declared = parseRoutePermissionEntry(PERMISSION_MODEL_SRC, 'ar');
+    // 对照向：现值三处一致（评审锚与 router 逐字相等）
+    expect(Array.isArray(declared), 'e2e 评审锚的 ar 条目不是数组形态').toBe(true);
+    expect(declared, '现值已分叉，本条注入自证不作数').toEqual(fromRouter);
+    // 注入向：从评审锚文本里摘掉一枚键，重新解析后必须与 router 不等
+    const mutatedModel = PERMISSION_MODEL_SRC.replace("    'ar-aging:read',\n", '');
+    expect(mutatedModel, '夹具替换未生效（权限模型文本形态已变）').not.toBe(PERMISSION_MODEL_SRC);
+    const mutatedDeclared = parseRoutePermissionEntry(mutatedModel, 'ar');
+    expect(
+      mutatedDeclared,
+      '评审锚少一枚键后仍与 router 相等，说明三处一致判据是恒真的'
+    ).not.toEqual(fromRouter);
   });
 
   it('用例前提自证：后端矩阵确实不再把任何 ar-* 键授给成本会计与出纳', () => {
     for (const role of ['cost_accountant', 'cashier']) {
       const held = keysOfRole(role).filter(code => AR_FAMILY_RESOURCES.includes(resourceOf(code)));
-      expect(held, `${role} 竟持有应收族键 ${held}：授予面外泄，本锁的反向判据前提失效`).toEqual([]);
+      expect(held, `${role} 竟持有应收族键 ${held}：授予面外泄，本锁的反向判据前提失效`).toEqual(
+        []
+      );
     }
   });
 });
