@@ -1276,7 +1276,7 @@ async fn purchase_return_header_update_tri_state_roundtrip_on_postgres() {
 
     // 审计：after_snapshot 反映清空后的真实 NULL（不留假旧值）
     let log = audit_log::Entity::find()
-        .filter(audit_log::Column::ResourceType.eq("auto_audit"))
+        .filter(audit_log::Column::ResourceType.eq("purchase_return"))
         .filter(audit_log::Column::ResourceId.eq(id.to_string()))
         .order_by(audit_log::Column::Id, Order::Desc)
         .one(&db)

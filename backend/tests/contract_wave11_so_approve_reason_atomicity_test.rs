@@ -119,11 +119,11 @@ async fn read_so(db: &Arc<DatabaseConnection>, id: i32) -> sales_order::Model {
 }
 
 /// 该订单的全部 UPDATE 审计行（approve 服务侧经 update_with_audit 落
-/// resource_type="auto_audit"；resource_id 为订单主键字符串）
+/// resource_type="sales_orders"，占位符 auto_audit 由写入单点换成实体表名；resource_id 为订单主键字符串）
 async fn update_audit_rows(db: &Arc<DatabaseConnection>, order_id: i32) -> Vec<audit_log::Model> {
     audit_log::Entity::find()
         .filter(audit_log::Column::Action.eq("UPDATE"))
-        .filter(audit_log::Column::ResourceType.eq("auto_audit"))
+        .filter(audit_log::Column::ResourceType.eq("sales_orders"))
         .filter(audit_log::Column::ResourceId.eq(order_id.to_string()))
         .all(db.as_ref())
         .await

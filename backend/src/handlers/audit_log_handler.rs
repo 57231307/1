@@ -71,6 +71,9 @@ pub struct AuditLogListQuery {
     pub severity: Option<String>,
     /// 资源类型筛选（如 `user` / `order`）
     pub resource_type: Option<String>,
+    /// 资源 ID 等值筛选（按实体记录定位审计行；与 keyword 的子串模糊筛选互不替代，
+    /// keyword=5 会命中 resource_id 为 15 的行，本参数只命中恰等于 5 的行）
+    pub resource_id: Option<String>,
     /// 请求追踪 ID 筛选
     pub request_id: Option<String>,
     /// 模糊搜索资源 ID / 资源名
@@ -137,7 +140,7 @@ pub struct AuditLogListResponse {
     pub page_size: u64,
 }
 
-/// GET /api/v1/erp/audit-logs；分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / request_id）
+/// GET /api/v1/erp/audit-logs；分页 + 多维筛选（时间范围 / user_id / operation_type / severity / resource_type / resource_id / request_id）
 pub async fn list_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
@@ -172,6 +175,9 @@ pub async fn list_audit_logs(
     }
     if let Some(rt) = &query.resource_type {
         q = q.filter(audit_log::Column::ResourceType.eq(rt.clone()));
+    }
+    if let Some(rid) = &query.resource_id {
+        q = q.filter(audit_log::Column::ResourceId.eq(rid.clone()));
     }
     if let Some(rid) = &query.request_id {
         q = q.filter(audit_log::Column::RequestId.eq(rid.clone()));
@@ -248,8 +254,8 @@ pub async fn get_audit_log(
     Ok(Json(ApiResponse::success(response)))
 }
 
-/// 构建审计日志查询过滤条件（start_time/end_time/user_id/operation_type/severity/
-/// resource_type/request_id）
+/// 构建审计日志查询过滤条件（start_time、end_time、user_id、operation_type、severity、
+/// resource_type、resource_id、request_id），resource_id 为等值筛选供按实体记录定位
 fn build_audit_log_condition(query: &AuditLogListQuery) -> sea_orm::Condition {
     let mut cond = sea_orm::Condition::all();
     if let Some(start) = &query.start_time {
@@ -273,6 +279,9 @@ fn build_audit_log_condition(query: &AuditLogListQuery) -> sea_orm::Condition {
     }
     if let Some(rt) = &query.resource_type {
         cond = cond.add(audit_log::Column::ResourceType.eq(rt.clone()));
+    }
+    if let Some(rid) = &query.resource_id {
+        cond = cond.add(audit_log::Column::ResourceId.eq(rid.clone()));
     }
     if let Some(rid) = &query.request_id {
         cond = cond.add(audit_log::Column::RequestId.eq(rid.clone()));
@@ -352,7 +361,7 @@ fn record_audit_logs_export_audit(state: &AppState, auth: &AuthContext, logs_cou
 /// 并把本次导出的筛选与指纹写入防篡改表
 /// 调用方：审计日志路由的导出端点
 /// 入参：查询参数（start_time、end_time、user_id、operation_type、severity、
-/// resource_type、request_id、keyword 与审批令牌）、应用状态、会话上下文与请求头
+/// resource_type、resource_id、request_id、keyword 与审批令牌）、应用状态、会话上下文与请求头
 /// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
 /// run_export_leg，角色门交 require_admin_role，取数交 build_audit_log_condition，
 /// 防篡改写入交 record_audit_log_export_tamper_proof，成功登记交 record_download
@@ -396,6 +405,10 @@ pub async fn export_audit_logs(
         (
             "resource_type",
             query.resource_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "resource_id",
+            query.resource_id.as_deref().map(serde_json::Value::from),
         ),
         (
             "request_id",
