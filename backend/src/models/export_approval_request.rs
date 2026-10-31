@@ -11,21 +11,27 @@ pub struct ExportParams(pub serde_json::Value);
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, FromJsonQueryResult)]
 pub struct ApprovalContext(pub serde_json::Value);
 
-/// 审批状态枚举（与数据库 status 字段对应）：V15 P0-S14 敏感数据导出二级审批机制
+/// 审批状态枚举（与数据库 status 字段对应）：敏感数据导出审批机制，
+/// 生命周期改造扩展 consumed 与 exhausted 两个终态，
+/// 与数据库 chk_ear_status CHECK 约束取值集合逐字符一致
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ApprovalStatus {
     /// 待审批（一级待审批）
     Pending,
     /// V15 主线审计 Critical 修复：二级待审批（一级已通过，等待二级审批人介入）
     PendingL2,
-    /// 已审批通过
+    /// 已审批通过（BPM 终审完成后进入，等待申请人凭令牌导出）
     Approved,
     /// 已拒绝
     Rejected,
-    /// token 已过期
+    /// token 已过期（有效期到但未成功导出）
     Expired,
     /// 申请人取消
     Cancelled,
+    /// 令牌已消费（导出成功，一次性终态，禁复用）
+    Consumed,
+    /// 重试次数用尽（未成功前提下累计达 max_retries，不可再重试）
+    Exhausted,
 }
 
 impl ApprovalStatus {
@@ -38,6 +44,8 @@ impl ApprovalStatus {
             Self::Rejected => "rejected",
             Self::Expired => "expired",
             Self::Cancelled => "cancelled",
+            Self::Consumed => "consumed",
+            Self::Exhausted => "exhausted",
         }
     }
 
@@ -50,8 +58,23 @@ impl ApprovalStatus {
             "rejected" => Some(Self::Rejected),
             "expired" => Some(Self::Expired),
             "cancelled" => Some(Self::Cancelled),
+            "consumed" => Some(Self::Consumed),
+            "exhausted" => Some(Self::Exhausted),
             _ => None,
         }
+    }
+
+    /// 是否属于终态（不可再迁移的状态集合）
+    pub fn is_terminal(&self) -> bool {
+        matches!(
+            self,
+            Self::Rejected | Self::Expired | Self::Cancelled | Self::Consumed | Self::Exhausted
+        )
+    }
+
+    /// 是否属于在途审批中态（pending/pending_l2，申请人可取消、审批人可办理）
+    pub fn is_pending_any(&self) -> bool {
+        matches!(self, Self::Pending | Self::PendingL2)
     }
 }
 
@@ -153,6 +176,24 @@ pub struct Model {
     pub updated_at: DateTimeWithTimeZone,
     /// 流程终结时间（下载完成或 token 过期）
     pub completed_at: Option<DateTimeWithTimeZone>,
+    /// 令牌 SHA256 哈希（m0105 起新记录只写哈希，明文不落库；老行为 NULL 走原 download_token 明文回退）
+    pub token_hash: Option<String>,
+    /// 令牌前缀指纹（供 UI 展示，形如 exp_a1b2c3d4，不含完整凭据）
+    pub token_fingerprint: Option<String>,
+    /// 一次性令牌是否已被申请人取走查看（true 后 token-once 端点拒第二次调用，只回指纹）
+    pub token_viewed: bool,
+    /// 令牌未成功导出前提下的累计重试次数
+    pub retry_count: i32,
+    /// 最近一次失败导出尝试的时刻（重试窗口判定源，与注入时钟比较）
+    pub last_attempt_at: Option<DateTimeWithTimeZone>,
+    /// 该令牌允许的最大重试次数（默认 3）
+    pub max_retries: i32,
+    /// 令牌是否已被成功导出消费（一次性消费标记）
+    pub token_consumed: bool,
+    /// 令牌消费时刻（导出成功那一刻落库）
+    pub token_consumed_at: Option<DateTimeWithTimeZone>,
+    /// 关联的 BPM 流程实例 ID（多态松散引用，走 bpm_process_instance.id）
+    pub bpm_instance_id: Option<i32>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

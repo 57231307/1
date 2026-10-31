@@ -22,6 +22,7 @@ import {
   tryCleanup,
 } from '../flow/helpers';
 import { pickSelectIn, openScopedDropdown, dropdownItems } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 // 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
 import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
@@ -200,8 +201,12 @@ test.describe('04 明细选产品自动带出主档资料', () => {
     await expect(cells().nth(7).locator('input')).toHaveValue(String(masterA.specification), {
       timeout: 15000,
     });
-    await itemsTable.getByRole('spinbutton').first().fill('10');
-    await itemsTable.getByRole('spinbutton').nth(1).fill('5');
+    // 数量/单价 纯手写数字录入列 按列头锚定（无步进加减按钮 不依赖换型后消失的 spinbutton 角色）
+    const qRow04 = itemsTable.locator('.el-table__row').first();
+    const qQty04 = await cellInputByColumn(itemsTable, qRow04, '数量');
+    await qQty04.fill('10');
+    const qPrice04 = await cellInputByColumn(itemsTable, qRow04, '单价');
+    await qPrice04.fill('5');
 
     const requestPromise = page.waitForRequest(
       req => req.method() === 'POST' && new URL(req.url()).pathname.endsWith('/quotations'),

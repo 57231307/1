@@ -38,6 +38,7 @@ import {
   BASE_URL,
 } from '../flow/helpers';
 import { pickListArray } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 /** 报价明细行响应键（models/quotation_response_dto.rs::QuotationItemResponseDto，DECIMAL 经 JSON 为字符串） */
 interface QuotationItemLite {
@@ -231,22 +232,26 @@ test.describe('13 报价翻译回读', () => {
     });
 
     // 预填回读②：明细行数量/单价/含税单价数值化解析（precision=2 文本不稳，解析为 number 再断言）。
-    // QuotationItemEditor 明细行仅 3 个 el-input-number（数量/单价/含税单价），金额列为展示文本非输入。
+    // QuotationItemEditor 明细行的三个数字录入列（数量/单价/含税单价）为纯手写录入（无步进加减按钮），
+    // 金额列为展示文本非输入；按列头锚定取值，不依赖换型后消失的 spinbutton 角色。
     const itemsTable = page.locator('[aria-label="报价明细编辑表"]');
     await expect(itemsTable, '复制预填后明细表应渲染').toBeVisible({ timeout: 15000 });
-    const spins = itemsTable.getByRole('spinbutton');
-    await expect(spins.first(), '预填后明细行应渲染数量输入').toBeVisible({ timeout: 15000 });
-    const qtyVal = Number(await spins.nth(0).inputValue());
-    const priceVal = Number(await spins.nth(1).inputValue());
-    const priceTaxVal = Number(await spins.nth(2).inputValue());
-    expect(qtyVal, `新建页数量应预填为源值 40，实际 ${await spins.nth(0).inputValue()}`).toBe(40);
+    const copyRow = itemsTable.locator('.el-table__row').first();
+    const qtyInput = await cellInputByColumn(itemsTable, copyRow, '数量');
+    const priceInput = await cellInputByColumn(itemsTable, copyRow, '单价');
+    const priceTaxInput = await cellInputByColumn(itemsTable, copyRow, '含税单价');
+    await expect(qtyInput, '预填后明细行应渲染数量输入').toBeVisible({ timeout: 15000 });
+    const qtyVal = Number(await qtyInput.inputValue());
+    const priceVal = Number(await priceInput.inputValue());
+    const priceTaxVal = Number(await priceTaxInput.inputValue());
+    expect(qtyVal, `新建页数量应预填为源值 40，实际 ${await qtyInput.inputValue()}`).toBe(40);
     expect(
       priceVal,
-      `新建页单价应预填为源值 12.5，实际 ${await spins.nth(1).inputValue()}`
+      `新建页单价应预填为源值 12.5，实际 ${await priceInput.inputValue()}`
     ).toBeCloseTo(12.5, 2);
     expect(
       priceTaxVal,
-      `新建页含税单价应预填为源值 12.5，实际 ${await spins.nth(2).inputValue()}`
+      `新建页含税单价应预填为源值 12.5，实际 ${await priceTaxInput.inputValue()}`
     ).toBeCloseTo(12.5, 2);
 
     // 保存为「新」草稿：捕获 POST /quotations（跳过 CSRF 竞败 403 中间态）取新单 id

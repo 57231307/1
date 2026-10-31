@@ -11,6 +11,7 @@ import {
   tryCleanup,
 } from './helpers';
 import { openScopedDropdown, dropdownItems } from './ui-helpers';
+import { cellInputByColumn } from './table-column';
 
 /**
  * 销售订单列表页声明的列集合，该页表头判据的唯一基准面。
@@ -293,11 +294,15 @@ test.describe('面料单据专用字段全链路验证', () => {
     await colorOption.click();
     console.log(`[21a] 已选色号 ${colorNo}`);
 
-    // 明细行：填数量（第 1 个 input-number）与单价（第 2 个，必须 >0 才计入提交）
-    const numberInputs = dialog.locator('.el-table .el-input-number input');
-    await numberInputs.nth(0).fill('100');
-    await numberInputs.nth(1).fill('25.5');
-    await numberInputs.nth(1).press('Tab');
+    // 明细行：填数量与单价 两列均为纯手写录入的数字输入框（无步进加减按钮）按列头锚定
+    // 单价必须 >0 才计入提交 填完 Tab 让显示收敛到校验器归一后的形态
+    const detailTable = dialog.locator('.el-table').first();
+    const detailRow = detailTable.locator('.el-table__row').first();
+    const qtyInput = await cellInputByColumn(detailTable, detailRow, '数量');
+    await qtyInput.fill('100');
+    const priceInput = await cellInputByColumn(detailTable, detailRow, '单价');
+    await priceInput.fill('25.5');
+    await priceInput.press('Tab');
     console.log('[21a] 已填数量=100 单价=25.5');
 
     // 提交：捕获真实 POST /sales/orders 的请求体与响应（不 mock）
@@ -364,7 +369,7 @@ test.describe('面料单据专用字段全链路验证', () => {
   //   BE-3: 后端 SalesOrderItemDetail (services/so/mod.rs) 补 quantity_tolerance_pct 出参
   //         order_query.rs build_item_detail() / build_single_item_detail() 已透传
   //         order_crud.rs create 时 Set(item_req.quantity_tolerance_pct) 已接线
-  //   FE: 前端 OrderFormDialog.vue 已有"容差" el-input-number 绑定
+  //   FE: 前端 OrderFormDialog.vue"容差"列为纯手写录入的数字输入框（el-input 加数字校验）绑定
   //         row.quantity_tolerance_pct；OrderViewDialog/OrderDetail 已展示该列
   // 本用例通过 UI 新建订单时填入容差值，随后 GET 详情断言 quantity_tolerance_pct
   // 等于写入值；再 UI 打开详情弹窗验证渲染。
@@ -437,15 +442,18 @@ test.describe('面料单据专用字段全链路验证', () => {
     await colorOption.waitFor({ state: 'visible', timeout: 5000 });
     await colorOption.click();
 
-    // 明细行：填数量和单价
-    const numberInputs = dialog.locator('.el-table .el-input-number input');
-    await numberInputs.nth(0).fill('100');
-    await numberInputs.nth(1).fill('30');
-    await numberInputs.nth(1).press('Tab');
+    // 明细行：填数量和单价 两列为纯手写录入的数字输入框（无步进加减按钮）按列头锚定
+    const detailTable = dialog.locator('.el-table').first();
+    const detailRow = detailTable.locator('.el-table__row').first();
+    const qtyInput = await cellInputByColumn(detailTable, detailRow, '数量');
+    await qtyInput.fill('100');
+    const priceInput = await cellInputByColumn(detailTable, detailRow, '单价');
+    await priceInput.fill('30');
+    await priceInput.press('Tab');
 
-    // 明细行：填容差值 — 定位"容差"列的 el-input-number
-    // OrderFormDialog.vue:158 列 label=i18n('sales.orderForm.tolerance')
-    // 中文 locale 下表头文本含"容差"
+    // 明细行：填容差值 该列为纯手写录入的数字输入框（el-input 加数字校验，无步进加减按钮）
+    // 列 label 取 i18n 键 sales.orderForm.tolerance 中文 locale 表头为 交货容差 %
+    // 先断言"容差"列表头存在 再按该列表头锚定本行录入框（列序漂移仍命中本列）
     const toleranceHeader = dialog
       .locator('.el-table__header th, .el-table__header-wrapper th')
       .filter({ hasText: '容差' });
@@ -453,8 +461,7 @@ test.describe('面料单据专用字段全链路验证', () => {
       toleranceHeader.first(),
       '[21a-tol] 明细表应含"容差"列（FE 表单项已渲染）'
     ).toBeVisible({ timeout: 5000 });
-    // 容差输入框在明细行的对应单元格内；列索引由"容差"表头位置确定
-    const toleranceInput = dialog.locator('.el-table__body td .el-input-number input').last(); // 容差列是最后一个 number 列
+    const toleranceInput = await cellInputByColumn(detailTable, detailRow, '交货容差 %');
     await toleranceInput.waitFor({ state: 'visible', timeout: 5000 });
     await toleranceInput.fill(String(toleranceValue));
     await toleranceInput.press('Tab');

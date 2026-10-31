@@ -201,6 +201,18 @@ export const TRAVERSAL_MODULES: TraversalModule[] = [
   // ===== quality 域 =====
   { id: 'quality', route: '/quality', domain: 'quality', tier: 'C', noCreate: true },
   { id: 'quality-standards', route: '/quality-standards', domain: 'quality', tier: 'A', listApi: '/quality-standards' },
+  // 纺织品安全送检页与判定主数据页：两页各有「新建」入口，故取 Tier A。
+  // listApi 登记该页首次加载实际请求的集合腿，送检页取送检单列表。主数据页首屏并发请求
+  // 检测项目、限值规则、出口要求三条集合腿，本探针只登记其中检测项目一条作健康判据，
+  // 另两条腿的显式断言属待补的域内 spec 面。
+  { id: 'textile-safety', route: '/textile-safety', domain: 'quality', tier: 'A', listApi: '/textile-submissions' },
+  {
+    id: 'textile-safety-master',
+    route: '/textile-safety-master',
+    domain: 'quality',
+    tier: 'A',
+    listApi: '/textile-test-items',
+  },
 
   // ===== bpm 域 =====
   { id: 'bpm', route: '/bpm', domain: 'bpm', tier: 'C', noCreate: true },

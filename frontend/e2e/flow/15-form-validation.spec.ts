@@ -1,5 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, BASE_URL } from './helpers';
+import { cellInputByColumn } from './table-column';
 
 // 表单校验真实 UI 交互（规则 2：禁止 catch 吞错，错误必须显式处理或传播）
 // goto 用 waitUntil:domcontentloaded 防前端慢加载永久挂起（shard 15 历史教训）
@@ -73,10 +74,10 @@ test.describe('表单校验真实 UI 交互', () => {
     const dialog = page.locator('.el-dialog').first();
     await dialog.waitFor({ state: 'visible', timeout: 10_000 });
 
-    // 在数量输入框中输入负数
-    const qtyInput = page
-      .locator('.el-dialog .el-input-number input, .el-dialog input[placeholder*="数量"]')
-      .first();
+    // 明细表"数量"列为纯手写录入的数字输入框（无步进加减按钮） 按列头锚定该行录入框
+    const detailTable = dialog.locator('.el-table').first();
+    const detailRow = detailTable.locator('.el-table__row').first();
+    const qtyInput = await cellInputByColumn(detailTable, detailRow, '数量');
     await qtyInput.fill('-5');
 
     // 触发表单校验

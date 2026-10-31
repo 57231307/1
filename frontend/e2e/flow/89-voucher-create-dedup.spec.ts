@@ -16,8 +16,8 @@ import {
  * 调用方，frontend e2e flow 分片。入参，页面与登录态由 worker fixture 提供；分录科目取
  * globalSetup 播种的真实科目树，凭证类型取后端 available_voucher_types 词表，其余走真实接口。
  * 传给谁，断言结果只进 Playwright 报告。
- * 存什么，经 UI 真实提交 POST /vouchers 落一张 draft 凭证（不伪造响应），
- * 用例结束 afterEach 按 id 真实 DELETE 清理，不污染分片共享库。
+ * 存什么，经 UI 真实提交 POST /vouchers 落一张 draft 凭证（路由只延迟放行、不改写响应，
+ * 响应全部来自真实后端），用例结束 afterEach 按 id 真实 DELETE 清理，不污染分片共享库。
  *
  * 两条凭证新建入口并存且只有一条有锁，本用例打的是 frontend/src/views/voucher 那支
  * （/finance 的凭证 Tab 另有 voucherSubmitLoading，不在本用例范围）。
@@ -86,7 +86,17 @@ test.describe('凭证新建防重', () => {
   test('连点两次确定只发出一条建单请求', async ({ page }) => {
     await gotoVoucherList(page);
 
-    // 真实链路观察（不拦截、不改写响应）：POST 直达后端真落库，只被动记录请求与建单响应回传的凭证号。
+    // 在途控制面：对建单 POST 只延迟放行、不改写响应，响应全部来自真实后端。
+    // 延迟把在途窗口撑成可稳定观测的时长，连点的第二下必须被在途锁挡在锁外；非 POST 请求原样放行。
+    await page.route(`**${createPathname}`, async route => {
+      if (route.request().method() !== 'POST') {
+        await route.continue();
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await route.continue();
+    });
+    // 真实链路观察（只延迟放行、不改写响应）：POST 经延迟放行到后端真落库，被动记录请求与建单响应回传的凭证号。
     const createRequests: string[] = [];
     const persisted: Array<{ id: number; voucher_no: string }> = [];
     const createResponses: Array<Promise<void>> = [];
