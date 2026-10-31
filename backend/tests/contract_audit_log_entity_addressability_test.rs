@@ -104,7 +104,7 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, tag: &str) -> i32 {
     m.id
 }
 
-/// 直落一行 DRAFT 报价单（BIGSERIAL 主键实体，状态词表按 chk_quotation_status 取值）
+/// 直落一行草稿报价单（BIGSERIAL 主键实体，status 取 sales_quotations 的 chk_status 词表小写值）
 async fn seed_quotation(db: &Arc<DatabaseConnection>, customer_id: i32) -> i64 {
     let m = sales_quotation::ActiveModel {
         quotation_no: Set(format!(
@@ -119,7 +119,7 @@ async fn seed_quotation(db: &Arc<DatabaseConnection>, customer_id: i32) -> i64 {
         subtotal: Set(Decimal::ZERO),
         tax_amount: Set(Decimal::ZERO),
         total_amount: Set(Decimal::ZERO),
-        status: Set("DRAFT".to_string()),
+        status: Set("draft".to_string()),
         created_by: Set(OPERATOR_ID as i64),
         created_at: Set(now()),
         updated_at: Set(now()),
@@ -246,7 +246,7 @@ async fn bigint_pk_placeholder_stamps_table_name_and_real_resource_id() {
         .unwrap()
         .expect("种子报价单必须可回读");
     let mut active: sales_quotation::ActiveModel = loaded.into();
-    active.status = Set("SUBMITTED".to_string());
+    active.status = Set("pending_approval".to_string());
     active.updated_at = Set(now());
 
     AuditLogService::update_with_audit::<sales_quotation::Entity, sales_quotation::ActiveModel, _>(
@@ -276,8 +276,8 @@ async fn bigint_pk_placeholder_stamps_table_name_and_real_resource_id() {
         .expect("BIGSERIAL 主键实体更新前必须查得 before_snapshot，旧实现恒 NULL 的形态禁止回潮");
     assert_eq!(
         before.0["status"].as_str(),
-        Some("DRAFT"),
-        "before_snapshot 必须是更新前的真实状态 DRAFT"
+        Some("draft"),
+        "before_snapshot 必须是更新前的真实状态 draft"
     );
     let after = row
         .after_snapshot
@@ -285,8 +285,8 @@ async fn bigint_pk_placeholder_stamps_table_name_and_real_resource_id() {
         .expect("after_snapshot 必须存在");
     assert_eq!(
         after.0["status"].as_str(),
-        Some("SUBMITTED"),
-        "after_snapshot 必须是更新后的真实状态 SUBMITTED"
+        Some("pending_approval"),
+        "after_snapshot 必须是提交后的真实状态 pending_approval"
     );
 }
 
