@@ -294,7 +294,7 @@
           />
         </el-form-item>
         <el-form-item :label="$t('bpm.startProcessDialog.businessId')">
-          <el-input-number
+          <NumericInput
             v-model="startProcessDialog.businessId"
             :placeholder="$t('bpm.startProcessDialog.businessIdPlaceholder')"
             style="width: 100%"
@@ -335,7 +335,7 @@
           />
         </el-form-item>
         <el-form-item :label="$t('bpm.businessRelationDialog.businessId')">
-          <el-input-number
+          <NumericInput
             v-model="businessRelation.businessId"
             :placeholder="$t('bpm.businessRelationDialog.businessIdPlaceholder')"
             style="width: 100%"
@@ -448,6 +448,7 @@ import { getUserList, type User } from '@/api/user';
 import { logger } from '@/utils/logger';
 import { hasRoutePermission } from '@/router';
 import { PERMISSIONS } from '@/constants/permissions';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 const userStore = useUserStore();

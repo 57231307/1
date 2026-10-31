@@ -70,7 +70,7 @@
       <el-row :gutter="20">
         <el-col :span="12">
           <el-form-item :label="t('salesContract.form.labelTotalAmount')" prop="total_amount">
-            <el-input-number
+            <NumericInput
               v-model="localFormData.total_amount"
               :precision="2"
               :min="0"
@@ -194,7 +194,7 @@
         </el-table-column>
         <el-table-column :label="t('salesContract.form.colQuantity')" width="120">
           <template #default="{ row }">
-            <el-input-number
+            <NumericInput
               v-model="row.quantity"
               :min="0"
               :precision="2"
@@ -205,7 +205,7 @@
         </el-table-column>
         <el-table-column :label="t('salesContract.form.colUnitPrice')" width="120">
           <template #default="{ row }">
-            <el-input-number
+            <NumericInput
               v-model="row.unit_price"
               :min="0"
               :precision="2"
@@ -216,7 +216,7 @@
         </el-table-column>
         <el-table-column :label="t('salesContract.form.colTolerance')" width="140">
           <template #default="{ row }">
-            <el-input-number
+            <NumericInput
               v-model="row.quantity_tolerance_pct"
               :min="0"
               :max="100"
@@ -259,6 +259,7 @@
 import { ref, watch, nextTick } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Customer } from '@/api/customer';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

@@ -8,7 +8,6 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
-  ElInputNumber,
   ElMessage,
   ElRow,
   ElCol,
@@ -21,6 +20,7 @@ import {
   ElDivider,
   ElPagination,
 } from 'element-plus';
+import NumericInput from '@/components/NumericInput.vue';
 import { Search, Box, Refresh } from '@element-plus/icons-vue';
 import { scanToShip, scanInventory, type ScanData, type ScanHistory } from '@/api/barcode-scanner';
 import type { ApiResponse } from '@/types/api';
@@ -244,8 +244,9 @@ const handleScanToShip = async () => {
             <ElRow :gutter="20">
               <ElCol :span="6">
                 <ElFormItem :label="$t('barcodeScanner.ship.orderId')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="shipForm.orderId"
+                    integer
                     :placeholder="$t('barcodeScanner.ship.orderIdPlaceholder')"
                     class="w-full"
                   />

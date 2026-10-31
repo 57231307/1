@@ -132,7 +132,7 @@
           </el-table-column>
           <el-table-column prop="quantity" :label="t('sales.orderForm.quantity')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 v-model="row.quantity"
                 :min="1"
                 size="small"
@@ -143,7 +143,7 @@
           <el-table-column prop="unit" :label="t('sales.orderForm.unit')" width="80" />
           <el-table-column prop="unit_price" :label="t('sales.orderForm.unitPrice')" width="120">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 v-model="row.unit_price"
                 :min="0"
                 :precision="2"
@@ -159,7 +159,7 @@
           </el-table-column>
           <el-table-column :label="t('sales.orderForm.tolerance')" width="140">
             <template #default="{ row }">
-              <el-input-number
+              <NumericInput
                 v-model="row.quantity_tolerance_pct"
                 :min="0"
                 :max="100"
@@ -234,6 +234,7 @@ import type { Customer } from '@/api/customer';
 import { getProductColorList, type Product } from '@/api/product';
 import type { ProductColor } from '@/api/product';
 import { logger } from '@/utils/logger';
+import NumericInput from '@/components/NumericInput.vue';
 
 const { t } = useI18n({ useScope: 'global' });
 

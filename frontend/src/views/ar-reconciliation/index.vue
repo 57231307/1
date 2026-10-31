@@ -191,7 +191,7 @@ const openAddDialog = () => {
 };
 
 const openEditDialog = (row: ArReconciliationEntity) => {
-  // 金额来自列表真实键（Decimal 字符串），转数值供 input-number 编辑
+  // 金额来自列表真实键（Decimal 字符串），转数值供 NumericInput 编辑
   form.value = {
     id: row.id,
     customer_id: row.customer_id,
