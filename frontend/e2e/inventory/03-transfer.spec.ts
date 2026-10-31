@@ -152,8 +152,8 @@ test.describe('库存管理 - 03 库存调拨（正规页 /inventory-transfer）
       timeout: 30_000,
     });
 
-    // 数量：明细行第一个 el-input-number 的内层 <input>，placeholder 直传原生 input
-    // （EP input-number → el-input → input[placeholder]，本地 node_modules 源码核实）。
+    // 数量：明细行数字录入列（纯手写 el-input 加校验器，无步进加减按钮）的内层 input，
+    // placeholder 透传到原生 input[placeholder]（本地 node_modules 源码核实）。
     // 注意：getByRole('spinbutton', {name:'数量'}) 按可及名计算 0 命中
     // （role 由 EP onMounted setAttribute、名称回落 placeholder 的链条在真实浏览器不可靠），
     // 正解为按 DOM 属性直查并以 :visible 过滤到可见项——找不到即自然超时抛真实红，
