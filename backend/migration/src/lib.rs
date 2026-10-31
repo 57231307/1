@@ -20,6 +20,7 @@
 //!   → product_spec_extension_columns → product_vocab_check → product_roll_column_drop
 //!   → contract_clause_snapshot_provenance → print_template_default_slot
 //!   → textile_safety → purchase_inspection_result_check → export_approval_lifecycle
+//!   → product_grade_vocab_check
 //!
 //! 迁移名: m_system_domain / m_business_domain / m_sales_crm_domain /
 //!         m_production_domain / m_finance_domain / m_v15_domain / m_rls_dept_domain /
@@ -257,6 +258,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),
+            // 产品等级取值域收口，链尾独立域（先点名后收口，晚于 system 与 v15 两域的历史加列语句）
+            Box::new(domain::product_grade_vocab_check::Migration),
         ]
     }
 }

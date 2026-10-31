@@ -293,7 +293,7 @@ test.describe('面料单据专用字段全链路验证', () => {
     await colorOption.click();
     console.log(`[21a] 已选色号 ${colorNo}`);
 
-    // 明细行：填数量与单价 两列均为纯手写录入的数字输入框（无步进加减按钮）按列头锚定
+    // 明细行 数量列与单价列均为纯手写数值录入列 按列头文案锚定取单元格输入框
     // 单价必须 >0 才计入提交 填完 Tab 让显示收敛到校验器归一后的形态
     const detailTable = dialog.locator('.el-table').first();
     const detailRow = detailTable.locator('.el-table__row').first();

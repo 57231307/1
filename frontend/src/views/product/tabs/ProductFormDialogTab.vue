@@ -355,10 +355,21 @@
                 </el-tooltip>
               </span>
             </template>
-            <el-input
+            <!-- 产品等级词表与后端 product_grade 同源（优等品 一等品 合格品），value 为中文落库真相，label 走 i18n。
+                 可空列允许留空，清空随提交发空串、后端按未录入落 NULL（收口判据见 DB CHECK 与服务层校验） -->
+            <el-select
               v-model="formData.product_grade"
+              clearable
               :placeholder="t('product.productFormDialogTab.placeholderProductGrade')"
-            />
+              style="width: 100%"
+            >
+              <el-option
+                v-for="item in productGradeOptions"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
+            </el-select>
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -512,6 +523,8 @@ import {
   PRODUCT_SAFETY_CATEGORY_LABEL_KEY,
   PRODUCT_SAFETY_CATEGORY,
   PRODUCT_STRUCTURE_GROUPS,
+  PRODUCT_GRADE_VALUES,
+  PRODUCT_GRADE_LABEL_KEY,
 } from '@/constants/product-spec-vocab';
 import { computeMetersPerKg, buildFabricSpecification } from '@/utils/fabric-yardage';
 import { logger } from '@/utils/logger';
@@ -523,6 +536,15 @@ const safetyCategoryOptions = computed(() =>
   PRODUCT_SAFETY_CATEGORY_VALUES.map(value => ({
     value,
     label: t(PRODUCT_SAFETY_CATEGORY_LABEL_KEY[value]),
+  }))
+);
+
+// 产品等级下拉：value 用中文落库真相（优等品 一等品 合格品），label 走 i18n；
+// 词表与后端 product_grade::ALL_GRADES 与 DB CHECK 单源同形，不收库存等级词表（两套值域互不相干）
+const productGradeOptions = computed(() =>
+  PRODUCT_GRADE_VALUES.map(value => ({
+    value,
+    label: t(PRODUCT_GRADE_LABEL_KEY[value]),
   }))
 );
 
