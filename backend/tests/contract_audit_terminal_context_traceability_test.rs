@@ -32,8 +32,8 @@ use bingxi_backend::middleware::audit_context::{
     audit_context_middleware, mark_audit_high_risk, set_audit_change_reason, set_audit_doc_no,
 };
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::models::{audit_log, role, warehouse};
 use bingxi_backend::models::audit_log::{OperationType, Severity};
+use bingxi_backend::models::{audit_log, role, warehouse};
 use bingxi_backend::services::audit_log_service::{AuditEvent, AuditLogService, flush};
 use bingxi_backend::utils::error::AppError;
 use chrono::Utc;
@@ -119,7 +119,11 @@ fn json_response(v: Value) -> Response {
 
 /// 测试路由 生产 audit_context 中间件在外层 负责终端与页面判定并绑定活上下文
 /// 再叠 inject_auth 提供 admin 会话 供 list 端点的角色门通过
-async fn inject_auth(State(auth): State<AuthContext>, mut request: Request<Body>, next: Next) -> Response {
+async fn inject_auth(
+    State(auth): State<AuthContext>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
     request.extensions_mut().insert(auth);
     next.run(request).await
 }
@@ -182,8 +186,7 @@ async fn call(
     }
     let req = match body {
         Some(v) => {
-            builder =
-                builder.header("content-type", HeaderValue::from_static("application/json"));
+            builder = builder.header("content-type", HeaderValue::from_static("application/json"));
             builder.body(Body::from(v.to_string())).unwrap()
         }
         None => builder.body(Body::empty()).unwrap(),
@@ -493,10 +496,7 @@ async fn high_risk_operations_are_filterable_separately() {
     )
     .await;
     assert_eq!(s_list, StatusCode::OK, "高风险筛选应 200 实际 {v}");
-    let items = v["data"]["items"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
+    let items = v["data"]["items"].as_array().cloned().unwrap_or_default();
     let flagged: Vec<String> = items
         .iter()
         .filter_map(|it| it["risk_flag"].as_str().map(|s| s.to_string()))
@@ -520,11 +520,11 @@ async fn high_risk_operations_are_filterable_separately() {
     )
     .await;
     assert_eq!(s_del_only, StatusCode::OK);
-    let del_items = v_del["data"]["items"].as_array().cloned().unwrap_or_default();
-    assert!(
-        !del_items.is_empty(),
-        "按 DELETE 精筛应至少命中删除行"
-    );
+    let del_items = v_del["data"]["items"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(!del_items.is_empty(), "按 DELETE 精筛应至少命中删除行");
     for it in &del_items {
         assert_eq!(
             it["risk_flag"].as_str(),
@@ -536,10 +536,7 @@ async fn high_risk_operations_are_filterable_separately() {
     let normal_in_high = items
         .iter()
         .any(|it| it["resource_id"].as_str() == Some("RISK-NORMAL"));
-    assert!(
-        !normal_in_high,
-        "无标记的普通更新不得出现在高风险结果里"
-    );
+    assert!(!normal_in_high, "无标记的普通更新不得出现在高风险结果里");
 }
 
 // ============================================================
@@ -627,12 +624,7 @@ async fn trace_by_doc_no_returns_full_chain_in_time_order() {
         !ids.contains(&"TR-NOISE"),
         "追溯不得误带他单行 实际 {ids:?}"
     );
-    assert_eq!(
-        items.len(),
-        3,
-        "本单追溯应恰好三行 实际 {}",
-        items.len()
-    );
+    assert_eq!(items.len(), 3, "本单追溯应恰好三行 实际 {}", items.len());
 
     // 每行单号都等于查询单号 且终端如实反映发起端
     for it in &items {

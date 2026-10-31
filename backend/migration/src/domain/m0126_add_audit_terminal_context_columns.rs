@@ -134,8 +134,10 @@ COMMENT ON COLUMN "audit_logs"."risk_flag" IS '高风险操作标记，取值 DE
 impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         let conn = manager.get_connection();
-        conn.execute_unprepared(ADD_TRACEABILITY_COLUMNS_SQL).await?;
-        conn.execute_unprepared(ADD_TRACEABILITY_INDEXES_SQL).await?;
+        conn.execute_unprepared(ADD_TRACEABILITY_COLUMNS_SQL)
+            .await?;
+        conn.execute_unprepared(ADD_TRACEABILITY_INDEXES_SQL)
+            .await?;
         conn.execute_unprepared(COMMENT_COLUMNS_SQL).await?;
         Ok(())
     }

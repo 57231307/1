@@ -536,11 +536,7 @@ impl AuditLogService {
         let username = Self::fetch_username(db, user_id).await?;
         // 定位五维在单点从请求作用域取；删除属高风险操作，业务侧未显式标记时自动补 DELETE
         let req_ctx = audit_ctx_for_sync_write();
-        let risk_flag = Some(
-            req_ctx
-                .risk_flag
-                .unwrap_or_else(|| RISK_DELETE.to_string()),
-        );
+        let risk_flag = Some(req_ctx.risk_flag.unwrap_or_else(|| RISK_DELETE.to_string()));
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
