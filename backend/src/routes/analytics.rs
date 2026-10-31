@@ -115,6 +115,11 @@ pub fn scanner() -> Router<AppState> {
             "/ship-by-piece",
             axum::routing::post(barcode_scanner_handler::ship_by_piece_no),
         )
+        // 逐匹扫码入库，操作工先扫库位码再扫布卷码
+        .route(
+            "/scan-receipt",
+            axum::routing::post(barcode_scanner_handler::scan_receipt_post),
+        )
 }
 
 /// 报表增强路由（内部 path 已加 /templates、/fields 等子前缀）；整个 router 在 `routes()` 中用

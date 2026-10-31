@@ -9,7 +9,7 @@
 //! 本系统的 product_colors.color_no 是内部编码，两者之间没有可推导关系，靠猜或取第一条
 //! 都会把布入到别的颜色名下。
 //!
-//! 保密口径，本文件的工会文案只点名工会自己扫进来的东西，即二维码里已校验为 ASCII 字母
+//! 保密口径，本文件的现场文案只点名操作工自己扫进来的东西，即二维码里已校验为 ASCII 字母
 //! 数字的四段与库位编码，不点名任何记录 ID、表名与列名。需要记录 ID 才能定位的异常一律
 //! 只进 tracing 日志，文案仍说清下一步该做什么。
 
@@ -37,8 +37,8 @@ pub struct ScanInboundCommand<'a> {
     pub position_no: &'a str,
     /// 供应商 ID，给出时染厂色号只在该供应商的对照范围内定位
     pub supplier_id: Option<i32>,
-    /// 本匹长度，必填且必须为正
-    pub length: rust_decimal::Decimal,
+    /// 本匹长度（米），请求可缺值，缺值在登记腿显式拒绝，不兜底
+    pub length: Option<rust_decimal::Decimal>,
     /// 本匹重量，可空，空表示未实测
     pub weight: Option<rust_decimal::Decimal>,
     /// 操作人用户 ID，写进匹行的创建人列
@@ -61,8 +61,9 @@ pub struct ResolvedRollIdentity {
 
 /// 定位与查重的拒绝原因，一变体一理由，调用方据此出文案，不允许折叠成一条。
 ///
-/// 每个变体自带的材料只允许是操作工自己扫进来的编码值。需要点名记录 ID 的异常
-/// 不带 ID，改由 to_app_error 给出仍可行动的文案，真实细节由产生点写日志。
+/// 每个变体自带的材料只允许是操作工自己扫进来的编码值与先前入库的仓库编码与入库时间。
+/// 需要点名记录 ID 的异常不带 ID，改由 to_app_error 给出仍可行动的文案，
+/// 真实细节由产生点写日志。
 pub enum ResolveRejection {
     /// 二维码里的款号在产品档案里一条都找不到
     ProductNotFound { product_code: String },
@@ -99,17 +100,19 @@ pub enum ResolveRejection {
         warehouse_code: Option<String>,
         warehouse_in_at: Option<chrono::DateTime<chrono::Utc>>,
     },
-    /// 匹行已存在但扫到的库位与先前入库的库位不同，属移库而非重复入库
+    /// 匹行已存在但扫到的库位与先前记录的库位不同，属挪位诉求而非重复入库
     PositionMismatchOnExisting {
         existing_position_no: Option<String>,
         scanned_position_no: String,
+        warehouse_code: Option<String>,
+        warehouse_in_at: Option<chrono::DateTime<chrono::Utc>>,
     },
 }
 
 /// 扫码入库定位腿的失败面，要么是可外显的定位拒绝，要么是数据库错误。
 ///
-/// 为什么要两个面分开，定位拒绝是工会能自己修的事，数据库错误是系统故障，
-/// 把后者折成前者会让操作工装模作样地重扫，而真正该报的是连接或查询失败。
+/// 为什么要两个面分开，定位拒绝是操作工能自己修的事，数据库错误是系统故障，
+/// 把后者折成前者会让操作工白重扫一遍，而真正该报的是连接或查询失败。
 pub enum ResolveFailure {
     /// 定位或查重得出的业务拒绝
     Rejection(ResolveRejection),
@@ -121,9 +124,9 @@ impl From<ResolveRejection> for ResolveFailure {
     /// 把定位拒绝装进失败面。
     ///
     /// 做什么，一个无损包装，不改文案也不改判定。
-    /// 调用方，本模块各定位函数里 `Err(rej.into())` 的写法。
+    /// 调用方，本模块各定位函数里用 into 把拒绝原因装进失败面的写法。
     /// 入参，rej，一个定位或查重的拒绝原因。
-    /// 出参消费方，register_scanned_roll 用 `?` 取走后转成 AppError 出参。
+    /// 出参消费方，register_scanned_roll 用问号运算符取走后转成 AppError 出参。
     /// 存什么，不存任何东西。
     /// 存哪里，无落库。
     fn from(rej: ResolveRejection) -> Self {
@@ -135,9 +138,9 @@ impl From<sea_orm::DbErr> for ResolveFailure {
     /// 把数据库错误装进失败面的另一侧。
     ///
     /// 做什么，转交 AppError 既有的 DbErr 分类，不在此处另写一套判定。
-    /// 调用方，本模块各定位函数里对查询结果用 `?` 的隐式转换。
+    /// 调用方，本模块各定位函数里对查询结果用问号运算符隐式转换的路径。
     /// 入参，err，sea-orm 抛出的连接、执行或查询错误。
-    /// 出参消费方，register_scanned_roll 用 `?` 取走后原样出参。
+    /// 出参消费方，register_scanned_roll 用问号运算符取走后原样出参。
     /// 存什么，不存任何东西，AppError 的转换内部已记日志。
     /// 存哪里，无落库。
     fn from(err: sea_orm::DbErr) -> Self {
@@ -149,7 +152,7 @@ impl From<ResolveFailure> for AppError {
     /// 把定位腿的失败面收成 AppError。
     ///
     /// 做什么，业务拒绝走文案翻译，数据库错误原样保留。
-    /// 调用方，register_scanned_roll 内对 resolve_roll_identity 结果用 `?` 的隐式转换。
+    /// 调用方，register_scanned_roll 内对定位结果用问号运算符隐式转换的路径。
     /// 入参，failure，定位或查重的失败面。
     /// 出参消费方，axum 的 IntoResponse 出统一错误信封给扫码入库端点。
     /// 存什么，不存任何东西。
@@ -253,13 +256,27 @@ impl ResolveRejection {
             ResolveRejection::PositionMismatchOnExisting {
                 existing_position_no,
                 scanned_position_no,
+                warehouse_code,
+                warehouse_in_at,
             } => {
                 let existing = match existing_position_no {
                     Some(no) => no,
                     None => "未记录库位".to_string(),
                 };
+                let prior = match (&warehouse_code, warehouse_in_at) {
+                    (Some(code), Some(at)) => format!(
+                        "先前入到仓库 {code}，入库时间 {}",
+                        at.format("%Y-%m-%d %H:%M:%S")
+                    ),
+                    (Some(code), None) => {
+                        format!(
+                            "先前入到仓库 {code}，入库时间未记录，这一匹行是入库时间列为空的存量数据"
+                        )
+                    }
+                    (None, _) => "先前入库所在仓库的编码已经查不到了".to_string(),
+                };
                 AppError::business_displayable(format!(
-                    "这一匹已经入库，它当前所在库位是 {existing}，与本次扫到的库位 {scanned_position_no} 不一致。要挪位置请走移库，不要按重复入库再扫一次"
+                    "这一匹已经入库，{prior}，它当前所在库位是 {existing}，与本次扫到的库位 {scanned_position_no} 不一致。要挪位置请走移库，不要按重复入库再扫一次"
                 ))
             }
         }
@@ -362,12 +379,10 @@ async fn resolve_product_id<C: ConnectionTrait>(
         .await?;
 
     match product_ids.as_slice() {
-        [] => Err(
-            ResolveRejection::ProductNotFound {
-                product_code: product_code.to_string(),
-            }
-            .into(),
-        ),
+        [] => Err(ResolveRejection::ProductNotFound {
+            product_code: product_code.to_string(),
+        }
+        .into()),
         [one] => Ok(*one),
         many => {
             tracing::warn!(
@@ -375,12 +390,10 @@ async fn resolve_product_id<C: ConnectionTrait>(
                 hit_count = many.len(),
                 "扫码入库款号命中多条产品记录"
             );
-            Err(
-                ResolveRejection::ProductAmbiguous {
-                    product_code: product_code.to_string(),
-                }
-                .into(),
-            )
+            Err(ResolveRejection::ProductAmbiguous {
+                product_code: product_code.to_string(),
+            }
+            .into())
         }
     }
 }
@@ -424,14 +437,12 @@ async fn resolve_internal_color<C: ConnectionTrait>(
         .await?;
 
     if mapped_color_ids.is_empty() {
-        return Err(
-            ResolveRejection::NoColorMapping {
-                product_code: parsed.product_code.clone(),
-                external_color_no: parsed.external_color_no.clone(),
-                supplier_scoped: supplier_id.is_some(),
-            }
-            .into(),
-        );
+        return Err(ResolveRejection::NoColorMapping {
+            product_code: parsed.product_code.clone(),
+            external_color_no: parsed.external_color_no.clone(),
+            supplier_scoped: supplier_id.is_some(),
+        }
+        .into());
     }
 
     // 去重保留首次出现顺序，同一内部色号被多条对照重复命中只算一个候选
@@ -442,13 +453,11 @@ async fn resolve_internal_color<C: ConnectionTrait>(
         }
     }
     if distinct_color_ids.is_empty() {
-        return Err(
-            ResolveRejection::MappingWithoutInternalColor {
-                product_code: parsed.product_code.clone(),
-                external_color_no: parsed.external_color_no.clone(),
-            }
-            .into(),
-        );
+        return Err(ResolveRejection::MappingWithoutInternalColor {
+            product_code: parsed.product_code.clone(),
+            external_color_no: parsed.external_color_no.clone(),
+        }
+        .into());
     }
     if distinct_color_ids.len() > 1 {
         tracing::warn!(
@@ -457,14 +466,12 @@ async fn resolve_internal_color<C: ConnectionTrait>(
             candidate_ids = ?distinct_color_ids,
             "扫码入库染厂色号对照到多个内部色号，拒绝任选一条"
         );
-        return Err(
-            ResolveRejection::AmbiguousColorMapping {
-                product_code: parsed.product_code.clone(),
-                external_color_no: parsed.external_color_no.clone(),
-                candidate_count: distinct_color_ids.len(),
-            }
-            .into(),
-        );
+        return Err(ResolveRejection::AmbiguousColorMapping {
+            product_code: parsed.product_code.clone(),
+            external_color_no: parsed.external_color_no.clone(),
+            candidate_count: distinct_color_ids.len(),
+        }
+        .into());
     }
     let product_color_id = distinct_color_ids[0];
 
@@ -502,22 +509,25 @@ async fn resolve_internal_color<C: ConnectionTrait>(
 /// 同款号同缸号同匹号的重复入库防护。
 ///
 /// 做什么，按款号与缸号与匹号查已存在的染色匹，命中就带着先前那一匹的仓库编码与入库时间
-/// 一起拒绝，让工会看到先前那次入库而不是静默落下第二行。
+/// 一起拒绝，让操作工看到先前那次入库而不是静默落下第二行。先前记录的库位与本次扫到的
+/// 库位不同时，改判为挪位诉求并点名该走移库。
 /// 调用方，resolve_roll_identity。
-/// 入参，db 只读连接，product_id 已定位的我方产品 ID，parsed 切分得出的四段。
+/// 入参，db 只读连接，product_id 已定位的我方产品 ID，parsed 切分得出的四段，
+/// scanned_position_no 本次扫到的库位编码原文。
 /// 出参消费方，调用方只消费 Ok 这个判据本身，拒绝材料经 ResolveRejection 直达扫码入库端点
-/// 的错误响应，另外仓库编码的取数也供 resolve_roll_identity 记日志。
+/// 的错误响应，命中条数与仓库归属由本函数记日志。
 /// 存什么，什么都不存，本函数只读。
-/// 存哪里，无落库，命中条数与仓库 ID 只由本函数记日志。
+/// 存哪里，无落库。
 async fn assert_not_already_inbound<C: ConnectionTrait>(
     db: &C,
     product_id: i32,
     parsed: &ParsedRollQr,
+    scanned_position_no: &str,
 ) -> Result<(), ResolveFailure> {
     // 查重口径与出库四维 tuple 同源，即款号加缸号加匹号再加匹类型，
     // 不按匹号裸匹配，因为匹号跨缸可重复。
-    // 本腿写入的匹行 dye_lot_id 为空，m0051 那条 (dye_lot_id, piece_no) 部分唯一索引
-    // 覆盖不到这一形态，所以重复防护只能落在这一层。
+    // 本腿写入的匹行 dye_lot_id 为空，m0051 的部分唯一索引只覆盖（dye_lot_id、piece_no）
+    // 组合，够不到这一形态，所以重复防护只能落在这一层。
     let prior: Vec<(i32, Option<String>, Option<chrono::DateTime<chrono::Utc>>)> =
         inventory_piece::Entity::find()
             .filter(inventory_piece::Column::ProductId.eq(product_id))
@@ -545,7 +555,7 @@ async fn assert_not_already_inbound<C: ConnectionTrait>(
         "扫码入库查重命中，该匹已在库，本次不再生成匹记录"
     );
 
-    // 一行命中才把先前入库的仓库编码与入库时间带给工会。
+    // 一行命中才把先前入库的仓库编码与入库时间带给操作工。
     // 多行属数据异常，此时任选一行的仓库来报就是在编造事实，只报重复这件事。
     if prior.len() > 1 {
         return Err(ResolveRejection::AlreadyInbound {
@@ -570,41 +580,22 @@ async fn assert_not_already_inbound<C: ConnectionTrait>(
             "扫码入库查重命中行的仓库编码取不出来，该匹行的仓库归属已断链"
         );
     }
-    Err(
-        ResolveRejection::AlreadyInbound {
-            duplicate_count: prior.len(),
+    // 库位不一致时先点名挪位面，重复事实与先前入库的仓库和入库时间一并带回。
+    if prior_position_no.as_deref() != Some(scanned_position_no) {
+        return Err(ResolveRejection::PositionMismatchOnExisting {
+            existing_position_no: prior_position_no.clone(),
+            scanned_position_no: scanned_position_no.to_string(),
             warehouse_code,
             warehouse_in_at: *prior_in_at,
         }
-        .into(),
-    )
-    // 说明，prior_position_no 供上面的 PositionMismatchOnExisting 变体使用，见 resolve_roll_identity
-}
-
-/// 把已存在匹行的库位与本次扫到的库位做一次对照。
-///
-/// 做什么，只在重复入库已成事实时给出"该挪库位而不是再入一次"的更准文案，
-/// 扫到的库位与先前记录一致时交回通用的重复入库拒绝。
-/// 调用方，resolve_roll_identity 的查重分支。
-/// 入参，existing_position_no 先前那一匹的库位原文，scanned_position_no 本次扫到的库位原文。
-/// 出参消费方，调用方把返回的拒绝原因转成 AppError 出参。
-/// 存什么，什么都不存，本函数只比对两个字符串。
-/// 存哪里，无落库。
-fn position_mismatch_or_duplicate(
-    existing_position_no: Option<String>,
-    scanned_position_no: &str,
-) -> ResolveRejection {
-    if existing_position_no.as_deref() == Some(scanned_position_no) {
-        return ResolveRejection::AlreadyInbound {
-            duplicate_count: 1,
-            warehouse_code: None,
-            warehouse_in_at: None,
-        };
+        .into());
     }
-    ResolveRejection::PositionMismatchOnExisting {
-        existing_position_no,
-        scanned_position_no: scanned_position_no.to_string(),
+    Err(ResolveRejection::AlreadyInbound {
+        duplicate_count: 1,
+        warehouse_code,
+        warehouse_in_at: *prior_in_at,
     }
+    .into())
 }
 
 /// 二维码四段加库位编码到内部身份的定位与查重。
@@ -624,11 +615,11 @@ async fn resolve_roll_identity<C: ConnectionTrait>(
     position_no: &str,
 ) -> Result<ResolvedRollIdentity, ResolveFailure> {
     let product_id = resolve_product_id(db, &parsed.product_code).await?;
-    // 库位先定位，工会先扫的是库位，库位不合形时报库位比报色号更贴近他刚做的事
+    // 库位先定位，操作工先扫到的是库位，库位不合形时报库位比报色号更贴近他刚做的事
     let (location_id, warehouse_id) = resolve_position(db, position_no).await?;
     let (product_color_id, internal_color_no) =
         resolve_internal_color(db, product_id, parsed, supplier_id).await?;
-    assert_not_already_inbound(db, product_id, parsed).await?;
+    assert_not_already_inbound(db, product_id, parsed, position_no).await?;
 
     Ok(ResolvedRollIdentity {
         product_id,
@@ -645,7 +636,7 @@ async fn resolve_roll_identity<C: ConnectionTrait>(
 /// 查重通过后写且只写一行库存匹，匹类型为染色匹，条码列写二维码原文。
 /// 调用方，handlers 下的 barcode_scanner_handler 的扫码入库端点。
 /// 入参，db 数据库连接，cmd 本次扫码的请求值，含二维码原文、库位编码、可选供应商范围、
-/// 长度、可选重量与操作人 ID。
+/// 可选长度、可选重量与操作人 ID，长度缺值与零与负数各自显式拒绝。
 /// 出参消费方，扫码入库端点把返回的匹行序列化后回给移动端，移动端展示这一匹的入库结果。
 /// 存什么，存一行库存匹，含匹号、匹类型、缸号、款号、内部色号、库位、仓库、长度、重量、
 /// 入库时间、创建人与条码原文，批号列按本域既有口径写缸号。
@@ -669,12 +660,17 @@ pub async fn register_scanned_roll<C: ConnectionTrait>(
         qr_rejection_error(rej)
     })?;
 
-    // 长度必填且必须为正，零与负数一律拒。
+    // 长度必填且必须为正，缺值与零与负数各自显式拒绝。
     // 为什么不在缺值时兜底成 0，匹行的米数是下游所有账面的计量源，
     // 零米数的匹行会让这一匹在库存、出库与对账里全部算错，而且看起来是已实测的。
-    if cmd.length <= rust_decimal::Decimal::ZERO {
+    let Some(length) = cmd.length else {
         return Err(AppError::validation_displayable(
-            "这一匹的长度必须大于 0 米，请填写实测米数后再提交，留空与填 0 都会被拒绝",
+            "这一匹还没有填写长度，扫码入库必须带实测米数，请填写这一匹的长度后重新提交",
+        ));
+    };
+    if length <= rust_decimal::Decimal::ZERO {
+        return Err(AppError::validation_displayable(
+            "这一匹的长度必须大于 0 米，请填写实测米数后再提交，填 0 或负数都会被拒绝",
         ));
     }
     // 重量复用匹域既有的取值域门，留空不判，有值必须是正值
@@ -711,7 +707,7 @@ pub async fn register_scanned_roll<C: ConnectionTrait>(
         warehouse_id: Set(identity.warehouse_id),
         location_id: Set(Some(identity.location_id)),
         position_no: Set(Some(cmd.position_no.to_string())),
-        length: Set(cmd.length),
+        length: Set(length),
         // 重量按请求原样落，缺值保持 NULL，由标签侧 fail-closed 点名，此处不兜底
         weight: Set(cmd.weight),
         width: Set(None),

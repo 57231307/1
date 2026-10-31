@@ -7,7 +7,7 @@
 //!
 //! 本模块只做字符串外形切分与逐段字符集校验，不查库也不解释业务含义，
 //! 因此不存在兜底路径，任何不合形的输入都返回一个明确的拒绝原因。
-//! 拒绝原因到工会文案的翻译在 services 下的 scan_inbound 模块，本模块不产出文案。
+//! 拒绝原因到现场文案的翻译在 services 下的 scan_inbound 模块，本模块不产出文案。
 //!
 //! 设计要点，四段的取位靠字符数而不是字节数，且空白与控制字符一律拒绝、不做裁剪。
 //! 扫码枪把回车附在串尾是常见现象，按裁剪处理会让"多读了一个换行"与"标签破损"
@@ -60,7 +60,7 @@ pub enum QrRejection {
 /// 按固定取位把面料二维码原文切成款号、染厂色号、缸号与匹号四段。
 ///
 /// 做什么，定长切分加逐段字符集校验，不改写输入、不裁剪空白、不补默认值，
-/// 四种失败各自返回对应的拒绝变体。
+/// 各类失败各自返回对应的拒绝变体。
 /// 调用方，services 下的 scan_inbound 模块的入库入口函数，
 /// 由 handlers 下的 barcode_scanner_handler 的扫码入库端点触达。
 /// 入参，raw，扫码枪交付的整串原文，允许任意 Unicode 内容。
@@ -74,7 +74,7 @@ pub fn parse_inbound_qr(raw: &str) -> Result<ParsedRollQr, QrRejection> {
 
     // 空白与控制字符先判，且判整串。
     // 为什么排在长度之前，扫码枪常把回车附在串尾，先判长度会把这一类
-    // 现场误报成"长度不合形"，工会按错方向排查；串首串尾与内嵌同等对待，不裁剪。
+    // 现场误报成"长度不合形"，操作工按错方向排查，串首串尾与内嵌同等对待，不裁剪。
     if chars.iter().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(QrRejection::WhitespaceOrControl);
     }
@@ -87,7 +87,7 @@ pub fn parse_inbound_qr(raw: &str) -> Result<ParsedRollQr, QrRejection> {
     let piece_start = chars.len() - PIECE_NO_LEN;
 
     // 三段定长正好铺满整串，缸号段为空。这是与 TooShort 不同的现场，
-    // 标签上确实印了款号与色号与匹号，缺的是缸号，工会要问的是缸号去哪了。
+    // 标签上确实印了款号与色号与匹号，缺的是缸号，操作工要问的是缸号去哪了。
     if piece_start == dye_lot_start {
         return Err(QrRejection::EmptyDyeLot);
     }
@@ -97,7 +97,10 @@ pub fn parse_inbound_qr(raw: &str) -> Result<ParsedRollQr, QrRejection> {
         return Err(QrRejection::ProductCodeNotNumeric);
     }
 
-    let external_color_no: String = chars[PRODUCT_CODE_LEN..dye_lot_start].iter().copied().collect();
+    let external_color_no: String = chars[PRODUCT_CODE_LEN..dye_lot_start]
+        .iter()
+        .copied()
+        .collect();
     if !external_color_no.chars().all(|c| c.is_ascii_digit()) {
         return Err(QrRejection::ExternalColorNotNumeric);
     }

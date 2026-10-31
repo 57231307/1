@@ -12,6 +12,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::inventory_piece;
 // 批次 236 v13 P1-1：库存裁片状态常量接入（规则 0）
 use crate::models::status::inventory_piece as piece_status;
+use crate::services::scan_inbound::{ScanInboundCommand, register_scanned_roll};
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -299,4 +300,65 @@ struct ScanStatisticsRow {
     pub defect_count: i64,
     pub reserved_count: i64,
     pub total_count: i64,
+}
+
+/// 扫码入库请求参数，操作工先扫库位码再扫布卷码，米数随单录入
+#[derive(Debug, Deserialize)]
+pub struct ScanReceiptRequest {
+    /// 布卷二维码原文，整串接收不做裁剪
+    pub barcode: String,
+    /// 先扫到的库位编码
+    pub position_no: String,
+    /// 可选供应商 ID，给出时染厂色号限定在该供应商的对照范围内定位
+    pub supplier_id: Option<i32>,
+    /// 本匹长度（米），缺值由服务层显式拒绝，不在此处兜底
+    pub length: Option<rust_decimal::Decimal>,
+    /// 本匹重量（千克），可空表示未实测
+    pub weight: Option<rust_decimal::Decimal>,
+}
+
+/// 扫码入库端点，逐匹登记扫描入库的染色布卷
+///
+/// 做什么，取出认证上下文的操作工用户 ID 作创建人，把两次扫码与录入值组装成入库命令，
+/// 在事务内调用扫码入库服务登记一行库存匹，成功后提交。
+/// 调用方，routes 下 analytics 的扫码出库路由族，方法 POST，路径末段 scan-receipt。
+/// 入参，state 应用状态，auth 认证上下文（取 user_id），req 扫码入库请求体。
+/// 出参消费方，扫码入库的移动端页面，成功时展示这一匹的登记结果。
+/// 存什么，本端点不直接存，登记由服务层在同一事务内写一行库存匹。
+/// 存哪里，经事务连接落库存匹表一行，提交与回滚由本函数的事务边界决定。
+pub async fn scan_receipt_post(
+    State(state): State<AppState>,
+    auth: AuthContext,
+    Json(req): Json<ScanReceiptRequest>,
+) -> Result<Json<ApiResponse<serde_json::Value>>, AppError> {
+    let txn = state.db.begin().await?;
+    let cmd = ScanInboundCommand {
+        raw_qr: &req.barcode,
+        position_no: &req.position_no,
+        supplier_id: req.supplier_id,
+        length: req.length,
+        weight: req.weight,
+        operator_id: auth.user_id,
+    };
+    let created = register_scanned_roll(&txn, &cmd).await?;
+    txn.commit().await?;
+
+    info!(
+        piece_id = created.id,
+        piece_no = %created.piece_no,
+        "扫码入库端点登记完成"
+    );
+
+    Ok(Json(ApiResponse::success(serde_json::json!({
+        "message": "布卷扫码入库成功",
+        "piece_no": created.piece_no,
+        "dye_lot_no": created.dye_lot_no,
+        "color_no": created.color_no,
+        "barcode": created.barcode,
+        "position_no": created.position_no,
+        "warehouse_id": created.warehouse_id,
+        "length": created.length,
+        "weight": created.weight,
+        "warehouse_in_at": created.warehouse_in_at,
+    }))))
 }
