@@ -28,10 +28,20 @@
 //! 反向自证（既防"门恒放行"也防"门恒拦"）：
 //! - 未流转新档必 2xx，钉引用门与实物门不是一律拒绝
 //! - 软删的染色批次引用必不拦，钉引用门按活单据判而不是按行存在判
+//! - 软删的委外单引用必不拦，钉第二条引用腿同样按活单据判
 //! - 在架实物为零的两态（NULL 与显式 0）都放行，钉该门不读状态列
 //! - 引用数超过采样上限时 message 带总数但不带第 4 条单号，钉点名形态可复核
+//! - 门判据只读在架实物两列，不读累计台账两列、不读克重与门幅等规格列（面料行业
+//!   一卷布的克重与门幅是规格量不是库存量，把它们当删除判据会把零库存的正常卷拦死）
 //!
-//! 权限面另有一节静态派生锁：DELETE 派生出的键必须是已登记资源，否则除超管外谁都授予
+//! 权限面。另有一节真挂 `permission_middleware` 的活测（不连库的静态派生锁只钉键没被
+//! 改坏，放行面必须实测）：只授予 greige-fabrics 的 read 或 create 或删除别的资源的
+//! 角色，DELETE 必 403 且档案行零变化；授予 delete 键的角色必 200 且列表不再出现；
+//! 有键角色在被引用时仍必 400，钉权限面与门判据相互独立、有键不等于旁路门。
+//! 授权行按本文件自建角色与自清理（roles 与 role_permissions 是迁移种子参照表，
+//! 夹具不清空，法同 `contract_fabric_order_state_gates_test`）。
+//!
+//! 另有一节不连库的静态派生锁：DELETE 派生出的键必须是已登记资源，否则除超管外谁都授予
 //! 不了（同 `contract_wave16_resource_key_derivation_test` 的死键判据），本支不新增端点，
 //! 该节只钉既有键没被改坏。
 //!
@@ -51,13 +61,18 @@ use axum::{
 use bingxi_backend::container::AppState;
 use bingxi_backend::handlers::greige_fabric_handler;
 use bingxi_backend::middleware::auth_context::AuthContext;
-use bingxi_backend::middleware::permission::{extract_resource_info, method_to_action};
-use bingxi_backend::models::{dye_batch, greige_fabric, outsourcing_order, outsourcing_order_item};
+use bingxi_backend::middleware::permission::{
+    extract_resource_info, invalidate_permission_cache, method_to_action, permission_middleware,
+};
+use bingxi_backend::models::{
+    dye_batch, greige_fabric, outsourcing_order, outsourcing_order_item, role, role_permission,
+    user,
+};
 use bingxi_backend::services::init_service::PERMISSION_RESOURCES;
 use chrono::{NaiveDate, Utc};
 use rust_decimal::Decimal;
 use sea_orm::ActiveValue::{NotSet, Set};
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use serde_json::Value;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -67,6 +82,20 @@ use tower::ServiceExt;
 const OWNER: i32 = 100;
 /// 与 OWNER 互不可见的他人，用于越权负例
 const OTHER: i32 = 200;
+/// 权限面用例的操作人（自建 users 行，与上面的归属人分开，避免与 A 段的播种号互撞）
+const PERM_OWNER: i32 = 9601;
+/// 权限面自种角色号。roles 与 role_permissions 是迁移种子参照表，夹具不清空，
+/// 每轮先按 code 自清理再播种（法同 contract_fabric_order_state_gates_test）
+const ROLE_DELETE_GRANTEE: &str = "it_gf_g_delete";
+const ROLE_READ_ONLY: &str = "it_gf_g_read";
+const ROLE_CREATE_ONLY: &str = "it_gf_g_create";
+const ROLE_OTHER_RESOURCE: &str = "it_gf_g_other_resource";
+const ALL_GF_ROLES: [&str; 4] = [
+    ROLE_DELETE_GRANTEE,
+    ROLE_READ_ONLY,
+    ROLE_CREATE_ONLY,
+    ROLE_OTHER_RESOURCE,
+];
 
 fn dec(s: &str) -> Decimal {
     Decimal::from_str(s).unwrap()
@@ -206,10 +235,14 @@ async fn seed_dye_batch(
 /// 播一条委外加工单与一行发料明细，明细指向该坯布，返回委外单号。
 /// 两张表对 supplier_id 与 product_id 都只有裸 INTEGER 列、库里无外键约束，
 /// 故不必先播供应商与产品主档。
+/// order_is_deleted 给引用门的活删两态：outsourcing_order.is_deleted 库里 NOT NULL
+/// DEFAULT false（与可空的 dye_batch.is_deleted 不同形态），所以删除门对它按
+/// `= false` 单态判定即完备，不写 IS NULL 分支。
 async fn seed_outsourcing_reference(
-    db: &sea_orm::DatabaseConnection,
+    db: &DatabaseConnection,
     order_no: &str,
     greige_fabric_id: i32,
+    order_is_deleted: bool,
 ) {
     let order = outsourcing_order::ActiveModel {
         id: NotSet,
@@ -229,7 +262,7 @@ async fn seed_outsourcing_reference(
         total_cost: Set(Decimal::ZERO),
         unit_cost: Set(Decimal::ZERO),
         status: Set("draft".to_string()),
-        is_deleted: Set(false),
+        is_deleted: Set(order_is_deleted),
         created_by: Set(Some(OWNER)),
         created_at: Set(now_ts().fixed_offset()),
         updated_at: Set(now_ts().fixed_offset()),
@@ -503,7 +536,7 @@ async fn outsourcing_item_reference_is_refused_and_names_the_order_no() {
         NotSet,
     )
     .await;
-    seed_outsourcing_reference(&db, "WW-DR-0001", 7).await;
+    seed_outsourcing_reference(&db, "WW-DR-0001", 7, false).await;
 
     let app = build_app(db.clone(), make_auth(OWNER, Some("self")));
     let (status, body) = call(&app, Method::DELETE, "/greige-fabrics/7").await;
@@ -741,7 +774,7 @@ async fn reference_seeding_really_reaches_the_two_tables() {
     )
     .await;
     seed_dye_batch(&db, "DYE-DR-PROBE", 13, Some(false)).await;
-    seed_outsourcing_reference(&db, "WW-DR-PROBE", 13).await;
+    seed_outsourcing_reference(&db, "WW-DR-PROBE", 13, false).await;
 
     let batches = dye_batch::Entity::find()
         .filter(dye_batch::Column::GreigeFabricId.eq(13))
@@ -767,4 +800,525 @@ async fn reference_seeding_really_reaches_the_two_tables() {
         Some("WW-DR-PROBE".to_string()),
         "委外单号应能按明细回查到，供拒因点名"
     );
+}
+
+// ============================================================
+// F 判据面补充 状态列与累计台账两列与规格列都不进删除判据
+// ============================================================
+
+/// 反向自证 状态列写在库且累计台账两列为正而当前库存两列为零的档案仍必可撤回。
+///
+/// 这一条同时钉三件事。一 旧门读的状态列已彻底退出判据（旧门下本行必 400，正是本支
+/// 要消的建档即死档）。二 累计两列 quantity_kg 与 quantity_meters 不构成独立的在架
+/// 实物信号 入库腿把四列一起加、出库腿把四列一起减（见本 handler 的 stock_in 与
+/// stock_out 各自的四行赋值），两栏同源。三 更新腿入参结构体 UpdateGreigeFabricRequest
+/// 不接收这两列，把它们列入判据等于让建档时误填累计量而当前库存为零的卷重新进入
+/// 既不能出库（出库按当前库存判超量）也不能删除的死档，与本轮改造目标相反。
+#[tokio::test]
+async fn status_token_and_cumulative_ledger_are_not_delete_criteria() {
+    let db = test_common::setup_test_db().await;
+    seed_greige(
+        &db,
+        30,
+        "GF-DR-LEDGER",
+        Some(OWNER),
+        Some("在库"),
+        Set(Some(Decimal::ZERO)),
+        Set(Some(Decimal::ZERO)),
+        Set(Some(dec("50.00"))),
+        Set(Some(dec("100.00"))),
+    )
+    .await;
+
+    let app = build_app(db.clone(), make_auth(OWNER, Some("self")));
+    let (status, body) = call(&app, Method::DELETE, "/greige-fabrics/30").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "当前库存归零的档案不得因状态列或累计台账两列被拦，实际出参 {body}"
+    );
+    assert_eq!(read_greige(&db, 30).await.is_deleted, Some(true));
+}
+
+/// 反向自证 克重与门幅等规格列不进删除判据，零在架实物即放行。
+///
+/// 面料行业一卷布的克重(g/m2)与门幅(cm)是规格量不是库存量。建表段
+/// backend/migration/src/domain/system/m0002_add_crm_and_greige_tables.rs:49 曾把
+/// weight_kg 注释成克重(kg/m2)，而入库出库两腿把它当库存公斤数用，两套口径并存于
+/// 同一列。删除门只读库存两列，一旦把规格列拉进判据，一条只填了克重的正常空卷就会被
+/// 仍有在架库存误拦。本例把三列规格值都填正、库存两列留 NULL，必放行。
+#[tokio::test]
+async fn spec_columns_are_not_delete_criteria() {
+    let db = test_common::setup_test_db().await;
+    greige_fabric::ActiveModel {
+        id: Set(31),
+        fabric_no: Set("GF-DR-SPEC".to_string()),
+        fabric_name: Set("契约坯布 只填规格".to_string()),
+        fabric_type: Set("梭织".to_string()),
+        status: Set(Some("在库".to_string())),
+        is_deleted: Set(Some(false)),
+        created_by: Set(Some(OWNER)),
+        gram_weight: Set(Some(dec("0.28"))),
+        width_cm: Set(Some(dec("160.00"))),
+        width: Set(Some(dec("1.60"))),
+        color_no: Set(Some("C-DR-SPEC".to_string())),
+        batch_no: Set(Some("B-DR-SPEC".to_string())),
+        dye_lot_no: Set(Some("DL-DR-SPEC".to_string())),
+        created_at: Set(now_ts().fixed_offset()),
+        updated_at: Set(now_ts().fixed_offset()),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap_or_else(|e| panic!("播种规格齐备但零库存的坯布失败: {e}"));
+
+    let app = build_app(db.clone(), make_auth(OWNER, Some("self")));
+    let (status, body) = call(&app, Method::DELETE, "/greige-fabrics/31").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "克重与门幅等规格列不得把零库存档案拦成不可撤回，实际出参 {body}"
+    );
+    assert_eq!(read_greige(&db, 31).await.is_deleted, Some(true));
+}
+
+/// 判别力反向锁 已作废（软删）的委外单不构成拦删理由，钉第二条引用腿同样按活单据判。
+///
+/// 缺这一条时，第二条腿写成明细行存在即拒也能骗过 C 段的委外正例。委外发料明细自身
+/// 没有软删标记（模型 outsourcing_order_item 无 is_deleted 列，随单级联删），单据主表
+/// outsourcing_order.is_deleted 库里 NOT NULL（建表段
+/// backend/migration/src/domain/v15/mod.rs:3258），所以该腿按 = false 单态判定即完备，
+/// 与可空的 dye_batch.is_deleted（加列段 backend/migration/src/domain/system/mod.rs:129）
+/// 的两态判定不同；两态判定的必要性由
+/// null_flagged_dye_batch_reference_still_blocks_delete 钉住。
+#[tokio::test]
+async fn soft_deleted_outsourcing_order_reference_does_not_block_delete() {
+    let db = test_common::setup_test_db().await;
+    seed_greige(
+        &db,
+        32,
+        "GF-DR-VOIDWW",
+        Some(OWNER),
+        Some("在库"),
+        NotSet,
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+    seed_outsourcing_reference(&db, "WW-DR-VOID01", 32, true).await;
+
+    let app = build_app(db.clone(), make_auth(OWNER, Some("self")));
+    let (status, body) = call(&app, Method::DELETE, "/greige-fabrics/32").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "作废委外单的发料明细不应挡住档案撤回，实际出参 {body}"
+    );
+    assert_eq!(read_greige(&db, 32).await.is_deleted, Some(true));
+}
+
+/// 文案面锁 两道门的拒绝文案点名到单据号与数量，且不外泄表名与列名与 SQL 词汇。
+///
+/// 用户可见的是 message 原文，所以既钉含本条坯布编号与引用方单号，也钉不含库内
+/// 标识符，防止把拒因写成数据库报错原文那种不可读形态。
+#[tokio::test]
+async fn rejection_text_names_the_document_and_hides_schema_identifiers() {
+    let db = test_common::setup_test_db().await;
+    seed_greige(
+        &db,
+        33,
+        "GF-DR-TEXTBATCH",
+        Some(OWNER),
+        Some("在库"),
+        NotSet,
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+    seed_dye_batch(&db, "DYE-DR-TEXT01", 33, Some(false)).await;
+    seed_greige(
+        &db,
+        34,
+        "GF-DR-TEXTWW",
+        Some(OWNER),
+        Some("在库"),
+        Set(Some(dec("9.00"))),
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+
+    let app = build_app(db.clone(), make_auth(OWNER, Some("self")));
+
+    let (batch_status, batch_body) = call(&app, Method::DELETE, "/greige-fabrics/33").await;
+    assert_eq!(batch_status, StatusCode::BAD_REQUEST);
+    let batch_msg = batch_body["message"].as_str().unwrap_or_default();
+    assert!(
+        batch_msg.contains("GF-DR-TEXTBATCH") && batch_msg.contains("DYE-DR-TEXT01"),
+        "引用腿必须同时点名本条坯布与引用方缸号，实际 message = {batch_msg}"
+    );
+
+    let (stock_status, stock_body) = call(&app, Method::DELETE, "/greige-fabrics/34").await;
+    assert_eq!(stock_status, StatusCode::BAD_REQUEST);
+    let stock_msg = stock_body["message"].as_str().unwrap_or_default();
+    assert!(
+        stock_msg.contains("GF-DR-TEXTWW") && stock_msg.contains("9"),
+        "实物腿必须同时点名本条坯布与剩余量，实际 message = {stock_msg}"
+    );
+
+    for (label, msg) in [("引用腿", batch_msg), ("实物腿", stock_msg)] {
+        for token in [
+            "dye_batch",
+            "greige_fabric",
+            "outsourcing_order",
+            "is_deleted",
+            "greige_fabric_id",
+            "SELECT",
+            "TABLE",
+        ] {
+            assert!(
+                !msg.contains(token),
+                "{label}的可见文案不得外泄库内标识符 {token}，实际 message = {msg}"
+            );
+        }
+    }
+
+    assert_eq!(read_greige(&db, 33).await.is_deleted, Some(false));
+    assert_eq!(read_greige(&db, 34).await.is_deleted, Some(false));
+}
+
+// ============================================================
+// G 权限面 真挂 permission_middleware 的放行与拒绝（连库活测）
+// ============================================================
+
+/// 清掉上一轮残留的自种角色与授权行。
+///
+/// roles 与 role_permissions 是迁移种子参照表，夹具每轮只 TRUNCATE 业务表不清它们，
+/// 所以自建授权行必须显式自清理（法同 contract_fabric_order_state_gates_test）。
+/// 调用方是本节每条用例的第一行，入参 db 是本用例的活库连接，清完再播种。
+async fn cleanup_gf_roles(db: &DatabaseConnection) {
+    let role_ids = role::Entity::find()
+        .filter(role::Column::Code.is_in(ALL_GF_ROLES))
+        .all(db)
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|item| item.id)
+        .collect::<Vec<i32>>();
+    if !role_ids.is_empty() {
+        role_permission::Entity::delete_many()
+            .filter(role_permission::Column::RoleId.is_in(role_ids.clone()))
+            .exec(db)
+            .await
+            .unwrap();
+        for role_id in &role_ids {
+            invalidate_permission_cache(*role_id);
+        }
+    }
+    role::Entity::delete_many()
+        .filter(role::Column::Code.is_in(ALL_GF_ROLES))
+        .exec(db)
+        .await
+        .unwrap();
+}
+
+/// 播种权限面操作人。传给谁 只进 users 表，供会话身份成立。
+///
+/// greige_fabric.created_by 库里无外键，但归属门按会话 user_id 逐字比对，且 users 表
+/// 每轮被夹具清空，所以本用例必须自建这一行，不能假设种子里有。
+async fn seed_gf_user(db: &DatabaseConnection) {
+    user::ActiveModel {
+        id: Set(PERM_OWNER),
+        username: Set("it_gf_perm".to_string()),
+        password_hash: Set("test-only-not-a-real-hash".to_string()),
+        real_name: Set(Some("坯布删除权限面操作人".to_string())),
+        is_active: Set(true),
+        is_totp_enabled: Set(false),
+        created_at: Set(now_ts()),
+        updated_at: Set(now_ts()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种权限面操作人失败: {e}"));
+}
+
+/// 播种一个岗位并回读其 id。存哪里 roles 表，code 用本文件专用前缀便于自清理。
+///
+/// data_scope 写 all 只为让角色行取值合法；删除门的归属判定读的是 AuthContext 里的
+/// self（见 perm_app），两件事互不影响，别把角色列当放行条件。
+async fn seed_gf_role(db: &DatabaseConnection, code: &str) -> i32 {
+    let model = role::ActiveModel {
+        name: Set(format!("坯布删除权限面角色 {code}")),
+        code: Set(code.to_string()),
+        is_system: Set(false),
+        data_scope: Set("all".to_string()),
+        created_at: Set(now_ts()),
+        updated_at: Set(now_ts()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种角色 {code} 失败: {e}"));
+    model.id
+}
+
+/// 播一行 allowed 为 true 的角色级授权行（resource_id 为 NULL，运行时按精确键命中）。
+///
+/// 入参 resource 与 action 拼成权限键的资源段与动作段，传给 role_permissions 表；
+/// 中间件对 resource_id 为 NULL 的行按「该角色对该资源该动作放行」判定。
+async fn seed_gf_grant(db: &DatabaseConnection, role_id: i32, resource: &str, action: &str) {
+    role_permission::ActiveModel {
+        role_id: Set(role_id),
+        resource_type: Set(resource.to_string()),
+        resource_id: Set(None),
+        action: Set(action.to_string()),
+        allowed: Set(true),
+        permission_code: Set(None),
+        created_at: Set(now_ts()),
+        updated_at: Set(now_ts()),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .unwrap_or_else(|e| panic!("播种授权行 {resource} 的 {action} 失败: {e}"));
+}
+
+/// 按真实挂载路径建路由并挂真实权限中间件。
+///
+/// 调用方是本节三条用例；入参 db 是本用例活库连接、role_id 是被测岗位。路由腿与
+/// backend/src/routes/production.rs 的坯布段同路径，于是权限键由 permission_middleware
+/// 真实判出，不是测试替身判出。与 A 到 F 段的 build_app 唯一差别就是多挂这一层。
+/// 操作人取 PERM_OWNER、数据范围 self，与播种档案的 created_by 对齐，让归属门先过、
+/// 权限门成为唯一变量。
+fn perm_app(db: DatabaseConnection, role_id: i32) -> Router {
+    let state = AppState {
+        db: Arc::new(db),
+        ..Default::default()
+    };
+    let auth = AuthContext {
+        user_id: PERM_OWNER,
+        username: "it_gf_perm".to_string(),
+        role_id: Some(role_id),
+        department_id: None,
+        data_scope: Some("self".to_string()),
+        dept_ids: None,
+        dept_member_user_ids: None,
+    };
+    Router::new()
+        .route(
+            "/api/v1/erp/production/greige-fabrics",
+            axum::routing::get(greige_fabric_handler::list_greige_fabrics),
+        )
+        .route(
+            "/api/v1/erp/production/greige-fabrics/{id}",
+            axum::routing::delete(greige_fabric_handler::delete_greige_fabric),
+        )
+        .layer(from_fn_with_state(state.clone(), permission_middleware))
+        .layer(from_fn_with_state(auth, inject_auth))
+        .with_state(state)
+}
+
+/// 权限面负例 只授予 read 或只授予 create 或只持有别的资源 delete 键的岗位，
+/// 删除必 403 且档案行零变化。
+///
+/// 三条角色一起测，钉两件事。一 同资源的其它动作键不扩权到删除（粗域展开形态）。
+/// 二 别的资源的 delete 键不顶用，资源段必须逐字对上 greige-fabrics。
+/// 档案按未流转形态播种，所以 403 只可能来自权限门而不是业务门。
+#[tokio::test]
+async fn roles_without_delete_key_are_forbidden_and_leave_the_archive_intact() {
+    let db = test_common::setup_test_db().await;
+    cleanup_gf_roles(&db).await;
+    seed_gf_user(&db).await;
+    let role_read = seed_gf_role(&db, ROLE_READ_ONLY).await;
+    seed_gf_grant(&db, role_read, "greige-fabrics", "read").await;
+    let role_create = seed_gf_role(&db, ROLE_CREATE_ONLY).await;
+    seed_gf_grant(&db, role_create, "greige-fabrics", "create").await;
+    let role_other = seed_gf_role(&db, ROLE_OTHER_RESOURCE).await;
+    seed_gf_grant(&db, role_other, "dye-batches", "delete").await;
+    for role_id in [role_read, role_create, role_other] {
+        invalidate_permission_cache(role_id);
+    }
+
+    seed_greige(
+        &db,
+        40,
+        "GF-DR-NOPERM",
+        Some(PERM_OWNER),
+        Some("在库"),
+        NotSet,
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+
+    for (label, role_id) in [
+        ("read 键岗位", role_read),
+        ("create 键岗位", role_create),
+        ("别的资源 delete 键岗位", role_other),
+    ] {
+        let app = perm_app(db.clone(), role_id);
+        let (status, body) = call(
+            &app,
+            Method::DELETE,
+            "/api/v1/erp/production/greige-fabrics/40",
+        )
+        .await;
+        assert_eq!(
+            status,
+            StatusCode::FORBIDDEN,
+            "{label} 没有 greige-fabrics 的 delete 键时删除必 403，实际出参 {body}"
+        );
+        assert_eq!(body["code"], "FORBIDDEN", "{label} 出参 {body}");
+    }
+
+    let row = read_greige(&db, 40).await;
+    assert_eq!(
+        row.is_deleted,
+        Some(false),
+        "被权限门拒掉的路径不得留删除标记"
+    );
+}
+
+/// 权限面正例 授予 delete 键的岗位删除未流转档案必 200，软删标记真落库且列表不再出现。
+///
+/// 这一条同时钉门真放行（业务门与权限门都不拦）与删的真有效果（库里回读与列表出参
+/// 两处都判），不是只看响应绿。
+#[tokio::test]
+async fn role_with_delete_key_removes_the_archive_and_it_leaves_the_list() {
+    let db = test_common::setup_test_db().await;
+    cleanup_gf_roles(&db).await;
+    seed_gf_user(&db).await;
+    let role_delete = seed_gf_role(&db, ROLE_DELETE_GRANTEE).await;
+    // 同一岗位双键：delete 是被测的删除腿，read 只给用例末尾那次列表回读用（列表腿
+    // 派生的是 greige-fabrics:read，缺它会把列表调用判成 403 而不是把删除判绿）。
+    seed_gf_grant(&db, role_delete, "greige-fabrics", "delete").await;
+    seed_gf_grant(&db, role_delete, "greige-fabrics", "read").await;
+    invalidate_permission_cache(role_delete);
+
+    seed_greige(
+        &db,
+        41,
+        "GF-DR-PERMOK",
+        Some(PERM_OWNER),
+        Some("在库"),
+        NotSet,
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+
+    let app = perm_app(db.clone(), role_delete);
+    let (status, body) = call(
+        &app,
+        Method::DELETE,
+        "/api/v1/erp/production/greige-fabrics/41",
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "持有 greige-fabrics 的 delete 键的岗位删除未流转档案必须放行，实际出参 {body}"
+    );
+    assert_eq!(body["code"], 200, "成功信封 code 应为 200，出参 {body}");
+
+    assert_eq!(
+        read_greige(&db, 41).await.is_deleted,
+        Some(true),
+        "软删标记必须真落库"
+    );
+
+    let (_list_status, list) = call(
+        &app,
+        Method::GET,
+        "/api/v1/erp/production/greige-fabrics?fabric_no=GF-DR-PERMOK&page=1&page_size=50",
+    )
+    .await;
+    assert_eq!(
+        list["data"]["total"], 0,
+        "有键岗位删除后列表计数必须归零，实际出参 {list}"
+    );
+}
+
+/// 权限面与业务门相互独立 持有 delete 键的岗位遇到活引用或在架实物仍必 400 且零变化。
+///
+/// 钉有键不等于旁路删除门，防止把权限放行误写成万能放行。
+#[tokio::test]
+async fn granted_delete_key_does_not_bypass_the_retractability_gates() {
+    let db = test_common::setup_test_db().await;
+    cleanup_gf_roles(&db).await;
+    seed_gf_user(&db).await;
+    let role_delete = seed_gf_role(&db, ROLE_DELETE_GRANTEE).await;
+    seed_gf_grant(&db, role_delete, "greige-fabrics", "delete").await;
+    invalidate_permission_cache(role_delete);
+
+    seed_greige(
+        &db,
+        42,
+        "GF-DR-PERMREF",
+        Some(PERM_OWNER),
+        Some("在库"),
+        NotSet,
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+    seed_dye_batch(&db, "DYE-DR-PERMREF", 42, Some(false)).await;
+
+    seed_greige(
+        &db,
+        43,
+        "GF-DR-PERMSTOCK",
+        Some(PERM_OWNER),
+        Some("在库"),
+        Set(Some(dec("9.00"))),
+        NotSet,
+        NotSet,
+        NotSet,
+    )
+    .await;
+
+    let app = perm_app(db.clone(), role_delete);
+
+    let (ref_status, ref_body) = call(
+        &app,
+        Method::DELETE,
+        "/api/v1/erp/production/greige-fabrics/42",
+    )
+    .await;
+    assert_eq!(
+        ref_status,
+        StatusCode::BAD_REQUEST,
+        "有删除键不等于可以删被活缸号指着的档案，实际出参 {ref_body}"
+    );
+    assert_eq!(ref_body["code"], "BUSINESS_ERROR", "出参 {ref_body}");
+    assert!(
+        ref_body["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("DYE-DR-PERMREF"),
+        "被业务门拒掉时仍要点名引用方，实际 message = {}",
+        ref_body["message"]
+    );
+
+    let (stock_status, stock_body) = call(
+        &app,
+        Method::DELETE,
+        "/api/v1/erp/production/greige-fabrics/43",
+    )
+    .await;
+    assert_eq!(
+        stock_status,
+        StatusCode::BAD_REQUEST,
+        "有删除键不等于可以删仍有在架实物的档案，实际出参 {stock_body}"
+    );
+
+    assert_eq!(read_greige(&db, 42).await.is_deleted, Some(false));
+    assert_eq!(read_greige(&db, 43).await.is_deleted, Some(false));
 }
