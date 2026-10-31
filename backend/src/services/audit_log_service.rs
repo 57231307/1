@@ -365,8 +365,18 @@ impl AuditLogService {
             .next()
             .ok_or_else(|| AppError::business("Entity has no primary key"))?
             .into_column();
-        let pk_val_unwrapped = active_model.get(pk_col).into_value();
-        let pk_integer = integer_pk_value(&pk_val_unwrapped).ok_or_else(|| {
+        // sea-orm 2.0.2 的 ActiveModelTrait::get 返回动态列引用，into_value 出 Option<Value>：
+        // None 即主键列未赋值，与非整数列同走点名拒绝，不写 "0" 占位。
+        let pk_val = active_model
+            .get(pk_col)
+            .into_value()
+            .ok_or_else(|| {
+                AppError::business(format!(
+                    "审计写入被拒绝，实体 {} 的主键列缺值或不是整数列，resource_id 与 before_snapshot 无法落位",
+                    E::default().table_name()
+                ))
+            })?;
+        let pk_integer = integer_pk_value(&pk_val).ok_or_else(|| {
             AppError::business(format!(
                 "审计写入被拒绝，实体 {} 的主键列缺值或不是整数列，resource_id 与 before_snapshot 无法落位",
                 E::default().table_name()
@@ -374,10 +384,7 @@ impl AuditLogService {
         })?;
         let record_id = pk_integer.to_string();
         // update 前查询 old_model 序列化为 before_snapshot（按主键列等值查询，i32 与 i64 主键同权）
-        let old_model = E::find()
-            .filter(pk_col.eq(pk_val_unwrapped))
-            .one(db)
-            .await?;
+        let old_model = E::find().filter(pk_col.eq(pk_val)).one(db).await?;
         let before_snapshot = old_model.and_then(|m| serde_json::to_value(&m).ok());
         let new_model = active_model.update(db).await?;
         let after_snapshot = serde_json::to_value(&new_model).ok();
