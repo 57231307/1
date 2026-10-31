@@ -237,14 +237,25 @@ runs:
         rm -rf "$WORK"
         mkdir -p "$WORK"
         trap 'rm -rf "$WORK"' EXIT
-        curl -sSfL --retry 3 -o "$WORK/semgrep.whl" "$SEMGREP_URL"           || { echo "::error::semgrep 轮子下载失败（固定版本 ${SEMGREP_VERSION}），拒绝把 SAST 面当已通过"; exit 1; }
-        ACTUAL="$(sha256sum "$WORK/semgrep.whl" | awk '{print $1}')"
+        WHEEL="$WORK/$SEMGREP_WHEEL"
+        URL_BASE="${SEMGREP_URL##*/}"
+        if [ "$URL_BASE" != "$SEMGREP_WHEEL" ]; then
+          echo "::error::semgrep 轮子文件名与直链末段不符（钉死 ${SEMGREP_WHEEL}，直链 ${URL_BASE}）：pip 按本地文件名认包名与版本，两者不一致时按来历不明的名字安装"
+          exit 1
+        fi
+        case "$SEMGREP_WHEEL" in
+          "semgrep-${SEMGREP_VERSION}-"*.whl) : ;;
+          *) echo "::error::semgrep 轮子文件名不是 ${SEMGREP_VERSION} 的合法轮子名（实得 ${SEMGREP_WHEEL}），装不上也验不出装错"
+             exit 1 ;;
+        esac
+        curl -sSfL --retry 3 -o "$WHEEL" "$SEMGREP_URL"           || { echo "::error::semgrep 轮子下载失败（固定版本 ${SEMGREP_VERSION}），拒绝把 SAST 面当已通过"; exit 1; }
+        ACTUAL="$(sha256sum "$WHEEL" | awk '{print $1}')"
         if [ "$ACTUAL" != "$SEMGREP_SHA256" ]; then
           echo "::error::semgrep 轮子 sha256 与钉死值不符（期望 ${SEMGREP_SHA256}，实得 ${ACTUAL}）：下载截断或内容被替换"
           exit 1
         fi
         python3 -m venv "$WORK/venv" || { echo "::error::semgrep 独立环境创建失败"; exit 1; }
-        "$WORK/venv/bin/pip" install --quiet "$WORK/semgrep.whl"           || { echo "::error::semgrep 安装失败（轮子校验已过，依赖解析阶段出错）"; exit 1; }
+        "$WORK/venv/bin/pip" install --quiet "$WHEEL"           || { echo "::error::semgrep 安装失败（轮子校验已过，pip 装包阶段出错；pip 按文件名认包名与版本，文件名不是合法轮子名时也在这一步炸）"; exit 1; }
         "$WORK/venv/bin/pip" freeze > "$R/semgrep-tools.txt" 2>/dev/null || true
         SGV="$("$WORK/venv/bin/semgrep" --version 2>&1)"           || { echo "::error::semgrep 二进制无法执行，扫描未开始"; exit 1; }
         case "$SGV" in
@@ -295,7 +306,6 @@ runs:
         if len(data['results']) > 20:
             print('  - 其余 %d 条见 reports/audit/semgrep.json' % (len(data['results']) - 20))
         PYV
-        generateSarif: "false"
 
     - name: 工作流定义自身安全审计（zizmor · high 阻塞 CI）
       # 功能：用固定版本 zizmor 审本仓 .github 下的工作流与 composite action 定义自身，
