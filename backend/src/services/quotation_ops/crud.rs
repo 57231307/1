@@ -56,8 +56,14 @@ impl QuotationService {
         // 报价行单位跟随产品主数据交易单位（单一真源）：前端传入与产品不一致即拒创建，
         // 不静默覆盖，杜绝「报价/订单/库存单位各写一套」的自由文本漂移
         Self::validate_item_units_against_products(&txn, &dto.items).await?;
-        Self::insert_new_quotation_items(&txn, &dto.items, result.id, dto.tax_inclusive, dto.tax_rate)
-            .await?;
+        Self::insert_new_quotation_items(
+            &txn,
+            &dto.items,
+            result.id,
+            dto.tax_inclusive,
+            dto.tax_rate,
+        )
+        .await?;
         Self::insert_new_quotation_terms(&txn, dto.terms, result.id).await?;
         txn.commit().await?;
         Ok(result)

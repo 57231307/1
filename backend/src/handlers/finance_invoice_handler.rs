@@ -156,12 +156,9 @@ pub async fn create_finance_invoice(
     // 含税不得低于净额。判定容差取存储精度（分位精确相等），不用浮点 epsilon；
     // 破口点名拒绝并把三值与差额一起外显，杜绝一张票两个口径。
     // 判定入口是 utils tax 的 assert_three_way_reconcile，本函数不产生任何新数值。
-    let reconciled = crate::utils::tax::assert_three_way_reconcile(
-        amount,
-        tax_amount,
-        total_amount,
-    )
-    .map_err(|e| AppError::validation_displayable(format!("发票价税三值不钩稽，{e}")))?;
+    let reconciled =
+        crate::utils::tax::assert_three_way_reconcile(amount, tax_amount, total_amount)
+            .map_err(|e| AppError::validation_displayable(format!("发票价税三值不钩稽，{e}")))?;
 
     let service = FinanceInvoiceService::new(state.db.clone());
 
@@ -169,7 +166,12 @@ pub async fn create_finance_invoice(
     let invoice_no = payload.invoice_no;
 
     let invoice = service
-        .create_invoice(invoice_no, reconciled.net, reconciled.tax, reconciled.inclusive)
+        .create_invoice(
+            invoice_no,
+            reconciled.net,
+            reconciled.tax,
+            reconciled.inclusive,
+        )
         .await?;
 
     Ok(Json(ApiResponse::success(InvoiceResponse {

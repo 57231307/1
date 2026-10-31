@@ -93,7 +93,10 @@ pub(crate) fn compute_quotation_line(
         (net, unit_price_with_tax)
     } else {
         // 净单价是录入事实，含税单价取内核正算的含税侧
-        (unit_price, tax::split_from_net(unit_price, tax_percent)?.inclusive)
+        (
+            unit_price,
+            tax::split_from_net(unit_price, tax_percent)?.inclusive,
+        )
     };
 
     let discount_amount = match discount_rate {
@@ -271,17 +274,30 @@ mod tests {
     /// 正向，含税 100 米每米 11.30 元按 13 个点，行含税 1130 反算得净额 1000 与税额 130。
     #[test]
     fn inclusive_line_divides_the_recorded_gross_and_derives_the_net_unit() {
-        let line = compute_quotation_line(dec("100"), dec("10"), dec("11.3"), None, true, Some(dec("13")))
-            .expect("含税报价行夹具不该被拒绝");
+        let line = compute_quotation_line(
+            dec("100"),
+            dec("10"),
+            dec("11.3"),
+            None,
+            true,
+            Some(dec("13")),
+        )
+        .expect("含税报价行夹具不该被拒绝");
         assert_line(&line, "10", "11.3", "1000", "130", "1130");
     }
 
     /// 正向，不含税 100 米每米 10 元按 13 个点，行净额 1000 正算得税额 130 与含税 1130。
     #[test]
     fn exclusive_line_multiplies_only_the_net_fact_and_builds_gross_once() {
-        let line =
-            compute_quotation_line(dec("100"), dec("10"), dec("0"), None, false, Some(dec("13")))
-                .expect("不含税报价行夹具不该被拒绝");
+        let line = compute_quotation_line(
+            dec("100"),
+            dec("10"),
+            dec("0"),
+            None,
+            false,
+            Some(dec("13")),
+        )
+        .expect("不含税报价行夹具不该被拒绝");
         assert_line(&line, "10", "11.3", "1000", "130", "1130");
     }
 
@@ -300,15 +316,9 @@ mod tests {
         .expect("不含税腿夹具应通过");
         assert_line(&exclusive, "7.78", "8.79", "23.33", "3.03", "26.36");
 
-        let inclusive = compute_quotation_line(
-            dec("3"),
-            dec("0"),
-            dec("8.79"),
-            None,
-            true,
-            Some(dec("13")),
-        )
-        .expect("含税腿夹具应通过");
+        let inclusive =
+            compute_quotation_line(dec("3"), dec("0"), dec("8.79"), None, true, Some(dec("13")))
+                .expect("含税腿夹具应通过");
         // 行含税 26.37 是事实，净额除法反算 23.34，税额取差额 3.03
         assert_line(&inclusive, "7.78", "8.79", "23.34", "3.03", "26.37");
         assert_eq!(
@@ -349,8 +359,15 @@ mod tests {
             "1200",
         );
         assert_line(
-            &compute_quotation_line(dec("2"), dec("300"), dec("0"), None, false, Some(dec("100")))
-                .expect("100 税率正向腿应通过"),
+            &compute_quotation_line(
+                dec("2"),
+                dec("300"),
+                dec("0"),
+                None,
+                false,
+                Some(dec("100")),
+            )
+            .expect("100 税率正向腿应通过"),
             "300",
             "600",
             "600",
@@ -384,7 +401,14 @@ mod tests {
     #[test]
     fn inclusive_unit_below_net_unit_is_rejected_at_the_line() {
         assert_eq!(
-            compute_quotation_line(dec("10"), dec("12"), dec("11.3"), None, true, Some(dec("13"))),
+            compute_quotation_line(
+                dec("10"),
+                dec("12"),
+                dec("11.3"),
+                None,
+                true,
+                Some(dec("13"))
+            ),
             Err(TaxDirectionError::InclusiveBelowNet {
                 net: dec("12"),
                 inclusive: dec("11.3"),
@@ -397,14 +421,28 @@ mod tests {
     #[test]
     fn negative_line_amounts_are_rejected_by_name() {
         assert_eq!(
-            compute_quotation_line(dec("-1"), dec("10"), dec("11.3"), None, true, Some(dec("13"))),
+            compute_quotation_line(
+                dec("-1"),
+                dec("10"),
+                dec("11.3"),
+                None,
+                true,
+                Some(dec("13"))
+            ),
             Err(TaxDirectionError::NegativeInclusiveAmount {
                 inclusive: dec("-11.3")
             }),
             "数量为负使行含税为负，必须出 NegativeInclusiveAmount"
         );
         assert_eq!(
-            compute_quotation_line(dec("10"), dec("-11.3"), dec("0"), None, false, Some(dec("13"))),
+            compute_quotation_line(
+                dec("10"),
+                dec("-11.3"),
+                dec("0"),
+                None,
+                false,
+                Some(dec("13"))
+            ),
             Err(TaxDirectionError::NegativeNetAmount { net: dec("-113") }),
             "净单价为负必须出 NegativeNetAmount"
         );
@@ -445,9 +483,15 @@ mod tests {
             "折扣额必须是行净额 1000 的 5 个点，实际 {:?}",
             with_discount.discount_amount
         );
-        let without =
-            compute_quotation_line(dec("100"), dec("10"), dec("11.3"), None, true, Some(dec("13")))
-                .expect("无折扣行应通过");
+        let without = compute_quotation_line(
+            dec("100"),
+            dec("10"),
+            dec("11.3"),
+            None,
+            true,
+            Some(dec("13")),
+        )
+        .expect("无折扣行应通过");
         assert_eq!(
             without.discount_amount, None,
             "未录折扣率必须留空，不得折成 0 与合法零折扣混淆"
@@ -463,14 +507,14 @@ mod tests {
         let mut gross_sum = Decimal::ZERO;
         for _ in 0..2 {
             let line = compute_quotation_line(
-                    dec("1"),
-                    dec("0"),
-                    dec("1000"),
-                    None,
-                    true,
-                    Some(dec("13")),
-                )
-                .expect("单行含税夹具应通过");
+                dec("1"),
+                dec("0"),
+                dec("1000"),
+                None,
+                true,
+                Some(dec("13")),
+            )
+            .expect("单行含税夹具应通过");
             assert_line(&line, "884.96", "1000", "884.96", "115.04", "1000");
             net_sum += line.net_amount;
             tax_sum += line.tax_amount;
@@ -484,7 +528,11 @@ mod tests {
             "表头小计取两行反算值之和 1769.92，不得改成合计直接除法的 1769.91"
         );
         assert_eq!(tax_amount, dec("230.08"), "表头税额取两行差额之和");
-        assert_eq!(total_amount, dec("2000"), "表头价税合计必须逐分等于两行含税合计");
+        assert_eq!(
+            total_amount,
+            dec("2000"),
+            "表头价税合计必须逐分等于两行含税合计"
+        );
         assert_eq!(
             subtotal + tax_amount,
             total_amount,
@@ -543,7 +591,8 @@ mod tests {
         // 展示单价按自身收敛到分后反算得 333.34，与行净额 1000 保持同一方向
         assert_line(&line, "333.34", "376.667", "1000", "130", "1130");
         assert_eq!(
-            tax::MONEY_SCALE, 2,
+            tax::MONEY_SCALE,
+            2,
             "存储口径位数必须是 2 分，改动位数要同步全部单据列"
         );
     }

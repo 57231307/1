@@ -39,15 +39,13 @@ const KERNEL_FILE: &str = "src/utils/tax.rs";
 
 /// 逐条豁免表，理由必须写明为什么这条形态在本文件成立
 /// 新增豁免必须同时给出真实命中，否则本锁判红（不许整目录豁免）
-const EXEMPTIONS: &[Exemption] = &[
-    Exemption {
-        file: "src/services/environmental_tax_service.rs",
-        rule: "内核外的税率乘除公式",
-        expected: 1,
-        reason: "环保税按污染当量乘每当量税额计征，基数是当量数不是价税金额，\
+const EXEMPTIONS: &[Exemption] = &[Exemption {
+    file: "src/services/environmental_tax_service.rs",
+    rule: "内核外的税率乘除公式",
+    expected: 1,
+    reason: "环保税按污染当量乘每当量税额计征，基数是当量数不是价税金额，\
                  不属价税分离域，内核文档已把该域列为例外",
-    },
-];
+}];
 
 fn read_source(path: &Path) -> String {
     std::fs::read_to_string(path)
@@ -194,8 +192,9 @@ fn strip_comments_and_strings(src: &str) -> String {
         }
         // 字符字面量（含转义），单引号后不是闭合单引号的一律按生命周期处理
         if c == '\'' {
-            let is_char_literal = (i + 2 < bytes.len() && bytes[i + 2] == '\'' && bytes[i + 1] != '\\')
-                || (i + 3 < bytes.len() && bytes[i + 1] == '\\' && bytes[i + 3] == '\'');
+            let is_char_literal =
+                (i + 2 < bytes.len() && bytes[i + 2] == '\'' && bytes[i + 1] != '\\')
+                    || (i + 3 < bytes.len() && bytes[i + 1] == '\\' && bytes[i + 3] == '\'');
             if is_char_literal {
                 let end = if bytes[i + 1] == '\\' { i + 4 } else { i + 3 };
                 for _ in i..end.min(bytes.len()) {
@@ -292,7 +291,8 @@ fn split_assignment(line: &str) -> Option<(&str, &str)> {
             } else {
                 ' '
             };
-            let is_compare_or_arrow = matches!(prev, '!' | '<' | '>' | '=') || next == '=' || next == '>';
+            let is_compare_or_arrow =
+                matches!(prev, '!' | '<' | '>' | '=') || next == '=' || next == '>';
             let is_binding = matches!(prev, '=' | '|' | '&' | '>' | '<' | '+' | '-' | '*' | '/');
             if !is_compare_or_arrow && !is_binding {
                 return Some((line.get(..idx)?, line.get(idx + 1..)?));
@@ -304,7 +304,14 @@ fn split_assignment(line: &str) -> Option<(&str, &str)> {
 }
 
 /// 净额侧字面，等号左侧出现即认为本行在算净额
-const NET_TARGETS: &[&str] = &["net", "subtotal", "unit_price", "amount", "净额", "discount_amount"];
+const NET_TARGETS: &[&str] = &[
+    "net",
+    "subtotal",
+    "unit_price",
+    "amount",
+    "净额",
+    "discount_amount",
+];
 
 /// 对一段源码文本按行判五类形态，返回命中清单（纯函数，夹具与真实源码共用）
 fn scan_source(rel_file: &str, src: &str) -> Vec<Hit> {
@@ -343,7 +350,11 @@ fn scan_source(rel_file: &str, src: &str) -> Vec<Hit> {
             });
             continue;
         }
-        if tax && (has_mul || has_div) && money && !line.contains("utils::tax::") && !is_kernel_import(&line)
+        if tax
+            && (has_mul || has_div)
+            && money
+            && !line.contains("utils::tax::")
+            && !is_kernel_import(&line)
         {
             hits.push(Hit {
                 file: rel_file.to_string(),
@@ -602,7 +613,8 @@ fn compliant_forms_and_comment_text_are_not_flagged() {
             .collect::<Vec<_>>(),
     );
     assert_eq!(
-        total, 0,
+        total,
+        0,
         "合规形态与注释与字符串字面量不得误伤，实际命中 {}",
         format_hits(&hits)
     );
@@ -616,7 +628,8 @@ fn removing_a_violation_line_makes_the_detector_silent() {
                  }\n";
     let (hits, total, _) = scan_fixture_dir(&[("fixed.rs", fixed)]);
     assert_eq!(
-        total, 0,
+        total,
+        0,
         "改为内核入口后不该再有命中，实际 {}",
         format_hits(&hits)
     );
@@ -716,11 +729,7 @@ fn detector_flags_the_regression_form_in_a_mutated_copy_of_a_real_file() {
         "变异自证命中 MUTATED_HITS={} 行号 {:?} 规则 {}",
         hits.len(),
         hit_lines,
-        hits
-            .iter()
-            .map(|h| h.rule)
-            .collect::<Vec<_>>()
-            .join(" 与 ")
+        hits.iter().map(|h| h.rule).collect::<Vec<_>>().join(" 与 ")
     );
     assert!(
         hits.iter()
