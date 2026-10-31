@@ -546,3 +546,313 @@ function isHiddenRoute(routerSource: string, path: string): boolean {
 }
 
 export { readZhMenuLabels, readCoarseDomainResources, ROUTER_SRC };
+
+// ==================== 6 脱敏原语底数（flow/201 专用） ====================
+
+const FIELD_MASK_SRC = '../backend/src/utils/field_mask.rs';
+const PERMISSION_MIDDLEWARE_SRC = '../backend/src/middleware/permission.rs';
+
+export interface MaskKeySets {
+  /** mask_sensitive_fields 对非 admin 置空的键集合（本项目实测只剔成本价一族） */
+  costKeys: string[];
+  /** mask_contact_fields_for_role 的电话号码键集合 */
+  phoneKeys: string[];
+  /** mask_contact_fields_for_role 的邮箱键集合 */
+  emailKeys: string[];
+  /** mask_customer_pii_defaults 在非 admin 分支整键移除的键 */
+  removedKeys: string[];
+}
+
+/**
+ * 从后端脱敏原语源文件现读三组键集合与一组删键。
+ * 调用方：flow/201 的掩码原语底数自证与逐列断言。
+ * 入参：无（路径本模块定死）。传给谁：只交给 201 做期望集，不改后端、不发请求。
+ * 存什么/存哪里：内存里的四组字符串数组，不落盘。
+ * 为什么不在 spec 里手抄：掩码键清单在后端，spec 侧再抄一份就出现"改了后端、锁还在绿"
+ * 的第二套口径；本函数读空即抛错，把"清单搬家了"直接判红而不是当空集放过。
+ */
+export function readMaskKeySets(): MaskKeySets {
+  const src = readRepoSource(FIELD_MASK_SRC, '脱敏原语');
+
+  const sensitiveFn = extractFunctionBody(src, 'pub fn mask_sensitive_fields');
+  const costKeys = [...sensitiveFn.matchAll(/obj\.contains_key\("([^"]+)"\)/g)].map(m => m[1]);
+  const costNulls = [...sensitiveFn.matchAll(/obj\.insert\("([^"]+)"\.to_string\(\),\s*Value::Null\)/g)].map(
+    m => m[1]
+  );
+  if (costKeys.length === 0 || costNulls.length === 0) {
+    throw new Error(
+      `mask_sensitive_fields 里读不到置空目标键（contains_key=${costKeys.length} 个，` +
+        `insert Null=${costNulls.length} 个），脱敏面判据无从派生，判红`
+    );
+  }
+  // contains_key 与 insert Null 必须同键：只配一半就是"判了却没掩"的空转掩码
+  for (const k of costKeys) {
+    if (!costNulls.includes(k)) {
+      throw new Error(
+        `mask_sensitive_fields 判了键 ${k} 存在却没把它置空（实际置空集=${costNulls.join(', ')}），` +
+          '属空转掩码，判红'
+      );
+    }
+  }
+
+  const contactFn = extractFunctionBody(src, 'pub fn mask_contact_fields_for_role');
+  const phoneBlock = contactFn.match(/let phone_keys\s*=\s*\[([\s\S]*?)\];/);
+  const emailBlock = contactFn.match(/let email_keys\s*=\s*\[([\s\S]*?)\];/);
+  if (!phoneBlock || !emailBlock) {
+    throw new Error('mask_contact_fields_for_role 里读不到 phone_keys 或 email_keys 数组，判红');
+  }
+  const phoneKeys = [...phoneBlock[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  const emailKeys = [...emailBlock[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  if (phoneKeys.length === 0 || emailKeys.length === 0) {
+    throw new Error(
+      `联系方式掩码键集合解析为空（电话 ${phoneKeys.length} 项、邮箱 ${emailKeys.length} 项），` +
+        '提取口径失效，判红'
+    );
+  }
+
+  // 客户域默认脱敏额外整键移除的列（mask_customer_pii_defaults 的 obj.remove 目标）
+  const custSrc = readRepoSource('../backend/src/services/crm/cust.rs', '客户域默认脱敏');
+  const custFn = extractFunctionBody(custSrc, 'pub fn mask_customer_pii_defaults');
+  const removedKeys = [...custFn.matchAll(/obj\.remove\("([^"]+)"\)/g)].map(m => m[1]);
+  if (removedKeys.length === 0) {
+    throw new Error('mask_customer_pii_defaults 里读不到整键移除目标，客户域删键面无从断言，判红');
+  }
+
+  return { costKeys: [...new Set(costNulls)], phoneKeys, emailKeys, removedKeys };
+}
+
+/**
+ * 取某个 Rust 函数（或同型 pub(crate) fn）的完整函数体文本，按花括号配平切片。
+ * 调用方：readMaskKeySets、handlerMaskWiring 与本文件的接线对账。
+ * 入参：源文本与锚点串（含 fn 名，不含函数体）。传给谁：只回字符串给同模块调用方。
+ * 存什么/存哪里：不持久化。
+ * 锚点命中零次或花括号不配平都抛错：把"函数改名了"判红，而不是当成"没有掩码调用"放行。
+ */
+function extractFunctionBody(src: string, anchor: string): string {
+  const at = src.indexOf(anchor);
+  if (at < 0) throw new Error(`源文本里找不到锚点 ${anchor}，提取口径已随源码改版失效，判红`);
+  const open = src.indexOf('{', src.indexOf(')', at));
+  if (open < 0) throw new Error(`锚点 ${anchor} 之后找不到函数体开括号，判红`);
+  return sliceBalancedBraces(src, open);
+}
+
+/** 后端出参脱敏函数名的唯一登记表（接线对账按这些名字找） */
+export const BACKEND_MASK_FNS = [
+  'mask_sensitive_fields',
+  'mask_contact_fields_for_role',
+  'mask_contact_fields_batch_for_role',
+  'mask_customer_pii_defaults',
+  'apply_customer_field_permission',
+  'apply_customer_field_config_mask',
+  'blank_column_by_title',
+] as const;
+
+/**
+ * 判定某个 handler 函数体里挂了哪几枚后端脱敏调用（真实接线，不看注释）。
+ * 调用方：flow/201 的门面接线对账。
+ * 入参：handler 函数体文本。传给谁：回给 201 与声明面比对。
+ * 存什么/存哪里：不落盘。
+ * 判据：出现「函数名 (」或「模块名::函数名(」两种调用形态之一即算挂上；
+ * 只读名字出现在注释里不算（注释行整行摘掉后再找）。
+ */
+export function detectMaskCalls(fnBody: string): string[] {
+  const code = fnBody
+    .split('\n')
+    .filter(line => !line.trim().startsWith('//'))
+    .join('\n');
+  return BACKEND_MASK_FNS.filter(name => new RegExp(`(?:^|[^A-Za-z0-9_])${name}\\s*\\(`).test(code));
+}
+
+/**
+ * 从后端 handler 源文件里取指定 pub fn 的函数体。
+ * 调用方：flow/201 与 flow/202 的分面对账。
+ * 入参：相对 frontend 工作目录的源文件路径与函数名。传给谁：回字符串给调用方做接线判定。
+ * 存什么/存哪里：不持久化。
+ * 找不到即抛错，绝不回空串——空串会让"该腿没挂掩码"被读成"挂过又摘掉了"的假绿。
+ */
+export function readHandlerFunctionBody(relFile: string, fnName: string): string {
+  const src = readRepoSource(relFile, `handler ${fnName}`);
+  const anchor = `pub async fn ${fnName}`;
+  const at = src.indexOf(anchor);
+  if (at < 0) {
+    throw new Error(
+      `${relFile} 里找不到 ${anchor}，该面的接线无从核对（handler 改名或搬家），判红`
+    );
+  }
+  const open = src.indexOf('{', src.indexOf(')', at));
+  if (open < 0) throw new Error(`${relFile}::${fnName} 找不到函数体开括号，判红`);
+  return sliceBalancedBraces(src, open);
+}
+
+/**
+ * 从 Rust 源文件里取指定结构体（或 pub 结构体）的完整定义文本。
+ * 调用方：flow/201 的出参声明面逐列断言（例如 handler 侧的响应投影结构体）。
+ * 入参：相对 frontend 工作目录的源文件路径与结构体名。传给谁：回字符串给调用方做列名判定。
+ * 存什么/存哪里：不持久化。
+ * 找不到即抛错：结构体改名意味着出参投影已变，声明面断言必须判红而不是当成没有列。
+ */
+export function readStructBody(relFile: string, structName: string): string {
+  const src = readRepoSource(relFile, `结构体 ${structName}`);
+  const anchor = `pub struct ${structName}`;
+  const at = src.indexOf(anchor);
+  if (at < 0) {
+    throw new Error(`${relFile} 里找不到 ${anchor}，该面的出参投影结构已变，声明面断言无从派生，判红`);
+  }
+  const open = src.indexOf('{', at);
+  if (open < 0) throw new Error(`${relFile}::${structName} 找不到结构体开括号，判红`);
+  return sliceBalancedBraces(src, open);
+}
+
+/**
+ * 从结构体定义文本里取成员列名集合。
+ * 调用方：flow/201 的「某面出参里应有哪些列、不应有哪些列」断言。
+ * 入参：readStructBody 的返回。传给谁：回给调用方做集合比对。
+ * 存什么/存哪里：不持久化。
+ * 注释行先整行摘掉再取 `pub 名:` 形态，避免把注释里的列名读成真列。
+ */
+export function structMemberColumns(structBody: string): string[] {
+  const code = structBody
+    .split('\n')
+    .filter(line => !line.trim().startsWith('//'))
+    .join('\n');
+  return [...new Set([...code.matchAll(/pub\s+([a-z0-9_]+)\s*:/g)].map(m => m[1]))];
+}
+
+/**
+ * 从 SeaORM 实体源文件现读 DECIMAL 列名集合（出参应为字符串的那些列）。
+ * 调用方：flow/201 的 DECIMAL 出参形态逐列断言。
+ * 入参：相对 frontend 工作目录的 models 文件路径。传给谁：回给 201 做逐列判据。
+ * 存什么/存哪里：不落盘。
+ * 只认 Model 结构体内的 `pub 名: Decimal` 与 `pub 名: Option<Decimal>` 两形态，
+ * 读空即抛错：把"列类型改版"判红，而不是让形态锁退化成零列通过。
+ */
+export function readDecimalColumns(entityFile: string): string[] {
+  const src = readRepoSource(entityFile, 'DECIMAL 列清单');
+  const structAt = src.indexOf('pub struct Model');
+  if (structAt < 0) throw new Error(`${entityFile} 里找不到 pub struct Model，DECIMAL 列无从派生，判红`);
+  const open = src.indexOf('{', structAt);
+  const body = sliceBalancedBraces(src, open);
+  const cols = [
+    ...body.matchAll(/pub\s+([a-z0-9_]+):\s*(?:Option<)?(?:rust_decimal::)?Decimal\b/g),
+  ].map(m => m[1]);
+  if (cols.length === 0) {
+    throw new Error(`${entityFile} 的 Model 里读不到任何 DECIMAL 列，提取口径失效，判红`);
+  }
+  return [...new Set(cols)];
+}
+
+// ==================== 7 权限键派生（镜像后端 extract_route_info） ====================
+
+/** 从 path_utils.rs 现读双层模块前缀组合表（与后端同一份，不抄第二份） */
+function readNestedModulePairs(): Set<string> {
+  const src = readRepoSource(PATH_UTILS_SRC, '双层模块前缀表');
+  const at = src.indexOf('pub fn is_nested_module_prefix');
+  if (at < 0) throw new Error('path_utils.rs 里找不到 is_nested_module_prefix，判红');
+  const macro = src.indexOf('matches!', at);
+  if (macro < 0) throw new Error('is_nested_module_prefix 体内未定位到 matches!，判红');
+  const open = src.indexOf('(', macro);
+  let depth = 0;
+  let close = -1;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === '(') depth++;
+    else if (src[i] === ')') {
+      depth--;
+      if (depth === 0) {
+        close = i;
+        break;
+      }
+    }
+  }
+  if (close < 0) throw new Error('is_nested_module_prefix 的 matches! 括号不配平，判红');
+  const pairs = [...src.slice(open, close).matchAll(/\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g)].map(
+    m => `${m[1]}|${m[2]}`
+  );
+  if (pairs.length === 0) throw new Error('双层模块前缀表解析出零对，提取口径失效，判红');
+  return new Set(pairs);
+}
+
+/** 从 permission.rs 现读末段动作关键字表与连字符动作映射表 */
+function readPathActionTables(): { keywords: string[]; map: Record<string, string> } {
+  const src = readRepoSource(PERMISSION_MIDDLEWARE_SRC, '末段动作词表');
+  const kwBlock = src.match(/const PATH_ACTION_KEYWORDS:\s*&\[&str\]\s*=\s*&\[(.*?)\];/s);
+  const mapBlock = src.match(/const PATH_ACTION_SEGMENT_MAP:\s*&\[\(&str,\s*&str\)\]\s*=\s*&\[(.*?)\];/s);
+  if (!kwBlock || !mapBlock) {
+    throw new Error('permission.rs 读不到 PATH_ACTION_KEYWORDS 或 PATH_ACTION_SEGMENT_MAP，判红');
+  }
+  const keywords = [...kwBlock[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
+  const map: Record<string, string> = {};
+  for (const m of mapBlock[1].matchAll(/\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g)) map[m[1]] = m[2];
+  if (keywords.length === 0) throw new Error('末段动作关键字表解析出零项，判红');
+  return { keywords, map };
+}
+
+const METHOD_TO_ACTION: Record<string, string> = {
+  GET: 'read',
+  POST: 'create',
+  PUT: 'update',
+  PATCH: 'update',
+  DELETE: 'delete',
+};
+
+export interface DerivedKey {
+  resource: string;
+  action: string;
+  /** 派生说明，失败信息里外显，便于把红归到具体一条派生分支 */
+  basis: string;
+}
+
+/**
+ * 镜像后端 extract_route_info 的一个方法派生分支，把真实请求路径算成权限键。
+ * 调用方：flow/201 的成本面授权核对与 flow/202 的越权正负对照。
+ * 入参：HTTP 方法、以 /api/v1/erp 起始的路径（不含查询串）、可选的 action 查询参数。
+ * 传给谁：回给调用方与角色实持权限键比对，不发请求。
+ * 存什么/存哪里：不落盘。
+ * 与后端的对应关系逐条写在 basis 里：模块前缀取次段并经消歧映射、双层前缀取第三段、
+ * 资源段是纯数字时回落到模块前缀本身；动作按 query 优先、末段动作次之、方法派生兜底。
+ * 不含 extract_action_from_query 的白名单外取值（后端只认 print 与 export 与 download），
+ * 传进来别的值一律忽略，与后端一致。
+ */
+export function derivePermissionKey(
+  method: string,
+  path: string,
+  queryAction?: string
+): DerivedKey {
+  const mods = readModulePrefixes();
+  const nameMap = readResourceNameMap();
+  const nested = readNestedModulePairs();
+  const { keywords, map } = readPathActionTables();
+
+  const parts = path.split('/').filter(p => p !== '');
+  if (parts.length < 4 || parts.slice(0, 3).join('/') !== 'api/v1/erp') {
+    return { resource: 'unknown', action: 'read', basis: '路径不符合 api v1 erp 前缀' };
+  }
+  let resource: string;
+  if (parts.length >= 5 && mods.has(parts[3])) {
+    const nestedHit = nested.has(`${parts[3]}|${parts[4]}`) && parts.length >= 6;
+    const seg = nestedHit ? parts[5] : parts[4];
+    // 叶子型模块前缀（quotations、color-cards 这类既是前缀又是资源本身）直接挂记录 id 时，
+    // 该段是 id 不是子资源，资源名必须回落到模块前缀本身，否则派生出 PERMISSION_RESOURCES
+    // 里不存在的死键（后端 extract_resource_info 的同一条判据，此处逐字照搬）。
+    resource = /^\d+$/.test(seg) ? parts[3] : (nameMap.get(`${parts[3]}|${seg}`) ?? seg);
+  } else {
+    resource = parts[3];
+  }
+
+  const last = parts[parts.length - 1];
+  let action: string;
+  let basis: string;
+  if (queryAction && ['print', 'export', 'download'].includes(queryAction)) {
+    action = queryAction;
+    basis = '动作来自查询参数 action（后端白名单 print 与 export 与 download）';
+  } else if (map[last]) {
+    action = map[last];
+    basis = '动作来自末段连字符映射表';
+  } else if (keywords.includes(last)) {
+    action = last;
+    basis = '动作来自末段动作关键字表';
+  } else {
+    action = METHOD_TO_ACTION[method] ?? 'read';
+    basis = `动作由方法 ${method} 派生`;
+  }
+  return { resource, action, basis };
+}
