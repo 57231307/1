@@ -1,6 +1,6 @@
 //! 敏感导出 fail-closed 令牌校验测试
 //!
-//! P1.1 enforce_export_download：验证空 token 直接 403（fail-closed）。
+//! enforce_export_download_secured：验证空 token 直接 403（fail-closed）。
 //! 空token分支不触DB查询，但连接仍走路线一真库夹具（禁止 sqlite 通道，见下）。
 //! 完整审批链（有效/无效/跨资源 token）尚未实现，现有占位用例标 #[ignore] 且只锁
 //! 第 1 步，缺口已作为补测点移交测试专家（见该用例注释与交付报告）。
@@ -17,6 +17,10 @@ mod test_common;
 use bingxi_backend::services::export_approval_service::ExportApprovalService;
 use std::sync::Arc;
 
+/// 令牌门用例的调用者用户 id：这几条用例的断言都落在令牌门，
+/// 申请人身份比对在令牌门之后，取值不影响被测结论。
+const CALLER_USER_ID: i32 = 1001;
+
 /// 构造连到已迁移测试库的 service 实例（空 token 分支在触库前返回）
 async fn make_service() -> ExportApprovalService {
     let db = test_common::setup_test_db().await;
@@ -32,9 +36,11 @@ async fn make_service_without_schema() -> ExportApprovalService {
 
 /// 空 token → 403 fail-closed（None 场景）
 #[tokio::test]
-async fn test_enforce_export_download_none_token_fails() {
+async fn test_enforce_export_download_secured_none_token_fails() {
     let svc = make_service().await;
-    let result = svc.enforce_export_download(None, "customer").await;
+    let result = svc
+        .enforce_export_download_secured(None, "customer", CALLER_USER_ID, None)
+        .await;
     assert!(result.is_err(), "None token 应被拒绝（fail-closed）");
     let err = result.unwrap_err();
     let msg = err.to_string();
@@ -47,27 +53,31 @@ async fn test_enforce_export_download_none_token_fails() {
 
 /// 空字符串 token → 403 fail-closed
 #[tokio::test]
-async fn test_enforce_export_download_empty_token_fails() {
+async fn test_enforce_export_download_secured_empty_token_fails() {
     let svc = make_service().await;
-    let result = svc.enforce_export_download(Some(""), "customer").await;
+    let result = svc
+        .enforce_export_download_secured(Some(""), "customer", CALLER_USER_ID, None)
+        .await;
     assert!(result.is_err(), "空 token 应被拒绝（fail-closed）");
 }
 
 /// 纯空白 token → 403 fail-closed（trim 后为空）
 #[tokio::test]
-async fn test_enforce_export_download_whitespace_token_fails() {
+async fn test_enforce_export_download_secured_whitespace_token_fails() {
     let svc = make_service().await;
-    let result = svc.enforce_export_download(Some("   "), "customer").await;
+    let result = svc
+        .enforce_export_download_secured(Some("   "), "customer", CALLER_USER_ID, None)
+        .await;
     assert!(result.is_err(), "纯空白 token 应被拒绝（fail-closed）");
 }
 
 /// 有效格式的 token 会触发 DB 查询（负前提交集：表不存在），预期返回错误
 /// 此测试验证 token 非空时确实进入了 verify_download_token 流程（而非被空 token 分支拦截）
 #[tokio::test]
-async fn test_enforce_export_download_nonempty_token_reaches_db() {
+async fn test_enforce_export_download_secured_nonempty_token_reaches_db() {
     let svc = make_service_without_schema().await;
     let result = svc
-        .enforce_export_download(Some("some-token-value"), "customer")
+        .enforce_export_download_secured(Some("some-token-value"), "customer", CALLER_USER_ID, None)
         .await;
     // 负前提交集里没有 export_approval_request 表，verify_download_token 会报错
     assert!(result.is_err(), "非空 token 应进入 DB 校验流程（预期报错）");
@@ -93,7 +103,9 @@ async fn test_full_export_approval_workflow() {
     let svc = ExportApprovalService::new(Arc::new(db));
 
     // 1. 无 token → 403
-    let result = svc.enforce_export_download(None, "customer").await;
+    let result = svc
+        .enforce_export_download_secured(None, "customer", CALLER_USER_ID, None)
+        .await;
     assert!(result.is_err());
 
     // 2. 创建审批请求 → approve → 生成 token（未实现，见补测点）
