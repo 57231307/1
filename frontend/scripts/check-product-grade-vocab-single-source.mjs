@@ -85,17 +85,36 @@ export function parseTsVocab(text) {
   });
 }
 
-/** 从迁移取 SQL 字面量清单，两侧共用本函数保证两侧判据同形。 */
+/**
+ * 从迁移取 SQL 字面量清单，两侧共用本函数保证两侧判据同形。
+ * 必须遍历全部定义点再选，不许只取首个命中。同一文件里若出现多条 PRODUCT_GRADE_ALLOWED
+ * 定义，只有它们逐项逐字符同序相等才可采信；只要有一条分歧就判 null 交上层记红，
+ * 否则首条对齐而次条另立一套会被首个命中掩盖成假绿（本项目静态文本锁的已知盲区）。
+ * 只认常量定义的字符串字面量内容，锚定 const 名与 &str 型，故 raw SQL 里的
+ * '''' || 拼接、{PRODUCT_GRADE_ALLOWED} 占位与文档注释都不会被误当作词表项。
+ * 定义缺失或清单解析不出返回 null，交上层判红而不是跳过。
+ */
 export function parseMigrationVocab(text) {
-  const m = text.match(/const PRODUCT_GRADE_ALLOWED:\s*&str\s*=\s*"([^"]*)";/);
-  if (!m) return null;
-  const inner = m[1].trim();
-  if (!inner.length) return [];
-  return inner.split(',').map(part => {
-    const one = part.trim();
-    const q = one.match(/^'([\s\S]*)'$/);
-    return q ? q[1] : one;
+  const matches = [
+    ...text.matchAll(/const PRODUCT_GRADE_ALLOWED:\s*&str\s*=\s*"([^"]*)";/g),
+  ];
+  if (!matches.length) return null;
+  const lists = matches.map(m => {
+    const inner = m[1].trim();
+    if (!inner.length) return [];
+    return inner.split(',').map(part => {
+      const one = part.trim();
+      const q = one.match(/^'([\s\S]*)'$/);
+      return q ? q[1] : one;
+    });
   });
+  const first = lists[0];
+  for (const list of lists) {
+    if (list.length !== first.length || list.some((v, i) => v !== first[i])) {
+      return null;
+    }
+  }
+  return first;
 }
 
 /**
@@ -158,8 +177,8 @@ function loadRepo() {
     parsed: {
       rust: parseRustVocab(rustText),
       ts: parseTsVocab(tsText),
-      migrationReport: parseMigrationVocab(readOrAbort(SOURCES.migrationReport)),
-      migrationApply: parseMigrationVocab(readOrAbort(SOURCES.migrationApply)),
+      迁移m0122点名支: parseMigrationVocab(readOrAbort(SOURCES.migrationReport)),
+      迁移m0123施加支: parseMigrationVocab(readOrAbort(SOURCES.migrationApply)),
     },
     formText: readOrAbort(SOURCES.form),
   };
@@ -213,6 +232,58 @@ function runSelfTest() {
       expectProblems: 1,
     },
     {
+      name: '正例 迁移某档多一个尾空格必抓',
+      rust: rustGood,
+      ts: tsGood,
+      migA: "const PRODUCT_GRADE_ALLOWED: &str = \"'甲','乙','丙 '`;",
+      migB: migGood,
+      form: formGood,
+      // 引号内多一个尾空格使点名支第三档不等于后端丙，逐字比较必须点到该档，
+      // 否则库里会出现 CHECK 拦得住但 UI 给不出的近形值
+      expectProblems: 1,
+    },
+    {
+      name: '正例 迁移常量被删掉必判红并点名该支',
+      rust: rustGood,
+      ts: tsGood,
+      migA: '// 这一支把常量删了，只剩注释与别的代码',
+      migB: migGood,
+      form: formGood,
+      // 缺常量不得跳过兜底，解析不出即记红且点名 m0122，其余三侧仍对齐故仅一处
+      expectProblems: 1,
+    },
+    {
+      name: '正例 迁移常量名被拼错必判红',
+      rust: rustGood,
+      ts: tsGood,
+      // 名称少一个 D，定义锚点匹配不到，与常量被删同等对待
+      migA: "const PRODUCT_GRADE_ALLOWD: &str = \"'甲','乙','丙'\";",
+      migB: migGood,
+      form: formGood,
+      expectProblems: 1,
+    },
+    {
+      name: '正例 同一迁移出现两条相互矛盾的定义必判红不得取首个',
+      rust: rustGood,
+      ts: tsGood,
+      // 首条与后端对齐而次条另立一套，只取首个命中会假绿，必须遍历全部匹配点后判红
+      migA:
+        "const PRODUCT_GRADE_ALLOWED: &str = \"'甲','乙','丙'\";\nconst PRODUCT_GRADE_ALLOWED: &str = \"'甲','乙','丁'\";",
+      migB: migGood,
+      form: formGood,
+      expectProblems: 1,
+    },
+    {
+      name: '正例 同一迁移两条逐字相同的重复定义不冤判',
+      rust: rustGood,
+      ts: tsGood,
+      migA:
+        "const PRODUCT_GRADE_ALLOWED: &str = \"'甲','乙','丙'\";\nconst PRODUCT_GRADE_ALLOWED: &str = \"'甲','乙','丙'\";",
+      migB: migGood,
+      form: formGood,
+      expectProblems: 0,
+    },
+    {
       name: '正例 前端把末档改成带尾空格的近形词必抓',
       rust: rustGood,
       ts: "export const PRODUCT_GRADE = {\n  a: '甲',\n  b: '乙',\n  c: '丙 ',\n} as const;\nexport const PRODUCT_GRADE_VALUES: ProductGradeValue[] = [PRODUCT_GRADE.a, PRODUCT_GRADE.b, PRODUCT_GRADE.c];",
@@ -249,8 +320,8 @@ function runSelfTest() {
     const parsed = {
       rust: parseRustVocab(c.rust),
       ts: parseTsVocab(c.ts),
-      migrationReport: parseMigrationVocab(c.migA),
-      migrationApply: parseMigrationVocab(c.migB),
+      迁移m0122点名支: parseMigrationVocab(c.migA),
+      迁移m0123施加支: parseMigrationVocab(c.migB),
     };
     const problems = compareAll(parsed, c.form);
     const label = problems.length === c.expectProblems ? 'PASS' : 'FAIL';
@@ -275,7 +346,7 @@ function main() {
   const problems = compareAll(parsed, formText);
   console.log(
     `[grade-vocab-lock] 后端 ${JSON.stringify(parsed.rust)} 前端 ${JSON.stringify(parsed.ts)} ` +
-      `m0122 ${JSON.stringify(parsed.migrationReport)} m0123 ${JSON.stringify(parsed.migrationApply)}`
+      `m0122 ${JSON.stringify(parsed['迁移m0122点名支'])} m0123 ${JSON.stringify(parsed['迁移m0123施加支'])}`
   );
   if (problems.length) {
     console.error(`\n[grade-vocab-lock] 失败 词表四方同源不成立，共 ${problems.length} 处`);
