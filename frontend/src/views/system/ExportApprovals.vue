@@ -69,7 +69,7 @@
           :label="$t('exportApprovals.colApplicant')"
           width="120"
         />
-        <ElTableColumn prop="status" :label="$t('exportApprovals.colStatus')" width="100">
+        <ElTableColumn prop="status" :label="$t('exportApprovals.colStatus')" width="110">
           <template #default="{ row }">
             <!-- 与资源类型列同款空值门：真实记录 status 恒非空（后端 NOT NULL），
                  仅空表占位行会带无 status 的对象；缺 status 时不渲染标签，
@@ -81,23 +81,58 @@
         </ElTableColumn>
         <ElTableColumn prop="estimated_rows" :label="$t('exportApprovals.colRows')" width="100" />
         <ElTableColumn prop="created_at" :label="$t('exportApprovals.colCreatedAt')" width="180" />
-        <ElTableColumn :label="$t('exportApprovals.colToken')" min-width="200">
+        <ElTableColumn :label="$t('exportApprovals.colToken')" min-width="180">
           <template #default="{ row }">
-            <template v-if="row.download_token && row.status === 'approved'">
-              <span class="token-text">{{ row.download_token.substring(0, 8) }}...</span>
-              <ElButton text size="small" @click="copyToken(row.download_token)">{{
-                $t('common.copy')
-              }}</ElButton>
+            <!-- 一次性凭据形态：列表永不出现明文，只显示前缀指纹与状态标记 -->
+            <template v-if="row.token_fingerprint">
+              <span class="token-text">{{ row.token_fingerprint }}****</span>
+              <span v-if="row.token_consumed" class="token-state">{{
+                $t('exportApprovals.tokenConsumedMark')
+              }}</span>
+              <span v-else-if="row.token_viewed" class="token-state">{{
+                $t('exportApprovals.tokenViewedMark')
+              }}</span>
             </template>
             <span v-else>-</span>
           </template>
         </ElTableColumn>
-        <ElTableColumn :label="$t('common.action')" width="320" fixed="right">
+        <ElTableColumn :label="$t('common.action')" width="380" fixed="right">
           <template #default="{ row }">
             <ElButton size="small" @click="openDetail(row)">{{ $t('common.detail') }}</ElButton>
+            <!-- 申请人下载已迁各资源导出页就地进行（composables/useExportApproval），
+                 本页提供一次性查看、重发与跳转到导出入口。 -->
+            <template v-if="isMine(row)">
+              <ElButton
+                v-if="row.status === 'approved' && !row.token_consumed"
+                size="small"
+                @click="openTokenOnce(row)"
+                >{{ $t('exportApprovals.viewTokenAction') }}</ElButton
+              >
+              <ElButton
+                v-if="row.status === 'approved' && !row.token_consumed"
+                size="small"
+                @click="handleRotateToken(row)"
+                >{{ $t('exportApprovals.rotateTokenAction') }}</ElButton
+              >
+              <ElButton
+                v-if="row.status === 'approved' && !row.token_consumed"
+                size="small"
+                type="primary"
+                @click="goToExport(row)"
+                >{{ $t('exportApprovals.goToExport') }}</ElButton
+              >
+              <ElButton
+                v-if="row.status === 'pending'"
+                v-permission="EXPORT_APPROVAL_CANCEL_PERMISSION_KEY"
+                text
+                size="small"
+                @click="handleCancel(row)"
+                >{{ $t('exportApprovals.cancel') }}</ElButton
+              >
+            </template>
             <!--
-              申请人下载已迁各资源导出页就地进行（composables/useExportApproval.downloadApprovedExport），
-              本页仅保留审批职能（批准/驳回/撤销与待办列表），不再提供集中下载按钮。
+              审批办理已并入 BPM 审批链条：pending 行由流程定义分派的审批人在
+              审批中心（或本页经后端代理端点）办理，办理动作驱动流程节点推进。
             -->
             <ElButton
               v-if="row.status === 'pending' || row.status === 'pending_l2'"
@@ -114,14 +149,6 @@
               size="small"
               @click="handleReject(row)"
               >{{ $t('exportApprovals.reject') }}</ElButton
-            >
-            <ElButton
-              v-if="row.status === 'pending'"
-              v-permission="EXPORT_APPROVAL_CANCEL_PERMISSION_KEY"
-              text
-              size="small"
-              @click="handleCancel(row)"
-              >{{ $t('exportApprovals.cancel') }}</ElButton
             >
           </template>
         </ElTableColumn>
@@ -159,6 +186,19 @@
         <ElDescriptionsItem :label="$t('exportApprovals.fileFormatLabel')">{{
           detailRow.file_format
         }}</ElDescriptionsItem>
+        <!-- 一次性凭据与重试额度：只回指纹与计数，明文不外显 -->
+        <ElDescriptionsItem :label="$t('exportApprovals.colToken')">
+          {{ detailRow.token_fingerprint ? detailRow.token_fingerprint + '****' : '-' }}
+        </ElDescriptionsItem>
+        <ElDescriptionsItem :label="$t('exportApprovals.retryUsageLabel')">
+          {{ detailRow.retry_count }} / {{ detailRow.max_retries }}
+        </ElDescriptionsItem>
+        <ElDescriptionsItem :label="$t('exportApprovals.approvalProgressLabel')">
+          <ElButton v-if="detailRow.bpm_instance_id" text type="primary" @click="goApprovalCenter">
+            {{ $t('exportApprovals.viewInApprovalCenter') }}
+          </ElButton>
+          <span v-else>-</span>
+        </ElDescriptionsItem>
         <ElDescriptionsItem :label="$t('exportApprovals.paramsLabel')" :span="2">
           <pre class="detail-json">{{
             detailRow.export_params ? JSON.stringify(detailRow.export_params, null, 2) : '-'
@@ -167,9 +207,29 @@
       </ElDescriptions>
     </ElDialog>
 
+    <!-- 一次性查看令牌（token-once：明文仅此一次） -->
+    <ElDialog v-model="tokenOnceVisible" :title="$t('exportApprovals.tokenOnceTitle')" width="520">
+      <ElAlert
+        :title="$t('exportApprovals.tokenOnceWarning')"
+        type="warning"
+        :closable="false"
+        class="token-once-alert"
+      />
+      <p v-if="tokenOnceText" class="token-once-text">{{ tokenOnceText }}</p>
+      <div v-if="tokenOnceText" class="token-once-actions">
+        <ElButton type="primary" plain @click="handleCopyToken">{{ $t('common.copy') }}</ElButton>
+      </div>
+      <p v-else-if="tokenOnceHint">{{ tokenOnceHint }}</p>
+      <template #footer>
+        <ElButton type="primary" @click="tokenOnceVisible = false">{{
+          $t('exportApprovals.tokenOnceClose')
+        }}</ElButton>
+      </template>
+    </ElDialog>
+
     <!-- 发起审批（createApproval） -->
     <ElDialog v-model="createVisible" :title="$t('exportApprovals.createTitle')" width="520">
-      <ElForm :model="createForm" label-width="110px">
+      <ElForm ref="createFormRef" :model="createForm" label-width="110px">
         <ElFormItem :label="$t('exportApprovals.colResource')" required>
           <ElSelect v-model="createForm.resource_type" style="width: 100%">
             <ElOption
@@ -188,8 +248,13 @@
             :placeholder="$t('exportApprovals.paramsPlaceholder')"
           />
         </ElFormItem>
-        <ElFormItem :label="$t('exportApprovals.estimatedRowsLabel')">
-          <NumericInput v-model="createForm.estimated_rows" integer optional :min="0" />
+        <!-- 硬红线：禁步进数字输入框，数值录入用 el-input 加校验器 -->
+        <ElFormItem
+          :label="$t('exportApprovals.estimatedRowsLabel')"
+          prop="estimatedRowsText"
+          :rules="estimatedRowsRules"
+        >
+          <ElInput v-model="createForm.estimatedRowsText" clearable />
         </ElFormItem>
         <ElFormItem :label="$t('exportApprovals.fileFormatLabel')">
           <!-- 后端 create 校验 file_format 仅接受 xlsx/pdf（export_approval_service） -->
@@ -222,11 +287,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import type { FormInstance, FormItemRule } from 'element-plus';
 import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
-import NumericInput from '@/components/NumericInput.vue';
+import { useUserStore } from '@/store/user';
 import {
   listApprovals,
   listPendingForMe,
@@ -236,6 +303,8 @@ import {
   approveRequest,
   rejectRequest,
   cancelRequest,
+  viewTokenOnce,
+  rotateToken,
 } from '@/api/export-approvals';
 import type { ExportApprovalRequest, ListApprovalQuery } from '@/api/export-approvals';
 import {
@@ -249,10 +318,15 @@ import {
   exportApprovalResourceLabelKey,
   exportApprovalStatusLabelKey,
   exportApprovalStatusTagType,
+  exportApprovalTargetRoute,
+  buildExportApprovalJumpbackQuery,
+  BPM_APPROVAL_CENTER_ROUTE,
 } from '@/constants/export-approval';
 import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
+const router = useRouter();
+const userStore = useUserStore();
 
 const list = ref<ExportApprovalRequest[]>([]);
 const loading = ref(false);
@@ -295,6 +369,9 @@ const pageResetAndLoad = () => {
   void loadList();
 };
 
+// ===== 归属判定（查看/重发/跳转仅申请人本人可见，后端同样强制） =====
+const isMine = (row: ExportApprovalRequest) => row.applicant_user_id === userStore.userInfo?.id;
+
 // ===== 详情回源（getApprovalDetail） =====
 const detailVisible = ref(false);
 const detailRow = ref<ExportApprovalRequest | null>(null);
@@ -310,15 +387,128 @@ const openDetail = async (row: ExportApprovalRequest) => {
   }
 };
 
+const goApprovalCenter = () => {
+  router.push(BPM_APPROVAL_CENTER_ROUTE);
+};
+
+// ===== 一次性查看令牌（token-once：服务端置位后明文永不再出） =====
+const tokenOnceVisible = ref(false);
+const tokenOnceText = ref('');
+const tokenOnceHint = ref('');
+
+/**
+ * 一键复制令牌明文到剪贴板（req：令牌复制不了要真修）。
+ * 红线：只把明文交给剪贴板，绝不写进日志、取证文件或地址栏查询串；
+ * 复制失败（非安全上下文或用户拒绝剪贴板权限）如实外显，不假装成功。
+ */
+const handleCopyToken = async () => {
+  if (!tokenOnceText.value) return;
+  try {
+    await navigator.clipboard.writeText(tokenOnceText.value);
+    ElMessage.success(t('common.copied'));
+  } catch (error) {
+    logger.error(t('exportApprovals.logCopyFailed'), error);
+    ElMessage.error(t('exportApprovals.tokenCopyFailed'));
+  }
+};
+
+const openTokenOnce = async (row: ExportApprovalRequest) => {
+  try {
+    const res = await viewTokenOnce(row.id);
+    tokenOnceVisible.value = true;
+    if (res.data.available && res.data.token) {
+      tokenOnceText.value = res.data.token;
+      tokenOnceHint.value = '';
+      logger.info(t('exportApprovals.logTokenViewed', { id: row.id }));
+    } else {
+      tokenOnceText.value = '';
+      tokenOnceHint.value = t('exportApprovals.tokenOnceUnavailable', {
+        fingerprint: res.data.fingerprint ?? '-',
+      });
+    }
+    // 明文已置位，刷新列表同步 viewed 标记
+    void loadList();
+  } catch (error) {
+    // 失败信封（状态门/身份门）由拦截器外显
+    logger.error(t('exportApprovals.logTokenOnceFailed', { id: row.id }), error);
+  }
+};
+
+// ===== 重发令牌（旧令牌即刻作废；额度与硬有效期不刷新） =====
+const handleRotateToken = async (row: ExportApprovalRequest) => {
+  try {
+    await ElMessageBox.confirm(
+      t('exportApprovals.confirmRotateToken'),
+      t('exportApprovals.rotateTokenAction'),
+      { type: 'warning' }
+    );
+  } catch (error: unknown) {
+    if (isDialogDismissal(error)) return;
+    rethrowNonDismissal('exportApprovals.handleRotateToken.confirm', error);
+    return;
+  }
+  try {
+    const res = await rotateToken(row.id);
+    // 重发成功即一次性展示新明文，不再经复制按钮扩散
+    tokenOnceVisible.value = true;
+    tokenOnceText.value = res.data.token;
+    tokenOnceHint.value = '';
+    msg.success('exportApprovalRotatedGuide');
+    logger.info(t('exportApprovals.logRotateOk', { id: row.id }));
+    void loadList();
+  } catch (error) {
+    // 重发被拒（用尽/过期/已消费）的区分文案由后端失败信封外显
+    logger.error(t('exportApprovals.logRotateFailed', { id: row.id }), error);
+  }
+};
+
+// ===== 跳转到对应资源的导出入口（审批通过后的正规路径） =====
+// 带来源与实例上下文（source 与 instanceId 与 businessId），与已合入的审批回跳 query
+// 口径一致；落地页据 businessId 精确定位被批准的那一份申请后就地下载。令牌明文绝不进 URL。
+const goToExport = (row: ExportApprovalRequest) => {
+  try {
+    const route = exportApprovalTargetRoute(row.resource_type);
+    const query = buildExportApprovalJumpbackQuery({
+      id: row.id,
+      bpm_instance_id: row.bpm_instance_id,
+    });
+    router.push({ path: route, query });
+  } catch (error) {
+    // 词表外资源类型 normalize 抛错，留痕外显
+    logger.error(t('exportApprovals.logRouteFailed', { id: row.id }), error);
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
+};
+
 // ===== 发起审批（createApproval） =====
 const createVisible = ref(false);
 const createSaving = ref(false);
+const createFormRef = ref<FormInstance>();
 const createForm = reactive({
   resource_type: 'customer',
   paramsText: '{}',
-  estimated_rows: undefined as number | undefined,
+  estimatedRowsText: '',
   file_format: 'xlsx',
 });
+
+/** 预计行数校验：可空（空按 0 行低风险），非空必须为非负整数字符串（范围靠校验器不靠按钮） */
+const estimatedRowsRules: FormItemRule[] = [
+  {
+    validator: (_rule, value, callback) => {
+      const text = String(value ?? '').trim();
+      if (text === '') {
+        callback();
+        return;
+      }
+      if (!/^\d+$/.test(text)) {
+        callback(new Error(t('exportApprovals.estimatedRowsInvalid')));
+        return;
+      }
+      callback();
+    },
+    trigger: 'blur',
+  },
+];
 
 const handleCreate = async () => {
   let exportParams: unknown;
@@ -332,12 +522,15 @@ const handleCreate = async () => {
     ElMessage.warning(t('exportApprovals.jsonMustBeObject'));
     return;
   }
+  const valid = await createFormRef.value?.validate().catch(() => false);
+  if (valid === false) return;
+  const rowsText = createForm.estimatedRowsText.trim();
   createSaving.value = true;
   try {
     await createApproval({
       resource_type: createForm.resource_type,
       export_params: exportParams as Record<string, unknown>,
-      estimated_rows: createForm.estimated_rows,
+      estimated_rows: rowsText === '' ? undefined : Number(rowsText),
       file_format: createForm.file_format,
     });
     msg.success('exportApprovalSubmittedGuide');
@@ -371,7 +564,7 @@ const handleVerifyToken = async () => {
     const res = await verifyToken(tokenText.value.trim());
     ElMessageBox.alert(JSON.stringify(res.data, null, 2), t('exportApprovals.verifyResultTitle'));
   } catch (error) {
-    // 令牌无效/过期等失败文案由 request 拦截器按后端失败信封外显
+    // 令牌无效/过期/已消费/窗口未到/用尽的区分文案由 request 拦截器按后端失败信封外显
     logger.error(t('exportApprovals.logVerifyFailed'), error);
   } finally {
     tokenChecking.value = false;
@@ -379,7 +572,9 @@ const handleVerifyToken = async () => {
 };
 
 // 申请人下载已迁各资源导出页就地（composables/useExportApproval.downloadApprovedExport），
-// 本页仅保留审批职能（批准/驳回/撤销 + 待办列表 + 令牌校验/复制），不再实现集中下载。
+// 本页提供审批职能（批准/驳回/撤销 + 待办列表）、一次性查看与重发、跳转导出入口。
+// 令牌明文只在 token-once 弹窗一次性呈现并提供一键复制（复制即交付申请人自用）；
+// 明文绝不写日志、不落盘、不进跳转 URL 查询串，复制动作只交给剪贴板。
 
 const handleApprove = async (row: ExportApprovalRequest) => {
   try {
@@ -426,15 +621,6 @@ const handleCancel = async (row: ExportApprovalRequest) => {
   }
 };
 
-const copyToken = async (token: string) => {
-  try {
-    await navigator.clipboard.writeText(token);
-    ElMessage.success(t('common.copied'));
-  } catch {
-    ElMessage.warning(t('exportApprovals.copyFailed'));
-  }
-};
-
 onMounted(loadList);
 </script>
 
@@ -453,6 +639,11 @@ onMounted(loadList);
   font-family: monospace;
   font-size: 12px;
 }
+.token-state {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .pagination-bar {
   margin-top: 16px;
   display: flex;
@@ -467,5 +658,21 @@ onMounted(loadList);
   overflow: auto;
   white-space: pre-wrap;
   margin: 0;
+}
+.token-once-alert {
+  margin-bottom: 12px;
+}
+.token-once-text {
+  font-family: monospace;
+  font-size: 14px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  padding: 12px;
+  word-break: break-all;
+  user-select: none;
+}
+.token-once-actions {
+  margin-top: 8px;
+  display: flex;
 }
 </style>

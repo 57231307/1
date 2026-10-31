@@ -6,7 +6,7 @@
 //! - sales_crm: 销售报价/CRM/色价
 //! - production: 生产/质量/委外/事件/failover
 //! - finance: 合规/权限/RLS/色卡/坏账/8D
-//! - v15: V15 各批次（core/batch18/batch19/extensions/final 合并）
+//! - v15: V15 各期扩展（core 与 extensions 与 final 等合并）
 //! - rls_dept: RLS dept 数据范围语义扩展（5 表冗余 department_id + 触发器 + 策略重写）
 //! - crm_lead_claim_record: crm_lead 领取事件列（last_claimed_at/by，公海保护期与每日计数的唯一可靠判据）
 //! - crm_vocab_check: CRM 状态词表 DB CHECK 约束（crm_lead/crm_opportunity，依赖 business 建表）
@@ -105,6 +105,17 @@
 //!   不 DELETE 洗数据；并更正 is_default 列注释，如实描述互斥域是 doc_type 而非 module。
 //!   置于链尾为新的顶层条目，复用库上属 pending 必然执行；并入已应用的 print_subsystem 域
 //!   会被台账整体跳过，索引与注释更正永不落地。台账名取域名 m_print_template_default_slot
+//! - textile_safety: 纺织品安全合规域三支同域迁移（m0110 建八张表、m0111 词表 CHECK 收口、
+//!   m0112 GB 18401 与 GB 31701 限值矩阵与出口要求播种）；新建顶层域，与既有七张检验表零
+//!   交集，仅外键只读关联 products（依赖 system 建表，置于链尾为新的顶层条目）
+//! - purchase_inspection_result_check: purchase_inspection.inspection_result 值域收口两支
+//!   同域迁移（m0113a 严格只读逐值点名、m0113b 守卫后施加 CHECK），词表权威在
+//!   models::status::purchase_inventory::purchase_inspection_result；置于链尾为新的顶层条目
+//! - export_approval_lifecycle: 导出审批令牌生命周期改造域（export_approval_request 补
+//!   BPM 关联/令牌哈希化/重试窗口列 + status CHECK 扩 consumed、exhausted；本域只改
+//!   schema，export_approval 流程定义行由 services/bpm_definition_seed.rs 出厂种子登记；
+//!   依赖 system 建的 bpm_process_instance、v15 建的 export_approval_request 与
+//!   download_token 等既有列，故必须排全链尾为新的顶层条目，复用库上也必然执行）
 
 pub mod system;
 pub mod business;
@@ -153,3 +164,6 @@ pub mod product_roll_column_drop;
 // 合同条款快照来源指针域。独立顶层域，理由见域头（域内新增子迁移在复用库永不重放）。
 pub mod contract_clause_snapshot_provenance;
 pub mod print_template_default_slot;
+pub mod textile_safety;
+pub mod purchase_inspection_result_check;
+pub mod export_approval_lifecycle;
