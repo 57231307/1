@@ -26,6 +26,7 @@
 import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 import {
   ensureTestEntities,
   getCtx,
@@ -173,7 +174,11 @@ test.describe('13 UI 发货出库 → 库存四维回写扣减 + 匹号消耗', 
       pieceSel.locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)'),
       `匹号第四维应选中本例真实匹 ${piece.piece_no}`
     ).toContainText(piece.piece_no);
-    await dialog.getByRole('spinbutton').first().fill('1');
+    // 本次发货列按列头锚定该行录入框（纯手写数字录入列 无步进加减按钮）
+    const shipTable = dialog.locator('.el-table').first();
+    const shipRow = shipTable.locator('.el-table__row').first();
+    const shipQty = await cellInputByColumn(shipTable, shipRow, '本次发货');
+    await shipQty.fill('1');
     await dialog.getByRole('button', { name: '确定发货' }).click();
     await expect(page.getByText('发货成功')).toBeVisible({ timeout: 30000 });
 

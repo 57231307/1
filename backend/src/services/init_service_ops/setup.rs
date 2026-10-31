@@ -127,7 +127,7 @@ impl InitService {
             .await?;
 
         // 管理员刚创建完成，审批人锚点（admin 角色首个启用用户）即刻可用：当场补种出厂审批
-        // 流程定义，使报价单/销售订单/采购订单/生产订单提交审批在初始化后立即可用，
+        // 流程定义，使报价单/销售订单/采购订单/生产订单提交审批与导出审批发起在初始化后立即可用，
         // 无需等待服务重启。幂等只补不覆盖；失败仅告警不阻断初始化（完整模式启动链会再次尝试）。
         if let Err(e) =
             crate::services::bpm_definition_seed::seed_builtin_bpm_definitions(&self.db).await
