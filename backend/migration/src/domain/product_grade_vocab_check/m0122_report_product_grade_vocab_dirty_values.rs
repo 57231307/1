@@ -59,8 +59,9 @@ BEGIN
       WHERE NOT ({legal});
     RAISE NOTICE 'm0122 点名 products.product_grade 越界行合计 % 行，空值按未录入计为合法', bad_rows;
 
+    -- 越界行按谓词定义必非空（空值已判合法并被 WHERE 排除），故逐值点名不做空值兜底
     FOR rec IN
-        SELECT COALESCE("product_grade"::text, '<未录入>') AS badval, COUNT(*) AS cnt
+        SELECT "product_grade"::text AS badval, COUNT(*) AS cnt
           FROM "products"
          WHERE NOT ({legal})
          GROUP BY 1

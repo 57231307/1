@@ -73,7 +73,8 @@ BEGIN
         RAISE NOTICE 'm0123 守卫 {table}.{col} 无非空越界存量行，可安全施加 CHECK {constraint}';
     ELSE
         SELECT string_agg(fmt, ' / ' ORDER BY fmt) INTO samples FROM (
-            SELECT COALESCE('''' || "{col}" || '''', '(NULL)') || ' 乘 ' || COUNT(*)::text AS fmt
+            -- 越界行按谓词定义必非空（空值合法并被 WHERE 排除），逐值分布不需 NULL 分支
+            SELECT '''' || "{col}" || '''' || ' 乘 ' || COUNT(*)::text AS fmt
               FROM "{table}"
              WHERE NOT ({legal})
              GROUP BY "{col}"
