@@ -365,4 +365,4 @@ jobs:
           echo "**状态**: ⏭️ 跳过" >> "$GITHUB_STEP_SUMMARY"
           echo "**跳过原因**: $SKIP_REASON" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "本周期 E2E 已跳过，下一周期将在批次 $(( ${BATCH_NUMBER} + 30 )) 恢复。" >> "$GITHUB_STEP_SUMMARY"
+          echo "本周期 E2E 已跳过，下一周期将在批次 $(( BATCH_NUMBER + 30 )) 恢复。" >> "$GITHUB_STEP_SUMMARY"
