@@ -94,7 +94,7 @@ jobs:
     steps:
       - name: 查找最近一次同时产出后端二进制与前端产物的 ci-cd.yml run
         id: find
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
             const {owner, repo} = context.repo;
@@ -188,15 +188,18 @@ jobs:
       E2E_BATCH_NUMBER: ${{ inputs.batch_number }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 记录批次信息
+        env:
+          BATCH_NUMBER: ${{ inputs.batch_number }}
+          ARTIFACT_RUN_ID: ${{ needs.locate-build-artifacts.outputs.run-id }}
         run: |
           echo "# E2E 批次测试" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**批次编号**: ${{ inputs.batch_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**批次编号**: $BATCH_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "**触发时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_STEP_SUMMARY"
-          echo "**后端/前端产物来源 run**: ${{ needs.locate-build-artifacts.outputs.run-id }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**后端/前端产物来源 run**: $ARTIFACT_RUN_ID" >> "$GITHUB_STEP_SUMMARY"
           echo "**模式**: 独立 E2E 工作流（复用主 CI 构建产物，不重编）" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -276,6 +279,8 @@ jobs:
 
       - name: 运行 E2E 测试
         working-directory: frontend
+        env:
+          BATCH_NUMBER: ${{ inputs.batch_number }}
         run: |
           mkdir -p reports
           set +e
@@ -289,7 +294,7 @@ jobs:
           set -e
 
           {
-            echo "# 前端 E2E 测试报告（批次 ${{ inputs.batch_number }}）"
+            echo "# 前端 E2E 测试报告（批次 $BATCH_NUMBER）"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
             echo "**退出码**: $EXIT_CODE  "
@@ -309,7 +314,7 @@ jobs:
           } > reports/e2e-report.md
 
           {
-            echo "## 前端 E2E 测试（批次 ${{ inputs.batch_number }}）"
+            echo "## 前端 E2E 测试（批次 $BATCH_NUMBER）"
             echo ""
             if [ "$EXIT_CODE" -eq "0" ]; then
               echo "✅ 全部通过"
@@ -330,7 +335,7 @@ jobs:
 
       - name: 上传测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-batch-${{ inputs.batch_number }}
           path: |
@@ -350,11 +355,14 @@ jobs:
     if: ${{ inputs.skip_reason != '' }}
     steps:
       - name: 记录跳过原因
+        env:
+          BATCH_NUMBER: ${{ inputs.batch_number }}
+          SKIP_REASON: ${{ inputs.skip_reason }}
         run: |
           echo "# E2E 批次测试 - 跳过" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**批次编号**: ${{ inputs.batch_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**批次编号**: $BATCH_NUMBER" >> "$GITHUB_STEP_SUMMARY"
           echo "**状态**: ⏭️ 跳过" >> "$GITHUB_STEP_SUMMARY"
-          echo "**跳过原因**: ${{ inputs.skip_reason }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "**跳过原因**: $SKIP_REASON" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "本周期 E2E 已跳过，下一周期将在批次 $(( ${{ inputs.batch_number }} + 30 )) 恢复。" >> "$GITHUB_STEP_SUMMARY"
+          echo "本周期 E2E 已跳过，下一周期将在批次 $(( BATCH_NUMBER + 30 )) 恢复。" >> "$GITHUB_STEP_SUMMARY"

@@ -106,7 +106,7 @@ jobs:
       full_suite: ${{ steps.plan-scope.outputs.full_suite }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # 仅需最近 10 个 commit 用于环境信息展示（git log --oneline -5），无需完整历史
           fetch-depth: 10
@@ -131,15 +131,20 @@ jobs:
           fi
 
       - name: 收集环境信息
+        env:
+          CI_RUNNER_OS: ${{ runner.os }}
+          CI_RUNNER_ARCH: ${{ runner.arch }}
+          CI_SHA: ${{ github.sha }}
+          CI_REF: ${{ github.ref }}
         run: |
           mkdir -p reports
           {
             echo "# 环境信息报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')  "
-            echo "**Runner**: ${{ runner.os }} / ${{ runner.arch }}  "
-            echo "**Commit**: ${{ github.sha }}  "
-            echo "**Ref**: ${{ github.ref }}  "
+            echo "**Runner**: $CI_RUNNER_OS / $CI_RUNNER_ARCH  "
+            echo "**Commit**: $CI_SHA  "
+            echo "**Ref**: $CI_REF  "
             echo ""
             echo "## 工具链版本"
             echo ""
@@ -192,10 +197,10 @@ jobs:
           {
             echo "{"
             echo "  \"generated_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\","
-            echo "  \"runner\": \"${{ runner.os }}\","
-            echo "  \"arch\": \"${{ runner.arch }}\","
-            echo "  \"commit\": \"${{ github.sha }}\","
-            echo "  \"ref\": \"${{ github.ref }}\","
+            echo "  \"runner\": \"$CI_RUNNER_OS\","
+            echo "  \"arch\": \"$CI_RUNNER_ARCH\","
+            echo "  \"commit\": \"$CI_SHA\","
+            echo "  \"ref\": \"$CI_REF\","
             echo "  \"rustc\": \"$(rustc --version 2>&1 || echo N/A)\","
             echo "  \"cargo\": \"$(cargo --version 2>&1 || echo N/A)\","
             echo "  \"node\": \"$(node --version 2>&1 || echo N/A)\","
@@ -207,7 +212,7 @@ jobs:
           } > reports/env-info.json
 
       - name: 上传环境信息
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: env-info
           path: reports/env-info.*
@@ -230,7 +235,7 @@ jobs:
       contents: write
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（rustfmt）
         uses: ./.github/actions/setup-rust
@@ -392,7 +397,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-fmt-report
           path: |
@@ -412,10 +417,29 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
+
+      - name: 工作流第三方引用固定性检查（可变 tag 一律判红）
+        # 功能：判定 .github/workflows 全部工作流与 .github/actions 全部 composite action 内的
+        #   uses 引用，凡指向第三方仓库者必须是 40 位 commit sha，可变 tag、短 sha、缺 ref 段
+        #   三类形态任一即判红；仓内 ./ 前缀引用不参与。
+        # 调用方：本步与各本地门共用同一判定器，判据只有一份。
+        # 入参：无，扫描根由脚本自身位置回溯到仓库根。
+        # 传给谁：HARD 行与 TOTAL hard= 与 PINNING_GREEN 或 PINNING_RED 只进本步日志。
+        # 存什么/存哪里：不写文件、不建基线，判定当场算出。
+        # 为什么与 actionlint 同 job 且排在它之后：两步都是只读 .github 与 scripts 的静态锁，
+        #   同 job 复用一次 checkout；排在 Setup Frontend 之后与 actionlint 同理，避免本步判红时
+        #   把后续 node 门拖进没有 node_modules 的级联假红。
+        # 为什么必判红不可降级：本步是上一条「第三方引用全量固定」的护栏。没有它，下一次
+        #   新增 uses 时又会写回 @vN，固定面随时间自然溃堤，且没有任何地方会报错。
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: |
+          node scripts/ci/check-action-pinning.mjs --self-test
+          node scripts/ci/check-action-pinning.mjs
 
       - name: 工作流与 composite action 静态校验（actionlint 棘轮基线）
         # 判据 .github/workflows 下全部工作流与 .github/actions 下全部 composite action。发现按
@@ -602,7 +626,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-fmt-report
           # 报告实际写在 frontend/reports/（各步骤 working-directory: frontend），
@@ -636,12 +660,12 @@ jobs:
       contents: write
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: 下载中枢 clippy 原始输出
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: clippy-raw
           path: backend/reports
@@ -991,14 +1015,21 @@ jobs:
             fi
           } > reports/clippy-explain.txt
 
-          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI）
-          # D08-1 教训：clippy 编译失败（退出码 101）时 current.txt 不完整，
-          # 误触发自动刷新把 baseline 缩小。修复：记录 CLIPPY_MAIN_EXIT，自动刷新需 clippy 正常退出。
-          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" > reports/clippy-main-exit.txt
+          # 8. 决定退出码（baseline 机制：仅新增警告阻塞 CI，error 级诊断一律判红）
+          # 判据取本步可直接观测的事实：结构化输出第五列是诊断级别，出现 error 级记录即
+          # 编译错误或硬 lint 失败。跨 job 的 shell 变量在这里取不到（每个 job 独立环境），
+          # 因此不依赖上游 job 的退出码变量。自动重建 baseline 同样以"无 error"为前提，
+          # 避免用不完整的 current 替换 baseline 让下次 CI 误报新警告。
+          CLIPPY_ERROR_COUNT=$(awk -F'\t' '$5 == "error" {c++} END {print c+0}' reports/clippy-structured.tsv 2>/dev/null)
+          CLIPPY_ERROR_COUNT="${CLIPPY_ERROR_COUNT:-0}"
+          case "$CLIPPY_ERROR_COUNT" in
+            ''|*[!0-9]*) echo "::error::clippy error 级计数取不到非负整数（实得 '${CLIPPY_ERROR_COUNT}'），按扫描器异常判红"; exit 1 ;;
+          esac
+          echo "CLIPPY_ERROR_COUNT=$CLIPPY_ERROR_COUNT" > reports/clippy-error-count.txt
 
-          if [ "$CLIPPY_MAIN_EXIT" -ne "0" ]; then
+          if [ "$CLIPPY_ERROR_COUNT" != "0" ]; then
             echo ""
-            echo "❌ clippy 主命令退出码为 $CLIPPY_MAIN_EXIT，存在编译错误或基础设施异常，CI 失败"
+            echo "❌ clippy 结构化输出里有 $CLIPPY_ERROR_COUNT 条 error 级诊断，存在编译错误或硬 lint 失败，CI 失败"
             echo ""
             echo "=== clippy 短格式错误日志（file:line:col 定位）==="
             cat reports/clippy-log.txt 2>/dev/null || true
@@ -1035,7 +1066,7 @@ jobs:
           echo "CLIPPY_FIXED_COUNT=$FIXED_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_CURRENT_COUNT=$CURRENT_COUNT" >> "$GITHUB_ENV"
           echo "CLIPPY_BASELINE_COUNT=$BASELINE_COUNT" >> "$GITHUB_ENV"
-          echo "CLIPPY_MAIN_EXIT=$CLIPPY_MAIN_EXIT" >> "$GITHUB_ENV"
+          echo "CLIPPY_ERROR_COUNT=$CLIPPY_ERROR_COUNT" >> "$GITHUB_ENV"
 
           echo "✅ 无新增 clippy 警告"
           exit 0
@@ -1130,32 +1161,35 @@ jobs:
 
       - name: 提交 baseline 文件（首次运行时）+ 自动重建 baseline（main 分支每次 CI 后）
         if: always()
+        env:
+          CI_REF: ${{ github.ref }}
         run: |
           if [ -f "backend/.clippy-baseline.txt" ] || [ -f ".clippy-baseline.txt" ]; then
             BASELINE_PATH=".clippy-baseline.txt"
             if [ -f "backend/.clippy-baseline.txt" ]; then
               BASELINE_PATH="backend/.clippy-baseline.txt"
             fi
-            # 从文件读取 clippy 主退出码（NEW_COUNT > 0 时 step 提前 exit 1，$GITHUB_ENV 未写入）
-            CLIPPY_MAIN_EXIT_VAL="unknown"
-            if [ -f "backend/reports/clippy-main-exit.txt" ]; then
-              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' backend/reports/clippy-main-exit.txt | cut -d= -f2)
-            elif [ -f "reports/clippy-main-exit.txt" ]; then
-              CLIPPY_MAIN_EXIT_VAL=$(grep -E '^CLIPPY_MAIN_EXIT=' reports/clippy-main-exit.txt | cut -d= -f2)
+            # 从文件读取 error 级诊断数（有新增警告时前一步提前退出，$GITHUB_ENV 未写入，
+            # 故只能读落盘文件；读不到记 unknown，unknown 不允许触发自动重建）
+            CLIPPY_ERROR_COUNT_VAL="unknown"
+            if [ -f "backend/reports/clippy-error-count.txt" ]; then
+              CLIPPY_ERROR_COUNT_VAL=$(grep -E '^CLIPPY_ERROR_COUNT=' backend/reports/clippy-error-count.txt | cut -d= -f2)
+            elif [ -f "reports/clippy-error-count.txt" ]; then
+              CLIPPY_ERROR_COUNT_VAL=$(grep -E '^CLIPPY_ERROR_COUNT=' reports/clippy-error-count.txt | cut -d= -f2)
             fi
-            echo "CLIPPY_MAIN_EXIT_VAL=$CLIPPY_MAIN_EXIT_VAL"
+            echo "CLIPPY_ERROR_COUNT_VAL=$CLIPPY_ERROR_COUNT_VAL"
             if git ls-files --error-unmatch "$BASELINE_PATH" 2>/dev/null; then
               echo "✅ baseline 文件已纳入版本控制"
               # main 分支自动重建 baseline（每次 CI 后用当前真实警告完全替换 baseline）
               # 2026-07-30 修订：原机制仅在 FIXED_COUNT > 0 时刷新，导致 baseline 57% 抽样过时
               # （如 ALIPAY/BudgetMode/CustomerNotFound 等已实际使用但 baseline 仍标记为 dead_code）。
-              # 新机制：main 分支每次 CI 后，只要 clippy 正常退出（CLIPPY_MAIN_EXIT=0），
+              # 新机制：main 分支每次 CI 后，只要 clippy 无 error 级诊断（CLIPPY_ERROR_COUNT=0），
               # 无论 FIXED_COUNT 是否 > 0，都用当前真实警告完全重建 baseline。
               # 这样 baseline 永远反映 main 最新真实状态，过时项在下次 main CI 时自动清除。
               # PR 分支保留 NEW_COUNT > 0 阻塞机制（在主 clippy step 中处理）。
               # Batch 488 D08-1 教训保留：clippy 编译失败（退出码 101）时不重建 baseline，
               # 避免用不完整的 current 替换 baseline 导致下次 CI 误报新警告。
-              if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_MAIN_EXIT_VAL" = "0" ]; then
+              if [ "$CI_REF" = "refs/heads/main" ] && [ "$CLIPPY_BASELINE_MODE" = "strict" ] && [ "$CLIPPY_ERROR_COUNT_VAL" = "0" ]; then
                 echo "📝 自动重建 baseline：用当前真实警告完全替换（$CLIPPY_BASELINE_COUNT → $CLIPPY_CURRENT_COUNT，已修复 $CLIPPY_FIXED_COUNT 条，新增 $CLIPPY_NEW_COUNT 条）"
                 cd backend
                 cp reports/clippy-current.txt .clippy-baseline.txt
@@ -1189,7 +1223,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-clippy-report
           path: |
@@ -1216,7 +1250,7 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -1335,7 +1369,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-lint-report
           path: |
@@ -1353,7 +1387,7 @@ jobs:
     needs: ci-info
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -1404,7 +1438,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-type-check-report
           # 同 frontend-fmt-report：vue-tsc 输出写在 frontend/reports/，
@@ -1445,7 +1479,7 @@ jobs:
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust action 智能探测写入 GITHUB_ENV（防 OOM，不硬编码）
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1458,7 +1492,7 @@ jobs:
           mem_per_unit_gb: '7'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
@@ -1472,7 +1506,7 @@ jobs:
 
       - name: 上传 archive
         if: needs.ci-info.outputs.full_suite == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nextest-archive
           path: backend/nextest-archive.tar.zst
@@ -1520,7 +1554,7 @@ jobs:
 
       - name: 上传 clippy 原始输出（供 🔍 Rust Clippy job 判定）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: clippy-raw
           path: backend/reports/
@@ -1581,7 +1615,7 @@ jobs:
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1593,12 +1627,12 @@ jobs:
           target-cache: 'false'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
       - name: 下载预编译测试 archive
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nextest-archive
           path: backend/
@@ -1607,7 +1641,7 @@ jobs:
         uses: ./.github/actions/verify-nextest-archive
 
       - name: 下载后端 CLI 二进制（migrate 用，复用 ci-build-rust release 产物，分片不重编）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: backend/target/release
@@ -1756,7 +1790,7 @@ jobs:
 
       - name: 上传测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-report-partition-${{ matrix.partition }}
           path: backend/reports/
@@ -1821,7 +1855,7 @@ jobs:
       LOG__DIR: /tmp/ignored-test-logs
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -1832,12 +1866,12 @@ jobs:
           target-cache: 'false'
 
       - name: 安装 cargo-nextest
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2
         with:
           tool: nextest
 
       - name: 下载预编译测试 archive（与分片同一产物）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nextest-archive
           path: backend/
@@ -1846,7 +1880,7 @@ jobs:
         uses: ./.github/actions/verify-nextest-archive
 
       - name: 下载后端 CLI 二进制（migrate 用）
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: backend/target/release
@@ -1970,7 +2004,7 @@ jobs:
 
       - name: 上传 ignored 用例测试报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: test-report-ignored
           path: backend/reports/
@@ -1988,7 +2022,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -2043,7 +2077,7 @@ jobs:
 
       - name: 上传前端覆盖率到 Codecov（V15 批次 06 P1-12）
         if: always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           working-directory: frontend
@@ -2054,7 +2088,7 @@ jobs:
 
       - name: 上传报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-test-report
           # vitest 报告由本 job 各步在 working-directory: frontend 下写进 frontend/reports/，
@@ -2086,13 +2120,16 @@ jobs:
     continue-on-error: true
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（共享主 cargo- 缓存，加速依赖编译）
         uses: ./.github/actions/setup-rust
 
       - name: 缓存 criterion 基线数据
-        uses: actions/cache@v5
+        # 发布轮（v* tag）不读也不写缓存：基准数据一旦能被任意先前运行写入，
+        # 正式版本轮的对比结果就可能被投毒，宁可冷跑也不消费可变缓存。
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: backend/target/criterion
           key: criterion-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
@@ -2101,6 +2138,9 @@ jobs:
 
       - name: 运行 cargo bench（V15 批次 06 P1-10）
         working-directory: backend
+        env:
+          CI_REF_NAME: ${{ github.ref_name }}
+          CI_SHA: ${{ github.sha }}
         run: |
           mkdir -p reports
           set +e
@@ -2129,8 +2169,8 @@ jobs:
             echo "# 性能基准回归监控报告"
             echo ""
             echo "**生成时间**: $(date -u +'%Y-%m-%dT%H:%M:%SZ')  "
-            echo "**分支**: ${{ github.ref_name }}  "
-            echo "**Commit**: ${{ github.sha }}  "
+            echo "**分支**: $CI_REF_NAME  "
+            echo "**Commit**: $CI_SHA  "
             echo ""
             echo "## 基准项目"
             echo ""
@@ -2171,7 +2211,7 @@ jobs:
 
       - name: 上传性能基准报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: perf-bench-report
           path: backend/reports/
@@ -2192,7 +2232,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
@@ -2301,7 +2341,7 @@ jobs:
 
       - name: 上传构建日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-build-log
           # cargo-build.log 由「构建后端 (Release)」在 working-directory: backend 下写进
@@ -2314,7 +2354,7 @@ jobs:
 
       - name: 上传后端产物
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: backend-binary
           path: |
@@ -2352,7 +2392,7 @@ jobs:
       e2e_shard_matrix: ${{ steps.e2e-shard-matrix.outputs.matrix }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Frontend
         uses: ./.github/actions/setup-frontend
@@ -2427,7 +2467,7 @@ jobs:
 
       - name: 上传构建日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-build-log
           # reports/ 是本步骤工作目录（仓库根）下的报告；frontend/reports/ 才是
@@ -2441,7 +2481,7 @@ jobs:
 
       - name: 上传前端产物
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: frontend-dist
           path: frontend/dist/
@@ -2562,7 +2602,7 @@ jobs:
       tag_name: v${{ needs.ci-build-rust.outputs.version }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -2577,13 +2617,13 @@ jobs:
           echo "使用编译时的版本: $VERSION"
 
       - name: 下载后端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: backend-binary
           path: release/backend
 
       - name: 下载前端产物
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: frontend-dist
           path: release/frontend/dist
@@ -2628,7 +2668,7 @@ jobs:
           ls -lh "../$TAR_NAME"
 
       - name: 上传发布包
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bingxi-erp-release
           path: release-${{ steps.version.outputs.version }}.tar.gz
@@ -2653,12 +2693,12 @@ jobs:
       pull-requests: read
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: 下载发布包
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: bingxi-erp-release
           path: ./
@@ -2951,7 +2991,7 @@ jobs:
       SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3315,7 +3355,7 @@ jobs:
       # 失败诊断原件，去掉 playwright-report/ 副本不损失任何错误分析能力。
       - name: 上传 E2E 轻量报告（每片必传）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-report-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: |
@@ -3344,7 +3384,7 @@ jobs:
 
       - name: 上传 E2E 失败诊断产物（trace/video/error-context）
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: e2e-diag-shard-${{ matrix.shard }}-${{ github.run_id }}
           path: frontend/reports/e2e-diag-shard-${{ matrix.shard }}.tar.gz
@@ -3424,7 +3464,7 @@ jobs:
       SLOW_QUERY__ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3537,7 +3577,7 @@ jobs:
 
       - name: 上传 access-map 报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           # artifact 名禁止冒号：用 include 展开的 group_name（安全名）
           name: access-map-${{ matrix.group_name }}-${{ github.run_id }}
@@ -3551,7 +3591,7 @@ jobs:
       # /tmp/matrix-logs 却从不入产物，导致"某端点 500"永远无法定责，只能靠猜。
       - name: 上传矩阵 job 后端与前端预览日志
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: matrix-runtime-logs-${{ matrix.group_name }}-${{ github.run_id }}
           path: |
@@ -3602,195 +3642,27 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: 检出代码（含完整历史，gitleaks 需要）
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
-      - name: 创建报告目录
-        run: mkdir -p "$GITHUB_WORKSPACE/reports/audit" "$GITHUB_WORKSPACE/reports/deps"
-
-      - name: Setup Rust（cargo-audit / cargo tree 需 cargo 工具链；本 job 不编译 crate 故关 sccache）
-        uses: ./.github/actions/setup-rust
-        with:
-          sccache: 'false'
-
-      # 原步骤没有 Rust/Node 工具链，且 `cargo install … || true` 把安装失败吞掉：
-      # 之后 `cargo audit` 是 command not found，JSON 为空，VULN_COUNT=parse-error，
-      # 而 parse-error 既不 fail 也不 warn —— 安全扫描器根本没跑却被记为通过。
-      - name: Setup Frontend（Node.js，npm audit 需要；npm audit 读 package-lock.json，无需 node_modules）
-        uses: ./.github/actions/setup-frontend
-        with:
-          skip-install: 'true'
-
-      - name: 安装 cargo-audit（安装失败/命令缺失必须阻塞，禁止 || true 吞错）
-        run: |
-          # runner 上（镜像预置或 Cargo 缓存恢复）可能已经有 cargo-audit，
-          # 而 `cargo install` 撞到同名二进制会以「binary `cargo-audit` already exists in destination」
-          # 退出 101 —— 于是这个漏洞检测 job 会与本次代码改动完全无关地判负。
-          # 已存在就不重装（下一步仍校验命令可用 + 版本可执行，不会把"没装"放过去）。
-          if command -v cargo-audit >/dev/null 2>&1; then
-            echo "cargo-audit 已就绪，跳过安装"
-          else
-            cargo install cargo-audit --locked --quiet
-          fi
-          command -v cargo-audit >/dev/null || { echo "::error::cargo-audit 未安装成功"; exit 1; }
-          cargo audit --version
-
-      - name: Rust 依赖漏洞审计（cargo audit · high/critical 阻塞 CI）
-        run: |
-          R="$GITHUB_WORKSPACE/reports/audit"
-          set +e
-          # 审计范围含 [dev-dependencies]：原 ci-audit 用 --no-dev-deps（子集），本 job 全量，
-          # 取超集 ⇒ 任何原本会被阻塞的高危漏洞仍然会被阻塞。
-          ( cd backend && cargo audit --json ) > "$R/cargo-audit.json" 2> "$R/cargo-audit.log"
-          RC=$?
-          set -e
-          echo "cargo audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
-          # exit>1 = 网络/解析之外的异常，扫描器没跑成，不得退化成"跳过判定"
-          if [ "$RC" -gt 1 ]; then
-            echo "::error::cargo audit 异常退出（exit $RC，扫描器未正常完成）"
-            tail -30 "$R/cargo-audit.log" || true
-            exit 1
-          fi
-          python3 - "$R" <<'PY'
-          import json, sys, os
-          R = sys.argv[1]
-          def die(msg):
-              print('::error::' + msg)
-              sys.exit(1)
-          try:
-              d = json.load(open(os.path.join(R, 'cargo-audit.json')))
-          except Exception as e:
-              die('cargo audit 输出无法解析（扫描器未正常执行）: %s' % e)
-          v = d.get('vulnerabilities') or {}
-          items = v.get('list') or []
-          def sev(x):
-              return str(((x.get('advisory') or {}).get('severity')) or '?').lower()
-          lines = []
-          for x in items:
-              a = x.get('advisory') or {}
-              pk = x.get('package') or {}
-              lines.append('[%s] %s %s - %s %s' % (sev(x), pk.get('name'), pk.get('version'), a.get('id'), a.get('title') or ''))
-          open(os.path.join(R, 'cargo-audit-details.txt'), 'w').write('\n'.join(lines) + ('\n' if lines else ''))
-          high = [l for l in lines if l.startswith('[high]') or l.startswith('[critical]')]
-          print('cargo audit: 已知漏洞 %d 条，其中 high/critical %d 条' % (len(items), len(high)))
-          for l in lines[:50]:
-              print('  - ' + l)
-          count = v.get('count')
-          # 输出自相一致校验：任何不一致都按"扫描器未正常执行"处理（fail closed）
-          if v.get('found') is True and not items:
-              die('cargo audit 报告 found=true 但 list 为空（输出异常，无法判定）')
-          if isinstance(count, int) and count > len(items):
-              die('cargo audit 报告 count=%d 大于可解析条目数=%d（输出被截断，无法判定）' % (count, len(items)))
-          # 门禁 1（原 ci-audit）：severity 字段精确命中 high/critical
-          if high:
-              die('检测到 %d 个 high/critical 级别 Rust 依赖漏洞，阻塞 CI（详见 reports/audit/cargo-audit-details.txt）' % len(high))
-          # 门禁 2（原全面漏洞检测 job）：有漏洞且详情文本出现 critical/high ⇒ 同样阻塞
-          if items:
-              txt = open(os.path.join(R, 'cargo-audit-details.txt')).read().lower()
-              if 'critical' in txt or 'high' in txt:
-                  die('cargo audit 发现 High/Critical 依赖漏洞（severity 字段缺失，按详情文本判定）')
-              print('::warning::cargo audit 发现 %d 个低危/中危依赖漏洞（记录在案，不阻塞）' % len(items))
-          PY
-
-      - name: npm 依赖漏洞审计（npm audit · high/critical 阻塞 CI）
-        run: |
-          R="$GITHUB_WORKSPACE/reports/audit"
-          set +e
-          ( cd frontend && npm audit --json ) > "$R/npm-audit.json" 2> "$R/npm-audit.log"
-          RC=$?
-          set -e
-          echo "npm audit exit=$RC（0=无漏洞 1=发现漏洞 其他=执行异常）"
-          if [ "$RC" -gt 1 ]; then
-            echo "::error::npm audit 异常退出（exit $RC，扫描器未正常完成）"
-            tail -30 "$R/npm-audit.log" || true
-            exit 1
-          fi
-          python3 - "$R" <<'PY'
-          import json, sys, os
-          R = sys.argv[1]
-          def die(msg):
-              print('::error::' + msg)
-              sys.exit(1)
-          try:
-              d = json.load(open(os.path.join(R, 'npm-audit.json')))
-          except Exception as e:
-              die('npm audit 输出无法解析（扫描器未正常执行）: %s' % e)
-          meta = (d.get('metadata') or {}).get('vulnerabilities') or {}
-          pkgs = d.get('vulnerabilities') or {}
-          def sev(x):
-              return str(x.get('severity') or '?').lower()
-          def num(k):
-              try:
-                  return int(meta.get(k, 0) or 0)
-              except (TypeError, ValueError):
-                  die('npm audit metadata.%s 非数值（输出异常，无法判定）' % k)
-          bad = sorted('%s [%s]' % (k, sev(x)) for k, x in pkgs.items() if sev(x) in ('high', 'critical'))
-          print('npm audit 漏洞统计: %s' % meta)
-          for b in bad[:50]:
-              print('  - ' + b)
-          meta_high = num('high') + num('critical')
-          # 门禁 1（原全面漏洞检测 job）：metadata 计数
-          if meta_high > 0:
-              die('npm audit 发现 %d 个 High/Critical 漏洞，阻塞 CI' % meta_high)
-          # 门禁 2（原 ci-audit）：逐包 severity 字段命中 high/critical
-          if bad:
-              die('npm audit 发现 %d 个 high/critical 级别前端依赖漏洞，阻塞 CI（详见 reports/audit/npm-audit.json）' % len(bad))
-          # 计数与逐包判定不一致（有漏洞统计却解析不到任何包）= 输出不可信，按未执行处理
-          if num('total') > 0 and not pkgs:
-              die('npm audit metadata.total=%d 但无可解析漏洞条目（输出异常，无法判定）' % num('total'))
-          if num('total') > 0 or pkgs:
-              print('::warning::npm audit 存在低危/中危漏洞（详见 reports/audit/npm-audit.json）')
-          PY
-
-      - name: 生成 cargo tree（严格：lockfile 漂移时阻塞 CI）
-        # 前序漏洞审计步 fail-closed 判红时，本步与 npm ls 步默认被跳过，
-        # 于是"上传依赖图记录"（if: always 且缺文件即错）跟着报一道假象红：
-        # 看着像两个缺陷，实则同一成因，且恰好在最需要依赖图时把它抹掉。
-        # 与 gitleaks 与 semgrep 同策：!cancelled() 让记录照出，本步自身失败照样判负。
-        if: ${{ !cancelled() }}
-        run: |
-          D="$GITHUB_WORKSPACE/reports/deps"
-          cd backend
-          # --locked 要求 Cargo.lock 与 Cargo.toml 一致，漂移时 exit != 0 阻塞 CI
-          cargo tree --locked --charset ascii > "$D/cargo-tree.txt"
-          cargo tree --locked --charset ascii --format json > "$D/cargo-tree.json"
-          echo "cargo tree 行数: $(wc -l < "$D/cargo-tree.txt")"
-
-      - name: 生成 npm ls（依赖图记录，非关键，允许失败）
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        run: |
-          D="$GITHUB_WORKSPACE/reports/deps"
-          ( cd frontend && npm ls --all --json ) > "$D/npm-ls.json" 2> "$D/npm-ls.txt"
-          echo "npm ls 顶层依赖数: $(jq '.dependencies | length' "$D/npm-ls.json" 2>/dev/null || echo N/A)"
-
-      - name: 秘密泄露扫描（gitleaks）
-        # 防"前序步骤红 → 密钥扫描整轮从未执行"的零覆盖盲区（#4669 实证被跳过）：
-        # 仍保持 fail-closed——本步失败照样判负，只是不再被别人的失败遮掉。
-        if: ${{ !cancelled() }}
-        uses: gacts/gitleaks@v1
-        continue-on-error: false
-        with:
-          # 配置走仓库根 .gitleaks.toml（默认读取，含测试/文档合成凭据 allowlist）
-          config-path: .gitleaks.toml
-
-      - name: 静态安全扫描（semgrep 社区规则）
-        # 同 gitleaks：不再被前序失败连带跳过（#4669 实证零覆盖）。
-        # 仍 continue-on-error: true —— 社区规则首轮接入只做记录，提级为阻塞需单独评估误报面。
-        if: ${{ !cancelled() }}
-        uses: returntocorp/semgrep-action@v1
-        continue-on-error: true
-        with:
-          config: >-
-            --config=p/ci-detect-secrets
-            --config=p/typescript
-            --config=p/rust
-          generateSarif: "false"
+      # 全面漏洞检测的扫描本体（依赖漏洞 / 依赖图 / 秘密泄露 / SAST / 工作流定义自身审计）
+      #   与 .github/workflows/vuln-scan-daily.yml 的主干每日轮共用同一份实现，判定语义不写两份，
+      #   否则 PR 面与主干面会各自漂移给出不同结论；同款先例见本文件 ci-dead-code-audit 与
+      #   dead-code-audit.yml 共用 .github/actions/dead-code-audit。
+      # 调用方 本 job（PR 轮与 v 前缀标签轮）与每日轮两个 workflow。
+      # 入参 无。两枚前置条件由调用方负责：先检出且 fetch-depth: 0（gitleaks 读全量历史），
+      #   顶层 env 声明 RUST_VERSION 与 NODE_VERSION（动作内嵌的两个 setup 取这两枚 env）。
+      # 传给谁 结论只以各步退出码交给本 job，由收尾门按 job 状态汇总，本步不写 outputs。
+      # 存什么 cargo audit 与 npm audit 与 zizmor 的原始输出与命中明细、cargo tree 与 npm ls
+      #   的依赖图，落在 reports/audit 与 reports/deps，由下面三支上传步各自取走。
+      # 存哪里 仓库内 reports/audit 与 reports/deps，只进本 run 的 artifact，不外发。
+      - name: 全面漏洞检测步骤组（本体在 ./.github/actions/vuln-scan）
+        uses: ./.github/actions/vuln-scan
 
       - name: 上传依赖审计报告（cargo audit / npm audit 原始输出）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-audit-reports
           path: reports/audit/
@@ -3799,7 +3671,7 @@ jobs:
 
       - name: 上传依赖图记录（cargo tree / npm ls）
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dependency-trees
           path: reports/deps/
@@ -3808,7 +3680,7 @@ jobs:
 
       - name: 上传漏洞扫描报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: security-scan-${{ github.run_id }}
           path: reports/
@@ -3828,7 +3700,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       # 审计流程（备份源码 → 剥离 file-level allow → cargo check 收集 dead_code →
       # 恢复源码 → 报告 → 上传 → 门禁判定）与 dead-code-audit.yml 的周报 job 共用
@@ -3895,7 +3767,7 @@ jobs:
       CACHE_ENABLED: "false"
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: E2E 运行期装配（后端二进制 + 前端产物 + Node/npm + Playwright 浏览器）
         uses: ./.github/actions/e2e-runtime
@@ -3963,7 +3835,7 @@ jobs:
 
       - name: 上传诊断产物
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: setup-wizard-e2e-${{ github.run_id }}
           path: |
@@ -3988,7 +3860,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 功能声明 vs 路由实现三方对照
         run: |
@@ -4066,7 +3938,7 @@ jobs:
 
       - name: 上传功能完整性报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: completeness-report-${{ github.run_id }}
           path: /tmp/completeness-report.md
@@ -4096,7 +3968,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           # 注释形态门禁需要历史：PR 求 merge-base、push 做 event.before..HEAD
           # diff；仅查覆盖率不查形态的旧步骤无此需求，改动只影响本 job 检出耗时。
@@ -4863,7 +4735,7 @@ jobs:
 
       - name: 上传注释报告
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: comment-report-${{ github.run_id }}
           path: |
@@ -4893,18 +4765,24 @@ jobs:
     if: ${{ !cancelled() && needs.ci-info.outputs.full_suite == 'true' }}
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 动态校验——全部 E2E job 必须真实执行成功
+        env:
+          CI_E2E_RESULT: ${{ needs.ci-e2e.result }}
+          SETUP_WIZARD_RESULT: ${{ needs.ci-e2e-setup-wizard.result }}
+          ROLE_MATRIX_RESULT: ${{ needs.role-permission-matrix.result }}
+          GATE_EVENT_NAME: ${{ github.event_name }}
+          GATE_REF: ${{ github.ref }}
         run: |
-          for r in "${{ needs.ci-e2e.result }}" "${{ needs.ci-e2e-setup-wizard.result }}" "${{ needs.role-permission-matrix.result }}"; do
+          for r in "$CI_E2E_RESULT" "$SETUP_WIZARD_RESULT" "$ROLE_MATRIX_RESULT"; do
             if [[ "$r" != "success" && "$r" != "skipped" ]]; then
               echo "::error::E2E 真实性门禁：上游 E2E job 状态 $r（非 success），E2E 未全部基于真实链路通过"
               exit 1
             fi
           done
           echo "上游 E2E job（ci-e2e / setup-wizard / role-permission-matrix）本轮结论均为 success 或 skipped"
-          echo "本轮事件=${{ github.event_name }} ref=${{ github.ref }}，ci-e2e 结论=${{ needs.ci-e2e.result }}（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
+          echo "本轮事件=$GATE_EVENT_NAME ref=$GATE_REF，ci-e2e 结论=$CI_E2E_RESULT（分片数不在本步断言，见下一步与 e2e-report-shard-* 产物）"
 
       - name: 放行测试面的轮次 ci-e2e 不得为 skipped
         # 上一条动态步把 skipped 与 success 同计入通过，于是"测试面开关已放行而 ci-e2e 整族
@@ -4988,16 +4866,19 @@ jobs:
         # 本步按 needs 结论跳过，随后两个报告对账步骤以数据缺失记 SKIP 并点名，
         # 不会假装通过；ci-e2e 结论为 success 而下载步报错时本步直接红，属真异常。
         if: ${{ !cancelled() && needs.ci-e2e.result == 'success' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: e2e-report-shard-*
           path: e2e-forensics-artifacts
           merge-multiple: false
 
       - name: 安装对账用 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # 本 job 只跑 node 脚本对账，全程没有 npm ci 与 npm install（实测该 job 体内
+          # 零包管理命令），setup-node 的内置依赖缓存没有消费者，一律关掉而不是留位豁免。
+          package-manager-cache: false
 
       - name: 空片与用例总数对账
         # 判据一，每片实际执行用例数必须大于 0，各片执行数之和不得低于分片数乘以
@@ -5074,7 +4955,7 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 敏感链路静态审计
         run: |
@@ -5146,12 +5027,15 @@ jobs:
     if: needs.ci-info.outputs.full_suite == 'true'
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: 安装 Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # 本 job 只跑 node 脚本对账，全程没有 npm ci 与 npm install（实测该 job 体内
+          # 零包管理命令），setup-node 的内置依赖缓存没有消费者，一律关掉而不是留位豁免。
+          package-manager-cache: false
 
       - name: E2E 显式日志合规扫描
         run: |

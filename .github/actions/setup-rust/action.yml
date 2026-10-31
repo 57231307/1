@@ -26,7 +26,7 @@ runs:
   using: composite
   steps:
     - name: 缓存 Rustup
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.rustup
         key: rustup-${{ env.RUST_VERSION }}
@@ -39,7 +39,7 @@ runs:
 
     - name: 缓存 Cargo
       if: inputs.target-cache == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: |
           ~/.cargo/bin
@@ -52,13 +52,13 @@ runs:
 
     - name: 安装 sccache（编译缓存，加速重复编译）
       if: inputs.sccache == 'true'
-      uses: taiki-e/install-action@v2.56.0
+      uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0 # v2.56.0
       with:
         tool: sccache
 
     - name: 缓存 sccache
       if: inputs.sccache == 'true'
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.cache/sccache
         key: sccache-${{ env.RUST_VERSION }}-${{ hashFiles('backend/Cargo.lock') }}
@@ -73,9 +73,13 @@ runs:
     - name: 安装系统依赖
       if: inputs.system-deps != ''
       shell: bash
+      env:
+        SYSTEM_DEPS: ${{ inputs.system-deps }}
       run: |
         sudo apt-get update
-        sudo apt-get install -y ${{ inputs.system-deps }}
+        # 入参是空格分隔的包名清单，交 shell 拆位后逐个传给 apt-get，不让模板展开落进命令行
+        set -- $SYSTEM_DEPS
+        sudo apt-get install -y "$@"
 
     - name: 智能探测可用内存并设置并行度（防 OOM，用满不 OOM 的最大上限）
       shell: bash
@@ -86,8 +90,20 @@ runs:
       #   大 runner(32GB+) 自动获得更高并行度，公式自适应。
       # CPU 维度：总核数 - 1（留 1 核给系统 IO），不封顶
       # 取两者较小值 = 不 OOM 且不超 CPU 的最大并行度
+      env:
+        MEM_PER_UNIT_GB: ${{ inputs.mem_per_unit_gb }}
       run: |
         set -eu
+        # 入参面校验：每单元内存峰值只认调用方实际在用的两档，其余一律点名拒绝
+        # 取常量的这一步同时切断来源变量的污染链，让下面写入 $GITHUB_ENV 的值不再来自入参
+        case "${MEM_PER_UNIT_GB:-}" in
+          5) MEM_UNIT_GB=5 ;;
+          7) MEM_UNIT_GB=7 ;;
+          *)
+            echo "::error::每单元内存峰值入参不在已核定档位内（实得 '${MEM_PER_UNIT_GB:-}'，只接受 5 或 7）" >&2
+            exit 1
+            ;;
+        esac
         MEM_TOTAL_KB=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
         MEM_AVAIL_KB=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
         CPU_CORES=$(nproc)
@@ -98,7 +114,7 @@ runs:
         # 预留 1.5GB 给系统/服务，剩余按每单元峰值算最大可并行单元数（不设上限）
         # 系数由调用方传入：普通 job 默认 5GB，测试预编译 job 传 7GB（测试二进制编译峰值更高）
         USABLE_GB=$(awk "BEGIN{mx=${MEM_AVAIL_KB}/1024/1024 - 1.5; if(mx<1) mx=1; printf \"%.1f\", mx}")
-        MEM_JOBS=$(awk "BEGIN{j=int(${USABLE_GB}/${{ inputs.mem_per_unit_gb }}); if(j<1) j=1; print j}")
+        MEM_JOBS=$(awk "BEGIN{j=int(${USABLE_GB}/${MEM_UNIT_GB}); if(j<1) j=1; print j}")
 
         # CPU 维度：留 1 核给系统 IO，不封顶（runner 有多少核用多少）
         CPU_JOBS=$(( CPU_CORES > 1 ? CPU_CORES - 1 : 1 ))
@@ -110,8 +126,11 @@ runs:
           JOBS="$CPU_JOBS"
         fi
 
-        echo "::notice::内存 总=${MEM_TOTAL_GB}GB 可用=${MEM_AVAIL_GB}GB CPU=${CPU_CORES}核 → cargo 最大并行度=${JOBS}（内存维度=${MEM_JOBS}@${{ inputs.mem_per_unit_gb }}GB/单元 CPU维度=${CPU_JOBS}，均未封顶）"
+        echo "::notice::内存 总=${MEM_TOTAL_GB}GB 可用=${MEM_AVAIL_GB}GB CPU=${CPU_CORES}核 → cargo 最大并行度=${JOBS}（内存维度=${MEM_JOBS}@${MEM_UNIT_GB}GB/单元 CPU维度=${CPU_JOBS}，均未封顶）"
 
+        # 向后续步骤传环境变量是 composite action 的唯一通道，本位点的 zizmor github-env
+        # 告警已在 .github/zizmor.yml 按行号登记豁免，理由与检测力自证见该文件与
+        # scripts/ci/check-zizmor-ignore-drift.mjs。
         echo "CARGO_BUILD_JOBS=${JOBS}" >> "$GITHUB_ENV"
         echo "CARGO_JOBS=${JOBS}" >> "$GITHUB_ENV"
         echo "mem_total_gb=${MEM_TOTAL_GB}" >> "$GITHUB_OUTPUT"

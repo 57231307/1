@@ -1,0 +1,33 @@
+# zizmor 判定器的仓内配置（CI 的 zizmor 步自动发现本文件，无需显式 -c）
+#
+# 作用：登记"经审查确认属结构性误报"的位点，使 high/critical 阻塞门只对真问题变红。
+# 调用方：.github/actions/vuln-scan/action.yml 的 zizmor 步；
+#   scripts/ci/check-zizmor-ignore-drift.mjs 逐条核对本清单，
+#   出现"未登记的 high 位点"或"已失效的空条目"一律判红，禁止本文件悄悄扩大豁免面。
+#
+# 为什么 github-env 这一枚必须登记：
+#   该审计对 composite action 的判据是"向 $GITHUB_ENV 写入非字面量值即报 high"，
+#   与被写内容是否受外部影响无关。控制实验（同版本 zizmor 1.31.1）实测：
+#   一个 run 块内零上下文插值、值只来自 $(nproc) 的 composite action 同样报 high；
+#   而工作流文件里的同形态写法零告警。也就是说本仓把工具链与并行度探测收进
+#   .github/actions/setup-rust 这一枚 composite action 的架构本身就会命中它，
+#   改代码消不掉（composite action 向调用方 job 传环境变量只有 $GITHUB_ENV 一条通道）。
+#   位点内容已做加固：入参只接受已核定的 5 与 7 两档，其余点名拒绝，
+#   写入值是整数运算结果，不含任何外部文本。
+#
+# 条目格式：`<文件基名>:<run 块所在行号>`（zizmor 只认基名匹配，路径前缀不生效）。
+# 每条都必须同时登记在 .github/zizmor-ignore-manifest.json（含实测条数与理由），
+# 由 scripts/ci/check-zizmor-ignore-drift.mjs 每轮对账，任一侧缺失或不符即判红。
+rules:
+  github-env:
+    ignore:
+      - action.yml:95
+  cache-poisoning:
+    # 位点：ci-cd.yml 的 ⚡ 性能基准回归监控 job 里的 criterion 基线缓存步。
+    # 为什么不构成投毒面：该步已带 if: ${{ !startsWith(github.ref, 'refs/tags/') }}，
+    #   发布轮（v* tag）整步不执行，正式版本既不读也不写这份缓存；其余轮次由本仓分支
+    #   触发，写入者本身就是有推送权的同仓运行。zizmor 不评估 if: 条件，故仍按
+    #   Low 置信报 high；该审计对本工作流的定位锚点是 on: 那一行。
+    # 不选 lookup-only 与删步的理由：二者都会让基准数据每轮从零重建，回归监控随即失去意义。
+    ignore:
+      - ci-cd.yml:35

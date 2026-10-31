@@ -82,7 +82,7 @@ jobs:
     outputs:
       apk_version: ${{ steps.ver.outputs.android_client_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: 记录安卓端版本
         id: ver
@@ -163,23 +163,26 @@ jobs:
           PY
 
       - name: 设置 JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: 设置 Android SDK / NDK / build-tools
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: "platform-tools platforms;${{ env.ANDROID_PLATFORM }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} ndk;${{ env.NDK_VERSION }}"
 
       - name: 设置 Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
+          # 本工作流全程不跑 npm ci 与 npm install（安卓链装的是 JDK、Android SDK 与 Rust
+          # 工具链），内置依赖缓存没有消费者，关掉即消除投毒面。
+          package-manager-cache: false
 
       - name: 设置 Rust 与 Android 目标三元组
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
 
@@ -281,7 +284,7 @@ jobs:
           node mobile-app/scripts/assert-apk-icon.mjs "$APK" mobile-app/app-icon.png frontend/src/assets/logo.png mobile-app/src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher.png
 
       - name: 上传 debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bingxi-erp-android-debug
           path: mobile-app/src-tauri/gen/android/app/build/outputs/apk/**/universal/debug/*.apk
@@ -433,7 +436,7 @@ jobs:
         # 步 id 供上传签名 release APK 步判本轮签名成没成，据此选上传路径形态。
         id: signReleaseApk
         if: env.BUILD_RELEASE == 'true'
-        uses: r0adkll/sign-android-release@v1
+        uses: r0adkll/sign-android-release@349ebdef58775b1e0d8099458af0816dc79b6407 # v1
         with:
           releaseDirectory: mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release
           signingKeyBase64: ${{ env.SIGNING_KEYSTORE_BASE64 }}
@@ -450,7 +453,7 @@ jobs:
         # 让断言判红的当轮未签名包也能进制品供事后取证，旧口径下这些轮根本不落包。
         # 失败轮 android-apk job 已红，Release 附资产步在 needs 链上不会消费该制品，不存在误附未签名包的路。
         if: ${{ always() && env.BUILD_RELEASE == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bingxi-erp-android-release-signed
           path: ${{ steps.signReleaseApk.outcome == 'success' && 'mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*-signed.apk' || 'mobile-app/src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk' }}
@@ -462,7 +465,7 @@ jobs:
         # 钉住的那枚比对是否同一把钥匙。
         # 入参为准备签名证书步产出的 release.cer；存到产物 bingxi-erp-android-signing-certificate。
         if: env.BUILD_RELEASE == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: bingxi-erp-android-signing-certificate
           path: ${{ runner.temp }}/bingxi-signing/release.cer
@@ -487,10 +490,10 @@ jobs:
     needs: android-apk
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: 下载 debug APK
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: bingxi-erp-android-debug
           path: apk
@@ -526,7 +529,7 @@ jobs:
           echo "模拟器消费的 APK：$APK_ABS（$(stat -c%s "$APK_ABS") 字节）"
 
       - name: Android Emulator 端到端
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: 34
           arch: x86_64

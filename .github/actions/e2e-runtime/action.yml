@@ -34,14 +34,14 @@ runs:
     # 内部实现，不值得为省 2 行 YAML 让 25 个 E2E 分片去冒这个险。
     - name: 下载预编译后端二进制（复用 ci-build-rust 产物，不重编）
       if: inputs.artifact-run-id == ''
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         name: backend-binary
         path: backend/target/release
 
     - name: 下载预编译后端二进制（跨 workflow run，指定 run-id）
       if: inputs.artifact-run-id != ''
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         name: backend-binary
         path: backend/target/release
@@ -55,14 +55,14 @@ runs:
 
     - name: 下载前端构建产物（复用 ci-build-fe 的 vite build）
       if: inputs.artifact-run-id == ''
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         name: frontend-dist
         path: frontend/dist
 
     - name: 下载前端构建产物（跨 workflow run，指定 run-id）
       if: inputs.artifact-run-id != ''
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
       with:
         name: frontend-dist
         path: frontend/dist
@@ -97,7 +97,7 @@ runs:
       uses: ./.github/actions/setup-frontend
 
     - name: 缓存 Playwright 浏览器
-      uses: actions/cache@v5
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
       with:
         path: ~/.cache/ms-playwright
         key: playwright-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}

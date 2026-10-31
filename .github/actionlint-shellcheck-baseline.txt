@@ -47,8 +47,8 @@
 .github/workflows/ci-cd.yml|22:3|SC2129
 .github/workflows/ci-cd.yml|26:21|SC2012
 .github/workflows/ci-cd.yml|27:23|SC2002
-.github/workflows/ci-cd.yml|358:11|SC2001
-.github/workflows/ci-cd.yml|369:1|SC2129
+.github/workflows/ci-cd.yml|365:11|SC2001
+.github/workflows/ci-cd.yml|376:1|SC2129
 .github/workflows/ci-cd.yml|3:17|SC2012
 .github/workflows/ci-cd.yml|3:28|SC2086
 .github/workflows/ci-cd.yml|3:30|SC2086

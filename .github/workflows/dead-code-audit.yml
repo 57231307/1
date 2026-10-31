@@ -62,7 +62,7 @@ jobs:
       issues: write  # 失败时创建 issue
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -101,7 +101,7 @@ jobs:
           github.event_name == 'schedule' &&
           steps.audit.outputs.warning_count != '0' &&
           steps.audit.outputs.warning_count != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           WARNING_COUNT: ${{ steps.audit.outputs.warning_count }}
           AFFECTED_FILES: ${{ steps.audit.outputs.affected_files }}

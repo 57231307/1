@@ -1,0 +1,14 @@
+[
+  {
+    "audit": "github-env",
+    "site": "action.yml:95",
+    "count": 2,
+    "reason": "composite action 向调用方 job 传环境变量只有 $GITHUB_ENV 一条通道；该审计对这类写法是非字面量写入即报，与被写内容是否受外部影响无关（控制实验：run 块零插值、值只来自 nproc 的 composite action 同样报 high，而工作流同形态写法零告警）。位点内容已加固：入参只接受已核定的 5 与 7 两档，其余点名拒绝，写入值为整数运算结果。"
+  },
+  {
+    "audit": "cache-poisoning",
+    "site": "ci-cd.yml:35",
+    "count": 1,
+    "reason": "criterion 基线缓存步带 if: startsWith(github.ref,'refs/tags/') 取反条件，发布轮整步不执行，正式版本既不读也不写该缓存；其余轮次由本仓分支触发，写入者即同仓推送权运行。zizmor 不评估 if: 条件，锚点落在 on: 行。改 lookup-only 或删步都会让基准每轮重建，性能回归监控失去意义。"
+  }
+]

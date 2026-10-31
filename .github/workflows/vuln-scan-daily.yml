@@ -1,0 +1,85 @@
+# ==============================================================================
+# 主干每日漏洞扫描轮
+#
+# 功能：每天在 main 上跑一遍全面漏洞检测（依赖漏洞、依赖图、秘密泄露、SAST、
+#   工作流定义自身审计），扫描本体与判定语义全部取自 ./.github/actions/vuln-scan，
+#   与 ci-cd.yml 的「🛡️ 全面漏洞检测」是同一份实现，两边不会给出不同结论。
+# 为什么要独立成一条 workflow：ci-cd.yml 的 on.push 只挂 v* 标签（主干合并属自动动作，
+#   主线运行改由人工发起），而它的 workflow_dispatch 轮会按 ci-info 的检查范围大面积 skip
+#   且注释门在没有 diff 的区间上必然 fail-closed，拿它当每日载体既跑不全也会长期红；
+#   schedule 触发器只能挂在 workflow 级，不能挂在 job 级，所以每日轮只能是这样一条独立车。
+#   公告在合并之后才被披露的漏洞，靠这一轮在下一次日出前点名，不等下一次 PR 或发版。
+# 调用方：GitHub Actions 定时器与人工（Actions 页面 Run workflow）。本 workflow 不被
+#   其它 workflow 或 job 依赖，也不被收尾门汇总，结论只写进自己的 run 与产物。
+# 入参：无业务入参。env 只有 RUST_VERSION 与 NODE_VERSION 两枚，供复合动作内嵌的
+#   setup-rust 与 setup-frontend 读取（与 ci-cd.yml、coverage.yml、dead-code-audit.yml
+#   各自声明同名 env 的既有做法同源，取值改动要四处一起看）。
+# 存什么：cargo audit 与 npm audit 与 zizmor 的原始输出与命中明细、cargo tree 与 npm ls
+#   的依赖图，由本文件末尾三支上传步转成 artifact。计数取扫描器自身输出，解析不到即判红。
+# 存哪里：仓库内 reports/audit 与 reports/deps，只进本 run 的三份 artifact（名字带
+#   vuln-scan-daily 前缀，与 PR 轮的三份互不覆盖），不落库、不外发、不建 issue。
+# ==============================================================================
+name: 🛡️ 主干每日漏洞扫描
+
+on:
+  schedule:
+    # 每日 UTC 02:30（北京时间 10:30）。选这一档避开死代码审计周报的 UTC 01:00，
+    # 两轮的 cargo 与 npm 工具链安装不互抢 runner。
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+
+# 每日轮是只读扫描：不写源码、不建 issue、不发 release，取最小权限。
+# 上传 artifact 由 actions/upload-artifact 自身申请 token，不需要在此扩权。
+permissions:
+  contents: read
+
+concurrency:
+  group: vuln-scan-daily-${{ github.ref }}
+  # 不取消在跑的一轮：每日轮是结论记录，被后一轮挤掉会留下没有结论的空档
+  cancel-in-progress: false
+
+env:
+  RUST_VERSION: 1.94.1
+  NODE_VERSION: 22
+
+jobs:
+  security-vulnerability-scan:
+    name: 🛡️ 全面漏洞检测（主干每日轮）
+    runs-on: ubuntu-latest
+    # 与 PR 轮同一工作量预算（cargo audit 全量解析加 npm audit 加依赖图加三道扫描器安装）
+    timeout-minutes: 60
+    steps:
+      - name: 检出代码（含完整历史，gitleaks 需要）
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: 全面漏洞检测步骤组（本体在 ./.github/actions/vuln-scan）
+        uses: ./.github/actions/vuln-scan
+
+      - name: 上传依赖审计报告（cargo audit 与 npm audit 与 zizmor 原始输出）
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vuln-scan-daily-audit-reports
+          path: reports/audit/
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: 上传依赖图记录（cargo tree 与 npm ls）
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vuln-scan-daily-dependency-trees
+          path: reports/deps/
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: 上传漏洞扫描全量报告
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vuln-scan-daily-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
+          if-no-files-found: error

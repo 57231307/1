@@ -95,7 +95,7 @@ jobs:
       # CARGO_BUILD_JOBS/CARGO_JOBS 由 setup-rust 智能探测写入 GITHUB_ENV（防 OOM，用满最大上限）
     steps:
       - name: 检出代码
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup Rust（llvm-tools-preview + 系统依赖含 postgresql-client）
         uses: ./.github/actions/setup-rust
@@ -108,7 +108,7 @@ jobs:
 
       - name: 安装 cargo-llvm-cov 与 cargo-nextest
         # 固定到与 ./.github/actions/setup-rust 内 sccache 安装同一版本（原为浮动 @v2）
-        uses: taiki-e/install-action@v2.56.0
+        uses: taiki-e/install-action@0eee80d37f55e834144deec670972c19e81a85b0 # v2.56.0
         with:
           tool: cargo-llvm-cov,nextest
 
@@ -211,7 +211,7 @@ jobs:
 
       - name: 上传覆盖率到 Codecov
         if: always()
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@b9fd7d16f6d7d1b5d2bec1a2887e65ceed900238 # v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: backend/coverage/cobertura.xml
@@ -221,7 +221,7 @@ jobs:
 
       - name: 上传覆盖率报告 artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: rust-coverage-report
           path: |
