@@ -369,9 +369,12 @@ pub mod inventory_stock_status {
 /// （见 handlers/greige_fabric_handler.rs 的 create/stock_in/stock_out）。删除走
 /// `is_deleted` 软删标记，不占用本列取值，故本列没有「已删除」这类值。
 /// 本列取值域是中文业务 token，与通用主数据状态 `active`/`inactive` 不通用：
-/// 前端表单曾直接提交英文 `active/inactive`，写库后与门控/出库中文值逐字符不符，
-/// 导致「在库不允许删除」等门控永不命中、库里中英混杂。写入侧校验与门控比较一律
-/// 取本模块常量，禁止引入英文 token 或散落裸字面量。
+/// 前端表单曾直接提交英文 `active/inactive`，写库后与出库腿回写的中文值逐字符不符，
+/// 库里中英混杂、列表状态筛选恒零命中。写入侧校验与状态比较一律取本模块常量，
+/// 禁止引入英文 token 或散落裸字面量。
+/// 本列不作为删除门判据：建单腿把缺省状态写成本模块的 `IN_STOCK`，以它拦删除会让未流转
+/// 的新档一建档就删不掉。删除门按在架实物与活单据引用判，见
+/// handlers/greige_fabric_handler.rs 的 `delete_greige_fabric`。
 pub mod greige_fabric_status {
     /// 在库：坯布已入库、可出库的正常库存（建单默认、入库、出库后仍有剩余的取值）
     pub const IN_STOCK: &str = "在库";

@@ -6,14 +6,17 @@ use axum::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, Set,
+    ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, Condition, ConnectionTrait, EntityTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, Set,
 };
 use serde::Deserialize;
 
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
+use crate::models::dye_batch;
 use crate::models::greige_fabric;
+use crate::models::outsourcing_order;
+use crate::models::outsourcing_order_item;
 use crate::models::product;
 use crate::models::purchase_order;
 use crate::models::purchase_receipt;
@@ -110,9 +113,10 @@ pub struct UpdateGreigeFabricRequest {
     pub warehouse_id: Option<Option<i32>>,
     #[serde(default, deserialize_with = "double_option")]
     pub location: Option<Option<String>>,
-    /// 状态只覆盖、不开清空：删除门控按 `status == 在库` 判在库不可删，出库回写也按该
-    /// token 判定。把本列置 NULL 等于让物理在库的卷失去门控（历史 NULL 行可直删属另一
-    /// 条待裁定的存量面，不在本端点里新增造 NULL 的入口）。
+    /// 状态只覆盖、不开清空。本列是入库与出库两条腿回写的库存口径显示值，也是列表的
+    /// 状态筛选列，置空后既筛不到也显示不出。删除门已不再读这一列（改按在架实物与
+    /// 活单据引用两条可撤回性判据，见 `delete_greige_fabric`），但人工把有货的卷写成
+    /// 已出库仍会让库存口径与出库腿的累计台账失真，故入口继续保持不开清空。
     pub status: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
     pub quality_grade: Option<Option<String>>,
@@ -230,10 +234,12 @@ pub struct StockOutRequest {
 
 /// 坯布状态入参校验（create/update 提交的 `status`）。
 ///
-/// `greige_fabrics.status` 取值域是中文主数据（见 `greige_fabric_status`），前端表单
-/// 曾用通用主数据英文 token（`active`/`inactive`）直接提交，越界值原样写库后与出库/
-/// 门控使用的中文值逐字符不符，导致「在库不允许删除」门控永不命中、库里中英混杂。
-/// 现按取值域拒绝并回显允许值；`None` 由调用方保持不覆盖，不进入本校验。
+/// `greige_fabric.status` 取值域是中文主数据（见 `greige_fabric_status`），前端表单
+/// 曾用通用主数据英文 token（`active` 与 `inactive`）直接提交，越界值原样写库后与出库腿
+/// 回写的中文值逐字符不符，库里中英混杂、列表状态筛选恒零命中。现按取值域拒绝并回显
+/// 允许值；`None` 由调用方保持不覆盖，不进入本校验。
+/// 本列不再是删除门的判据（见 `delete_greige_fabric`），但它仍是出库腿回写与列表状态
+/// 筛选共同读取的口径列，越界值一样会把两个面带歪，所以校验保持不放宽。
 fn validate_greige_status(status: &str) -> Result<(), AppError> {
     if greige_fabric_status::ALL.contains(&status) {
         return Ok(());
@@ -616,6 +622,134 @@ pub async fn update_greige_fabric(
     )))
 }
 
+/// 删除门引用点名时列出的单据号上限。
+///
+/// 拒绝文案要把用户下一步能动手的单据号直接给出，全量列出会让提示变成一屏噪声，
+/// 一条不给又等于回到含糊文案。取 3 条，超出部分以总数收尾。
+const REFERENCE_DOC_SAMPLE_LIMIT: usize = 3;
+
+/// 把命中引用的单据号渲染成可外显清单，超过采样上限时带总数收尾。
+///
+/// 调用方是 [`find_greige_reference_rejection`] 的两条引用腿，入参 docs 已按单据号
+/// 升序取回，unit 是中文量词（染色批次用 个、委外单用 张）。存什么 返回拼接好的
+/// 清单串，不外泄表名与列名。
+fn render_reference_doc_list(docs: &[String], unit: &str) -> String {
+    let total = docs.len();
+    let shown = docs
+        .iter()
+        .take(REFERENCE_DOC_SAMPLE_LIMIT)
+        .cloned()
+        .collect::<Vec<String>>()
+        .join("、");
+    if total > REFERENCE_DOC_SAMPLE_LIMIT {
+        format!("{shown} 等，共 {total} {unit}")
+    } else {
+        shown
+    }
+}
+
+/// 枚举指向本条坯布档案的**活**下游单据，命中即返回点名拒绝文案。
+///
+/// 调用方是 [`delete_greige_fabric`]，入参 id 是 greige_fabric 主键、fabric_no 是该行
+/// 编号（进文案供用户定位），db 沿用手柄所在的只读连接。
+///
+/// 为什么要应用侧枚举 指向 greige_fabric(id) 的两列都是裸加列，库里**没有外键约束**。
+/// `dye_batch.greige_fabric_id` 由 `backend/migration/src/domain/system/mod.rs` 的
+/// ALTER TABLE 段加列，`outsourcing_order_item.greige_fabric_id` 由
+/// `backend/migration/src/domain/v15/mod.rs` 的加列段引入，两条都只有 ADD COLUMN 而无
+/// REFERENCES 子句。对照 greige_fabric 自身作为引用方的两条出向外键
+/// `fk_greige_fabric_supplier` 与 `fk_greige_fabric_warehouse`，它们在
+/// `backend/migration/src/domain/system/m0002_add_crm_and_greige_tables.rs` 的建表段显式
+/// ADD CONSTRAINT。缺外键不等于缺引用，删除不会被数据库拦，只会被静默做成悬空指针，
+/// 所以必须在这里点名。
+///
+/// 软删的引用方不计入。本门的判据是"是否仍有活单据指着它"，已作废单据不构成不可撤回
+/// 的理由；这与 warehouse 删除预检相反（那边逐条对齐真实外键约束，数据库按全量行拦，
+/// 见 `backend/src/services/warehouse_service.rs` 的 `find_warehouse_references`）。
+/// `dye_batch.is_deleted` 可空，NULL 视为未删除，故用 `false OR IS NULL` 两态判定，
+/// 不用 `<> true`（SQL 三值逻辑下 NULL 行会被整体排除，等于把未删除的缸号漏掉）。
+async fn find_greige_reference_rejection<C: ConnectionTrait>(
+    db: &C,
+    id: i32,
+    fabric_no: &str,
+) -> Result<Option<String>, AppError> {
+    let batches = dye_batch::Entity::find()
+        .filter(dye_batch::Column::GreigeFabricId.eq(id))
+        .filter(
+            Condition::any()
+                .add(dye_batch::Column::IsDeleted.eq(false))
+                .add(dye_batch::Column::IsDeleted.is_null()),
+        )
+        .order_by_asc(dye_batch::Column::BatchNo)
+        .all(db)
+        .await?;
+    if !batches.is_empty() {
+        let nos = batches
+            .iter()
+            .map(|batch| batch.batch_no.clone())
+            .collect::<Vec<String>>();
+        let doc_list = render_reference_doc_list(&nos, "个");
+        return Ok(Some(format!(
+            "坯布 {fabric_no} 已被染色批次引用（缸号 {doc_list}），请先删除这些染色批次或把它们改配到其他坯布"
+        )));
+    }
+
+    let items = outsourcing_order_item::Entity::find()
+        .filter(outsourcing_order_item::Column::GreigeFabricId.eq(id))
+        .all(db)
+        .await?;
+    if !items.is_empty() {
+        let order_ids = items
+            .iter()
+            .map(|item| item.outsourcing_order_id)
+            .collect::<std::collections::HashSet<i32>>()
+            .into_iter()
+            .collect::<Vec<i32>>();
+        let orders = outsourcing_order::Entity::find()
+            .filter(outsourcing_order::Column::Id.is_in(order_ids))
+            .filter(outsourcing_order::Column::IsDeleted.eq(false))
+            .order_by_asc(outsourcing_order::Column::OrderNo)
+            .all(db)
+            .await?;
+        if !orders.is_empty() {
+            let nos = orders
+                .iter()
+                .map(|order| order.order_no.clone())
+                .collect::<Vec<String>>();
+            let doc_list = render_reference_doc_list(&nos, "张");
+            return Ok(Some(format!(
+                "坯布 {fabric_no} 已被委外加工发料明细引用（委外单号 {doc_list}），请先删除这些发料明细或把它们改配到其他坯布"
+            )));
+        }
+    }
+
+    Ok(None)
+}
+
+/// 在架实物门判据，仍有库存时返回点名文案。
+///
+/// 调用方是 [`delete_greige_fabric`]，入参是已通过引用门的坯布行，读它的两列当前库存
+/// `weight_kg` 与 `length_m`（累计入库口径 `quantity_kg` 与 `quantity_meters` 不参与判定，
+/// 入出相抵后当前库存归零的卷已是可删态）。NULL 与 0 同判为"无在架实物"。
+/// 存什么 返回给用户的中文提示，含具体数量与单位，不含列名与内部标识。
+fn remaining_stock_rejection(fabric: &greige_fabric::Model) -> Option<String> {
+    let zero = Decimal::ZERO;
+    let weight = fabric.weight_kg.unwrap_or(zero);
+    let length = fabric.length_m.unwrap_or(zero);
+    let has_weight = weight > zero;
+    let has_length = length > zero;
+    let quantity_text = match (has_weight, has_length) {
+        (true, true) => format!("{weight} 公斤 与 {length} 米"),
+        (true, false) => format!("{weight} 公斤"),
+        (false, true) => format!("{length} 米"),
+        (false, false) => return None,
+    };
+    let fabric_no = fabric.fabric_no.clone();
+    Some(format!(
+        "坯布 {fabric_no} 仍有在架库存 {quantity_text}，请先完成出库再删除"
+    ))
+}
+
 pub async fn delete_greige_fabric(
     State(state): State<AppState>,
     Path(id): Path<i32>,
@@ -633,10 +767,21 @@ pub async fn delete_greige_fabric(
         ));
     }
 
-    if fabric.status.as_deref() == Some(greige_fabric_status::IN_STOCK) {
-        return Err(AppError::business_displayable(
-            "在库坯布不允许删除，请先完成出库",
-        ));
+    // 删除门按"可撤回性"判，两道门都点名拒因。
+    //
+    // 为什么不再看 `status` 列 该列由建档腿写死成在库（见本文件 create 的
+    // `None => greige_fabric_status::IN_STOCK`），而出库腿是唯一能把状态翻走的在册腿、
+    // 又要求出库量不得超过现有库存，四列数量全 NULL 的新档任何正出库量都会被判超量。
+    // 以状态 token 为判据等于"建档即死档"，录错只能留档。改成看库存事实与活单据引用后，
+    // 未流转档案（零在架实物、无下游单据引用）可撤回，真有货或被单据指着的仍然拦得住，
+    // 且不再依赖 update 腿能把 status 写成已出库这条不改库存事实的旁路。
+    if let Some(message) = find_greige_reference_rejection(&*state.db, id, &fabric.fabric_no).await?
+    {
+        return Err(AppError::business_displayable(message));
+    }
+
+    if let Some(message) = remaining_stock_rejection(&fabric) {
+        return Err(AppError::business_displayable(message));
     }
 
     // 软删除
@@ -835,8 +980,8 @@ pub async fn stock_out(
     }
 
     // 根据剩余库存决定状态：取扣减后的真实 DECIMAL 值比较，不再经 f64 字符串往返
-    // （`to_string().parse::<f64>()` 在 parse 失败时按 0 处理，会把仍有库存的卷误判成已出库，
-    // 而「已出库」正是删除门控放行的那一档）。
+    // （`to_string().parse::<f64>()` 在 parse 失败时按 0 处理，会把仍有库存的卷误判成
+    // 已出库，把状态列与列表筛选和出库台账口径一起带歪）。
     let new_status = if final_weight <= Decimal::ZERO && final_length <= Decimal::ZERO {
         greige_fabric_status::STOCKED_OUT.to_string()
     } else {
