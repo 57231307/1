@@ -247,6 +247,13 @@ impl QuotationService {
     }
 
     /// 重算 subtotal/tax/total 并更新主表（在 txn 内查询和 update，保证原子性）
+    ///
+    /// 入参 updated 是刚写回的报价单主表模型，明细取本事务内已落库的
+    /// sales_quotation_item 的 amount 与 amount_with_tax 两列。
+    /// 换算方向与建单腿共用 crate::services::quotation_ops::calc 的
+    /// compute_quotation_header，含税标志为真时表头含税合计就是明细含税金额合计，
+    /// 净额按单据自身税率除法反算、税额取差额，两腿不会再一个塌 0 一个正算。
+    /// 出参三个值写回 sales_quotations 的 subtotal、tax_amount、total_amount 列。
     pub(crate) async fn recalculate_totals_and_update(
         txn: &sea_orm::DatabaseTransaction,
         updated: &sales_quotation::Model,
@@ -255,13 +262,24 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(updated.id))
             .all(txn)
             .await?;
-        let subtotal: Decimal = recalc_items.iter().map(|i| i.amount).sum();
-        let tax_amount = if updated.tax_inclusive {
-            Decimal::ZERO
-        } else {
-            subtotal * updated.tax_rate / Decimal::from(100)
-        };
-        let total_amount = subtotal + tax_amount;
+        let net_sum: Decimal = recalc_items
+            .iter()
+            .map(|i| i.amount.round_dp(2))
+            .sum::<Decimal>()
+            .round_dp(2);
+        let gross_sum: Decimal = recalc_items
+            .iter()
+            .map(|i| i.amount_with_tax.round_dp(2))
+            .sum::<Decimal>()
+            .round_dp(2);
+        let (subtotal, tax_amount, total_amount) =
+            crate::services::quotation_ops::calc::compute_quotation_header(
+                net_sum,
+                gross_sum,
+                updated.tax_inclusive,
+                updated.tax_rate,
+            )
+            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
 
         let mut re_active: QuotationActive = updated.clone().into();
         re_active.subtotal = Set(subtotal);

@@ -158,17 +158,25 @@ async fn test_calculate_totals_bhsjejszq() {
     assert_eq!(total_amount, decs!(1130));
 }
 
-/// test_calculate_totals_hsjesewl
+/// test_calculate_totals_hsjezhekouxi
+/// 含税报价的表头口径，含税合计是录入事实，小计按单据税率除法反算、税额取差额，
+/// 三值逐分钩稽。此前该腿把税额塌成 0 并把净额当价税合计，等于在含税单上抹掉销项税。
 #[tokio::test]
-async fn test_calculate_totals_hsjesewl() {
+async fn test_calculate_totals_hsjezhekouxi() {
     let db = setup_test_db().await;
     let svc = QuotationService::new(Arc::new(db));
     let mut dto = sample_dto();
     dto.tax_inclusive = true;
     let (subtotal, tax_amount, total_amount) = svc.calculate_totals(&dto).unwrap();
+    // 明细含税合计 100 × 11.3 = 1130，按 13 个点除法反算得小计 1000 与税额 130
     assert_eq!(subtotal, decs!(1000));
-    assert_eq!(tax_amount, Decimal::ZERO);
-    assert_eq!(total_amount, decs!(1000));
+    assert_eq!(tax_amount, decs!(130));
+    assert_eq!(total_amount, decs!(1130));
+    assert_eq!(
+        subtotal + tax_amount,
+        total_amount,
+        "含税报价表头三值钩稽破口，小计 {subtotal} 加税额 {tax_amount} 不等于价税合计 {total_amount}"
+    );
 }
 
 /// test_calculate_totals_dmxhzzq
