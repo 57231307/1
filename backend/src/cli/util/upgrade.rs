@@ -16,8 +16,8 @@
 //!   活跃/非活跃实例由 `/etc/nginx/bingxi-upstream.active.conf` 软链接判定。
 
 use super::{
-    GITHUB_REPO, build_release_url, download_official_only, download_with_mirrors,
-    fetch_with_mirrors, get_backup_dir, get_install_dir, is_service_active, parse_json_field,
+    build_release_url, download_official_only, download_with_mirrors, fetch_with_mirrors,
+    get_backup_dir, get_install_dir, is_service_active, parse_json_field, require_github_repo,
     require_root, run_cmd, timestamp,
 };
 
@@ -777,9 +777,10 @@ fn cmd_rollback_legacy(server_old: &str, bingxi_old: &str) {
     }
 }
 
-/// 获取最新版本号
+/// 获取最新版本号。仓身份取自共享的 `require_github_repo`，非法值在那里已点名退出，
+/// 本函数只负责发查询与解析 `tag_name`，取不到版本仍按原语义返回 `None`。
 fn get_latest_version() -> Option<String> {
-    let api_path = format!("repos/{}/releases/latest", GITHUB_REPO);
+    let api_path = format!("repos/{}/releases/latest", require_github_repo());
 
     if let Some(json) = fetch_with_mirrors(&api_path, 15) {
         return parse_json_field(&json, "tag_name");

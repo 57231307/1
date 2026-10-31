@@ -1289,7 +1289,40 @@ async fn handle_bpm_process_finished(
         "production_order" => {
             handle_bpm_production_order(db, business_id, approved, approver_id).await;
         }
+        "export_approval" => {
+            handle_bpm_export_approval(db, business_id, approved, approver_id).await;
+        }
         other => tracing::warn!("未识别的 BPM business_type: {}", other),
+    }
+}
+
+/// 处理导出审批 BPM 终审结果回写：
+/// 通过 → 签发一次性令牌（approved）；拒绝 → rejected 终态。
+/// business_id 即 export_approval_request.id（BIGSERIAL，与 i64 同宽，无窄化风险）。
+async fn handle_bpm_export_approval(
+    db: Arc<DatabaseConnection>,
+    business_id: i64,
+    approved: bool,
+    approver_id: i32,
+) {
+    let svc = crate::services::export_approval_service::ExportApprovalService::new(db);
+    let result = if approved {
+        svc.on_bpm_approved(business_id, approver_id).await
+    } else {
+        svc.on_bpm_rejected(business_id, approver_id).await
+    };
+    match result {
+        Ok(model) => tracing::info!(
+            approval_id = business_id,
+            status = %model.status,
+            "导出审批 BPM 终审回写完成"
+        ),
+        Err(e) => tracing::error!(
+            approval_id = business_id,
+            approved,
+            error = %e,
+            "导出审批 BPM 终审回写失败，令牌未签发或未作废，请人工核查申请行状态"
+        ),
     }
 }
 

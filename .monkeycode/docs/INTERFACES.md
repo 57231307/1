@@ -1,526 +1,179 @@
 # Bingxi Management Platform 接口文档
 
+本文件描述后端对外接口的实际形态。所有陈述均以主干代码为据，逐条给出出处，
+并在文末给出可复现的统计口径与重算命令。文档不描述"计划中的接口"，只描述已注册的接口。
+
 ## 概述
 
-Bingxi Management Platform 系统提供 RESTful API 和 gRPC 两种接口方式。REST API 遵循 `/api/v1/erp/` 前缀规范，支持 JSON 格式请求和响应。所有 API 需要 JWT Token 认证（除公开接口外），并支持 CSRF 防护、速率限制等安全机制。
+对外接口只有一种传输方式，REST over HTTP，JSON 编码。
 
-## 认证方式
+本项目没有 gRPC 服务，`backend/Cargo.toml` 不含 tonic 或 grpc 依赖，代码中也没有
+服务定义与 stub。此前版本的本文件把 gRPC 列为第二种接口方式，与实现不符，已删。
 
-### JWT Token 认证
+业务接口的统一前缀是 `/api/v1/erp/`。在此之外还挂载三类端点：
 
-**登录获取 Token**:
-```http
-POST /api/v1/erp/auth/login
-Content-Type: application/json
+| 前缀 | 用途 | 出处 |
+|---|---|---|
+| `/api/v1/erp/` | 全部业务接口 | `backend/src/routes/mod.rs` |
+| `/metrics` | Prometheus 抓取 | `backend/src/routes/mod.rs` |
+| `/swagger-ui` 与 `/api-docs/openapi.json` | 由 utoipa 生成的接口描述 | `backend/src/routes/mod.rs` |
+| `/static/*` 与 `/bingxi_frontend.*` | 前端静态资源 | `backend/src/routes/mod.rs` |
 
-{
-  "username": "admin",
-  "password": "admin123"
-}
-```
+`/api/v1` 下另有一个 `v1::routes()` 挂载位，`routes/mod.rs` 的路径规划注释称其为占位。
 
-**响应**:
-```json
-{
-  "code": 200,
-  "message": "登录成功",
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "expires_in": 3600,
-    "user": {
-      "id": "uuid",
-      "username": "admin",
-      "email": "admin@example.com",
-      "roles": ["admin"]
-    }
-  }
-}
-```
+## 路由装配
 
-**使用 Token 访问 API**:
-```http
-GET /api/v1/erp/users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
+装配入口是 `backend/src/routes/mod.rs` 的 `create_router`，它把
+`backend/src/routes/` 下的各业务域子路由文件用 `nest` 与 `merge` 组合成最终 Router。
+当前该目录有 44 个路由模块文件。
 
-### Cookie 认证
+主要挂载前缀与对应模块，摘自 `routes/mod.rs` 的路径规划注释：
 
-系统也支持通过 HttpOnly Cookie 进行认证，适用于 Web 前端自动携带凭证。
+| 挂载前缀 | 模块 |
+|---|---|
+| `/api/v1/erp/auth` | `auth::routes()` |
+| `/api/v1/erp` | `iam`、`catalog`、`analytics`、`system` 四域合并，共享同一前缀故必须用 merge |
+| `/api/v1/erp/inventory` | `inventory::routes()` |
+| `/api/v1/erp/sales` | `sales::routes()` |
+| `/api/v1/erp/purchase` | `purchase::routes()` |
+| `/api/v1/erp/finance` | `finance::routes(state)`，唯一需要显式传 state 的域 |
+| `/api/v1/erp/production` | `production::routes()` |
+| `/api/v1/erp/crm` | `crm::routes()` |
 
-### CSRF 防护
+## 认证与凭据
 
-对于状态变更操作（POST/PUT/DELETE），需要携带 CSRF Token：
-```http
-POST /api/v1/erp/sales/orders
-X-CSRF-Token: <csrf_token>
-```
+凭据是 JWT，但传递方式与常见的 Bearer 用法相反：会话凭据由服务端下发为
+httpOnly Cookie，浏览器随请求自动携带，前端不持有也不拼接令牌。
 
-## API 端点分类
+登录成功时 `backend/src/handlers/auth_handler.rs` 的 `build_login_cookies` 写两枚加密
+httpOnly Cookie：
 
-### 认证模块 (`/api/v1/erp/auth`)
+| Cookie | HttpOnly | 有效期 | 说明 |
+|---|---|---|---|
+| `access_token` | 是 | 8 小时 | 会话凭据，`SameSite=Strict` |
+| `refresh_token` | 是 | 2 天 | 续期凭据，原为 7 天，已缩短 |
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| POST | `/login` | 用户登录 |
-| POST | `/logout` | 用户登出 |
-| POST | `/refresh` | 刷新 Token |
-| GET | `/csrf-token` | 获取 CSRF Token |
-| POST | `/totp/setup` | 设置 TOTP 两步验证 |
-| POST | `/totp/verify` | 验证 TOTP 验证码 |
+第三枚 `csrf_token` 由调用方用普通 `Set-Cookie` 明文下发，不经
+`PrivateCookieJar` 加密，因为它需要被前端脚本读出来回填请求头。
 
-### 用户管理 (`/api/v1/erp/users`)
+Cookie 的 `Secure` 标志按请求实际协议判定，优先看 `X-Forwarded-Proto`，回退
+`is_production`。原因是 HTTP 部署下 `secure(true)` 的 Cookie 会被浏览器拒绝存储，
+表现为登录成功但会话建立不起来。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/` | 获取用户列表 |
-| POST | `/` | 创建用户 |
-| GET | `/{id}` | 获取用户详情 |
-| PUT | `/{id}` | 更新用户信息 |
-| DELETE | `/{id}` | 删除用户 |
-| POST | `/{id}/reset-password` | 重置密码 |
-| PUT | `/{id}/roles` | 分配角色 |
+服务端接受凭据的优先顺序见 `backend/src/middleware/auth.rs`：
 
-### 角色管理 (`/api/v1/erp/roles`)
+1. httpOnly Cookie `access_token`，当前唯一由登录与刷新流程写入的凭据位；
+2. 旧版命名 Cookie `jwt`，登录与刷新已不再写入（`B03-P2-1` 移除双写），此处读取
+   仅为过渡期清理旧客户端残留会话，旧 Cookie 自然过期后该分支不再命中；
+3. `Authorization` 头，形如 `Bearer <token>`，供非浏览器客户端使用。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/` | 获取角色列表 |
-| POST | `/` | 创建角色 |
-| GET | `/{id}` | 获取角色详情 |
-| PUT | `/{id}` | 更新角色 |
-| DELETE | `/{id}` | 删除角色 |
-| PUT | `/{id}/permissions` | 分配权限 |
+日志侧对第 3 项做脱敏：只记录格式与长度，例如 `Bearer abc***(len=143)`，
+不落完整令牌。
 
-### 产品管理 (`/api/v1/erp/products`)
+刷新走 `POST /api/v1/erp/auth/refresh`。浏览器路径下不需要请求体携带
+`refresh_token`，Cookie 自动随 `withCredentials` 发送，响应通过 `Set-Cookie`
+更新 `access_token` 与 `csrf_token`。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/` | 获取产品列表 |
-| POST | `/` | 创建产品 |
-| GET | `/{id}` | 获取产品详情 |
-| PUT | `/{id}` | 更新产品 |
-| DELETE | `/{id}` | 删除产品 |
-| POST | `/import` | 批量导入产品 |
-| GET | `/export` | 导出产品数据 |
-| POST | `/{id}/colors` | 添加产品颜色 |
-| GET | `/{id}/colors` | 获取产品颜色列表 |
+## CSRF
 
-### 销售管理 (`/api/v1/erp/sales`)
+对所有有副作用的方法，即 POST、PUT、PATCH、DELETE，强制要求请求头
+`x-csrf-token`，常量定义在 `backend/src/middleware/csrf.rs` 的 `CSRF_HDR_NAME`。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/orders` | 获取销售订单列表 |
-| POST | `/orders` | 创建销售订单 |
-| GET | `/orders/{id}` | 获取订单详情 |
-| PUT | `/orders/{id}` | 更新订单 |
-| DELETE | `/orders/{id}` | 删除订单 |
-| POST | `/orders/{id}/submit` | 提交订单审批 |
-| POST | `/orders/{id}/approve` | 审批订单 |
-| POST | `/orders/{id}/ship` | 订单发货 |
-| POST | `/orders/{id}/complete` | 完成订单 |
-| GET | `/contracts` | 获取销售合同列表 |
-| POST | `/contracts` | 创建销售合同 |
-| GET | `/prices` | 获取销售价格列表 |
-| POST | `/prices` | 设置销售价格 |
-| GET | `/returns` | 获取销售退货列表 |
-| POST | `/returns` | 创建销售退货 |
+无需携带该头的公开路径白名单维护在客户端一侧，见
+`frontend/src/api/request.ts` 的 `CSRF_PUBLIC_PREFIXES`，前缀匹配，至少包含
+`/auth/login`、`/auth/refresh`、`/auth/logout`，这些路径在后端 CSRF 中间件中已放行，
+前端不再注入该头。公开路径上仍有一层 L-1 防御（`middleware/csrf.rs`）：
+要求请求携带 `X-Requested-With` 或 `x-csrf-token` 任一自定义头，用来排除
+跨站表单式简单请求。
 
-### 采购管理 (`/api/v1/erp/purchases`)
+令牌是一次性消费。多标签页或并发请求共用同一枚 Cookie 时，后发请求会携带已被
+消费的旧令牌，此时服务端返回 403 且业务码为 `CSRF_TOKEN_MISSING` 或
+`CSRF_TOKEN_INVALID`，并通过响应头 `x-new-csrf-token` 下发恢复令牌；客户端
+据此重写 Cookie 后重放，而不是直接把用户踢出登录。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/orders` | 获取采购订单列表 |
-| POST | `/orders` | 创建采购订单 |
-| GET | `/orders/{id}` | 获取订单详情 |
-| PUT | `/orders/{id}` | 更新订单 |
-| DELETE | `/orders/{id}` | 删除订单 |
-| POST | `/orders/{id}/receive` | 采购收货 |
-| POST | `/orders/{id}/inspect` | 质量检验 |
-| GET | `/contracts` | 获取采购合同列表 |
-| POST | `/contracts` | 创建采购合同 |
-| GET | `/prices` | 获取采购价格列表 |
-| POST | `/prices` | 设置采购价格 |
-| GET | `/returns` | 获取采购退货列表 |
-| POST | `/returns` | 创建采购退货 |
+## 限流与熔断
 
-### 库存管理 (`/api/v1/erp/inventory`)
+`backend/src/middleware/rate_limit.rs` 提供速率限制，
+`backend/src/middleware/circuit_breaker.rs` 提供熔断。
+两者与 `security_headers`（6 个安全响应头，由 `main.rs` 统一挂载）以及
+`sql_injection_audit_middleware`（挂在 Router 链最外层）共同构成请求前置链。
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/stocks` | 获取库存列表 |
-| GET | `/stocks/{id}` | 获取库存详情 |
-| POST | `/transfers` | 创建库存调拨 |
-| GET | `/transfers` | 获取调拨记录 |
-| POST | `/counts` | 创建库存盘点 |
-| GET | `/counts` | 获取盘点记录 |
-| POST | `/adjustments` | 创建库存调整 |
-| GET | `/adjustments` | 获取调整记录 |
-| POST | `/reservations` | 创建库存预留 |
-| GET | `/reservations` | 获取预留记录 |
+## 统一响应包络
 
-### 财务管理 (`/api/v1/erp/finance`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/invoices` | 获取发票列表 |
-| POST | `/invoices` | 创建发票 |
-| GET | `/payments` | 获取付款列表 |
-| POST | `/payments` | 创建付款 |
-| GET | `/vouchers` | 获取凭证列表 |
-| POST | `/vouchers` | 创建凭证 |
-| GET | `/account-subjects` | 获取会计科目 |
-| POST | `/account-subjects` | 创建会计科目 |
-| GET | `/accounting-periods` | 获取会计期间 |
-| POST | `/accounting-periods` | 创建会计期间 |
-
-### 应付账款 (`/api/v1/erp/ap`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/invoices` | 获取应付发票列表 |
-| POST | `/invoices` | 创建应付发票 |
-| GET | `/payments` | 获取付款申请列表 |
-| POST | `/payments` | 创建付款申请 |
-| GET | `/reconciliations` | 获取对账单列表 |
-| POST | `/reconciliations` | 创建对账单 |
-| GET | `/verifications` | 获取核销记录 |
-| POST | `/verifications` | 创建核销 |
-
-### 应收账款 (`/api/v1/erp/ar`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/invoices` | 获取应收发票列表 |
-| POST | `/invoices` | 创建应收发票 |
-| GET | `/collections` | 获取收款记录 |
-| POST | `/collections` | 创建收款 |
-| GET | `/reconciliations` | 获取对账单列表 |
-| POST | `/reconciliations` | 创建对账单 |
-| GET | `/aging-analysis` | 获取账龄分析 |
-
-### 生产管理 (`/api/v1/erp/production`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/orders` | 获取生产订单列表 |
-| POST | `/orders` | 创建生产订单 |
-| GET | `/orders/{id}` | 获取订单详情 |
-| PUT | `/orders/{id}` | 更新订单 |
-| GET | `/boms` | 获取 BOM 列表 |
-| POST | `/boms` | 创建 BOM |
-| GET | `/mrp/results` | 获取 MRP 运算结果 |
-| POST | `/mrp/run` | 执行 MRP 运算 |
-| GET | `/scheduling` | 获取排程结果 |
-| POST | `/scheduling` | 创建排程 |
-| GET | `/capacity` | 获取产能分析 |
-| GET | `/material-shortage` | 获取缺料预警 |
-
-### CRM 管理 (`/api/v1/erp/crm`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/leads` | 获取线索列表 |
-| POST | `/leads` | 创建线索 |
-| GET | `/opportunities` | 获取商机列表 |
-| POST | `/opportunities` | 创建商机 |
-| GET | `/pool` | 获取公海池客户 |
-| POST | `/pool/assign` | 分配客户 |
-| GET | `/assignments` | 获取分配记录 |
-
-### BPM 审批 (`/api/v1/erp/bpm`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/definitions` | 获取流程定义列表 |
-| POST | `/definitions` | 创建流程定义 |
-| GET | `/instances` | 获取流程实例列表 |
-| POST | `/instances` | 启动流程实例 |
-| GET | `/tasks` | 获取待办任务 |
-| POST | `/tasks/{id}/approve` | 审批任务 |
-| POST | `/tasks/{id}/reject` | 拒绝任务 |
-| POST | `/tasks/{id}/transfer` | 转交任务 |
-
-### 系统管理 (`/api/v1/erp/system`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/departments` | 获取部门列表 |
-| POST | `/departments` | 创建部门 |
-| GET | `/data-permissions` | 获取数据权限 |
-| POST | `/data-permissions` | 设置数据权限 |
-| GET | `/field-permissions` | 获取字段权限 |
-| POST | `/field-permissions` | 设置字段权限 |
-| GET | `/notifications` | 获取通知列表 |
-| POST | `/notifications/mark-read` | 标记通知已读 |
-
-### AI 智能分析 (`/api/v1/erp/ai`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/sales-forecast` | 销售预测 |
-| GET | `/inventory-optimization` | 库存优化建议 |
-| GET | `/anomaly-detection` | 异常检测 |
-| GET | `/recommendations` | 智能推荐 |
-
-### 报表引擎 (`/api/v1/erp/reports`)
-
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | `/templates` | 获取报表模板列表 |
-| POST | `/templates` | 创建报表模板 |
-| POST | `/execute` | 执行报表查询 |
-| GET | `/export/{format}` | 导出报表 (PDF/Excel) |
-
-## 请求/响应格式
-
-### 标准响应格式
+成功响应形如：
 
 ```json
-{
-  "code": 200,
-  "message": "操作成功",
-  "data": {
-    // 业务数据
-  }
-}
+{ "code": 200, "message": "", "data": {} }
 ```
 
-### 分页响应格式
+错误响应携带 `code`、`message`，并按错误族映射到相应 HTTP 状态码。
 
-```json
-{
-  "code": 200,
-  "message": "查询成功",
-  "data": {
-    "items": [
-      // 数据列表
-    ],
-    "total": 100,
-    "page": 1,
-    "page_size": 20,
-    "total_pages": 5
-  }
-}
-```
+错误文案有一条硬性安全边界，定义在 `backend/src/utils/error.rs` 的模块文档：
+出参的 `message` 默认是固定脱敏常量，真实文案只进 tracing 日志。只有构造点
+显式使用 `AppError::business_displayable`、`AppError::validation_displayable`
+或 `AppError::not_found_displayable` 时，响应才携带真实文案。不存在任何全局
+开关或环境变量能改变这一行为，是否外显由每个构造点逐条声明。
 
-### 错误响应格式
+`validator` 派生校验产生的文案一律以可外显形态返回，因为它只描述调用方
+自己刚提交的字段。手工构造时同理：文案只涉及请求字段就可用可外显构造，
+一旦包含第三方库原文、表名、SQL、堆栈或内部路径就必须走脱敏构造。
 
-```json
-{
-  "code": 400,
-  "message": "请求参数错误",
-  "errors": [
-    {
-      "field": "username",
-      "message": "用户名不能为空"
-    }
-  ]
-}
-```
+可外显文案的允许范围同样受限：不得包含权限判定依据、他人数据、内部标识
+（表名、记录 ID、内部编码、文件路径）与任何系统实现细节。
 
-### 常见 HTTP 状态码
+## 数据范围与字段级权限
 
-| 状态码 | 描述 |
-|--------|------|
-| 200 | 请求成功 |
-| 201 | 创建成功 |
-| 400 | 请求参数错误 |
-| 401 | 未认证或 Token 过期 |
-| 403 | 无权限访问 |
-| 404 | 资源不存在 |
-| 409 | 资源冲突（如重复创建） |
-| 422 | 请求格式正确但语义错误 |
-| 429 | 请求过于频繁（限流） |
-| 500 | 服务器内部错误 |
+读侧行级数据范围由统一判定器 `check_resource_owner_by_member_scope`
+（`backend/src/utils/data_scope.rs`）承担，语义为 All 放行、Dept 要求归属人属于
+可见部门成员集合、Self 仅本人；归属列为 NULL 时 Dept 与 Self 一律拒绝，
+不因脏数据留放行口子。列表接口按同一口径在构造处下推过滤，
+使 `total` 与 `items` 同源，不出现列表比 total 少的错位。
 
-## 速率限制
+字段级权限用于价格与成本类敏感列，读侧按角色掩码。读写必须配对：
+读侧掩码掉的列，写侧不得无条件把它抄进更新载荷，否则非授权角色一次保存
+就会把库里的真实值冲空。
 
-系统对 API 请求进行速率限制：
+## 前后端契约对照与可复现统计
 
-- **认证接口**: 10 次/分钟（防暴力破解）
-- **普通接口**: 100 次/分钟
-- **批量操作**: 10 次/分钟
+接口数量随功能增长持续变化，本文件不固化端点清单，只固化统计口径与重算命令。
+下列数字由 `frontend/scripts/check-api-paths.mjs` 从代码实测得出，
+它从 `backend/src/routes/mod.rs` 的 `create_router` 出发递归展开
+`nest`、`merge`、`route`，并把 `{param}`、`:param`、`${expr}` 归一为通配段，
+再与前端 API 层的实际调用对照。
 
-超限响应：
-```json
-{
-  "code": 429,
-  "message": "请求过于频繁，请稍后再试",
-  "retry_after": 60
-}
-```
-
-## gRPC 接口
-
-系统同时提供 gRPC 接口，定义文件位于 `backend/proto/bingxi.proto`。gRPC 服务主要用于：
-
-1. **高性能内部通信**: 微服务间调用
-2. **流式数据传输**: 实时数据同步
-3. **二进制协议**: 更高效的序列化
-
-gRPC 服务地址：`localhost:50051`（默认）
-
-## WebSocket 接口
-
-系统支持 WebSocket 用于实时通知：
-
-```javascript
-// 连接 WebSocket
-const ws = new WebSocket('ws://localhost:8080/ws');
-
-// 订阅通知
-ws.send(JSON.stringify({
-  type: 'subscribe',
-  channel: 'notifications'
-}));
-
-// 接收通知
-ws.onmessage = (event) => {
-  const notification = JSON.parse(event.data);
-  console.log('收到通知:', notification);
-};
-```
-
-## SDK 和客户端
-
-### JavaScript/TypeScript SDK
-
-```typescript
-import { BingxiClient } from '@bingxi/sdk';
-
-const client = new BingxiClient({
-  baseURL: 'http://localhost:8080/api/v1/erp',
-  token: 'your-jwt-token'
-});
-
-// 获取销售订单
-const orders = await client.sales.getOrders({
-  page: 1,
-  pageSize: 20,
-  status: 'pending'
-});
-
-// 创建采购订单
-const purchaseOrder = await client.purchases.createOrder({
-  supplier_id: 'uuid',
-  items: [
-    { product_id: 'uuid', quantity: 100, price: 10.5 }
-  ]
-});
-```
-
-### Python SDK
-
-```python
-from bingxi import BingxiClient
-
-client = BingxiClient(
-    base_url='http://localhost:8080/api/v1/erp',
-    token='your-jwt-token'
-)
-
-# 获取库存信息
-inventory = client.inventory.get_stocks(
-    warehouse_id='uuid',
-    product_id='uuid'
-)
-
-# 创建销售订单
-order = client.sales.create_order(
-    customer_id='uuid',
-    items=[
-        {'product_id': 'uuid', 'quantity': 50, 'price': 25.0}
-    ]
-)
-```
-
-## 错误处理
-
-### 常见错误码
-
-| 错误码 | 描述 | 处理建议 |
-|--------|------|----------|
-| `AUTH_001` | Token 过期 | 使用 Refresh Token 获取新 Token |
-| `AUTH_002` | 无效 Token | 重新登录 |
-| `AUTH_003` | 权限不足 | 检查用户角色和权限 |
-| `BIZ_001` | 业务规则验证失败 | 检查业务逻辑约束 |
-| `BIZ_002` | 数据不存在 | 检查资源 ID |
-| `BIZ_003` | 数据冲突 | 检查唯一性约束 |
-| `SYS_001` | 系统内部错误 | 联系管理员 |
-| `SYS_002` | 数据库连接失败 | 检查数据库状态 |
-| `SYS_003` | 外部服务调用失败 | 检查第三方服务状态 |
-
-### 错误处理示例
-
-```typescript
-try {
-  const result = await client.sales.createOrder(orderData);
-  console.log('订单创建成功:', result);
-} catch (error) {
-  if (error.code === 'AUTH_001') {
-    // Token 过期，刷新 Token
-    await client.refreshToken();
-    // 重试请求
-    const result = await client.sales.createOrder(orderData);
-  } else if (error.code === 'BIZ_001') {
-    // 业务规则验证失败
-    console.error('业务错误:', error.message);
-  } else {
-    // 其他错误
-    console.error('系统错误:', error);
-  }
-}
-```
-
-## 测试和调试
-
-### Swagger UI
-
-启动后端服务后，访问以下地址查看 API 文档：
-- **Swagger UI**: http://localhost:8080/swagger-ui
-- **OpenAPI JSON**: http://localhost:8080/api-docs/openapi.json
-
-### Postman 集合
-
-系统提供 Postman 集合文件，位于 `backend/docs/postman_collection.json`，可直接导入使用。
-
-### cURL 示例
+重算方式，在 `frontend` 目录执行：
 
 ```bash
-# 登录获取 Token
-curl -X POST http://localhost:8080/api/v1/erp/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin123"}'
-
-# 使用 Token 访问 API
-curl -X GET http://localhost:8080/api/v1/erp/products \
-  -H "Authorization: Bearer <your_token>"
-
-# 创建销售订单
-curl -X POST http://localhost:8080/api/v1/erp/sales/orders \
-  -H "Authorization: Bearer <your_token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "customer_id": "uuid",
-    "items": [
-      {"product_id": "uuid", "quantity": 100, "price": 10.5}
-    ]
-  }'
+node scripts/check-api-paths.mjs
 ```
 
-## 版本控制
+主干最近一次实测结果：
 
-API 版本通过 URL 路径管理：
-- **当前版本**: `/api/v1/erp/`
-- **未来版本**: `/api/v2/erp/`（向后兼容）
+| 指标 | 数量 |
+|---|---|
+| 后端 (path, method) 组合 | 1776 |
+| 后端路径去重 | 1356 |
+| 前端 (path, method) 组合 | 1146 |
+| 后端存在但前端该路径零调用 | 588 |
+| 前端调用而后端不存在，且已登记为功能缺口 | 3 |
 
-## 最佳实践
+三条已登记缺口逐条附原因，登记在 `check-api-paths.mjs` 的例外表内，不是静默豁免：
 
-1. **Token 管理**: 定期刷新 Token，避免过期
-2. **错误处理**: 实现统一的错误处理机制
-3. **请求重试**: 对于网络错误实现指数退避重试
-4. **数据缓存**: 合理缓存不常变化的数据
-5. **分页查询**: 对于大数据量使用分页
-6. **批量操作**: 使用批量接口减少请求次数
-7. **日志记录**: 记录 API 调用日志便于调试
+| 端点 | 原因 |
+|---|---|
+| `POST /api/v1/erp/currencies` | 前端 `createCurrency` 新增币种，后端 `currency_handler` 无 `create_currency`，币种主数据目前只读并只可设本位币 |
+| `GET /api/v1/erp/customer-shares` | 客户共享清单读侧未提供 |
+| `GET /api/v1/erp/system-update/backups/*` | 备份详情读侧未提供 |
+
+同目录还有两支相关门禁，接口改动需一并满足：
+`scripts/check-api-keys.mjs` 维护前端接口键基线（当前 108 枚），
+`scripts/check-api-envelope.mjs` 校验响应包络形态。基线属生成物，
+只能由对应脚本的写入模式重算，禁止手改。
+
+## 修订说明
+
+本次修订只更新本文件，改动项为：删除并不存在的 gRPC 接口描述；把认证一节
+从"需要 JWT Token 认证"改写为按代码实测的 Cookie 优先凭据链与三档取值顺序；
+补齐令牌有效期、CSRF 头名与一次性消费的恢复路径、错误文案的白名单式外显规则、
+数据范围与字段级权限的读写配对要求；接口规模由旧版无从核对的表述改为
+带重算命令的实测口径，并登记三条已知功能缺口。

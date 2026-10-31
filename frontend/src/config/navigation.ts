@@ -207,6 +207,8 @@ export const NAV_TREE: NavNode[] = [
         L('/business-trace', 'layout.menu.businessTrace'),
         L('/export-compliance', 'layout.menu.exportCompliance'),
         L('/environmental-compliance', 'layout.menu.environmentalCompliance'),
+        L('/textile-safety', 'layout.menu.textileSafety'),
+        L('/textile-safety-master', 'layout.menu.textileSafetyMaster'),
       ]),
     ],
     'CircleCheck'

@@ -21,6 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{audit_log, audit_log_export_log};
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::utils::admin_checker::can_access_audit_logs;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
@@ -345,69 +346,124 @@ fn record_audit_logs_export_audit(state: &AppState, auth: &AuthContext, logs_cou
     Arc::new(svc).record_async(event, None);
 }
 
-/// GET /api/v1/erp/audit-logs/export；返回 xlsx 格式（Excel），前端直接 `window.URL.createObjectURL(blob)` 下载。
+/// GET /api/v1/erp/audit-logs/export - 审计日志导出为带水印的 xlsx
 ///
-/// V15 缺陷 10-4 修复：导出操作同时写入独立防篡改表 `audit_log_export_log`，
-/// 该表通过数据库触发器禁止 UPDATE / DELETE，审计员无法篡改自身导出记录。
+/// 功能：按本次请求的筛选与 admin 角色门取审计日志全集，落成带操作员水印的 xlsx，
+/// 并把本次导出的筛选与指纹写入防篡改表
+/// 调用方：审计日志路由的导出端点
+/// 入参：查询参数（start_time、end_time、user_id、operation_type、severity、
+/// resource_type、request_id、keyword 与审批令牌）、应用状态、会话上下文与请求头
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，角色门交 require_admin_role，取数交 build_audit_log_condition，
+/// 防篡改写入交 record_audit_log_export_tamper_proof，成功登记交 record_download
+/// 存什么：审计日志导出记录写防篡改表 audit_log_export_log（该表由数据库触发器禁止
+/// UPDATE 与 DELETE，审计员无法篡改自身导出记录），令牌消费写导出审批表，
+/// 日志行写进导出文件
+/// 存哪里：audit_log_export_log 与 export_approval_request 与导出文件
+///
+/// 范围参数收本端点查询结构真实承载的全部筛选项。ip_address 为 None，因为中间件
+/// 未把 client_ip 注入会话上下文。导出统一使用 xlsx 格式，失败用 AppError 信封表达，
+/// 成功返回 200 加 xlsx 响应体。
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<AuditLogListQuery>,
     headers: HeaderMap,
 ) -> Result<axum::response::Response, AppError> {
-    // P0 8-5 修复：审计日志导出仅限 admin
+    // 审计日志导出仅限 admin
     require_admin_role(&state, &auth).await?;
 
-    // 敏感导出 fail-closed：校验审批令牌
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(query.download_token.as_deref(), "audit_log")
-            .await?;
-
-    const EXPORT_LIMIT: u64 = 10000;
-    let cond = build_audit_log_condition(&query);
-    let logs = audit_log::Entity::find()
-        .filter(cond)
-        .order_by_desc(audit_log::Column::CreatedAt)
-        .limit(EXPORT_LIMIT)
-        .all(state.db.as_ref())
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "start_time",
+            query.start_time.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "end_time",
+            query.end_time.as_deref().map(serde_json::Value::from),
+        ),
+        ("user_id", query.user_id.map(serde_json::Value::from)),
+        (
+            "operation_type",
+            query.operation_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "severity",
+            query.severity.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "resource_type",
+            query.resource_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "request_id",
+            query.request_id.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "keyword",
+            query.keyword.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "audit_log",
+            auth.user_id,
+            Some(requested_scope),
+        )
         .await?;
 
-    // V15 P0-S15 修复（Batch 475a）：保存 logs 数量用于水印（logs 后续被 into_iter 消费）
-    let logs_count = logs.len();
-    record_audit_logs_export_audit(&state, &auth, logs_count);
+    let (xlsx_bytes, filename) = approval_svc
+        .run_export_leg(approval.id, async {
+            const EXPORT_LIMIT: u64 = 10000;
+            let cond = build_audit_log_condition(&query);
+            let logs = audit_log::Entity::find()
+                .filter(cond)
+                .order_by_desc(audit_log::Column::CreatedAt)
+                .limit(EXPORT_LIMIT)
+                .all(state.db.as_ref())
+                .await?;
 
-    let table = build_audit_logs_table(logs);
-    let filename = format!("audit_logs_{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+            // 先留行数供水印使用（logs 随后被 into_iter 消费）
+            let logs_count = logs.len();
+            record_audit_logs_export_audit(&state, &auth, logs_count);
 
-    // V15 P0-S15 修复（Batch 475a）：注入水印（操作员/导出时间/导出条数）
-    let watermark = WatermarkConfig {
-        operator: Some(auth.username.clone()),
-        ip_address: None,
-        exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!(
-            "审计日志导出（共 {} 条，仅 admin 可导出）",
-            logs_count
-        )),
-    };
+            let table = build_audit_logs_table(logs);
+            let filename = format!("audit_logs_{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
 
-    // V15 缺陷 10-4：先构建 xlsx 字节，计算 SHA256 指纹后写入防篡改表
-    let xlsx_bytes = build_xlsx_with_watermark(&table, &watermark)?;
-    let file_hash = hex_sha256(&xlsx_bytes);
-    let file_size = xlsx_bytes.len() as i64;
+            let watermark = WatermarkConfig {
+                operator: Some(auth.username.clone()),
+                // ip_address 为 None，中间件未把 client_ip 注入会话上下文
+                ip_address: None,
+                exported_at: Some(chrono::Utc::now().to_rfc3339()),
+                extra: Some(format!(
+                    "审计日志导出（共 {} 条，仅 admin 可导出）",
+                    logs_count
+                )),
+            };
 
-    // 写入防篡改表（独立于 audit_logs，审计员无法改/删）
-    record_audit_log_export_tamper_proof(
-        &state, &auth, &query, logs_count, &file_hash, file_size, &headers,
-    )
-    .await;
+            // 先构建 xlsx 字节，计算 SHA256 指纹后写入防篡改表
+            let xlsx_bytes = build_xlsx_with_watermark(&table, &watermark)?;
+            let file_hash = hex_sha256(&xlsx_bytes);
+            let file_size = xlsx_bytes.len() as i64;
 
-    // 敏感导出 fail-closed：记录令牌消费（用真实 file_hash + file_size）
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(approval.id, filename.clone(), file_size, file_hash)
+            // 写入防篡改表（独立于 audit_logs，审计员无法改与删）
+            record_audit_log_export_tamper_proof(
+                &state, &auth, &query, logs_count, &file_hash, file_size, &headers,
+            )
+            .await;
+
+            // 敏感导出 fail-closed：记录令牌消费（用真实 file_hash 与 file_size）
+            approval_svc
+                .record_download(approval.id, filename.clone(), file_size, file_hash)
+                .await?;
+
+            Ok((xlsx_bytes, filename))
+        })
         .await?;
 
-    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
     Ok(xlsx_response(xlsx_bytes, &filename))
 }
 

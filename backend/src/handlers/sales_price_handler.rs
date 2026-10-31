@@ -2,6 +2,7 @@ use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::sales_price;
 use crate::models::status::price_approval;
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::services::sales_price_service::{
     CreateSalesPriceInput, SalesPriceService, SalesPriceView, UpdateSalesPriceInput,
 };
@@ -375,74 +376,117 @@ fn record_prices_export_audit(
     svc.record_async(event, None);
 }
 
-/// V15 P0-S12 修复（Batch 475d）：导出接入后端 - 注入水印（operator/exported_at/extra 含条数） - 异步审计日志（OperationType::Export）
-/// - 直接调 service.get_prices_list 取全量数据（page=1/page_size=10000） - 不复用 list_prices handler 逻辑（保持单一职责）
+/// 销售价格列表导出为带水印的 xlsx，端点为 GET /api/v1/erp/sales-prices/export
+///
+/// 功能：按本次请求的筛选与行级数据权限取价格全集，落成带操作者水印的表格文件
+/// 调用方：销售价格路由的导出端点
+/// 入参：查询参数（product_id、customer_id、keyword、customer_type、status 与审批令牌）、
+/// 应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，status 取值校验交 validate_sales_price_status_param，取数交
+/// SalesPriceService::get_prices_list，表格构造交 build_prices_table，审计交
+/// record_prices_export_audit，成功登记交 record_download
+/// 存什么：不写业务表；价格行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
+/// 存哪里：不适用
+///
+/// 直接调 service 取全量数据（覆盖分页参数），不复用 list_prices 的 handler 逻辑，
+/// 保持单一职责。范围参数收本端点真实读取的全部筛选项，其中 customer_type 不在前端
+/// 申请参数白名单内，带上它会被判为新增未批准的维度而拒绝。水印含操作员、导出时间与条数。
 pub async fn export_prices(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<SalesPriceQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
-    let download_token = query.download_token.clone();
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(download_token.as_deref(), "price_list")
-            .await?;
-
-    // 导出复用列表的 status 筛选校验；放在审批令牌校验之后，避免向未授权方回显允许取值。
-    validate_sales_price_status_param(query.status.as_deref())?;
-
-    let service = SalesPriceService::new(state.db.clone());
-
-    // 导出全量数据（覆盖分页参数）
-    let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
-        product_id: query.product_id,
-        customer_id: query.customer_id,
-        keyword: query.keyword,
-        customer_type: query.customer_type,
-        status: query.status,
-        page: 1,
-        page_size: 10000,
-    };
-
-    // 行级数据权限与列表同函数下推：导出全量行同样受当前身份 scope 约束，
-    // 不在 handler 后置过滤（否则导出行与列表/total 口径分叉）。
-    let data_scope_ctx = auth.to_data_scope_context();
-    let (prices, _total) = service
-        .get_prices_list(query_params, Some(&data_scope_ctx))
-        .await?;
-    let row_count = prices.len();
-
-    // 序列化为 JSON 以统一字段处理
-    let prices_json: Vec<serde_json::Value> = prices
-        .into_iter()
-        .map(|p| serde_json::to_value(p).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let table = build_prices_table(prices_json)?;
-    let filename = format!(
-        "sales_prices_export_{}",
-        chrono::Utc::now().format("%Y%m%d_%H%M%S")
-    );
-    record_prices_export_audit(&state, &auth, row_count, &filename);
-
-    // 敏感导出 fail-closed：记录令牌消费
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(
-            approval.id,
-            filename.clone(),
-            row_count as i64,
-            String::new(),
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        ("product_id", query.product_id.map(serde_json::Value::from)),
+        (
+            "customer_id",
+            query.customer_id.map(serde_json::Value::from),
+        ),
+        (
+            "keyword",
+            query.keyword.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "customer_type",
+            query.customer_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "status",
+            query.status.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "price_list",
+            auth.user_id,
+            Some(requested_scope),
         )
         .await?;
 
-    // V15 P0-S15 修复（Batch 475d）：注入水印（操作员/导出时间/导出条数）
-    let watermark = WatermarkConfig {
-        operator: Some(auth.username.clone()),
-        ip_address: None,
-        exported_at: Some(chrono::Utc::now().to_rfc3339()),
-        extra: Some(format!("销售价格导出（共 {} 条）", row_count)),
-    };
+    let (table, filename, watermark) = approval_svc
+        .run_export_leg(approval.id, async {
+            // 导出复用列表的 status 筛选校验；放在审批令牌校验之后，避免向未授权方回显允许取值。
+            validate_sales_price_status_param(query.status.as_deref())?;
+
+            let service = SalesPriceService::new(state.db.clone());
+
+            // 导出全量数据（覆盖分页参数）
+            let query_params = crate::services::sales_price_service::SalesPriceQueryParams {
+                product_id: query.product_id,
+                customer_id: query.customer_id,
+                keyword: query.keyword.clone(),
+                customer_type: query.customer_type.clone(),
+                status: query.status.clone(),
+                page: 1,
+                page_size: 10000,
+            };
+
+            // 行级数据权限与列表同函数下推：导出全量行同样受当前身份 scope 约束，
+            // 不在 handler 后置过滤（否则导出行与列表与 total 口径分叉）。
+            let data_scope_ctx = auth.to_data_scope_context();
+            let (prices, _total) = service
+                .get_prices_list(query_params, Some(&data_scope_ctx))
+                .await?;
+            let row_count = prices.len();
+
+            // 序列化为 JSON 以统一字段处理
+            let prices_json: Vec<serde_json::Value> = prices
+                .into_iter()
+                .map(|p| serde_json::to_value(p).map_err(AppError::from))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let table = build_prices_table(prices_json)?;
+            let filename = format!(
+                "sales_prices_export_{}",
+                chrono::Utc::now().format("%Y%m%d_%H%M%S")
+            );
+            record_prices_export_audit(&state, &auth, row_count, &filename);
+
+            // 敏感导出 fail-closed：记录令牌消费
+            approval_svc
+                .record_download(
+                    approval.id,
+                    filename.clone(),
+                    row_count as i64,
+                    String::new(),
+                )
+                .await?;
+
+            let watermark = WatermarkConfig {
+                operator: Some(auth.username.clone()),
+                // ip_address 为 None，中间件未把 client_ip 注入会话上下文
+                ip_address: None,
+                exported_at: Some(chrono::Utc::now().to_rfc3339()),
+                extra: Some(format!("销售价格导出（共 {} 条）", row_count)),
+            };
+
+            Ok((table, filename, watermark))
+        })
+        .await?;
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
 }

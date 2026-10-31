@@ -1,6 +1,7 @@
 use crate::container::AppState;
 use crate::middleware::auth_context::AuthContext;
 use crate::models::{supplier_contact, supplier_qualification};
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::services::supplier_service::{
     CreateContactRequest, CreateQualificationRequest, CreateSupplierRequest, SupplierQueryParams,
     SupplierService, UpdateContactRequest, UpdateSupplierRequest,
@@ -406,58 +407,87 @@ pub async fn delete_supplier_qualification(
 
 /// 供应商列表导出为带水印的 xlsx，端点为 GET /api/v1/suppliers/export
 ///
-/// 功能：按当前筛选与行级数据权限分批取满全部供应商并落成文件
+/// 功能：按本次请求的筛选与行级数据权限分批取满全部供应商并落成文件
 /// 调用方：供应商路由的导出端点
-/// 入参：查询参数（含筛选、排序与审批令牌）、应用状态、会话上下文
-/// 传给谁：审批门交 ExportApprovalService::enforce_export_download，取数交
-/// query_suppliers_for_export，表格构造交 build_suppliers_table，审计交
-/// record_suppliers_export_audit
-/// 存什么：不写库；水印行写进导出文件，审计行写审计日志表
+/// 入参：查询参数（supplier_type、grade、status、keyword、is_enabled、category_id、
+/// is_processor、processor_type 与审批令牌）、应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，取数交 query_suppliers_for_export，表格构造交 build_suppliers_table，
+/// 审计交 record_suppliers_export_audit，成功登记交 record_download
+/// 存什么：不写业务表；水印行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
 /// 存哪里：不适用
 ///
-/// 行级数据权限与列表页同源（to_data_scope_context）；IP 为 None，因为中间件未把
-/// client_ip 注入会话上下文。未取全时把用户下一步该做什么写进水印行，因为水印行是
-/// 导出文件里用户直接看得到的通道。导出统一使用 xlsx 格式，失败用 AppError 信封表达。
+/// 范围参数收本端点真实读取的全部行筛选项，分页与排序项不参与范围比对（导出按分批
+/// 取满，页宽与排序不改变可见行集）。行级数据权限与列表页同源（to_data_scope_context）；
+/// IP 为 None，因为中间件未把 client_ip 注入会话上下文。未取全时把用户下一步该做什么
+/// 写进水印行，因为水印行是导出文件里用户直接看得到的通道。导出统一使用 xlsx 格式，
+/// 失败用 AppError 信封表达。
 pub async fn export_suppliers(
     Query(params): Query<SupplierQueryParams>,
     State(state): State<AppState>,
     auth: AuthContext,
 ) -> Result<axum::response::Response, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌（在 params 被 move 前提取）
-    let download_token = params.download_token.clone();
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(download_token.as_deref(), "supplier")
-            .await?;
-
-    // 分批取满当前筛选与数据权限下的全部行
-    let (items, total) = query_suppliers_for_export(&state, &auth, &params).await?;
-    let row_count = items.len();
-    let export_complete = row_count as u64 == total;
-    log_suppliers_export_completeness(row_count, total, export_complete);
-
-    let items_json: Vec<serde_json::Value> = items
-        .into_iter()
-        .map(|s| serde_json::to_value(s).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-    let table = build_suppliers_table(&items_json);
-
-    let watermark = build_suppliers_watermark(&auth, row_count, export_complete);
-    let filename = format!(
-        "suppliers_export_{}",
-        chrono::Utc::now().format("%Y%m%d%H%M%S")
-    );
-
-    record_suppliers_export_audit(&state, &auth, row_count, total, export_complete);
-
-    // 敏感导出 fail-closed：记录令牌消费
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(
-            approval.id,
-            filename.clone(),
-            row_count as i64,
-            String::new(),
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "supplier_type",
+            params.supplier_type.as_deref().map(JsonValue::from),
+        ),
+        ("grade", params.grade.as_deref().map(JsonValue::from)),
+        ("status", params.status.as_deref().map(JsonValue::from)),
+        ("keyword", params.keyword.as_deref().map(JsonValue::from)),
+        ("is_enabled", params.is_enabled.map(JsonValue::from)),
+        ("category_id", params.category_id.map(JsonValue::from)),
+        ("is_processor", params.is_processor.map(JsonValue::from)),
+        (
+            "processor_type",
+            params.processor_type.as_deref().map(JsonValue::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            params.download_token.as_deref(),
+            "supplier",
+            auth.user_id,
+            Some(requested_scope),
         )
+        .await?;
+
+    let (table, filename, watermark) = approval_svc
+        .run_export_leg(approval.id, async {
+            // 分批取满当前筛选与数据权限下的全部行
+            let (items, total) = query_suppliers_for_export(&state, &auth, &params).await?;
+            let row_count = items.len();
+            let export_complete = row_count as u64 == total;
+            log_suppliers_export_completeness(row_count, total, export_complete);
+
+            let items_json: Vec<serde_json::Value> = items
+                .into_iter()
+                .map(|s| serde_json::to_value(s).map_err(AppError::from))
+                .collect::<Result<Vec<_>, _>>()?;
+            let table = build_suppliers_table(&items_json);
+
+            let watermark = build_suppliers_watermark(&auth, row_count, export_complete);
+            let filename = format!(
+                "suppliers_export_{}",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
+
+            record_suppliers_export_audit(&state, &auth, row_count, total, export_complete);
+
+            // 敏感导出 fail-closed：记录令牌消费
+            approval_svc
+                .record_download(
+                    approval.id,
+                    filename.clone(),
+                    row_count as i64,
+                    String::new(),
+                )
+                .await?;
+
+            Ok((table, filename, watermark))
+        })
         .await?;
 
     build_xlsx_response_with_watermark(&table, &filename, &watermark)
