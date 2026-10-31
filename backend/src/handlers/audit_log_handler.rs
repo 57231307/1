@@ -75,6 +75,12 @@ pub struct AuditLogListQuery {
     pub request_id: Option<String>,
     /// 模糊搜索资源 ID / 资源名
     pub keyword: Option<String>,
+    /// 单据编号精确筛选（同一张单的全链路操作按时间追溯的入口）
+    pub doc_no: Option<String>,
+    /// 终端类型筛选（PC / H5 / MINIPROGRAM / UNKNOWN）
+    pub terminal_type: Option<String>,
+    /// 高风险操作标记筛选（DELETE / REVERSE / VOID；传 high 时筛出任意非空标记）
+    pub risk_flag: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
     /// 敏感导出 fail-closed：导出审批令牌
@@ -102,6 +108,16 @@ pub struct AuditLogListItem {
     pub request_method: Option<String>,
     pub request_path: Option<String>,
     pub created_at: Option<String>,
+    /// 操作终端类型（PC / H5 / MINIPROGRAM / UNKNOWN）
+    pub terminal_type: Option<String>,
+    /// 操作页面标识
+    pub operation_page: Option<String>,
+    /// 单据编号（业务单号）
+    pub doc_no: Option<String>,
+    /// 变更原因备注
+    pub change_reason: Option<String>,
+    /// 高风险操作标记
+    pub risk_flag: Option<String>,
 }
 
 impl From<audit_log::Model> for AuditLogListItem {
@@ -122,6 +138,11 @@ impl From<audit_log::Model> for AuditLogListItem {
             request_method: m.request_method,
             request_path: m.request_path,
             created_at: m.created_at.map(|t| t.to_rfc3339()),
+            terminal_type: m.terminal_type,
+            operation_page: m.operation_page,
+            doc_no: m.doc_no,
+            change_reason: m.change_reason,
+            risk_flag: m.risk_flag,
         }
     }
 }
@@ -175,6 +196,22 @@ pub async fn list_audit_logs(
     }
     if let Some(rid) = &query.request_id {
         q = q.filter(audit_log::Column::RequestId.eq(rid.clone()));
+    }
+    // 单据编号精确筛选：同一张单的全链路操作按时间排出（默认 created_at DESC）
+    if let Some(doc) = &query.doc_no {
+        q = q.filter(audit_log::Column::DocNo.eq(doc.clone()));
+    }
+    // 终端类型等值筛选（PC / H5 / MINIPROGRAM / UNKNOWN）
+    if let Some(tt) = &query.terminal_type {
+        q = q.filter(audit_log::Column::TerminalType.eq(tt.clone()));
+    }
+    // 高风险标记筛选：传 high 筛出任意非空标记，其余按等值命中具体词
+    if let Some(rf) = &query.risk_flag {
+        q = if rf == "high" {
+            q.filter(audit_log::Column::RiskFlag.is_not_null())
+        } else {
+            q.filter(audit_log::Column::RiskFlag.eq(rf.clone()))
+        };
     }
     if let Some(kw) = &query.keyword {
         // 批次 94 P2-3 修复：LIKE 模式注入，转义 % _ \ 特殊字符
@@ -277,10 +314,23 @@ fn build_audit_log_condition(query: &AuditLogListQuery) -> sea_orm::Condition {
     if let Some(rid) = &query.request_id {
         cond = cond.add(audit_log::Column::RequestId.eq(rid.clone()));
     }
+    if let Some(doc) = &query.doc_no {
+        cond = cond.add(audit_log::Column::DocNo.eq(doc.clone()));
+    }
+    if let Some(tt) = &query.terminal_type {
+        cond = cond.add(audit_log::Column::TerminalType.eq(tt.clone()));
+    }
+    if let Some(rf) = &query.risk_flag {
+        cond = if rf == "high" {
+            cond.add(audit_log::Column::RiskFlag.is_not_null())
+        } else {
+            cond.add(audit_log::Column::RiskFlag.eq(rf.clone()))
+        };
+    }
     cond
 }
 
-/// 审计日志导出表头（11 列）
+/// 审计日志导出表头（14 列）
 fn audit_log_export_headers() -> Vec<String> {
     vec![
         "ID".to_string(),
@@ -294,6 +344,9 @@ fn audit_log_export_headers() -> Vec<String> {
         "描述".to_string(),
         "IP地址".to_string(),
         "请求ID".to_string(),
+        "终端类型".to_string(),
+        "单据编号".to_string(),
+        "高风险标记".to_string(),
     ]
 }
 
@@ -311,6 +364,9 @@ fn build_audit_log_row(log: audit_log::Model) -> Vec<String> {
         log.description.unwrap_or_default(),
         log.ip_address.unwrap_or_default(),
         log.request_id.unwrap_or_default(),
+        log.terminal_type.unwrap_or_default(),
+        log.doc_no.unwrap_or_default(),
+        log.risk_flag.unwrap_or_default(),
     ]
 }
 
@@ -404,6 +460,18 @@ pub async fn export_audit_logs(
         (
             "keyword",
             query.keyword.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "doc_no",
+            query.doc_no.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "terminal_type",
+            query.terminal_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "risk_flag",
+            query.risk_flag.as_deref().map(serde_json::Value::from),
         ),
     ]);
     let approval = approval_svc
