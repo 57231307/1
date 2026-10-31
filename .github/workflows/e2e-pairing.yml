@@ -1,0 +1,77 @@
+# ==============================================================================
+# .github/workflows/e2e-pairing.yml
+#
+# 功能：把"新增后端端点必须配套 E2E 用例"这条 PR 门禁规则落成可执行检查——
+#       本支新增的端点在 frontend/e2e 的真用例文件里零引用即判负，禁止合并。
+# 调用方：改动 backend 路由与 handler、改动 frontend/e2e 用例面、改动路由基线
+#       或本门禁自身的工作流定义时触发；也可 workflow_dispatch 手工跑一次看数。
+# 入参：无。判据阈值（端点地板、语料根、豁免台账路径）由脚本自身的命令行参数与
+#       常量决定，工作流只负责按序调用。
+# 传给谁：frontend/scripts/check-e2e-feature-pairing.mjs，其内部复用
+#       check-api-paths.mjs 的 walkBackendRoutes()（与 route-snapshot 同一谓词）
+# 存什么：不落任何文件；结论写进 $GITHUB_STEP_SUMMARY 供人读。
+# 存哪里：仅 Actions 运行摘要与日志
+#
+# 为什么单独一支工作流而不是往 ci-cd.yml 里加步骤：ci-cd.yml 是在途改动最密集的
+#   hub 文件，多支并行改它必然互相撞冲突；本门禁只需 Node 与仓库源码（脚本零依赖，
+#   不需要 npm 装配，也不需要编译后端），独立成支既省 runner 也不占别人的合并队列。
+# 为什么先跑 --self-test：判定器必须先证明"能抓到已知违规、能放过合法配对、
+#   基线被清空时会自曝"，它的绿才有意义。本仓反复出现过"扫描面自己变窄导致零命中
+#   被当成通过"与"判据过宽导致恒绿"两类假绿，反向夹具是唯一能长期防住的手段。
+# ==============================================================================
+
+name: 新增功能与 E2E 用例配对门
+
+on:
+  pull_request:
+    paths:
+      - "backend/src/routes/**"
+      - "backend/src/handlers/**"
+      - "frontend/e2e/**"
+      - "frontend/scripts/route-snapshot.txt"
+      - "frontend/scripts/check-e2e-feature-pairing.mjs"
+      - "frontend/scripts/e2e-feature-pairing-exempt.json"
+      - ".github/workflows/e2e-pairing.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/src/routes/**"
+      - "backend/src/handlers/**"
+      - "frontend/e2e/**"
+      - "frontend/scripts/route-snapshot.txt"
+      - "frontend/scripts/check-e2e-feature-pairing.mjs"
+      - "frontend/scripts/e2e-feature-pairing-exempt.json"
+      - ".github/workflows/e2e-pairing.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  feature-pairing:
+    name: 新增端点必须配套 E2E 用例
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v5
+
+      - name: 装配 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 判定器反向自证（五道探针没全命中就判 TOOL_BUG）
+        shell: bash
+        working-directory: frontend
+        run: node scripts/check-e2e-feature-pairing.mjs --self-test
+
+      - name: 配对判定
+        shell: bash
+        working-directory: frontend
+        run: node scripts/check-e2e-feature-pairing.mjs | tee -a "$GITHUB_STEP_SUMMARY"
