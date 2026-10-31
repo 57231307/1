@@ -843,10 +843,11 @@ async fn status_token_and_cumulative_ledger_are_not_delete_criteria() {
 /// 反向自证 克重与门幅等规格列不进删除判据，零在架实物即放行。
 ///
 /// 面料行业一卷布的克重(g/m2)与门幅(cm)是规格量不是库存量。建表段
-/// backend/migration/src/domain/system/m0002_add_crm_and_greige_tables.rs:49 曾把
-/// weight_kg 注释成克重(kg/m2)，而入库出库两腿把它当库存公斤数用，两套口径并存于
-/// 同一列。删除门只读库存两列，一旦把规格列拉进判据，一条只填了克重的正常空卷就会被
-/// 仍有在架库存误拦。本例把三列规格值都填正、库存两列留 NULL，必放行。
+/// backend/migration/src/domain/system/m0002_add_crm_and_greige_tables.rs 的
+/// COMMENT ON weight_kg 那句曾把它注释成克重(kg/m2)，而入库出库两腿把它当库存公斤数
+/// 用，两套口径并存于同一列。删除门只读库存两列，一旦把规格列拉进判据，一条只填了
+/// 克重的正常空卷就会被仍有在架库存误拦。本例把三列规格值都填正、库存两列留 NULL，
+/// 必放行。
 #[tokio::test]
 async fn spec_columns_are_not_delete_criteria() {
     let db = test_common::setup_test_db().await;
@@ -886,10 +887,11 @@ async fn spec_columns_are_not_delete_criteria() {
 ///
 /// 缺这一条时，第二条腿写成明细行存在即拒也能骗过 C 段的委外正例。委外发料明细自身
 /// 没有软删标记（模型 outsourcing_order_item 无 is_deleted 列，随单级联删），单据主表
-/// outsourcing_order.is_deleted 库里 NOT NULL（建表段
-/// backend/migration/src/domain/v15/mod.rs:3258），所以该腿按 = false 单态判定即完备，
-/// 与可空的 dye_batch.is_deleted（加列段 backend/migration/src/domain/system/mod.rs:129）
-/// 的两态判定不同；两态判定的必要性由
+/// outsourcing_order 的 is_deleted 库里 NOT NULL（建表段在
+/// backend/migration/src/domain/v15/mod.rs 的委外单建表那句），所以该腿按 = false 单态
+/// 判定即完备；而 dye_batch 的 is_deleted 是后补的可空裸列（加列段在
+/// backend/migration/src/domain/system/mod.rs 的 ALTER TABLE dye_batch 那批），
+/// 两态判定的必要性由
 /// null_flagged_dye_batch_reference_still_blocks_delete 钉住。
 #[tokio::test]
 async fn soft_deleted_outsourcing_order_reference_does_not_block_delete() {
