@@ -5,10 +5,31 @@ use bingxi_backend::models::status::quotation as quotation_status;
 use bingxi_backend::services::quotation_service::{QuotationService, ServiceError};
 use bingxi_backend::services::test_common::setup_test_db;
 use bingxi_backend::utils::error::AppError;
+use bingxi_backend::utils::tax;
 use bingxi_backend::ymd;
 use rust_decimal::Decimal;
 use sea_orm::ConnectionTrait;
 use std::sync::Arc;
+
+/// 按入参构造一条报价明细，数量与两枚单价由调用方给定，税率与含税标志取单据表头
+fn quotation_line(
+    quantity: Decimal,
+    unit_price: Decimal,
+    unit_price_with_tax: Decimal,
+) -> CreateQuotationItemDto {
+    CreateQuotationItemDto {
+        product_id: 1001,
+        color_id: Some(2001),
+        specification: Some("规格 A".to_string()),
+        unit: "M".to_string(),
+        quantity,
+        unit_price,
+        unit_price_with_tax,
+        tier_pricing: None,
+        discount_rate: None,
+        notes: None,
+    }
+}
 
 /// 构造合法的 CreateQuotationItemDto（单条明细）
 fn sample_item() -> CreateQuotationItemDto {
@@ -224,8 +245,154 @@ async fn test_calculate_totals_jdgyd2wxs() {
     assert_eq!(subtotal, decs!(100));
 }
 
-// ============ validate_price_terms 贸易术语校验测试 ============
+/// 多行含税报价的表头必须取逐行除法反算后的求和，而不是对合计再换算一次
+/// 面料单两行各含税 1000 元按 13 个点，逐行反算得 884.96 与 115.04，
+/// 表头小计因此是 1769.92；若改成合计直接换算会得 1769.91，明细与表头就差 1 分。
+#[tokio::test]
+async fn test_calculate_totals_inclusive_header_equals_sum_of_line_divisions() {
+    let db = setup_test_db().await;
+    let svc = QuotationService::new(Arc::new(db));
+    let mut dto = sample_dto();
+    dto.tax_inclusive = true;
+    dto.tax_rate = decs!(13);
+    dto.items = vec![
+        quotation_line(decs!(1), decs!(884.96), decs!(1000)),
+        quotation_line(decs!(1), decs!(884.96), decs!(1000)),
+    ];
+    let (subtotal, tax_amount, total_amount) = svc
+        .calculate_totals(&dto)
+        .expect("两行含税报价夹具必须合法");
+    assert_eq!(
+        subtotal,
+        decs!(1769.92),
+        "表头小计必须等于逐行除法反算值之和 1769.92，实际 {subtotal}"
+    );
+    assert_eq!(
+        tax_amount,
+        decs!(230.08),
+        "表头税额必须等于逐行差额之和 230.08"
+    );
+    assert_eq!(
+        total_amount,
+        decs!(2000),
+        "表头价税合计必须逐分等于明细含税合计"
+    );
+    assert_eq!(
+        subtotal + tax_amount,
+        total_amount,
+        "表头三值钩稽破口，小计 {subtotal} 加税额 {tax_amount} 不等于合计 {total_amount}"
+    );
+    let direct = tax::split_from_inclusive(total_amount, Some(decs!(13)))
+        .expect("合计直接换算本身合法，只用来做对照");
+    assert_eq!(
+        direct.net,
+        decs!(1769.91),
+        "对照口径必须仍能复现 1 分差，否则本用例失去意义，实际 {}",
+        direct.net
+    );
+}
 
+/// 多行不含税报价的税额必须逐行正算后求和，不得对合计正算
+/// 两行各 0.05 元按 13 个点，逐行得税额 0.01 合计 0.02；按合计正算只得 0.01。
+#[tokio::test]
+async fn test_calculate_totals_exclusive_tax_sums_per_line_not_of_total() {
+    let db = setup_test_db().await;
+    let svc = QuotationService::new(Arc::new(db));
+    let mut dto = sample_dto();
+    dto.tax_inclusive = false;
+    dto.tax_rate = decs!(13);
+    dto.items = vec![
+        quotation_line(decs!(1), decs!(0.05), decs!(0)),
+        quotation_line(decs!(1), decs!(0.05), decs!(0)),
+    ];
+    let (subtotal, tax_amount, total_amount) = svc
+        .calculate_totals(&dto)
+        .expect("两行不含税报价夹具必须合法");
+    assert_eq!(subtotal, decs!(0.1), "表头小计必须等于两行净额之和");
+    assert_eq!(
+        tax_amount,
+        decs!(0.02),
+        "表头税额必须逐行正算后求和得 0.02，不得对合计正算成 0.01，实际 {tax_amount}"
+    );
+    assert_eq!(total_amount, decs!(0.12), "表头价税合计必须等于小计加税额");
+    assert_eq!(
+        subtotal + tax_amount,
+        total_amount,
+        "表头三值钩稽破口，小计 {subtotal} 税额 {tax_amount} 合计 {total_amount}"
+    );
+    let by_total = tax::split_from_net(subtotal, Some(decs!(13))).expect("合计正算本身合法");
+    assert_eq!(
+        by_total.tax,
+        decs!(0.01),
+        "对照口径必须仍能复现按合计正算的 0.01，实际 {}",
+        by_total.tax
+    );
+}
+
+/// 含税单价低于净单价是价税矛盾，建单腿必须点名拒绝而不是择一侧静默采信
+#[tokio::test]
+async fn test_calculate_totals_inclusive_unit_below_net_unit_is_rejected() {
+    let db = setup_test_db().await;
+    let svc = QuotationService::new(Arc::new(db));
+    let mut dto = sample_dto();
+    dto.tax_inclusive = true;
+    dto.items = vec![quotation_line(decs!(10), decs!(12), decs!(11.3))];
+    let result = svc.calculate_totals(&dto);
+    let Err(ServiceError::Validation(msg)) = result else {
+        panic!("含税单价低于净单价必须被拒绝，实际 {result:?}");
+    };
+    assert!(
+        msg.contains("含税金额小于不含税净额"),
+        "拒绝文案必须点名价税矛盾，实际文案 {msg}"
+    );
+    assert!(
+        msg.contains("12") && msg.contains("11.3"),
+        "拒绝文案必须带净额与含税两个实际值，实际文案 {msg}"
+    );
+}
+
+/// 税率 0 与税率 100 在含税腿上走同一条除法，函数内不持有任何档位
+#[tokio::test]
+async fn test_calculate_totals_zero_and_hundred_percent_rates_on_inclusive_leg() {
+    let db = setup_test_db().await;
+    let svc = QuotationService::new(Arc::new(db));
+
+    let mut zero = sample_dto();
+    zero.tax_inclusive = true;
+    zero.tax_rate = Decimal::ZERO;
+    zero.items = vec![quotation_line(decs!(100), decs!(10), decs!(10))];
+    let (subtotal, tax_amount, total_amount) = svc
+        .calculate_totals(&zero)
+        .expect("0 税率是合法的业务声明值");
+    assert_eq!(subtotal, decs!(1000), "0 税率下小计必须等于含税合计");
+    assert_eq!(
+        tax_amount,
+        Decimal::ZERO,
+        "0 税率下税额必须是 0 而不是任何档位"
+    );
+    assert_eq!(
+        total_amount,
+        decs!(1000),
+        "0 税率下价税合计必须等于录入的含税事实"
+    );
+
+    let mut hundred = sample_dto();
+    hundred.tax_inclusive = true;
+    hundred.tax_rate = decs!(100);
+    hundred.items = vec![quotation_line(decs!(1), decs!(0), decs!(600))];
+    let (net100, tax100, total100) = svc
+        .calculate_totals(&hundred)
+        .expect("100 税率落在落库列域内");
+    assert_eq!(net100, decs!(300), "100 税率下含税 600 必须劈成净额 300");
+    assert_eq!(tax100, decs!(300), "100 税率下税额取差额 300");
+    assert_eq!(
+        net100 + tax100,
+        total100,
+        "100 税率下三值钩稽破口，净额 {net100} 税额 {tax100} 合计 {total100}"
+    );
+}
+
+// ============ validate_price_terms 贸易术语校验测试 ============
 /// test_validate_price_terms_hfdmfhmj
 #[test]
 fn test_validate_price_terms_hfdmfhmj() {
