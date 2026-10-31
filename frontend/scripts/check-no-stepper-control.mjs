@@ -37,8 +37,27 @@ const SCAN_ROOTS = [path.join(FRONTEND, 'src'), path.join(FRONTEND, 'e2e')];
 const MOBILE = path.join(REPO, 'mobile-app');
 if (fs.existsSync(MOBILE)) SCAN_ROOTS.push(MOBILE);
 
-// 步进控件名字面量 分段拼接避免本文件被自身扫出
-const STEPPER_LITERAL = ['el-input-', 'number'].join('');
+// 步进控件名的禁用形态 分段拼接构造，本文件自身源码不携带任何完整形态，无需自豁免特判
+// 一 连字符族 小写中划线写法，含其子类增减按钮的类名与 CSS 选择器前缀点号写法
+// 二 驼峰族 PascalCase 与 camelCase 两种大小写形态，覆盖自动导入写法 显式导入清单里的
+//    组件名 动态组件名字符串 以及共享定位器的 kind 判别值
+//    此前只按连字符族判定，驼峰写法整片隐形，实测漏掉四处真实步进框
+const KEBAB_FORM = ['input', '-', 'number'].join('');
+const CAMEL_FORM = ['Input', 'Number'].join('').toLowerCase();
+const NAME_FORMS = [KEBAB_FORM, CAMEL_FORM];
+// 夹具与文案沿用 kebab 族做示例，取形同旧常量的别名，避免判定器源码出现完整字面量
+const STEPPER_LITERAL = KEBAB_FORM;
+
+/**
+ * 行级判定 命中任一禁用形态即违规 大小写不敏感
+ * 调用方 scanFile 与 runSelfTest 的夹具，两侧共用同一谓词，保证自证的就是线上逻辑
+ * 入参 line 单行原文
+ * 传给谁 只回布尔给调用方计数与点名，不产数据不落库
+ */
+export function tagHit(line) {
+  const lower = line.toLowerCase();
+  return NAME_FORMS.some(form => lower.includes(form));
+}
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'target', 'coverage']);
 const TEXT_EXT = new Set([
@@ -108,7 +127,7 @@ export function scanFile(abs) {
   const tagLines = [];
   for (let i = 0; i < lines.length; i++) {
     // 行级判定 同一行多处只点一次名 足以定位
-    if (lines[i].includes(STEPPER_LITERAL)) {
+    if (tagHit(lines[i])) {
       tagLines.push({ line: i + 1, text: lines[i].trim().slice(0, 160) });
     }
   }
@@ -224,13 +243,53 @@ const sel = '.${STEPPER_LITERAL} input';
       expectTag: 0,
       expectHand: 0,
     },
+    {
+      name: '正例 PascalCase 开标签与显式导入组件名必被抓到',
+      src: `<script setup>
+import { ${['El', 'Input', 'Number'].join('')}, ElButton } from 'element-plus';
+</script>
+<template>
+  <${['El', 'Input', 'Number'].join('')} v-model="form.orderId" :min="0" />
+</template>
+`,
+      expectTag: 2,
+      expectHand: 0,
+    },
+    {
+      name: '正例 共享定位器的 kind 判别值与动态组件名字符串同族必被抓到',
+      src: `type Field = { kind: '${['input', 'Number'].join('')}'; label: string };
+const target: Field = { kind: '${['input', 'Number'].join('')}', label: '数量', value: 100 };
+`,
+      expectTag: 2,
+      expectHand: 0,
+    },
+    {
+      name: '正例 只隐藏步进原生按钮的 CSS 假修必被抓到',
+      src: `/* 假修 按钮仍在只是看不见 */
+.${STEPPER_LITERAL}__increase,
+.${STEPPER_LITERAL}__decrease {
+  display: none;
+}
+`,
+      expectTag: 2,
+      expectHand: 0,
+    },
+    {
+      name: '反例 替代控件与 inputmode 属性不得被误报',
+      src: `<NumericInput v-model="form.qty" integer :min="0" />
+<el-input v-model="form.code" inputmode="numeric" />
+// 数值录入统一走 NumericInput，底层是 el-input
+`,
+      expectTag: 0,
+      expectHand: 0,
+    },
   ];
   let pass = 0;
   let fail = 0;
   console.log('=== self-test check-no-stepper-control 双向自证 ===');
   for (const c of cases) {
     // 夹具走与仓库扫描完全相同的行级判定 保证自证的就是线上逻辑
-    const gotTag = c.src.split(/\r?\n/).filter((l) => l.includes(STEPPER_LITERAL)).length;
+    const gotTag = c.src.split(/\r?\n/).filter(l => tagHit(l)).length;
     const gotHand = scanHandRules(c.src).hand;
     if (gotTag === c.expectTag && gotHand === c.expectHand) {
       pass++;
@@ -242,14 +301,23 @@ const sel = '.${STEPPER_LITERAL} input';
       );
     }
   }
-  // 自检 判定器自身源码必须不携带该字面量 否则零出现锁永无绿日
-  const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
-  if (selfSource.includes(STEPPER_LITERAL)) {
+  // 自检 判定器自身源码必须不携带任何禁用形态 否则零出现锁永无绿日
+  const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').toLowerCase();
+  const selfCarried = NAME_FORMS.filter(form => selfSource.includes(form));
+  if (selfCarried.length) {
     fail++;
-    console.log('  FAIL  判定器自身源码携带步进控件名字面量 无法自证豁免');
+    console.log(`  FAIL  判定器自身源码携带禁用形态 ${selfCarried.length} 类 无法自证豁免`);
   } else {
     pass++;
-    console.log('  PASS  判定器自身源码不携带步进控件名字面量');
+    console.log('  PASS  判定器自身源码不携带任何禁用形态');
+  }
+  // 地板 禁用形态集合为空说明判定器被改坏 必须判红而不是"零违规"
+  if (NAME_FORMS.length < 2) {
+    fail++;
+    console.log('  FAIL  禁用形态集合少于两类 kebab 与 PascalCase 族缺位，零出现锁无检测力');
+  } else {
+    pass++;
+    console.log('  PASS  地板 禁用形态 >= 2  [forms=' + NAME_FORMS.length + ']');
   }
   console.log(`---- self-test 结论 ${pass} 通过 / ${fail} 失败 ----`);
   if (fail) {

@@ -23,10 +23,10 @@ function _genName(prefix: string): string {
 // 公共 UI 操作原语
 // ---------------------------------------------------------------------------
 
-/** 通用对话框字段 */
+/** 通用对话框字段 kind 只按值类型区分 不指向任何具体控件形态 */
 type UiField =
   | { kind: 'input'; label: string; value: string }
-  | { kind: 'inputNumber'; label: string; value: number }
+  | { kind: 'number'; label: string; value: number }
   | { kind: 'select'; label: string; value: string }
   | { kind: 'date'; label: string; value: string };
 
@@ -224,7 +224,8 @@ async function fillInField(
       });
       break;
     }
-    case 'inputNumber': {
+    case 'number': {
+      // 数值字段 优先取 type 为 number 的输入单元 无则回退普通输入框 与控件形态无关
       const inp = formItem.locator('input[type="number"]').first();
       if ((await inp.count()) === 0) {
         const inp2 = formItem.locator('.el-input__inner input, input').first();
@@ -738,7 +739,7 @@ export async function createDyeBatchUI(page: Page): Promise<number | undefined> 
     { kind: 'input', label: '色号', value: _genCode('E2E-CN') },
     { kind: 'input', label: '缸号', value: _genCode('E2E-DL') },
     { kind: 'date', label: '染色日期', value: new Date().toISOString().slice(0, 10) },
-    { kind: 'inputNumber', label: '数量', value: 100 },
+    { kind: 'number', label: '数量', value: 100 },
   ];
   const timeoutPromise = new Promise<undefined>(resolve =>
     setTimeout(() => {

@@ -20,6 +20,7 @@ use sea_orm::DatabaseConnection;
 use std::sync::Arc;
 
 use crate::models::status::color_fastness;
+use crate::models::status::product_grade;
 use crate::models::status::product_safety_category;
 use crate::models::status::product_type;
 use crate::search::{SearchClient, SearchSyncer};
@@ -350,6 +351,29 @@ pub fn validate_product_safety_category(value: Option<&str>) -> Result<(), AppEr
     {
         return Err(AppError::validation_displayable(format!(
             "安全类别「{v}」不在词表内，允许值：A、B、C（GB 18401-2010）"
+        )));
+    }
+    Ok(())
+}
+
+/// 产品等级取值域校验（优等品 一等品 合格品 三档，创建与更新共用）。
+///
+/// 读的是本次提交的产品等级值（键缺席或未录入即 None，不判）。写给谁调用：
+/// crud::create_product 的建品判据四连与 crud::update_product 的更新前置校验；
+/// CSV 导入腿的行级词表点名（product_ops::import_export::validate_import_row_fields）
+/// 携带与本函数逐字相等的文案与词表，两支由纸面锁钉彼此一致。判据一份，多路同门。
+/// 存什么：不落库，只做拒绝。
+///
+/// 规则。出现值时必须在 product_grade::ALL_GRADES 三档内，词表外值点名拒绝并列出允许集；
+/// 空白串等同未录入放行（必填性不属本判据，未录入的落库真相是 NULL）。
+/// 与库存等级词表（一等品 二等品 等外品）互不相干，本判据只消费 products.product_grade 自身词表。
+/// 文案走 validation_displayable，只描述用户自己提交字段的取值规则，不涉表名与 SQL。
+pub fn validate_product_grade(value: Option<&str>) -> Result<(), AppError> {
+    if let Some(v) = value.map(str::trim).filter(|s| !s.is_empty())
+        && !product_grade::ALL_GRADES.contains(&v)
+    {
+        return Err(AppError::validation_displayable(format!(
+            "产品等级「{v}」不在词表内，允许值：优等品、一等品、合格品"
         )));
     }
     Ok(())
