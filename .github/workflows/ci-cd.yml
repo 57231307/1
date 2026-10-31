@@ -599,6 +599,19 @@ jobs:
         if: ${{ !cancelled() }}
         working-directory: frontend
         run: node scripts/check-e2e-worker-account.mjs
+      # e2e 下拉面板裸词元棘轮（只准降不准升）：spec/fixture 里的下拉面板定位必须走
+      # ui-helpers 的归属钉定 helper，裸写全局面板类名即阻断；清零文件必须同步下调基线。
+      # 自证步骤（内联双向夹具：正例必抓、反例必不报、棘轮比较判红判下调）先于主门禁执行。
+      - name: e2e 下拉裸词元棘轮判定器自证（双向夹具与棘轮比较）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-e2e-select-ratchet.mjs --self-test
+
+      - name: e2e 下拉裸词元棘轮（spec 禁裸写全局面板类名，基线只准降不准升）
+        if: ${{ !cancelled() }}
+        working-directory: frontend
+        run: node scripts/check-e2e-select-ratchet.mjs
+
 
       - name: 上传报告
         if: always()

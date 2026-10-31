@@ -12,7 +12,8 @@ import {
   safeGoto,
   openDialog,
   formItemByExactLabel,
-  pickSelectIn,
+  openFieldDropdownByLabel,
+  dropdownItems,
   fillFieldByLabel,
   getFieldValue,
 } from './ui-helpers';
@@ -127,19 +128,20 @@ test.describe('委外新建单供应商可搜索选择器端到端', () => {
 
     // 4. 在供应商选择器输入该供应商名的部分字符，断言下拉出现且能筛出该选项（filter 生效）
     const partial = createdSupplierName.slice(3);
-    await pickSelectIn(dialog, page, LABEL_SUPPLIER, { query: partial, openOnly: true });
-    const dropdown = page.locator('.el-select-dropdown:visible').last();
+    // helper 按 LABEL_SUPPLIER 精确锚定 form-item、点 wrapper 输入触发词，并把面板钉定到
+    // 该字段自己名下返回（替代旧「openOnly + 任取最后一个可见面板」）
+    const dropdown = await openFieldDropdownByLabel(dialog, page, LABEL_SUPPLIER, {
+      query: partial,
+    });
     await expect(dropdown, '输入部分名称后供应商下拉应可见').toBeVisible();
-    const matchedOption = dropdown
-      .locator('.el-select-dropdown__item')
-      .filter({ hasText: partial });
+    const matchedOption = dropdownItems(dropdown).filter({ hasText: partial });
     await expect(
       matchedOption.first(),
       `下拉应出现含部分名称「${partial}」的供应商选项`
     ).toBeVisible();
     // 唯一名称保证过滤后仅剩目标一项，证明确实按输入词收窄了候选而非全量展示
     expect(
-      await dropdown.locator('.el-select-dropdown__item').count(),
+      await dropdownItems(dropdown).count(),
       '唯一部分名称应把候选过滤到 1 项'
     ).toBe(1);
 

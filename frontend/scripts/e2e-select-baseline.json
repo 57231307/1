@@ -1,0 +1,5 @@
+{
+  "note": "e2e 内 .el-select-dropdown 裸面板词元棘轮基线：spec/fixture 只允许通过 ui-helpers 的 helper 定位下拉面板，唯一保留点在 helper 定义文件本身（frontend/e2e/flow/ui-helpers.ts，本基线不含它）。只准降不准升；清零文件必须同步下调基线。重生成：node scripts/check-e2e-select-ratchet.mjs --write-baseline",
+  "total": 0,
+  "files": {}
+}

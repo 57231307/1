@@ -1,6 +1,6 @@
 import { test, expect } from '../diagnose-fixture';
 import { loginViaUI, apiCall, apiCallRaw, tryCleanup, getCtx, ensureTestEntities } from './helpers';
-import { safeGoto, findTableRow } from './ui-helpers';
+import { safeGoto, findTableRow, formItemByExactLabel, pickSelectIn } from './ui-helpers';
 // 产品类型单源常量（与后端 product_type 词表同源）：建品夹具取值必须经成员引用。
 import { PRODUCT_TYPE } from '../../src/constants/product-type';
 
@@ -80,6 +80,12 @@ async function openEditDialog(
   return visible;
 }
 
+/**
+ * 状态下拉的停用类选项文案全集（部门页选项为 启用|禁用，客户/部门列表另有 停用 口径）。
+ * 锚定为「选项整串相等」，杜绝以子串命中树面板里的历史停用部门名。
+ */
+const STATUS_DISABLED_OPTION_RE = /^\s*(停用|禁用|关闭|inactive)\s*$/i;
+
 /** 在可见弹窗内切换状态控件（radio 文案或 switch），点击确定 */
 async function toggleStatusInDialog(
   page: import('@playwright/test').Page,
@@ -90,7 +96,6 @@ async function toggleStatusInDialog(
   // 优先级：radio → switch → 状态下拉 el-select（如 /departments 页，选项文案"启用/禁用"）
   // 注意：isVisible() 是立即检查（timeout 参数被忽略），dialog 打开动画期间控件未到
   // visible 态会误判"未找到"，必须用 waitFor 真等待
-  const inactivePattern = /停用|禁用|关闭|inactive/i;
   const radio = dialog
     .locator(`.el-radio:has-text("${inactiveText}"), .el-radio-button:has-text("${inactiveText}")`)
     .first();
@@ -120,38 +125,31 @@ async function toggleStatusInDialog(
       }
       toggledOk = true;
     } else {
-      // 第三优先：状态下拉（el-select + teleport 到 body 的下拉面板）
-      // 注意：部门页弹窗有多个 select（el-tree-select 上级部门在前），.first() 会误点
-      // 上级部门树选择器（其选项含历史"停用"部门名），必须按 label「状态」精确定位
-      let statusSelect = dialog
-        .locator('.el-form-item')
-        .filter({ hasText: /状态/ })
-        .locator('.el-select')
-        .first();
-      if ((await statusSelect.count()) === 0) {
-        statusSelect = dialog.locator('.el-select').last();
-      }
-      const selectVisible = await statusSelect
-        .waitFor({ state: 'visible', timeout: 4000 })
-        .then(() => true);
-      if (selectVisible) {
-        await statusSelect.click();
-        const option = page
-          .locator('.el-select-dropdown:visible .el-select-dropdown__item')
-          .filter({ hasText: inactivePattern })
-          .first();
-        const optionVisible = await option
-          .waitFor({ state: 'visible', timeout: 4000 })
-          .then(() => true);
-        if (optionVisible) {
-          await option.click();
-          console.log('[31c] 已从状态下拉选择停用/禁用项');
-          toggledOk = true;
-        } else {
-          console.error('[31c] 下拉已打开但未找到停用/禁用选项');
-        }
+      // 第三优先：状态下拉（el-select，面板 teleport 到 body 但由 helper 按该字段
+      // input[role=combobox] 的 aria-controls 钉定归属）。
+      // 既往假绿通道：页级「任一可见面板」+ 停用词子串过滤，与上级部门 el-tree-select
+      // 树面板中「停用X部门」历史节点名重叠，误点后保存的是 parent_id 错字段却仍判绿；
+      // 且 label 用子串 /状态/ 过滤、命中不到时兜底 .el-select.last() 会点到任意下拉。
+      // 现口径：按「状态」label 精确锚定 form-item，控件不存在记为未找到（返回 false，
+      // 由调用方判红）；控件存在而交互失败（含选项不含停用词整串）让 helper 自然超时判红。
+      const statusItem = formItemByExactLabel(dialog, '状态');
+      if ((await statusItem.count()) === 0) {
+        console.error('[31c] 弹窗内未找到状态控件（radio/switch/「状态」label 锚定的下拉）');
       } else {
-        console.error('[31c] 弹窗内未找到状态控件（radio/switch/select）');
+        await pickSelectIn(dialog, page, '状态', {
+          optionText: STATUS_DISABLED_OPTION_RE,
+        });
+        // 防回潮断言：状态字段自身回显必须是停用类选项文案（证明选中发生在该字段、
+        // 且选的是停用项），后续各资源用例再对该字段专属列做 API 回读闭环。
+        const displayed = (
+          (await statusItem.locator('.el-select__wrapper').first().textContent()) ?? ''
+        ).trim();
+        expect(
+          displayed,
+          `[31c] 状态下拉选择后该字段回显应为停用类选项，实际「${displayed}」`
+        ).toMatch(STATUS_DISABLED_OPTION_RE);
+        console.log(`[31c] 已从状态下拉选中停用项，字段回显「${displayed}」`);
+        toggledOk = true;
       }
     }
   }

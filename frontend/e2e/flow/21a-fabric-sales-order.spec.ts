@@ -10,6 +10,7 @@ import {
   ensureTestEntities,
   tryCleanup,
 } from './helpers';
+import { openScopedDropdown, dropdownItems } from './ui-helpers';
 import { cellInputByColumn } from './table-column';
 
 /**
@@ -232,8 +233,9 @@ test.describe('面料单据专用字段全链路验证', () => {
       .filter({ has: page.locator('.el-form-item__label', { hasText: '客户' }) })
       .first();
     const customerSelect = customerFormItem.locator('.el-select').first();
-    await customerSelect.click();
-    const customerDropdown = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+    // 打开客户字段自己的候选面板（helper 点 wrapper、按 aria-controls 钉定归属并等可见）
+    const customerPanel = await openScopedDropdown(customerSelect, page);
+    const customerDropdown = dropdownItems(customerPanel);
     // 客户列表由 useOlv.ts fetchCustomers 异步回填（GET /crm/customers）。开框瞬间可能尚未渲染
     // 选项 → 旧代码 click() 后立即 count() 属"开框即点"竞态（flaky：偶发 0 选项）。
     // 改为轮询等待选项渲染（对齐下方色号步骤 waitFor 的做法），窗口内仍无选项 = 真实前置客户数据
@@ -274,21 +276,20 @@ test.describe('面料单据专用字段全链路验证', () => {
     await dialog.locator('textarea[placeholder="详细收货地址"]').fill('E2E 面料收货地址');
     console.log('[21a] 已填联系人与收货地址');
 
-    // 明细行：选产品（表格内第一个 el-select）
-    await dialog.locator('.el-table .el-select').nth(0).click();
-    await page
-      .locator('.el-select-dropdown__item:visible')
-      .filter({ hasText: productName })
-      .first()
-      .click();
+    // 明细行：选产品（表格内第一个 el-select；面板钉定到该行选择器，不再取任一可见面板）
+    const productPanel = await openScopedDropdown(
+      dialog.locator('.el-table .el-select').nth(0),
+      page
+    );
+    await dropdownItems(productPanel).filter({ hasText: productName }).first().click();
     console.log(`[21a] 已选产品 ${productName}`);
 
     // 明细行：选色号（表格内第二个 el-select，选项来自该产品色号列表）
-    await dialog.locator('.el-table .el-select').nth(1).click();
-    const colorOption = page
-      .locator('.el-select-dropdown__item:visible')
-      .filter({ hasText: colorNo })
-      .first();
+    const colorPanel = await openScopedDropdown(
+      dialog.locator('.el-table .el-select').nth(1),
+      page
+    );
+    const colorOption = dropdownItems(colorPanel).filter({ hasText: colorNo }).first();
     await colorOption.waitFor({ state: 'visible', timeout: 5_000 });
     await colorOption.click();
     console.log(`[21a] 已选色号 ${colorNo}`);
@@ -402,8 +403,8 @@ test.describe('面料单据专用字段全链路验证', () => {
       .filter({ has: page.locator('.el-form-item__label', { hasText: '客户' }) })
       .first();
     const customerSelect = customerFormItem.locator('.el-select').first();
-    await customerSelect.click();
-    const customerDropdown = page.locator('.el-select-dropdown:visible .el-select-dropdown__item');
+    const customerPanel = await openScopedDropdown(customerSelect, page);
+    const customerDropdown = dropdownItems(customerPanel);
     await expect(customerDropdown.first(), '[21a-tol] 客户下拉应有选项').toBeVisible({
       timeout: 5000,
     });
@@ -426,19 +427,18 @@ test.describe('面料单据专用字段全链路验证', () => {
     }
 
     // 明细行：选产品
-    await dialog.locator('.el-table .el-select').nth(0).click();
-    await page
-      .locator('.el-select-dropdown__item:visible')
-      .filter({ hasText: productName })
-      .first()
-      .click();
+    const productPanelTol = await openScopedDropdown(
+      dialog.locator('.el-table .el-select').nth(0),
+      page
+    );
+    await dropdownItems(productPanelTol).filter({ hasText: productName }).first().click();
 
     // 明细行：选色号
-    await dialog.locator('.el-table .el-select').nth(1).click();
-    const colorOption = page
-      .locator('.el-select-dropdown__item:visible')
-      .filter({ hasText: colorNo })
-      .first();
+    const colorPanelTol = await openScopedDropdown(
+      dialog.locator('.el-table .el-select').nth(1),
+      page
+    );
+    const colorOption = dropdownItems(colorPanelTol).filter({ hasText: colorNo }).first();
     await colorOption.waitFor({ state: 'visible', timeout: 5000 });
     await colorOption.click();
 

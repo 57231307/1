@@ -4,7 +4,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { apiCall, apiCallRaw, ensureTestEntities, getCtx, tryCleanup } from '../flow/helpers';
-import { pickSelectIn, formItemByExactLabel } from '../flow/ui-helpers';
+import { pickSelectIn, formItemByExactLabel, expectDropdownClosed } from '../flow/ui-helpers';
 
 const CLEANUP: Array<{ path: string; label: string }> = [];
 test.afterEach(async ({ page }) => {
@@ -64,10 +64,10 @@ test.describe('MRP 计算', () => {
     // 选完项后面板在 CI 下仍可能展开，其层叠区域盖住同表单下一行的「开始计算」按钮 →
     // Playwright hit-target 校验失败 → calcBtn.click() 30s 超时（按钮已 resolved 却点不下）。
     // pickSelectIn(multiple) 内虽已按一次 Escape，但不足以在慢环境下稳定收起远程搜索面板；此处
-    // 补一次 Escape 并等待 teleport 下拉面板确不可见（toHaveCount 自动重试，非放宽断言），
+    // 补一次 Escape 并用 expectDropdownClosed 确认 teleport 下拉面板确不可见（自动重试，非放宽断言），
     // 交互顺序与真实用户「选完产品→收起下拉→点开始计算」一致。
     await page.keyboard.press('Escape');
-    await expect(page.locator('.el-select-dropdown:visible')).toHaveCount(0);
+    await expectDropdownClosed(page);
 
     await calcBtn.click();
     await expect(page.getByText(/计算成功/)).toBeVisible({ timeout: 30000 });

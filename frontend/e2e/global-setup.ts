@@ -40,6 +40,10 @@ const SHARD_PASSWORD = BASE_PASSWORD;
 // AI 限流隔离专用第二用户：ai/02 使用此用户登录，与 ai/01 的 SHARD_USERNAME 不同 user_id，
 // 后端 rate_limit_ai_endpoint 按 user_id 维度限流（rate_limit.rs:330）→ 两文件独立 10/min 桶。
 const AI_USERNAME = SHARD_INDEX !== '' ? `e2e_ai_s${SHARD_INDEX}` : 'e2e_ai';
+// AI 限流隔离第二桶用户：与 AI_USERNAME 同形状、同密码、同 admin 角色，只 user_id 不同。
+// 单桶口径是 rate_limit_ai_endpoint 按 user_id 10 req/min（rate_limit.rs:330），
+// 一段用例的 AI 端点调用数超过 10 时必须另起一桶，否则窗口内第 11 次起必拿 429。
+const AI2_USERNAME = SHARD_INDEX !== '' ? `e2e_ai2_s${SHARD_INDEX}` : 'e2e_ai2';
 
 /**
  * requestWithCsrfRecovery / assignPermissionList 的响应契约（单一声明点）。
@@ -145,8 +149,9 @@ export default async function globalSetup(config: FullConfig) {
     await ensureShardUserViaApi();
   }
 
-  // ---- 1.2 AI 限流隔离第二用户（admin 角色，与分片主用户不同 user_id → 独立 AI 限流桶）----
-  await ensureAiUser();
+  // ---- 1.2 AI 限流隔离用户池（admin 角色，与分片主用户不同 user_id → 独立 AI 限流桶）----
+  await ensureAiUser(AI_USERNAME);
+  await ensureAiUser(AI2_USERNAME);
 
   // ---- 1.5 全量角色账号 setup（P3.1）----
   await ensureRoleUsers();
@@ -487,13 +492,17 @@ async function ensureWorkerSessionPool(
 }
 
 /**
- * 确保 AI 限流隔离第二用户存在并可登录（admin 角色）。
- * ai/02-prediction 使用此用户登录，与 ai/01 的分片主用户（e2e_admin_s{n}）拥有不同
- * user_id → 后端 rate_limit_ai_endpoint 按 user_id 维度的 10 req/min 桶彼此独立，
- * 两文件在 extras 分片内并行（workers=2）不再争抢同一桶，确定性根除 429 互踩。
- * 幂等：已存在（400/409/「已存在」）视为成功跳过。
+ * 确保一个 AI 限流隔离用户存在并可登录（admin 角色）。
+ * 入参 username：账号名由调用方按分片派生（AI_USERNAME / AI2_USERNAME），
+ *      本函数不自己拼名字，避免账号命名出现第二处事实来源。
+ * 授权面：与分片主账号映射同一个 admin 角色 id，不额外授任何权限键
+ *      （AI 端点的读权限 ai-*:read 由 admin 角色全量覆盖）。
+ * 密码：沿用建号主体密码 BASE_PASSWORD（与 worker 会话池同一份密码，见 SHARD_PASSWORD 赋值），
+ *      因此取用侧只需用户名、不需另写一份凭证文件；
+ *      凭证文件 e2e/.auth/role-credentials.json 只登记角色账号，AI 隔离账号不在其内。
+ * 幂等：已存在（400/409/「已存在」）视为成功跳过，终验以真实登录收口。
  */
-async function ensureAiUser(): Promise<void> {
+async function ensureAiUser(username: string): Promise<void> {
   const loginCtx = await request.newContext({
     baseURL: API_BASE,
     extraHTTPHeaders: {
@@ -541,21 +550,21 @@ async function ensureAiUser(): Promise<void> {
     `${API_PREFIX}/users`,
     headers,
     {
-      username: AI_USERNAME,
+      username,
       password: BASE_PASSWORD,
       role_id: adminRole.id,
       real_name: 'E2E-AI限流隔离',
     }
   );
   if (createResp.ok()) {
-    console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 创建成功`);
+    console.log(`[globalSetup] AI 隔离用户 ${username} 创建成功`);
   } else if (createResp.status() === 400 || createResp.status() === 409) {
-    console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 已存在，跳过`);
+    console.log(`[globalSetup] AI 隔离用户 ${username} 已存在，跳过`);
   } else {
     const body = await createResp.text();
     await loginCtx.dispose();
     throw new Error(
-      `ensureAiUser: 创建 ${AI_USERNAME} 失败 HTTP ${createResp.status()}: ${body.slice(0, 300)}`
+      `ensureAiUser: 创建 ${username} 失败 HTTP ${createResp.status()}: ${body.slice(0, 300)}`
     );
   }
   await loginCtx.dispose();
@@ -568,15 +577,15 @@ async function ensureAiUser(): Promise<void> {
       'X-Requested-With': 'XMLHttpRequest',
     },
   });
-  const loginCheck = await loginWithRetry(checkCtx, AI_USERNAME, BASE_PASSWORD);
+  const loginCheck = await loginWithRetry(checkCtx, username, BASE_PASSWORD);
   await checkCtx.dispose();
   if (!loginCheck.ok()) {
     const body = await loginCheck.text().catch(() => '');
     throw new Error(
-      `ensureAiUser: ${AI_USERNAME} 终验登录失败 HTTP ${loginCheck.status()}: ${body.slice(0, 300)}`
+      `ensureAiUser: ${username} 终验登录失败 HTTP ${loginCheck.status()}: ${body.slice(0, 300)}`
     );
   }
-  console.log(`[globalSetup] AI 隔离用户 ${AI_USERNAME} 就绪`);
+  console.log(`[globalSetup] AI 隔离用户 ${username} 就绪`);
 }
 
 // ==================== P3.1 全量角色账号 setup ====================

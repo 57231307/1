@@ -70,7 +70,35 @@ declare module 'fs' {
   export function existsSync(path: string): boolean;
   export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
   export function readFileSync(path: string, options: string | { encoding: string }): string;
-  export function readFileSync(path: string): Uint8Array;
+  export function readFileSync(path: string): Buffer;
   export function statSync(path: string): { size: number };
   export function writeFileSync(path: string, data: string, options?: string): void;
 }
+
+/**
+ * Buffer 最小面声明（沿用本文件既定流程：e2e 用 Node API 必须在此显式补声明，
+ * 而不是让调用点挂 TS2580，或用 as unknown as never 把契约错挪到运行期）。
+ * 成员与调用点逐一对应，未用到的成员一律不声明：
+ * - from，flow/122 与 flow/126 的 multipart 文件载体（Playwright 的 buffer 成员运行期
+ *   只认 Buffer，传 Uint8Array 报 Unexpected buffer type）、flow/helpers.ts 的导出密钥
+ *   构造、fixtures/auth.ts 的 JWT 三段拼装；入参形状含字符串、字节数组与数字数组；
+ * - alloc，flow/32 一类按长度预建缓冲区的写入站点；
+ * - 返回值上的 toString（encoding 形参，auth.ts 出 base64url）与 writeBigUInt64LE
+ *   （zip 容器构造站点按大端与小端两种写法各有一处）。
+ * - subarray（Node 的 Buffer 返回的仍是 Buffer，两个字节检查站点按此取头部）。
+ * 类型位置的 Buffer（traversal/39c-export-content.spec.ts 与 traversal/matrix-probe.ts 的
+ * 形参标注）由同名类型别名给出，别名指向同一窄形状，不伪造 Node 的完整 Buffer API。
+ */
+interface NodeBufferLike extends Uint8Array {
+  toString(encoding?: string): string;
+  subarray(begin?: number, end?: number): Buffer;
+  writeBigUInt64LE(value: bigint, offset?: number): number;
+  writeBigUInt64BE(value: bigint, offset?: number): number;
+}
+
+type Buffer = NodeBufferLike;
+
+declare const Buffer: {
+  from(data: string | Uint8Array | ArrayBuffer | readonly number[], encoding?: string): Buffer;
+  alloc(size: number): Buffer;
+};
