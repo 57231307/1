@@ -148,14 +148,14 @@ test.describe.serial('P0 导入导出：真实 UI 点击验证', () => {
     // 必填四列（表内 required 位）：产品编码 产品名称 产品类型 计量单位；
     // 产品类型只接受词表值（坯布 成品布 辅料，行级校验 validate_import_row_fields 判）。
     // 本行类型为「坯布」（面料类）：建品判据 validate_product_create_fields（product_service.rs）
-    // 要求 幅宽 克重 面料成分 三列同全且数值大于 0，故按模板真实列名补齐这三列——
+    // 要求 有效幅宽 克重 面料成分 三列同全且数值大于 0，故按模板真实列名补齐这三列——
     // 这是用例贴合真实契约（断言原样保留，仍断「导入成功 1 条」），不是削足适履放宽断言；
     // 缺列整行会被判据点名拒绝（行级失败归到真实列名，不再落「数据库」这类无信息列）。
     // CsvImporter::parse 按表头名做键值映射（utils/import_export.rs），英文表头会全部判成缺列。
     const tmpFile = `/tmp/p0-import-product-${TS}.csv`;
     fs.writeFileSync(
       tmpFile,
-      '产品编码,产品名称,产品类型,计量单位,面料成分,幅宽,克重\n' +
+      '产品编码,产品名称,产品类型,计量单位,面料成分,有效幅宽,克重\n' +
         `P0-IMP-${TS},P0导入测试产品,坯布,米,100%棉,150.00,120.00\n`
     );
     console.log(`[P0-导入-产品] 创建临时导入文件: ${tmpFile}`);

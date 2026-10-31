@@ -126,7 +126,7 @@ test.describe('106 产品米数下线与规格派生提交形态回读', () => {
           .toBe(0);
       }
 
-      const widthInput = inputOf(dlg, '幅宽(cm)');
+      const widthInput = inputOf(dlg, '有效幅宽(cm)');
       const gramInput = inputOf(dlg, '克重(g/m²)');
       await widthInput.fill('160');
       await gramInput.fill('180');
@@ -180,7 +180,7 @@ test.describe('106 产品米数下线与规格派生提交形态回读', () => {
     });
     try {
       const dlg = await openEditDialog(page, name);
-      const widthInput = inputOf(dlg, '幅宽(cm)');
+      const widthInput = inputOf(dlg, '有效幅宽(cm)');
       await expect
         .poll(async () => Number(await widthInput.inputValue()), { timeout: 10_000 })
         .toBe(160);
