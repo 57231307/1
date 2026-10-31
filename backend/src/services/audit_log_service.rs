@@ -374,7 +374,10 @@ impl AuditLogService {
         })?;
         let record_id = pk_integer.to_string();
         // update 前查询 old_model 序列化为 before_snapshot（按主键列等值查询，i32 与 i64 主键同权）
-        let old_model = E::find().filter(pk_col.eq(pk_val_unwrapped)).one(db).await?;
+        let old_model = E::find()
+            .filter(pk_col.eq(pk_val_unwrapped))
+            .one(db)
+            .await?;
         let before_snapshot = old_model.and_then(|m| serde_json::to_value(&m).ok());
         let new_model = active_model.update(db).await?;
         let after_snapshot = serde_json::to_value(&new_model).ok();

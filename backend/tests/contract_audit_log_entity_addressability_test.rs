@@ -35,7 +35,10 @@ use bingxi_backend::services::audit_log_service::AuditLogService;
 use bingxi_backend::utils::admin_checker::AUDITOR_ROLE_CODE;
 use chrono::{DateTime, Duration, Utc};
 use rust_decimal::Decimal;
-use sea_orm::{ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, Set};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    QueryFilter, QueryOrder, Set,
+};
 use serde_json::Value;
 use std::sync::Arc;
 use test_common::setup_test_db;
@@ -105,7 +108,10 @@ async fn seed_customer(db: &Arc<DatabaseConnection>, tag: &str) -> i32 {
 /// 直落一行 DRAFT 报价单（BIGSERIAL 主键实体，状态词表按 chk_quotation_status 取值）
 async fn seed_quotation(db: &Arc<DatabaseConnection>, customer_id: i32) -> i64 {
     let m = sales_quotation::ActiveModel {
-        quotation_no: Set(format!("QT-AUDT-{}", Utc::now().timestamp_nanos_opt().unwrap_or_default())),
+        quotation_no: Set(format!(
+            "QT-AUDT-{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        )),
         customer_id: Set(customer_id),
         sales_user_id: Set(OPERATOR_ID as i64),
         quotation_date: Set(Utc::now().date_naive()),
@@ -148,7 +154,12 @@ async fn seed_period(db: &Arc<DatabaseConnection>, tag: &str) -> i32 {
 }
 
 /// 直落一行审计记录（读侧过滤用例的受控夹具，列值全部显式给足）
-async fn seed_audit_row(db: &Arc<DatabaseConnection>, rt: &str, rid: &str, ts: DateTime<Utc>) -> i32 {
+async fn seed_audit_row(
+    db: &Arc<DatabaseConnection>,
+    rt: &str,
+    rid: &str,
+    ts: DateTime<Utc>,
+) -> i32 {
     let m = audit_log::ActiveModel {
         id: ActiveValue::NotSet,
         user_id: Set(Some(OPERATOR_ID)),
@@ -269,7 +280,10 @@ async fn bigint_pk_placeholder_stamps_table_name_and_real_resource_id() {
         Some("DRAFT"),
         "before_snapshot 必须是更新前的真实状态 DRAFT"
     );
-    let after = row.after_snapshot.as_ref().expect("after_snapshot 必须存在");
+    let after = row
+        .after_snapshot
+        .as_ref()
+        .expect("after_snapshot 必须存在");
     assert_eq!(
         after.0["status"].as_str(),
         Some("SUBMITTED"),
@@ -291,12 +305,11 @@ async fn int_pk_placeholder_stamps_table_and_explicit_type_is_kept() {
         .expect("种子会计期间必须可回读");
     let mut active: accounting_period::ActiveModel = loaded.into();
     active.status = Set("CLOSED".to_string());
-    AuditLogService::update_with_audit::<accounting_period::Entity, accounting_period::ActiveModel, _>(
-        &*db,
-        "auto_audit",
-        active,
-        Some(OPERATOR_ID),
-    )
+    AuditLogService::update_with_audit::<
+        accounting_period::Entity,
+        accounting_period::ActiveModel,
+        _,
+    >(&*db, "auto_audit", active, Some(OPERATOR_ID))
     .await
     .unwrap_or_else(|e| panic!("SERIAL 主键实体经 update_with_audit 更新必须成功 {e}"));
 
@@ -311,7 +324,10 @@ async fn int_pk_placeholder_stamps_table_and_explicit_type_is_kept() {
         Some(period_id.to_string().as_str()),
         "SERIAL 主键的 resource_id 必须是真实记录号"
     );
-    let before = row.before_snapshot.as_ref().expect("SERIAL 主键必须查得 before_snapshot");
+    let before = row
+        .before_snapshot
+        .as_ref()
+        .expect("SERIAL 主键必须查得 before_snapshot");
     assert_eq!(before.0["status"].as_str(), Some("OPEN"));
 
     // 第二腿 显式实体名原样落库（换名逻辑不得覆盖调用方给定的值）
@@ -322,7 +338,11 @@ async fn int_pk_placeholder_stamps_table_and_explicit_type_is_kept() {
         .expect("第一腿更新后期间必须仍可回读");
     let mut active: accounting_period::ActiveModel = loaded.into();
     active.close_remark = Set(Some("显式实体名用例".to_string()));
-    AuditLogService::update_with_audit::<accounting_period::Entity, accounting_period::ActiveModel, _>(
+    AuditLogService::update_with_audit::<
+        accounting_period::Entity,
+        accounting_period::ActiveModel,
+        _,
+    >(
         &*db,
         "explicit_accounting_period",
         active,
@@ -389,7 +409,8 @@ async fn list_filter_entity_and_resource_id_exact_semantics() {
     );
 
     // 性质三 过滤值不存在时返回空集合，不报错也不返回全量
-    let (status4, miss_body) = call_list(&app, "resource_type=sales_quotations&resource_id=987654").await;
+    let (status4, miss_body) =
+        call_list(&app, "resource_type=sales_quotations&resource_id=987654").await;
     assert_eq!(
         status4,
         StatusCode::OK,
@@ -400,8 +421,13 @@ async fn list_filter_entity_and_resource_id_exact_semantics() {
         Some(0),
         "不存在的 resource_id 必须空集合而不是全量兜底放行"
     );
-    let items_empty = miss_body["data"]["items"].as_array().expect("items 必须是数组");
-    assert!(items_empty.is_empty(), "不存在的 resource_id 命中行必须为 0");
+    let items_empty = miss_body["data"]["items"]
+        .as_array()
+        .expect("items 必须是数组");
+    assert!(
+        items_empty.is_empty(),
+        "不存在的 resource_id 命中行必须为 0"
+    );
     let (status5, miss_rt) = call_list(&app, "resource_type=no_such_entity_xyz").await;
     assert_eq!(status5, StatusCode::OK);
     assert_eq!(
