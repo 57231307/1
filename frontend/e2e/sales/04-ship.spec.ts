@@ -23,10 +23,10 @@
 // - DeliveryDialog（aria-label sales.delivery.dialogAriaLabel='销售发货对话框'，标题 '销售发货'）真实控件：
 //   只读销售单号/客户；发货日期 date picker 占位 '选择日期'；仓库 el-select（label '仓库'）；
 //   明细 el-table（aria-label '销售发货明细表'）列 产品/库存行/缸号/色号/批次/匹号/订单数量/已发货/
-//   本次发货(el-input-number)/单价/备注；底部 '取消' / '确定发货'。
+//   本次发货(数字录入列，纯手写 el-input 加校验器)/单价/备注；底部 '取消' / '确定发货'。
 //   出库需先选仓库加载库存行，再按四维(色号/批次/缸号)选库存行；染色布行（color_no 非空）随后
 //   出现「匹号」el-select（候选由 loadDeliveryPieces 按 产品+仓+缸+批+AVAILABLE 下推查询），
-//   白坯行该列渲染 '—'；本次发货 el-input-number :max = 订单数量 - 已发货，超限输入会被钳制。
+//   白坯行该列渲染 '—'；本次发货数字录入列上限规则 = 订单数量 - 已发货，超限输入会被钳制。
 //   单明细行时对话框内 el-select 顺序：0=仓库、1=库存行、2=匹号。
 // - 校验（handleSubmit）：未选仓库 → ElMessage.warning('请选择仓库')；未填发货日期 → '请选择发货日期'；
 //   染色布未选匹号 → '染色布发货必须选定匹号（缸号/色号/批次/匹号 四维齐才可出库）'。
@@ -35,6 +35,7 @@
 import { test, expect, type Page } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 import {
   ensureTestEntities,
   getCtx,
@@ -161,11 +162,14 @@ test.describe('04 销售发货', () => {
     const dialog = await openDeliveryDialog(page, orderNo);
     // 先选仓库以启用库存行与本次发货上限计算
     await pickSelectIn(dialog, page, '仓库');
-    const qty = dialog.getByRole('spinbutton').first();
+    // 本次发货列为纯手写录入的数字输入框（无步进加减按钮 旧 spinbutton 角色随换型消失）按列头锚定
+    const deliveryTable = dialog.locator('.el-table').first();
+    const deliveryRow = deliveryTable.locator('.el-table__row').first();
+    const qty = await cellInputByColumn(deliveryTable, deliveryRow, '本次发货');
     // 输入远超订单数量（订单量 10）的值
     await qty.fill('99999');
     await page.keyboard.press('Tab');
-    // el-input-number :max 生效：失焦后实际值被钳制到可发上限（≠ 99999）
+    // 上限规则生效：失焦后实际值被钳制到可发上限（≠ 99999）
     await expect(qty).not.toHaveValue('99999');
   });
 
@@ -215,8 +219,11 @@ test.describe('04 销售发货', () => {
       pieceSel.locator('.el-select__selected-item.el-select__placeholder:not(.is-transparent)'),
       `匹号第四维应选中本例真实匹 ${piece.piece_no}`
     ).toContainText(piece.piece_no);
-    // 本次发货数量
-    await dialog.getByRole('spinbutton').first().fill('1');
+    // 本次发货数量 按列头锚定该行录入框（纯手写数字录入列 无步进加减按钮）
+    const deliveryTable04 = dialog.locator('.el-table').first();
+    const deliveryRow04 = deliveryTable04.locator('.el-table__row').first();
+    const shipQtyInput = await cellInputByColumn(deliveryTable04, deliveryRow04, '本次发货');
+    await shipQtyInput.fill('1');
     await dialog.getByRole('button', { name: '确定发货' }).click();
     // 真实出库端点成功 → msg.success('shipSuccess') = '发货成功'
     await expect(page.getByText('发货成功')).toBeVisible({ timeout: 30000 });
@@ -265,7 +272,10 @@ test.describe('04 销售发货', () => {
     await dialog.getByPlaceholder('选择日期').fill('2026-12-31');
     await page.keyboard.press('Enter');
     await pickSelect(page, dialog.locator('.el-select').nth(1), bundle.dyeLotNo);
-    await dialog.getByRole('spinbutton').first().fill('1');
+    const deliveryTable05 = dialog.locator('.el-table').first();
+    const deliveryRow05 = deliveryTable05.locator('.el-table__row').first();
+    const shipQtyInput05 = await cellInputByColumn(deliveryTable05, deliveryRow05, '本次发货');
+    await shipQtyInput05.fill('1');
     await dialog.getByRole('button', { name: '确定发货' }).click();
     // locales sales.delivery.pieceNoRequired 原文
     await expect(

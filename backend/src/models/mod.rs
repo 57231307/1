@@ -464,6 +464,15 @@ pub mod aging_grade_config;
 pub mod industry_benchmark_config;
 // batch-21 P2 25.4-I: 长任务处理机制
 pub mod long_running_task;
+// 纺织品安全合规域（GB 18401 与 GB 31701 限值矩阵、送检单流程、第三方报告完整性门、出口要求登记）
+pub mod textile_test_item;
+pub mod textile_limit_rule;
+pub mod textile_safety_submission;
+pub mod textile_safety_submission_item;
+pub mod textile_third_party_report;
+pub mod textile_report_item_result;
+pub mod textile_child_safety_check;
+pub mod textile_export_market_requirement;
 // 合同模板体系四张表的 Model。contract_template 是模板主数据（含版本与启用位），
 // clause_library 是条款库正文，contract_template_clause 是模板下的条款项，
 // contract_clause 是签约时固化到合同实例的条款快照。

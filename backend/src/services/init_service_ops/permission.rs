@@ -594,6 +594,9 @@ impl InitService {
                     ("color-prices", "*"),
                     ("customers", "*"),
                     ("customer-credits", "read"),
+                    // 纺织品安全合规域：报价与订单侧只读出口市场要求登记面
+                    // （裁定六面之一"能被报价与订单侧读到"；送检与报告明细不给销售）
+                    ("textile-export-requirements", "read"),
                     ("reports", "read"),
                     ("sales-analysis", "read"),
                     // BPM 审批面：键由 `/api/v1/erp/bpm/{第四段}` 经消歧派生。审批提交端点是
@@ -665,6 +668,8 @@ impl InitService {
                     // 出口商检：销售代表可读自己出口订单对应的商检单与结论（只读，
                     // 建单/登记结果属报关岗，不越界授予）。
                     ("export-inspections", "read"),
+                    // 纺织品安全合规域：报价前核对目标市场加验口径，只读登记面。
+                    ("textile-export-requirements", "read"),
                     // 客户转移审批建单面：本岗发起转移申请（POST /crm/transfer-approvals
                     // 派生 create 键）并回读自己提交的单（read 键，行级可见面仍由数据范围
                     // 按申请人下推）。**不授** managerapprove/directorapprove 两枚审批键
@@ -1075,6 +1080,13 @@ impl InitService {
                     ("production-orders", "read"),
                     ("reports", "read"),
                     ("business-trace", "read"),
+                    // 纺织品安全合规域：质量经理持有判定表维护权（限值矩阵可维护是裁定
+                    // 硬要求）与送检、报告、主数据、出口要求全集；写口审计靠会话注入。
+                    ("textile-submissions", "*"),
+                    ("textile-reports", "*"),
+                    ("textile-test-items", "*"),
+                    ("textile-limit-rules", "*"),
+                    ("textile-export-requirements", "*"),
                 ],
             ),
             (
@@ -1093,6 +1105,18 @@ impl InitService {
                     // 验布打卷产出成品布 → 标签面板读匹行并可打印
                     ("pieces", "read"),
                     ("pieces", "print"),
+                    // 纺织品安全合规域：质检员执行送检与报告登记与童装核查录入与判定，
+                    // 但判定表与项目主数据的维护权不授（改限值不能经手执行人，qc_manager 独持）；
+                    // 出口要求只读（对单时核对客户加验口径）。
+                    ("textile-submissions", "read"),
+                    ("textile-submissions", "create"),
+                    ("textile-submissions", "update"),
+                    ("textile-reports", "read"),
+                    ("textile-reports", "create"),
+                    ("textile-reports", "update"),
+                    ("textile-test-items", "read"),
+                    ("textile-limit-rules", "read"),
+                    ("textile-export-requirements", "read"),
                 ],
             ),
             (

@@ -619,6 +619,28 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '外贸合规中心', icon: 'Ship', permission: 'sales:read', requiresAuth: true },
       },
       {
+        path: 'textile-safety',
+        name: 'TextileSafety',
+        component: () => import('@/views/textile-safety/index.vue'),
+        meta: {
+          title: '纺织品安全送检',
+          icon: 'CircleCheck',
+          permission: ['textile-submissions:read'],
+          requiresAuth: true,
+        },
+      },
+      {
+        path: 'textile-safety-master',
+        name: 'TextileSafetyMaster',
+        component: () => import('@/views/textile-safety/master.vue'),
+        meta: {
+          title: '纺织品安全判定主数据',
+          icon: 'SetUp',
+          permission: ['textile-test-items:read'],
+          requiresAuth: true,
+        },
+      },
+      {
         path: 'wage',
         name: 'Wage',
         component: () => import('@/views/wage/index.vue'),
