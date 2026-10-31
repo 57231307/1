@@ -389,11 +389,11 @@ fn resolve_preview_must_show_actionable_displayable_reason() {
         );
     }
     assert!(
-        canon_contains(&body, "AppError::business_displayable("),
+        canon_contains(body, "AppError::business_displayable("),
         "resolve 的拒绝必须走可外显构造，否则操作员只拿到脱敏常量"
     );
     assert!(
-        !canon_contains(&body, "AppError::business("),
+        !canon_contains(body, "AppError::business("),
         "resolve 未命中路径退回脱敏的 AppError::business 即判红，界面将再次只剩业务处理失败"
     );
 
@@ -420,11 +420,11 @@ pub async fn resolve_sku() {
 pub async fn other() {}";
     let body = resolve_sku_body(regressed);
     assert!(
-        !canon_contains(&body, "AppError::business_displayable("),
+        !canon_contains(body, "AppError::business_displayable("),
         "夹具未造出脱敏回退形态，反向自证无效"
     );
     assert!(
-        canon_contains(&body, "AppError::business("),
+        canon_contains(body, "AppError::business("),
         "夹具未造出脱敏回退形态，反向自证无效"
     );
     assert!(
