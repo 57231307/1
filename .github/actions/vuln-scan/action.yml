@@ -226,8 +226,11 @@ runs:
       env:
         SEMGREP_VERSION: "1.183.0"
         SEMGREP_WHEEL: "semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
-        SEMGREP_SHA256: "f36115c4d0cb43056ceb308273421a2f6a35e055e7e029601e130850f836646e"
-        SEMGREP_URL: "https://files.pythonhosted.org/packages/c5/fd/85ac31a5ec53feee54ebdce933ab1c94af81695a2b244b0baefdbcdba92a/semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
+        # 名字不能取 SEMGREP_URL：semgrep 自身读该变量当注册表基址，同名会让 --config p/xxx
+        #   被拼成 "<轮子直链>/c/p/xxx" 并在下载规则集时 404，规则面整片加载不上；
+        #   轮子直链一律用 *WHEEL_URL 命名，并在调用处显式剔除这两个基址变量的继承值。
+        SEMGREP_WHEEL_SHA256: "f36115c4d0cb43056ceb308273421a2f6a35e055e7e029601e130850f836646e"
+        SEMGREP_WHEEL_URL: "https://files.pythonhosted.org/packages/c5/fd/85ac31a5ec53feee54ebdce933ab1c94af81695a2b244b0baefdbcdba92a/semgrep-1.183.0-cp310.cp311.cp312.cp313.cp314.py310.py311.py312.py313.py314-none-manylinux_2_34_x86_64.whl"
         SEMGREP_RULESETS: "p/ci-detect-secrets p/typescript p/rust"
       run: |
         set -uo pipefail
@@ -238,7 +241,7 @@ runs:
         mkdir -p "$WORK"
         trap 'rm -rf "$WORK"' EXIT
         WHEEL="$WORK/$SEMGREP_WHEEL"
-        URL_BASE="${SEMGREP_URL##*/}"
+        URL_BASE="${SEMGREP_WHEEL_URL##*/}"
         if [ "$URL_BASE" != "$SEMGREP_WHEEL" ]; then
           echo "::error::semgrep 轮子文件名与直链末段不符（钉死 ${SEMGREP_WHEEL}，直链 ${URL_BASE}）：pip 按本地文件名认包名与版本，两者不一致时按来历不明的名字安装"
           exit 1
@@ -248,10 +251,10 @@ runs:
           *) echo "::error::semgrep 轮子文件名不是 ${SEMGREP_VERSION} 的合法轮子名（实得 ${SEMGREP_WHEEL}），装不上也验不出装错"
              exit 1 ;;
         esac
-        curl -sSfL --retry 3 -o "$WHEEL" "$SEMGREP_URL"           || { echo "::error::semgrep 轮子下载失败（固定版本 ${SEMGREP_VERSION}），拒绝把 SAST 面当已通过"; exit 1; }
+        curl -sSfL --retry 3 -o "$WHEEL" "$SEMGREP_WHEEL_URL"           || { echo "::error::semgrep 轮子下载失败（固定版本 ${SEMGREP_VERSION}），拒绝把 SAST 面当已通过"; exit 1; }
         ACTUAL="$(sha256sum "$WHEEL" | awk '{print $1}')"
-        if [ "$ACTUAL" != "$SEMGREP_SHA256" ]; then
-          echo "::error::semgrep 轮子 sha256 与钉死值不符（期望 ${SEMGREP_SHA256}，实得 ${ACTUAL}）：下载截断或内容被替换"
+        if [ "$ACTUAL" != "$SEMGREP_WHEEL_SHA256" ]; then
+          echo "::error::semgrep 轮子 sha256 与钉死值不符（期望 ${SEMGREP_WHEEL_SHA256}，实得 ${ACTUAL}）：下载截断或内容被替换"
           exit 1
         fi
         python3 -m venv "$WORK/venv" || { echo "::error::semgrep 独立环境创建失败"; exit 1; }
@@ -263,13 +266,13 @@ runs:
           *) echo "::error::semgrep 版本与钉死值不符（期望 ${SEMGREP_VERSION}，实得 ${SGV}）"; exit 1 ;;
         esac
         for rs in $SEMGREP_RULESETS; do
-          "$WORK/venv/bin/semgrep" --validate --config "$rs" > "$WORK/validate.log" 2>&1             || { echo "::error::规则集 ${rs} 校验不通过（注册表取不到或内容无效），本轮 SAST 面属未覆盖"; tail -20 "$WORK/validate.log"; exit 1; }
+          env -u SEMGREP_URL -u SEMGREP_BASE_LEGACY_URL "$WORK/venv/bin/semgrep" --validate --config "$rs" > "$WORK/validate.log" 2>&1             || { echo "::error::规则集 ${rs} 校验不通过（注册表取不到或内容无效），本轮 SAST 面属未覆盖"; tail -20 "$WORK/validate.log"; exit 1; }
           echo "规则集 ${rs} 校验通过"
         done
         CFG_ARGS=()
         for rs in $SEMGREP_RULESETS; do CFG_ARGS+=(--config "$rs"); done
         set +e
-        "$WORK/venv/bin/semgrep" scan --quiet --metrics=off --exclude 'miniprogram_npm' --exclude 'node_modules' --exclude 'target'           "${CFG_ARGS[@]}" --json --output "$R/semgrep.json" . > "$R/semgrep.log" 2>&1
+        env -u SEMGREP_URL -u SEMGREP_BASE_LEGACY_URL "$WORK/venv/bin/semgrep" scan --quiet --metrics=off --exclude 'miniprogram_npm' --exclude 'node_modules' --exclude 'target'           "${CFG_ARGS[@]}" --json --output "$R/semgrep.json" . > "$R/semgrep.log" 2>&1
         SRC=$?
         set -e
         echo "semgrep exit=$SRC（0=无命中 1=有命中 2 及以上=用法或运行错误）"
