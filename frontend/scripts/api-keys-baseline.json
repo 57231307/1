@@ -1,5 +1,5 @@
 {
-  "total": 100,
+  "total": 99,
   "files": {
     "frontend/src/api/ai-extend.ts": {
       "count": 2,
@@ -9,9 +9,8 @@
       ]
     },
     "frontend/src/api/ap.ts": {
-      "count": 11,
+      "count": 10,
       "keys": [
-        "APAgingReportData.current",
         "APAgingReportData.days_30",
         "APAgingReportData.days_60",
         "APAgingReportData.days_90",
