@@ -3907,9 +3907,9 @@ export default {
       placeholderSpecification: 'Enter specification',
       labelUnit: 'Unit',
       placeholderUnit: 'Select unit',
-      labelWidth: 'Width (cm)',
+      labelWidth: 'Effective Width (cm)',
       tipWidth:
-        'Effective fabric width in centimeters, excluding the needle edge; meter and kilogram conversion uses this value. Quote-to-order conversion derives kilograms from meters times gram weight times width; conversion is rejected when missing. Enter the needle-included width in the needle-in width field.',
+        'Effective fabric width in centimeters, excluding the needle edge; meter and kilogram conversion uses this value. Quote-to-order conversion derives kilograms from meters times gram weight times effective width; conversion is rejected when missing. Enter the needle-included width in the Width (cm) field.',
       labelGramWeight: 'Gram Weight (g/m²)',
       tipGramWeight:
         'Product gram weight in g/m². Required for deriving kilograms during quote-to-order conversion.',
@@ -3924,12 +3924,12 @@ export default {
       statusInactive: 'Inactive',
       labelProductType: 'Product Type',
       tipProductType:
-        'Fabric types (greige, finished) require width, gram weight and fabric composition on creation.',
+        'Fabric types (greige, finished) require effective width, gram weight and fabric composition on creation.',
       placeholderProductType: 'Select product type',
       labelMetersPerKg: 'Meters per Kg',
       tipMetersPerKg:
-        'Derived from gram weight and width, floored to one decimal place, read-only.',
-      placeholderMetersPerKgNa: 'Fill gram weight and width to compute',
+        'Derived from gram weight and effective width, floored to one decimal place, read-only.',
+      placeholderMetersPerKgNa: 'Fill gram weight and effective width to compute',
       labelFabricComposition: 'Fabric Composition',
       placeholderFabricComposition: 'e.g. 95% Cotton 5% Spandex',
       tipFabricComposition: 'Required on creation for fabric types (greige, finished).',
@@ -3943,7 +3943,7 @@ export default {
         'Woven and knitted structures listed; knitted splits into weft-knit and warp-knit; dropdown is common industry terms, free text allowed',
       labelFinish: 'Finish',
       placeholderFinish: 'Enter finishing',
-      labelMinOrderQuantity: 'Min Order Quantity',
+      labelMinOrderQuantity: 'Order Quantity',
       labelLeadTime: 'Lead Time (days)',
       labelExecutionStandard: 'Execution Standard',
       placeholderExecutionStandard: 'e.g. GB/T 411-2017; class A also lists GB 31701-2015',
@@ -3952,31 +3952,31 @@ export default {
       labelFactoryAddress: 'Factory Address',
       placeholderFactoryAddress: 'Enter factory address',
       labelProductGrade: 'Product Grade',
+      tipProductGrade:
+        'Fabric grading, one of premium grade, first grade or qualified grade; not the same thing as safety category on the right, which follows GB 18401 class A/B/C',
       placeholderProductGrade: 'Select product grade',
       labelSafetyCategory: 'Safety Category',
       tipSafetyCategory:
         'GB 18401-2010 class A/B/C: A infant, B direct skin contact, C non-direct skin contact; class A must also meet GB 31701-2015',
       placeholderSafetyCategory: 'Select safety category',
-      labelWidthNeedleIncluded: 'Needle-in Width (cm)',
+      labelWidthNeedleIncluded: 'Width (cm)',
       tipWidthNeedleIncluded:
         'Fabric width including needle edge, for open-width and pre-shrunk reference; meter/kg conversion still uses effective width, this column is excluded',
-      placeholderWidthNeedleIncluded: 'Enter needle-in width (cm)',
+      placeholderWidthNeedleIncluded: 'Enter width (cm)',
       labelWeightTolerance: 'Weight Tolerance (±g/m²)',
-      tipWeightTolerance: 'Allowed deviation of the target gram weight, non-negative',
+      tipWeightTolerance:
+        'This column records only the allowed deviation and is non-negative; the gram weight itself goes in Gram Weight (g/m²) above, the two columns hold separate values',
       placeholderWeightTolerance: 'Enter weight tolerance',
-      labelSpandexPercent: 'Spandex Content (%)',
-      tipSpandexPercent: 'Industry measure of elasticity requirement, 0 to 100',
-      placeholderSpandexPercent: 'Enter spandex content (%)',
       labelUsage: 'Usage',
       placeholderUsage: 'e.g. apparel fabric, home textile, industrial',
-      placeholderWidth: 'Enter width (cm)',
+      placeholderWidth: 'Enter effective width (cm)',
       placeholderGramWeight: 'Enter gram weight (g/m²)',
-      placeholderMinOrderQuantity: 'Enter min order quantity',
+      placeholderMinOrderQuantity: 'Enter order quantity',
       placeholderLeadTime: 'Enter lead time days',
       placeholderPrice: 'Enter price',
       placeholderCostPrice: 'Enter cost price',
       tipSpecificationAuto:
-        'Specification is auto-composed from width and gram weight, e.g. 160cm*180g; fill both to generate',
+        'Specification is auto-composed from effective width and gram weight, e.g. 160cm*180g; fill both to generate',
       buttonCancel: 'Cancel',
       buttonSave: 'Save',
       validateProductCodeRequired: 'Please enter product code',
@@ -3986,22 +3986,21 @@ export default {
       validateCategoryRequired: 'Please select product category',
       validateUnitRequired: 'Please select unit',
       validateProductTypeRequired: 'Please select product type',
-      validateWidthRequiredFabric: 'Fabric products require width (cm) greater than 0',
+      validateWidthRequiredFabric: 'Fabric products require effective width (cm) greater than 0',
       validateGramWeightRequiredFabric: 'Fabric products require gram weight (g/m²) greater than 0',
       validateCompositionRequiredFabric: 'Fabric products require fabric composition',
-      validateWidthFormat: 'Enter a valid width number, at most 2 decimal places, not less than 0',
+      validateWidthFormat:
+        'Enter a valid effective width number, at most 2 decimal places, not less than 0',
       validateGramWeightFormat:
         'Enter a valid gram weight number, at most 2 decimal places, not less than 0',
       validateMinOrderQuantityFormat:
-        'Enter a valid min order quantity, at most 2 decimal places, not less than 0',
+        'Enter a valid order quantity, at most 2 decimal places, not less than 0',
       validateLeadTimeFormat: 'Enter lead time as an integer number of days, not less than 0',
       validatePriceFormat: 'Enter a valid price number, at most 2 decimal places, not less than 0',
       validateWidthNeedleFormat:
-        'Enter a valid needle-in width number, must be greater than 0, at most 2 decimal places',
+        'Enter a valid width number, must be greater than 0, at most 2 decimal places',
       validateWeightToleranceFormat:
         'Enter a valid weight tolerance number, not less than 0, at most 2 decimal places',
-      validateSpandexPercentFormat:
-        'Enter a valid spandex content number, not less than 0, at most 2 decimal places',
       validateInfantStandardRequired:
         'Infant textile products (class A) must list GB 31701-2015 in execution standard',
       messageCreateSuccess: 'Created successfully',

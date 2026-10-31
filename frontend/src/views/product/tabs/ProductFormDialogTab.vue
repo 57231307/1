@@ -165,7 +165,7 @@
                 </el-tooltip>
               </span>
             </template>
-            <!-- 每公斤出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
+            <!-- 出米数是只读派生值：由克重与幅宽即时算出（向下取整一位小数），不入库、不随提交回传 -->
             <el-input
               :model-value="metersPerKgDisplay"
               readonly
@@ -343,10 +343,18 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item
-            :label="t('product.productFormDialogTab.labelProductGrade')"
-            prop="product_grade"
-          >
+          <el-form-item prop="product_grade">
+            <template #label>
+              <span class="form-label-with-tip">
+                {{ t('product.productFormDialogTab.labelProductGrade') }}
+                <el-tooltip
+                  :content="t('product.productFormDialogTab.tipProductGrade')"
+                  placement="top"
+                >
+                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </span>
+            </template>
             <!-- 产品等级词表与后端 product_grade 同源（优等品 一等品 合格品），value 为中文落库真相，label 走 i18n。
                  可空列允许留空，清空随提交发空串、后端按未录入落 NULL（收口判据见 DB CHECK 与服务层校验） -->
             <el-select
@@ -437,25 +445,8 @@
       </el-row>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item prop="spandex_percent">
-            <template #label>
-              <span class="form-label-with-tip">
-                {{ t('product.productFormDialogTab.labelSpandexPercent') }}
-                <el-tooltip
-                  :content="t('product.productFormDialogTab.tipSpandexPercent')"
-                  placement="top"
-                >
-                  <el-icon class="form-label-tip"><QuestionFilled /></el-icon>
-                </el-tooltip>
-              </span>
-            </template>
-            <el-input
-              v-model="formData.spandex_percent"
-              :placeholder="t('product.productFormDialogTab.placeholderSpandexPercent')"
-            />
-          </el-form-item>
-        </el-col>
-        <el-col :span="12">
+          <!-- 氨纶含量属"成分"内容，与面料成分重复，本档案面撤去单列录入位；
+               products.spandex_percent 列与入参键保留，存量值不显示不改动，直连接口与换算消费面不受影响 -->
           <el-form-item :label="t('product.productFormDialogTab.labelUsage')" prop="usage">
             <el-input
               v-model="formData.usage"
@@ -605,7 +596,7 @@ const formData = reactive({
   // 数字列一律以输入框文本形态存（el-input，禁带加减按钮的数字输入框），
   // 提交前经 toSubmitNumber 归一：空文本 → null（三态清空通道），有效数字文本 → Number
   price: '0',
-  cost_price: '0',
+  cost_price: '',
   width: '',
   gram_weight: '',
   // 主档文本列：产品类型存中文词表值，其余按后端键名直存
@@ -618,7 +609,6 @@ const formData = reactive({
   // m0106 扩的规格列，数字列以输入框文本形态存（el-input，禁带加减按钮），提交前经 toSubmitNumber 归一
   width_needle_included_cm: '',
   weight_tolerance: '',
-  spandex_percent: '',
   usage: '',
   safety_category: '',
   min_order_quantity: '',
@@ -630,6 +620,11 @@ const formData = reactive({
   description: '',
   is_active: true,
 });
+
+// 成本价的载入快照。本列对非 admin 出参被掩码成 null，若不加判定就把输入框当前值原样提交回去，
+// 会把库里真实成本价冲成空值（读侧掩码与写侧载荷未配对）。提交腿只在"用户真改过这一列"时带该键，
+// 键缺席即后端单层更新不改此列；显式清空成本价因此必须是一次可观测的改动，而不是回显的副产物。
+let costPriceLoadedSnapshot = '';
 
 // 数字列提交值归一：null/undefined/空文本 → null（后端三态按显式空清空该列），
 // 有效数字文本 → Number（后端 DECIMAL 入参收 JSON 数字与十进制字符串两形态）。
@@ -647,7 +642,7 @@ const toInputText = (value: number | string | null | undefined): string =>
 // 是否面料类（坯布/成品布），判定源与后端 FABRIC_TYPES 同源；新建时据此动态加必填
 const isFabricType = computed(() => isFabricProductType(formData.product_type));
 
-// 每公斤出米数即时只读值：读表单当前克重与幅宽，算式与后端 DualUnitConverter::meters_per_kg
+// 出米数（每公斤出米数）即时只读值：读表单当前克重与幅宽，算式与后端 DualUnitConverter::meters_per_kg
 // 同源（向下取整一位小数）；缺值或非正返回 null，界面显示占位文案，不显示 0 冒充可算。
 const metersPerKgDisplay = computed(() => {
   const value = computeMetersPerKg(
@@ -740,15 +735,13 @@ const formRules = computed<FormRules>(() => {
     ],
     width: [numericFormatRule('product.productFormDialogTab.validateWidthFormat', 2)],
     gram_weight: [numericFormatRule('product.productFormDialogTab.validateGramWeightFormat', 2)],
-    // 带针幅宽严格为正（口径同后端 CHECK），克重公差与氨纶含量非负（0 到 100 上限由后端 CHECK 拒）
+    // 带针幅宽严格为正（口径同后端 CHECK），克重公差非负（0 到 100 上限由后端 CHECK 拒）；
+    // 氨纶含量录入位已撤出档案面，其取值域判据仍留在后端 DTO 与 CHECK，不在此重复挂载
     width_needle_included_cm: [
       numericFormatRule('product.productFormDialogTab.validateWidthNeedleFormat', 2, true),
     ],
     weight_tolerance: [
       numericFormatRule('product.productFormDialogTab.validateWeightToleranceFormat', 2),
-    ],
-    spandex_percent: [
-      numericFormatRule('product.productFormDialogTab.validateSpandexPercentFormat', 2),
     ],
     min_order_quantity: [
       numericFormatRule('product.productFormDialogTab.validateMinOrderQuantityFormat', 2),
@@ -823,7 +816,10 @@ const resetForm = () => {
   formData.unit = '';
   formData.barcode = '';
   formData.price = '0';
-  formData.cost_price = '0';
+  // 成本价初始留空而不是 0：0 等于替用户声明"这匹货成本为零"，且新建态无原值可比，
+  // 空值提交时该键被摘除，交后端按未填处理
+  formData.cost_price = '';
+  costPriceLoadedSnapshot = '';
   formData.width = '';
   formData.gram_weight = '';
   formData.product_type = '';
@@ -834,7 +830,6 @@ const resetForm = () => {
   formData.finish = '';
   formData.width_needle_included_cm = '';
   formData.weight_tolerance = '';
-  formData.spandex_percent = '';
   formData.usage = '';
   formData.safety_category = '';
   formData.min_order_quantity = '';
@@ -860,11 +855,12 @@ watch(
         // 空值归一为 ''，不写 0，避免历史未录入在产品编辑里被显示成 0 再落回库里
         formData.price = toInputText(props.rowData.price);
         formData.cost_price = toInputText(props.rowData.cost_price);
+        // 掩码后的 null 也走这条归一，落成空文本；快照同步记下，提交腿据此判"用户是否改过"
+        costPriceLoadedSnapshot = formData.cost_price;
         formData.width = toInputText(props.rowData.width);
         formData.gram_weight = toInputText(props.rowData.gram_weight);
         formData.width_needle_included_cm = toInputText(props.rowData.width_needle_included_cm);
         formData.weight_tolerance = toInputText(props.rowData.weight_tolerance);
-        formData.spandex_percent = toInputText(props.rowData.spandex_percent);
         formData.usage = props.rowData.usage ?? '';
         formData.safety_category = props.rowData.safety_category ?? '';
         formData.min_order_quantity = toInputText(props.rowData.min_order_quantity);
@@ -895,8 +891,12 @@ const buildSubmitPayload = (): Partial<Product> => ({
   unit: formData.unit,
   barcode: formData.barcode,
   price: toSubmitNumber(formData.price),
-  cost_price: toSubmitNumber(formData.cost_price),
-  // 幅宽与克重是报价单换算米数与公斤数的取数源，也是每公斤出米数的算式入参，
+  // 成本价只在"用户真改过"时进载荷：非 admin 的出参被掩码成 null、回显为空文本，
+  // 原样提交会把库里成本价冲成空。键缺席即后端单层更新不改此列（与 safety_category 同口径）
+  ...(formData.cost_price !== costPriceLoadedSnapshot
+    ? { cost_price: toSubmitNumber(formData.cost_price) }
+    : {}),
+  // 幅宽与克重是报价单换算米数与公斤数的取数源，也是出米数的算式入参，
   // 界面清空必须落得回库里，故经 toSubmitNumber 显式发 null 走三态清空通道
   width: toSubmitNumber(formData.width),
   gram_weight: toSubmitNumber(formData.gram_weight),
@@ -907,10 +907,9 @@ const buildSubmitPayload = (): Partial<Product> => ({
   density: formData.density,
   structure: formData.structure,
   finish: formData.finish,
-  // 带针幅宽/克重公差/氨纶含量为 DECIMAL，经 toSubmitNumber 归一：空文本显式发 null 走后端三态清空通道
+  // 带针幅宽/克重公差为 DECIMAL，经 toSubmitNumber 归一：空文本显式发 null 走后端三态清空通道
   width_needle_included_cm: toSubmitNumber(formData.width_needle_included_cm),
   weight_tolerance: toSubmitNumber(formData.weight_tolerance),
-  spandex_percent: toSubmitNumber(formData.spandex_percent),
   // 用途为自由文本单层条件更新，直发采集值（空串即清空文本，与其余文本列同口径）
   usage: formData.usage,
   // 安全类别为受 DB CHECK 约束的封闭枚举，空值发 undefined 让该键从载荷摘除（后端单层更新键缺席即不改），
