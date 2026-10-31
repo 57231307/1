@@ -55,7 +55,7 @@ export interface Product {
   factory_name?: string | null;
   /** 生产厂址（factory_address，可空文本合规列） */
   factory_address?: string | null;
-  /** 产品等级（product_grade，可空文本合规列） */
+  /** 产品等级（product_grade，可空，三档词表 优等品 一等品 合格品，与 constants/product-spec-vocab.ts 同源） */
   product_grade?: string | null;
   /**
    * 每公斤出米数（派生只读键 meters_per_kg，不入库、不回传后端）。

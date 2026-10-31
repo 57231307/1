@@ -1,13 +1,16 @@
 /**
- * 产品主档规格枚举词表（安全类别与色牢度等级）前端唯一消费源。
+ * 产品主档规格枚举词表（安全类别与色牢度等级与产品等级）前端唯一消费源。
  *
  * 与后端唯一词表同源，禁止各处再抄一份中文或字母副本：
  * - 安全类别 backend/src/models/status/general.rs::product_safety_category::ALL_CLASSES = [A, B, C]
  *   （GB 18401-2010 国家纺织产品基本安全技术规范三类，A 类婴幼儿另须满足 GB 31701-2015）
  * - 色牢度等级 backend/src/models/status/general.rs::color_fastness::ALL_GRADES
  *   （九档，含半级 1-2 与 2-3 与 3-4 与 4-5，半级是标准内合法档不是脏值）
- * value 即落库真相（安全类别存 A/B/C 单字母，色牢度存档位文本），label 走 i18n。
- * 取值域收口：安全类别与色牢度的 DB CHECK 由 product_vocab_check 域施加，与此处清单逐项相等；
+ * - 产品等级 backend/src/models/status/general.rs::product_grade::ALL_GRADES
+ *   （三档，优等品 一等品 合格品）
+ * value 即落库真相（安全类别存 A/B/C 单字母，色牢度存档位文本，产品等级存中文稳定值），label 走 i18n。
+ * 取值域收口：安全类别与色牢度的 DB CHECK 由 product_vocab_check 域施加，产品等级的 DB CHECK
+ * 由 product_grade_vocab_check 域施加，均与此处清单逐项相等；
  * 前端表单拦录入、后端服务层拒非法，两处判据同源于上面的后端常量。
  */
 export const PRODUCT_SAFETY_CATEGORY = {
@@ -42,6 +45,41 @@ export const PRODUCT_SAFETY_CATEGORY_LABEL_KEY: Record<ProductSafetyCategoryValu
  * 空值语义为未考核或未录入，表单允许留空。
  */
 export const COLOR_FASTNESS_GRADE_VALUES = ['1', '1-2', '2', '2-3', '3', '3-4', '4', '4-5', '5'];
+
+/**
+ * 产品等级三档（GB/T 分等定级）。落 products.product_grade，value 即落库真相（中文稳定值）。
+ * 与后端唯一词表同源：backend/src/models/status/general.rs::product_grade::ALL_GRADES
+ * （优等品、一等品、合格品），禁止各处再抄一份中文副本。
+ * 取值域收口：DB CHECK 由 product_grade_vocab_check 域施加，与此处清单逐项相等；
+ * 前端表单拦录入、后端服务层与导入行级判据拒非法，多处判据同源于上面的后端常量。
+ * 空值语义为未定级或未录入，表单允许留空。
+ * 与库存等级（constants/stock-grade.ts 的一等品 二等品 等外品）是两套互不相干的词表，
+ * 值有一等品重叠但语义不同，禁止互相 import、复制清单或做跨域并集。
+ */
+export const PRODUCT_GRADE = {
+  /** 优等品：最高档 */
+  superior: '优等品',
+  /** 一等品：中间档 */
+  first: '一等品',
+  /** 合格品：门槛档 */
+  qualified: '合格品',
+} as const;
+
+export type ProductGradeValue = (typeof PRODUCT_GRADE)[keyof typeof PRODUCT_GRADE];
+
+/** 全量产品等级词表，与后端 ALL_GRADES 同序 */
+export const PRODUCT_GRADE_VALUES: ProductGradeValue[] = [
+  PRODUCT_GRADE.superior,
+  PRODUCT_GRADE.first,
+  PRODUCT_GRADE.qualified,
+];
+
+/** 产品等级 → i18n 文案键（label 走 i18n，value 保持中文落库真相） */
+export const PRODUCT_GRADE_LABEL_KEY: Record<ProductGradeValue, string> = {
+  [PRODUCT_GRADE.superior]: 'product.constants.gradeSuperior',
+  [PRODUCT_GRADE.first]: 'product.constants.gradeFirst',
+  [PRODUCT_GRADE.qualified]: 'product.constants.gradeQualified',
+};
 
 /**
  * 组织结构行业词表（products.structure 为自由文本列，本词表只作录入下拉建议，不收 DB CHECK）。

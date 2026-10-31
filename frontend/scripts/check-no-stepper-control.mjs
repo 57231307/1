@@ -56,7 +56,7 @@ const STEPPER_LITERAL = KEBAB_FORM;
  */
 export function tagHit(line) {
   const lower = line.toLowerCase();
-  return NAME_FORMS.some((form) => lower.includes(form));
+  return NAME_FORMS.some(form => lower.includes(form));
 }
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'target', 'coverage']);
@@ -289,7 +289,7 @@ const target: Field = { kind: '${['input', 'Number'].join('')}', label: '数量'
   console.log('=== self-test check-no-stepper-control 双向自证 ===');
   for (const c of cases) {
     // 夹具走与仓库扫描完全相同的行级判定 保证自证的就是线上逻辑
-    const gotTag = c.src.split(/\r?\n/).filter((l) => tagHit(l)).length;
+    const gotTag = c.src.split(/\r?\n/).filter(l => tagHit(l)).length;
     const gotHand = scanHandRules(c.src).hand;
     if (gotTag === c.expectTag && gotHand === c.expectHand) {
       pass++;
@@ -303,7 +303,7 @@ const target: Field = { kind: '${['input', 'Number'].join('')}', label: '数量'
   }
   // 自检 判定器自身源码必须不携带任何禁用形态 否则零出现锁永无绿日
   const selfSource = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').toLowerCase();
-  const selfCarried = NAME_FORMS.filter((form) => selfSource.includes(form));
+  const selfCarried = NAME_FORMS.filter(form => selfSource.includes(form));
   if (selfCarried.length) {
     fail++;
     console.log(`  FAIL  判定器自身源码携带禁用形态 ${selfCarried.length} 类 无法自证豁免`);
