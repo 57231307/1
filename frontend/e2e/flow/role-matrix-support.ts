@@ -10,9 +10,9 @@
  *      extract_resource_info 的集合列表形态派生（模块前缀词表与消歧映射都从
  *      path_utils.rs 现读，不复制第二份清单）；
  *   5. 镜像后端唯一判据 matches_permission 的资源段等值加星号通配与动作段等值加星号通配，
- *      供把「该角色应否被放行」做成可复算的期望集；
+ *      供把“该角色应否被放行”做成可复算的期望集；
  *   6. 镜像前端路由守卫的可见性判据（含粗域展开），与第 5 条分开，因为本项目里
- *      「前端菜单可见」与「后端放行」本就是两件事。
+ *      “前端菜单可见”与“后端放行”本就是两件事。
  *
  * 调用方：flow 下 200 到 203 的角色矩阵 spec。
  * 入参：仓库内源文件文本与端点快照文本，全部由本模块自己按相对 frontend 目录的路径读取。
@@ -21,8 +21,8 @@
  * 存哪里：不落任何文件，也不写 e2e/.auth，矩阵的制品由各 spec 自己按需落。
  *
  * 与后端判据的一致性靠断言而不是靠注释声明：
- *   spec 会对「快照里存在但本模块派生不出资源段的在册列表端点」点名，
- *   并对「角色种子读出的角色数为零」与「授权矩阵读出的角色码数为零」直接抛错，
+ *   spec 会对“快照里存在但本模块派生不出资源段的在册列表端点”点名，
+ *   并对“角色种子读出的角色数为零”与“授权矩阵读出的角色码数为零”直接抛错，
  *   使任何一个提取器失效时矩阵立即判红，而不是退化成空集通过。
  */
 import { existsSync, readFileSync } from 'fs';
@@ -76,7 +76,7 @@ export interface EndpointProbe {
 /**
  * 读出后端播种的全部角色码及其 data_scope。
  * 判据形态：admin 由建角分支单独写死 all，其余角色来自三处元组表的第四项。
- * 读不到任何角色即抛错，绝不返回空数组让「角色底数为零」被当成通过。
+ * 读不到任何角色即抛错，绝不返回空数组让“角色底数为零”被当成通过。
  */
 export function readSeededRoles(): RoleSeedEntry[] {
   const src = readRepoSource(ROLE_SEED_SRC, '角色种子');
@@ -88,7 +88,7 @@ export function readSeededRoles(): RoleSeedEntry[] {
   }
   // admin 与 manager 与 operator 不写在元组里，各由一段 role::ActiveModel 字面量建行：
   // 按字面量块取同块内的 code 与 data_scope，两把键在块内配对，不做跨行顺序猜测。
-  // 锚点只认「行首缩进后的字面量」与「let 变量等于字面量」两种形态，
+  // 锚点只认“行首缩进后的字面量”与“let 变量等于字面量”两种形态，
   // 函数返回类型位置那个同词形态（fn 括号右箭头 role::ActiveModel 左花括号）必须排除，
   // 否则同一角色的字面量会被函数体与内层块各数一次，把 42 个数成 44 个。
   const blockRe = /= role::ActiveModel \{|\n[ \t]*role::ActiveModel \{/g;
@@ -117,7 +117,7 @@ export function readSeededRoles(): RoleSeedEntry[] {
   if (deduped.length === 0) {
     throw new Error(
       `角色种子文件 ${ROLE_SEED_SRC} 解析出零个角色——提取口径已随源码改版失效，` +
-        `此时「每个角色都测到」无从谈起，判红而非按空集通过`
+        `此时“每个角色都测到”无从谈起，判红而非按空集通过`
     );
   }
   if (!deduped.some(e => e.code === 'admin')) {
@@ -147,7 +147,7 @@ function sliceBalancedBraces(text: string, openAt: number): string {
 /**
  * 读出后端授权矩阵里每个角色码被授予的资源动作对，并叠加应用外壳码。
  * 叠加口径与生产写库链一致：permission.rs 在逐角色下发前把 SHELL_PERMISSIONS 补进集合，
- * 因此期望集必须同样补，否则会把每个角色都少算两枚键而误判「多项」。
+ * 因此期望集必须同样补，否则会把每个角色都少算两枚键而误判“多项”。
  */
 export function readMatrixGrants(): Map<string, PermPairWire[]> {
   const src = readRepoSource(PERMISSION_MATRIX_SRC, '授权矩阵');
@@ -155,9 +155,9 @@ export function readMatrixGrants(): Map<string, PermPairWire[]> {
   if (!shellBlock) {
     throw new Error(`授权矩阵文件缺少 SHELL_PERMISSIONS 常量定义，外壳码期望集无从派生，判红`);
   }
-  const shell: PermPairWire[] = [...shellBlock[1].matchAll(/\(\s*"([^"]+)",\s*"([^"]+)"\s*\)/g)].map(
-    mm => ({ resource: mm[1], action: mm[2] })
-  );
+  const shell: PermPairWire[] = [
+    ...shellBlock[1].matchAll(/\(\s*"([^"]+)",\s*"([^"]+)"\s*\)/g),
+  ].map(mm => ({ resource: mm[1], action: mm[2] }));
   if (shell.length === 0) {
     throw new Error('SHELL_PERMISSIONS 解析出零项，提取口径失效，判红');
   }
@@ -166,9 +166,9 @@ export function readMatrixGrants(): Map<string, PermPairWire[]> {
   const grants = new Map<string, PermPairWire[]>();
   let g: RegExpExecArray | null;
   while ((g = groupRe.exec(src)) !== null) {
-    const pairs: PermPairWire[] = [
-      ...g[2].matchAll(/\(\s*"([a-z0-9_\-]+)",\s*"([^"]+)"\s*\)/g),
-    ].map(mm => ({ resource: mm[1], action: mm[2] }));
+    const pairs: PermPairWire[] = [...g[2].matchAll(/\(\s*"([a-z0-9_-]+)",\s*"([^"]+)"\s*\)/g)].map(
+      mm => ({ resource: mm[1], action: mm[2] })
+    );
     for (const s of shell) {
       if (!pairs.some(p => p.resource === s.resource && p.action === s.action)) pairs.push(s);
     }
@@ -242,9 +242,7 @@ function readResourceNameMap(): Map<string, string> {
   const end = tail.indexOf('\n];');
   const body = tail.slice(0, end < 0 ? tail.length : end);
   const map = new Map<string, string>();
-  for (const triple of body.matchAll(
-    /\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,?\s*\)/g
-  )) {
+  for (const triple of body.matchAll(/\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,?\s*\)/g)) {
     map.set(`${triple[1]}|${triple[2]}`, triple[3]);
   }
   if (map.size === 0) throw new Error('资源消歧映射解析出零条，提取口径失效，判红');
@@ -292,7 +290,7 @@ export function buildEndpointProbes(grantedResources: Set<string>): EndpointProb
     if (parts.some(p => p === '*' || p === ':id')) continue;
     let resource: string | undefined;
     if (parts.length === 4) {
-      // 后端 extract_resource_info 只在「段数不少于五且第四段是模块前缀」时才往下取第五段，
+      // 后端 extract_resource_info 只在“段数不少于五且第四段是模块前缀”时才往下取第五段，
       // 四段路径的第四段恒为资源名本身（audit-logs 与 quotations 这类既是模块前缀
       // 又是资源本身的段名在此不生效），此处照抄该判据顺序，不提前套用前缀表。
       resource = parts[3];
@@ -322,11 +320,7 @@ export function probePathFromSnapshot(path: string): string {
  * 动作段等值或授权侧为星号。刻意不含前端才有的 read 与 view 等价、也不含粗域展开，
  * 因为后端没有这两条——把前端的宽容规则套到后端期望上，会把真实的 403 判成应放行。
  */
-export function backendGrants(
-  keys: readonly string[],
-  resource: string,
-  action: string
-): boolean {
+export function backendGrants(keys: readonly string[], resource: string, action: string): boolean {
   return keys.some(raw => {
     const at = raw.indexOf(':');
     const res = at > 0 ? raw.slice(0, at) : raw;
@@ -377,7 +371,8 @@ export function parseRouterPermissions(source: string): Record<string, RoutePerm
   const hits: Array<{ raw: string; from: number; to: number }> = [];
   const pathRe = /path:\s*'([^']*)'/g;
   let m: RegExpExecArray | null;
-  while ((m = pathRe.exec(body)) !== null) hits.push({ raw: m[1], from: m.index, to: pathRe.lastIndex });
+  while ((m = pathRe.exec(body)) !== null)
+    hits.push({ raw: m[1], from: m.index, to: pathRe.lastIndex });
   if (hits.length === 0) throw new Error('router 源文本中未解析到任何 path 项，判红交人工');
 
   const map: Record<string, RoutePermValue> = {};
@@ -389,7 +384,7 @@ export function parseRouterPermissions(source: string): Record<string, RoutePerm
     const arr = block.match(/permission:\s*\[([^\]]*)\]/);
     const perm: RoutePermValue = arr
       ? [...arr[1].matchAll(/'([^']*)'/g)].map(x => x[1])
-      : block.match(/permission:\s*'([^']*)'/)?.[1] ?? null;
+      : (block.match(/permission:\s*'([^']*)'/)?.[1] ?? null);
     if (fullPath in map) {
       if (JSON.stringify(map[fullPath]) !== JSON.stringify(perm)) {
         throw new Error(
@@ -416,7 +411,7 @@ export function loadRouterPermissions(): Record<string, RoutePermValue> {
 }
 
 /**
- * 从 navigation.ts 现读侧栏叶子与分组，得到「用户看得见的那棵树」的声明面。
+ * 从 navigation.ts 现读侧栏叶子与分组，得到“用户看得见的那棵树”的声明面。
  * 本模块只取 path 与 i18n 键，可见性判定仍由守卫真值加角色真实权限码决定。
  */
 export function readNavLeaves(): Array<{ path: string; labelKey: string }> {
@@ -460,10 +455,10 @@ function readCoarseDomainResources(source: string): Record<string, string[]> {
   const end = tail.indexOf('\n};');
   const body = tail.slice(0, end < 0 ? tail.length : end);
   const out: Record<string, string[]> = {};
-  // 域数组的收尾形态有两种：中间各域以「右方括号逗号换行」结束，最后一个域紧贴常量的
-  // 「右花括号分号」收尾，切片时那段换行会被切掉，故收尾分隔符必须同时允许行尾与文本尾，
+  // 域数组的收尾形态有两种：中间各域以“右方括号逗号换行”结束，最后一个域紧贴常量的
+  // “右花括号分号”收尾，切片时那段换行会被切掉，故收尾分隔符必须同时允许行尾与文本尾，
   // 否则最后一个域（本仓现值是 production）会整域丢失，粗域展开就会静默少解释一个域。
-  const domainRe = /([A-Za-z0-9_\-]+):\s*\[([\s\S]*?)\],(?:\s*\n|$)/g;
+  const domainRe = /([A-Za-z0-9_-]+):\s*\[([\s\S]*?)\],(?:\s*\n|$)/g;
   let m: RegExpExecArray | null;
   while ((m = domainRe.exec(body)) !== null) {
     out[m[1]] = [...m[2].matchAll(/'([^']+)'/g)].map(x => x[1]);
@@ -530,7 +525,8 @@ export function deriveVisibleLeaves(
   for (const leaf of leaves) {
     if (!(leaf.path in routePerms)) continue;
     if (isHiddenRoute(routerSource, leaf.path)) continue;
-    if (frontendRouteAllows(routePerms[leaf.path], rolePermissions, coarse)) visible.push(leaf.path);
+    if (frontendRouteAllows(routePerms[leaf.path], rolePermissions, coarse))
+      visible.push(leaf.path);
   }
   return visible;
 }
@@ -576,9 +572,9 @@ export function readMaskKeySets(): MaskKeySets {
 
   const sensitiveFn = extractFunctionBody(src, 'pub fn mask_sensitive_fields');
   const costKeys = [...sensitiveFn.matchAll(/obj\.contains_key\("([^"]+)"\)/g)].map(m => m[1]);
-  const costNulls = [...sensitiveFn.matchAll(/obj\.insert\("([^"]+)"\.to_string\(\),\s*Value::Null\)/g)].map(
-    m => m[1]
-  );
+  const costNulls = [
+    ...sensitiveFn.matchAll(/obj\.insert\("([^"]+)"\.to_string\(\),\s*Value::Null\)/g),
+  ].map(m => m[1]);
   if (costKeys.length === 0 || costNulls.length === 0) {
     throw new Error(
       `mask_sensitive_fields 里读不到置空目标键（contains_key=${costKeys.length} 个，` +
@@ -652,7 +648,7 @@ export const BACKEND_MASK_FNS = [
  * 调用方：flow/201 的门面接线对账。
  * 入参：handler 函数体文本。传给谁：回给 201 与声明面比对。
  * 存什么/存哪里：不落盘。
- * 判据：出现「函数名 (」或「模块名::函数名(」两种调用形态之一即算挂上；
+ * 判据：出现“函数名 (”或“模块名::函数名(”两种调用形态之一即算挂上；
  * 只读名字出现在注释里不算（注释行整行摘掉后再找）。
  */
 export function detectMaskCalls(fnBody: string): string[] {
@@ -660,7 +656,9 @@ export function detectMaskCalls(fnBody: string): string[] {
     .split('\n')
     .filter(line => !line.trim().startsWith('//'))
     .join('\n');
-  return BACKEND_MASK_FNS.filter(name => new RegExp(`(?:^|[^A-Za-z0-9_])${name}\\s*\\(`).test(code));
+  return BACKEND_MASK_FNS.filter(name =>
+    new RegExp(`(?:^|[^A-Za-z0-9_])${name}\\s*\\(`).test(code)
+  );
 }
 
 /**
@@ -696,7 +694,9 @@ export function readStructBody(relFile: string, structName: string): string {
   const anchor = `pub struct ${structName}`;
   const at = src.indexOf(anchor);
   if (at < 0) {
-    throw new Error(`${relFile} 里找不到 ${anchor}，该面的出参投影结构已变，声明面断言无从派生，判红`);
+    throw new Error(
+      `${relFile} 里找不到 ${anchor}，该面的出参投影结构已变，声明面断言无从派生，判红`
+    );
   }
   const open = src.indexOf('{', at);
   if (open < 0) throw new Error(`${relFile}::${structName} 找不到结构体开括号，判红`);
@@ -705,7 +705,7 @@ export function readStructBody(relFile: string, structName: string): string {
 
 /**
  * 从结构体定义文本里取成员列名集合。
- * 调用方：flow/201 的「某面出参里应有哪些列、不应有哪些列」断言。
+ * 调用方：flow/201 的“某面出参里应有哪些列、不应有哪些列”断言。
  * 入参：readStructBody 的返回。传给谁：回给调用方做集合比对。
  * 存什么/存哪里：不持久化。
  * 注释行先整行摘掉再取 `pub 名:` 形态，避免把注释里的列名读成真列。
@@ -729,7 +729,8 @@ export function structMemberColumns(structBody: string): string[] {
 export function readDecimalColumns(entityFile: string): string[] {
   const src = readRepoSource(entityFile, 'DECIMAL 列清单');
   const structAt = src.indexOf('pub struct Model');
-  if (structAt < 0) throw new Error(`${entityFile} 里找不到 pub struct Model，DECIMAL 列无从派生，判红`);
+  if (structAt < 0)
+    throw new Error(`${entityFile} 里找不到 pub struct Model，DECIMAL 列无从派生，判红`);
   const open = src.indexOf('{', structAt);
   const body = sliceBalancedBraces(src, open);
   const cols = [
@@ -775,7 +776,9 @@ function readNestedModulePairs(): Set<string> {
 function readPathActionTables(): { keywords: string[]; map: Record<string, string> } {
   const src = readRepoSource(PERMISSION_MIDDLEWARE_SRC, '末段动作词表');
   const kwBlock = src.match(/const PATH_ACTION_KEYWORDS:\s*&\[&str\]\s*=\s*&\[(.*?)\];/s);
-  const mapBlock = src.match(/const PATH_ACTION_SEGMENT_MAP:\s*&\[\(&str,\s*&str\)\]\s*=\s*&\[(.*?)\];/s);
+  const mapBlock = src.match(
+    /const PATH_ACTION_SEGMENT_MAP:\s*&\[\(&str,\s*&str\)\]\s*=\s*&\[(.*?)\];/s
+  );
   if (!kwBlock || !mapBlock) {
     throw new Error('permission.rs 读不到 PATH_ACTION_KEYWORDS 或 PATH_ACTION_SEGMENT_MAP，判红');
   }

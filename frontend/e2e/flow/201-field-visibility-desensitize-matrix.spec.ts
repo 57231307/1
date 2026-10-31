@@ -2,8 +2,8 @@
  * 显示控制与脱敏面矩阵（面料专项，判据全部取自后端真实出参）
  *
  * 功能：
- *   1. 先钉后端脱敏原语自身的底数。从 utils/field_mask.rs 现读「非 admin 置空哪些键」
- *      「电话与邮箱掩码哪些键」「客户域默认脱敏整键移除哪些列」，并要求判键与置键同键
+ *   1. 先钉后端脱敏原语自身的底数。从 utils/field_mask.rs 现读“非 admin 置空哪些键”
+ *      “电话与邮箱掩码哪些键”“客户域默认脱敏整键移除哪些列”，并要求判键与置键同键
  *      （contains_key 判了却没 insert Null 属空转掩码，提取阶段就抛错）。本项目实测事实是
  *      mask_sensitive_fields 只剔 cost_price 一枚键、且只认 admin（admin_checker::is_admin_role），
  *      本文件把这两条做成可复算的期望而不是注释里的声明。
@@ -17,22 +17,22 @@
  *      信用额度修改、库存调整、缸号、色号、米数、克重、门幅、损耗、余码、卷号
  *      逐项落到本仓真实列名与真实面。落不到的列按事实登记：余码在本仓不是独立列
  *      （拆分腿把剩余米数回写父卷 length），卷号即 piece_no（前端词表称布卷号），
- *      折扣与信用额度与库存调整三项的「能不能改」是写腿权限而不是读面掩码，
+ *      折扣与信用额度与库存调整三项的“能不能改”是写腿权限而不是读面掩码，
  *      其越权判据在 202，本文件只钉它们的出参列与出参形态。
  *   4. 服务端脱敏与端点授权分离：对每一枚成本族面，实测它到底有没有在服务端掩码。
  *      判据在后端出参，不许用前端隐藏冒充脱敏。因此本文件同时断两件事：
- *      一是「掩码列的列表腿与详情腿处置必须一致」（详情腿漏掩即旁路，本项目详情腿
+ *      一是“掩码列的列表腿与详情腿处置必须一致”（详情腿漏掩即旁路，本项目详情腿
  *      曾原样下发成本价，靠这条锁住回退）；二是未被服务端脱敏的成本族面逐枚落进制品，
- *      交小程序侧按权限码收敛调用点，并在用例里点名「这些面的可见性只由端点可达性决定」。
+ *      交小程序侧按权限码收敛调用点，并在用例里点名“这些面的可见性只由端点可达性决定”。
  *   5. 三端一致性：同一记录在 PC 列表腿、PC 详情腿、H5 与小程序所用的读腿上，
  *      状态取值与可见字段集合必须一致。H5 与 PC 共用同一套后端读腿（快照里不存在
  *      第二套移动端列表端点），该事实由路由快照反证；小程序侧的可见性判据从后端契约
- *      导出（同一枚权限码、同一组掩码键），逐角色实测「该角色能读到真值的成本族面集合」
+ *      导出（同一枚权限码、同一组掩码键），逐角色实测“该角色能读到真值的成本族面集合”
  *      必须等于按其权限码派生的集合，多一个面即外泄、少一个面即授权链断裂。
  *
  * 与 200 与 202 的分工：200 判后端放行面（RBAC 与 handler 角色门），202 判越权负例与
- * 拒因归属，本文件只判「放行之后你到底看见了什么」。三面必须分开，因为本项目同时存在
- * 「后端放行但出参不脱敏」与「前端隐藏但出参照发」两种真实形态。
+ * 拒因归属，本文件只判“放行之后你到底看见了什么”。三面必须分开，因为本项目同时存在
+ * “后端放行但出参不脱敏”与“前端隐藏但出参照发”两种真实形态。
  *
  * 调用方：Playwright E2E 套件，CI 的 e2e flow 分片按文件哈希收集执行。
  * 入参：API_BASE 与 BASE_URL 取环境变量；角色凭证取 env 优先、回退 role-credentials.json；
@@ -50,7 +50,7 @@
  *
  * 判红即缺陷的口径：接线对账不平、逐列取值与后端源派生的期望不符、成本列在列表腿被掩
  * 却在详情腿原样下发、声明面里冒出未登记的列名，都保持判红并在消息里点名面、列、角色、
- * 实际值与期望值；不改期望凑绿，也不把「该面本就该原样」写成恒真放过。
+ * 实际值与期望值；不改期望凑绿，也不把“该面本就该原样”写成恒真放过。
  */
 import { test, expect, type Page } from '../diagnose-fixture';
 import { apiCallExpectFail, apiCallRaw, genCode, getRoleCredential } from './helpers';
@@ -86,9 +86,9 @@ const matrixGrants = readMatrixGrants();
  * clear=后端原样下发建档真值；null=非 admin 被服务端置空；maskedPhone 与 maskedEmail=
  * 按后端掩码口径改写但保留键；absentKey=非 admin 整键移除；absentColumn=该面出参结构里
  * 根本没有这列。非 admin 侧允许两个取值（掩码与整键移除）不是放宽：本仓客户域是
- * 「默认脱敏层 + 角色数据权限行的 hidden 删键层」两层叠加（utils/data_permission.rs 的
+ * “默认脱敏层 + 角色数据权限行的 hidden 删键层”两层叠加（utils/data_permission.rs 的
  * DEFAULT_HIDDEN_FIELDS 含 contact_phone 与 contact_email 与 address 与 credit_limit），
- * 有没有配权限行决定落在哪一支。但**两个取值都不含原文**，所以「非 admin 永不拿到明文」
+ * 有没有配权限行决定落在哪一支。但**两个取值都不含原文**，所以“非 admin 永不拿到明文”
  * 仍是一条硬判据，由 neverPlaintext 单独钉死。
  */
 type Disposition = 'clear' | 'null' | 'maskedPhone' | 'maskedEmail' | 'absentKey' | 'absentColumn';
@@ -102,7 +102,7 @@ interface ColumnSpec {
   kind: 'decimal' | 'float' | 'text' | 'presence';
   admin: Disposition[];
   nonAdmin: Disposition[];
-  /** 非 admin 侧是否还允许拿到原文（成本与联系方式族一律 false，这是「不许前端冒充」的落点） */
+  /** 非 admin 侧是否还允许拿到原文（成本与联系方式族一律 false，这是“不许前端冒充”的落点） */
   nonAdminMayBePlaintext: boolean;
 }
 
@@ -113,7 +113,7 @@ interface Face {
   handlerFn: string;
   /** 权限资源名（后端 extract_resource_info 口径，用于挑持证角色） */
   resource: string;
-  /** 该腿声明应挂的后端脱敏调用；空数组即「该面服务端不脱敏」这一事实本身 */
+  /** 该腿声明应挂的后端脱敏调用；空数组即“该面服务端不脱敏”这一事实本身 */
   expectMaskCalls: string[];
   /** 出参行集合位置：items=分页信封、root=裸数组、single=单对象 */
   rowsAt: 'items' | 'root' | 'single';
@@ -124,7 +124,7 @@ interface Face {
   seeded: boolean;
 }
 
-/** 本组用例共用的建档值：全部已知，才能把「原文下发」判成逐字相等而不是非空 */
+/** 本组用例共用的建档值：全部已知，才能把“原文下发”判成逐字相等而不是非空 */
 const SEED = {
   productCode: genCode('E2E-FV-P'),
   cost_price: '12.3456',
@@ -150,7 +150,7 @@ const SEED = {
   standard_loss_rate: '0.035',
 };
 
-/** 建档值到列名的映射：compareColumn 用它把「原文」判成等于建档真值 */
+/** 建档值到列名的映射：compareColumn 用它把“原文”判成等于建档真值 */
 const SEED_BY_COLUMN: Record<string, string> = {
   cost_price: SEED.cost_price,
   standard_price: SEED.standard_price,
@@ -185,12 +185,54 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'code',
     seeded: true,
     columns: [
-      { column: 'cost_price', cn: '成本价', kind: 'decimal', admin: ['clear'], nonAdmin: ['null', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'standard_price', cn: '标准价', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'supplier_id', cn: '供应商外键', kind: 'presence', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
-      { column: 'supplier_product_code', cn: '供应商货号', kind: 'presence', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
-      { column: 'gram_weight', cn: '克重', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'width', cn: '门幅', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'cost_price',
+        cn: '成本价',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['null', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'standard_price',
+        cn: '标准价',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'supplier_id',
+        cn: '供应商外键',
+        kind: 'presence',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'supplier_product_code',
+        cn: '供应商货号',
+        kind: 'presence',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'gram_weight',
+        cn: '克重',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'width',
+        cn: '门幅',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -202,12 +244,54 @@ const SEEDED_FACES: Face[] = [
     rowsAt: 'single',
     seeded: true,
     columns: [
-      { column: 'cost_price', cn: '成本价', kind: 'decimal', admin: ['clear'], nonAdmin: ['null', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'standard_price', cn: '标准价', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'supplier_id', cn: '供应商外键', kind: 'presence', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
-      { column: 'supplier_product_code', cn: '供应商货号', kind: 'presence', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
-      { column: 'gram_weight', cn: '克重', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'width', cn: '门幅', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'cost_price',
+        cn: '成本价',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['null', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'standard_price',
+        cn: '标准价',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'supplier_id',
+        cn: '供应商外键',
+        kind: 'presence',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'supplier_product_code',
+        cn: '供应商货号',
+        kind: 'presence',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'gram_weight',
+        cn: '克重',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'width',
+        cn: '门幅',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -220,10 +304,38 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'customer_name',
     seeded: true,
     columns: [
-      { column: 'contact_phone', cn: '联系电话', kind: 'text', admin: ['clear'], nonAdmin: ['maskedPhone', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'contact_email', cn: '联系邮箱', kind: 'text', admin: ['clear'], nonAdmin: ['maskedEmail', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'address', cn: '地址', kind: 'text', admin: ['clear'], nonAdmin: ['absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'credit_limit', cn: '信用额度', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
+      {
+        column: 'contact_phone',
+        cn: '联系电话',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedPhone', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'contact_email',
+        cn: '联系邮箱',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedEmail', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'address',
+        cn: '地址',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'credit_limit',
+        cn: '信用额度',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -235,10 +347,38 @@ const SEEDED_FACES: Face[] = [
     rowsAt: 'single',
     seeded: true,
     columns: [
-      { column: 'contact_phone', cn: '联系电话', kind: 'text', admin: ['clear'], nonAdmin: ['maskedPhone', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'contact_email', cn: '联系邮箱', kind: 'text', admin: ['clear'], nonAdmin: ['maskedEmail', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'address', cn: '地址', kind: 'text', admin: ['clear'], nonAdmin: ['absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'credit_limit', cn: '信用额度', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear', 'absentKey'], nonAdminMayBePlaintext: true },
+      {
+        column: 'contact_phone',
+        cn: '联系电话',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedPhone', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'contact_email',
+        cn: '联系邮箱',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedEmail', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'address',
+        cn: '地址',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'credit_limit',
+        cn: '信用额度',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear', 'absentKey'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -254,8 +394,22 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'name',
     seeded: true,
     columns: [
-      { column: 'phone', cn: '联系人电话', kind: 'text', admin: ['clear'], nonAdmin: ['maskedPhone', 'absentKey'], nonAdminMayBePlaintext: false },
-      { column: 'email', cn: '联系人邮箱', kind: 'text', admin: ['clear'], nonAdmin: ['maskedEmail', 'absentKey'], nonAdminMayBePlaintext: false },
+      {
+        column: 'phone',
+        cn: '联系人电话',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedPhone', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'email',
+        cn: '联系人邮箱',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['maskedEmail', 'absentKey'],
+        nonAdminMayBePlaintext: false,
+      },
     ],
   },
   {
@@ -270,8 +424,22 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'product_id',
     seeded: true,
     columns: [
-      { column: 'price', cn: '进价', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'min_order_qty', cn: '最小起订量', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'price',
+        cn: '进价',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'min_order_qty',
+        cn: '最小起订量',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -284,12 +452,54 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'dye_lot_no',
     seeded: true,
     columns: [
-      { column: 'dyeing_fee', cn: '染厂加工费', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'processing_fee', cn: '外协加工费', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'total_cost', cn: '成本合计', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'dye_lot_no', cn: '缸号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'color_no', cn: '色号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'output_quantity_meters', cn: '米数', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'dyeing_fee',
+        cn: '染厂加工费',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'processing_fee',
+        cn: '外协加工费',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'total_cost',
+        cn: '成本合计',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'dye_lot_no',
+        cn: '缸号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'color_no',
+        cn: '色号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'output_quantity_meters',
+        cn: '米数',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
   {
@@ -302,9 +512,30 @@ const SEEDED_FACES: Face[] = [
     anchorColumn: 'order_no',
     seeded: true,
     columns: [
-      { column: 'standard_loss_rate', cn: '标准损耗', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'dye_lot_no', cn: '缸号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'color_no', cn: '色号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'standard_loss_rate',
+        cn: '标准损耗',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'dye_lot_no',
+        cn: '缸号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'color_no',
+        cn: '色号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
   },
 ];
@@ -334,20 +565,83 @@ const CONTRACT_FACES: Array<{
     resource: 'pieces',
     shapeFile: '../backend/src/handlers/inventory_piece_handler.rs',
     shapeStruct: 'PieceResponse',
-    // 匹号面是库存追溯面：它不携带任何成本列，这是「成本不外泄到追溯面」的声明判据。
+    // 匹号面是库存追溯面：它不携带任何成本列，这是“成本不外泄到追溯面”的声明判据。
     expectMaskCalls: [],
     mustHave: [
-      { column: 'piece_no', cn: '卷号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'dye_lot_no', cn: '缸号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'color_no', cn: '色号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'length', cn: '米数', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'width', cn: '门幅', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'gram_weight', cn: '克重', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'piece_no',
+        cn: '卷号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'dye_lot_no',
+        cn: '缸号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'color_no',
+        cn: '色号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'length',
+        cn: '米数',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'width',
+        cn: '门幅',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'gram_weight',
+        cn: '克重',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
     mustNotHave: [
-      { column: 'remaining_length', cn: '余码', kind: 'text', admin: ['absentColumn'], nonAdmin: ['absentColumn'], nonAdminMayBePlaintext: false },
-      { column: 'cost_price', cn: '成本价', kind: 'text', admin: ['absentColumn'], nonAdmin: ['absentColumn'], nonAdminMayBePlaintext: false },
-      { column: 'dyeing_fee', cn: '染厂加工费', kind: 'text', admin: ['absentColumn'], nonAdmin: ['absentColumn'], nonAdminMayBePlaintext: false },
+      {
+        column: 'remaining_length',
+        cn: '余码',
+        kind: 'text',
+        admin: ['absentColumn'],
+        nonAdmin: ['absentColumn'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'cost_price',
+        cn: '成本价',
+        kind: 'text',
+        admin: ['absentColumn'],
+        nonAdmin: ['absentColumn'],
+        nonAdminMayBePlaintext: false,
+      },
+      {
+        column: 'dyeing_fee',
+        cn: '染厂加工费',
+        kind: 'text',
+        admin: ['absentColumn'],
+        nonAdmin: ['absentColumn'],
+        nonAdminMayBePlaintext: false,
+      },
     ],
   },
   {
@@ -359,10 +653,24 @@ const CONTRACT_FACES: Array<{
     shapeStruct: 'Model',
     expectMaskCalls: [],
     mustHave: [
-      { column: 'adjustment_no', cn: '库存调整单号', kind: 'text', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'adjustment_no',
+        cn: '库存调整单号',
+        kind: 'text',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
     mustNotHave: [
-      { column: 'cost_price', cn: '成本价', kind: 'text', admin: ['absentColumn'], nonAdmin: ['absentColumn'], nonAdminMayBePlaintext: false },
+      {
+        column: 'cost_price',
+        cn: '成本价',
+        kind: 'text',
+        admin: ['absentColumn'],
+        nonAdmin: ['absentColumn'],
+        nonAdminMayBePlaintext: false,
+      },
     ],
   },
   {
@@ -375,8 +683,22 @@ const CONTRACT_FACES: Array<{
     // 订单族服务端只掩联系方式，不掩金额与折扣：折扣列对所有能读订单的角色都是原文。
     expectMaskCalls: ['mask_contact_fields_for_role'],
     mustHave: [
-      { column: 'discount_percent', cn: '折扣', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
-      { column: 'discount_amount', cn: '折扣额', kind: 'decimal', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'discount_percent',
+        cn: '折扣',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
+      {
+        column: 'discount_amount',
+        cn: '折扣额',
+        kind: 'decimal',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
     mustNotHave: [],
   },
@@ -391,7 +713,14 @@ const CONTRACT_FACES: Array<{
     mustHave: [
       // 毛利率是 f64 计算值：出参形态是数字，与 DECIMAL 列的字符串形态是两种口径，
       // 按 ideal 把它也断成字符串会造出一条后端从未有过的假判据。
-      { column: 'gross_margin', cn: '毛利率', kind: 'float', admin: ['clear'], nonAdmin: ['clear'], nonAdminMayBePlaintext: true },
+      {
+        column: 'gross_margin',
+        cn: '毛利率',
+        kind: 'float',
+        admin: ['clear'],
+        nonAdmin: ['clear'],
+        nonAdminMayBePlaintext: true,
+      },
     ],
     mustNotHave: [],
   },
@@ -420,7 +749,14 @@ function holderRolesOf(resource: string, action: string): string[] {
   for (const [role, pairs] of matrixGrants.entries()) {
     if (role === 'admin') continue;
     if (!seededCodesHas(role)) continue;
-    if (!backendGrants(pairs.map(p => `${p.resource}:${p.action}`), resource, action)) continue;
+    if (
+      !backendGrants(
+        pairs.map(p => `${p.resource}:${p.action}`),
+        resource,
+        action
+      )
+    )
+      continue;
     if (!getRoleCredential(role)) continue;
     out.push(role);
   }
@@ -433,7 +769,14 @@ function nonHolderRolesOf(resource: string, action: string): string[] {
   for (const [role, pairs] of matrixGrants.entries()) {
     if (role === 'admin') continue;
     if (!seededCodesHas(role)) continue;
-    if (backendGrants(pairs.map(p => `${p.resource}:${p.action}`), resource, action)) continue;
+    if (
+      backendGrants(
+        pairs.map(p => `${p.resource}:${p.action}`),
+        resource,
+        action
+      )
+    )
+      continue;
     if (!getRoleCredential(role)) continue;
     out.push(role);
   }
@@ -451,8 +794,8 @@ function seededCodesHas(role: string): boolean {
  * 入参：行对象、列声明、该角色侧允许的处置集合、会话身份描述、收集桶。
  * 传给谁：只进失败信息与制品，不发请求、不落库。
  * 存什么/存哪里：把不平描述 push 进调用方的桶。
- * 判据强度：允许集合之外的任何处置都算不平；neverPlaintext 为假时额外钉「不得等于建档值」，
- * 所以「掩码函数被摘掉但键还在」会被抓到，而「后端新增第三种处置」也不会被静默放过。
+ * 判据强度：允许集合之外的任何处置都算不平；neverPlaintext 为假时额外钉“不得等于建档值”，
+ * 所以“掩码函数被摘掉但键还在”会被抓到，而“后端新增第三种处置”也不会被静默放过。
  */
 function compareColumn(
   row: Row,
@@ -488,7 +831,9 @@ function compareColumn(
     bucket.push(`${label} 出参类型=${typeof value}，DECIMAL 列应为字符串`);
   }
   if (spec.kind === 'float' && typeof value !== 'number') {
-    bucket.push(`${label} 出参类型=${typeof value}，f64 计算列应为数字而非 ${JSON.stringify(value)}`);
+    bucket.push(
+      `${label} 出参类型=${typeof value}，f64 计算列应为数字而非 ${JSON.stringify(value)}`
+    );
   }
   if (spec.kind === 'presence') return;
 
@@ -498,17 +843,17 @@ function compareColumn(
   }
 
   if (allowed.includes('maskedPhone')) {
-    if (typeof value === 'string' && origin !== undefined && value === expectedMaskedPhone(origin)) return;
+    if (typeof value === 'string' && origin !== undefined && value === expectedMaskedPhone(origin))
+      return;
   }
   if (allowed.includes('maskedEmail')) {
-    if (typeof value === 'string' && origin !== undefined && value === expectedMaskedEmail(origin)) return;
+    if (typeof value === 'string' && origin !== undefined && value === expectedMaskedEmail(origin))
+      return;
   }
   if (allowed.includes('clear')) {
     if (origin === undefined) return;
     const same =
-      spec.kind === 'decimal'
-        ? Number(value) === Number(origin)
-        : String(value) === origin;
+      spec.kind === 'decimal' ? Number(value) === Number(origin) : String(value) === origin;
     if (same) return;
   }
   bucket.push(
@@ -560,7 +905,7 @@ function seededDyeLotNo(): string {
  * 调用方：活体逐列断言与权限门断言。
  * 入参：已登录的 page、面 id、建档主键集。传给谁：只发 GET，不写库。
  * 存什么/存哪里：不持久化。
- * 形状不符即抛错点名实际键：把「信封换形了」判红，而不是当成零行通过。
+ * 形状不符即抛错点名实际键：把“信封换形了”判红，而不是当成零行通过。
  */
 async function fetchFaceRows(
   page: Page,
@@ -588,23 +933,35 @@ async function fetchFaceRows(
   const env = raw as Row;
   const items = env['items'];
   if (!Array.isArray(items)) {
-    throw new Error(`面 ${faceId} 出参信封里定位不到 items 数组，实际键=${Object.keys(env).join(',')}`);
+    throw new Error(
+      `面 ${faceId} 出参信封里定位不到 items 数组，实际键=${Object.keys(env).join(',')}`
+    );
   }
   return items as Row[];
 }
 
 /** 在列表里定位本矩阵建档的那一行（读别人的行做掩码断言会把建档值判成被掩） */
-function pickSeededRow(rows: Row[], face: Face, seeded: { productId: number; customerId: number }): Row {
+function pickSeededRow(
+  rows: Row[],
+  face: Face,
+  seeded: { productId: number; customerId: number }
+): Row {
   if (face.rowsAt === 'single') return rows[0];
   const anchor = face.anchorColumn;
   if (!anchor) return rows[0];
   const want =
-    anchor === 'product_id' ? String(seeded.productId)
-      : anchor === 'code' ? SEED.productCode
-        : anchor === 'customer_name' ? SEED.customerName
-          : anchor === 'name' ? SEED.contactName
-            : anchor === 'dye_lot_no' ? seedDyeLotNo
-              : anchor === 'order_no' ? SEED.orderNo
+    anchor === 'product_id'
+      ? String(seeded.productId)
+      : anchor === 'code'
+        ? SEED.productCode
+        : anchor === 'customer_name'
+          ? SEED.customerName
+          : anchor === 'name'
+            ? SEED.contactName
+            : anchor === 'dye_lot_no'
+              ? seedDyeLotNo
+              : anchor === 'order_no'
+                ? SEED.orderNo
                 : undefined;
   if (want === undefined) {
     throw new Error(`面 ${face.id} 的锚点列 ${anchor} 没有登记建档取值，无法定位本矩阵的行，判红`);
@@ -653,7 +1010,9 @@ test.describe('显示控制与脱敏面矩阵', () => {
     });
     seeded.productId = Number(product?.id);
     if (!Number.isFinite(seeded.productId) || seeded.productId <= 0) {
-      throw new Error(`前置失败：建面料产品未返回有效 id，实际出参=${JSON.stringify(product)?.slice(0, 240)}`);
+      throw new Error(
+        `前置失败：建面料产品未返回有效 id，实际出参=${JSON.stringify(product)?.slice(0, 240)}`
+      );
     }
 
     const customer = await apiCallRaw<Row>(admin.page, 'POST', '/crm/customers', {
@@ -665,15 +1024,22 @@ test.describe('显示控制与脱敏面矩阵', () => {
     });
     seeded.customerId = Number(customer?.id);
     if (!Number.isFinite(seeded.customerId) || seeded.customerId <= 0) {
-      throw new Error(`前置失败：建客户未返回有效 id，实际出参=${JSON.stringify(customer)?.slice(0, 240)}`);
+      throw new Error(
+        `前置失败：建客户未返回有效 id，实际出参=${JSON.stringify(customer)?.slice(0, 240)}`
+      );
     }
 
-    const contact = await apiCallRaw<Row>(admin.page, 'POST', `/crm/customers/${seeded.customerId}/contacts`, {
-      name: SEED.contactName,
-      phone: SEED.contactPhone,
-      email: SEED.contactEmail,
-      is_primary: true,
-    });
+    const contact = await apiCallRaw<Row>(
+      admin.page,
+      'POST',
+      `/crm/customers/${seeded.customerId}/contacts`,
+      {
+        name: SEED.contactName,
+        phone: SEED.contactPhone,
+        email: SEED.contactEmail,
+        is_primary: true,
+      }
+    );
     seeded.contactId = Number(contact?.id);
     if (!Number.isFinite(seeded.contactId) || seeded.contactId <= 0) {
       throw new Error(
@@ -681,8 +1047,14 @@ test.describe('显示控制与脱敏面矩阵', () => {
       );
     }
 
-    const supplierList = await apiCallRaw<Row>(admin.page, 'GET', '/purchase/suppliers?page=1&page_size=5');
-    const supplierRows = Array.isArray(supplierList['items']) ? (supplierList['items'] as Row[]) : [];
+    const supplierList = await apiCallRaw<Row>(
+      admin.page,
+      'GET',
+      '/purchase/suppliers?page=1&page_size=5'
+    );
+    const supplierRows = Array.isArray(supplierList['items'])
+      ? (supplierList['items'] as Row[])
+      : [];
     if (supplierRows.length > 0) {
       seeded.supplierId = Number(supplierRows[0].id);
     } else {
@@ -708,23 +1080,30 @@ test.describe('显示控制与脱敏面矩阵', () => {
     });
     seeded.purchasePriceId = Number(Array.isArray(price) ? price[0]?.id : (price as Row)?.id);
     if (!Number.isFinite(seeded.purchasePriceId) || seeded.purchasePriceId <= 0) {
-      throw new Error(`前置失败：建采购价未返回有效 id，实际出参=${JSON.stringify(price)?.slice(0, 240)}`);
+      throw new Error(
+        `前置失败：建采购价未返回有效 id，实际出参=${JSON.stringify(price)?.slice(0, 240)}`
+      );
     }
 
-    const collection = await apiCallRaw<unknown>(admin.page, 'POST', '/production/cost-collections', {
-      collection_date: new Date().toISOString().slice(0, 10),
-      cost_object_type: 'dye_lot',
-      dye_lot_no: seedDyeLotNo,
-      color_no: SEED.colorNo,
-      batch_no: seedDyeLotNo,
-      direct_material: '1000.00',
-      direct_labor: '200.00',
-      manufacturing_overhead: '100.00',
-      processing_fee: SEED.processing_fee,
-      dyeing_fee: SEED.dyeing_fee,
-      output_quantity_meters: SEED.output_quantity_meters,
-      output_quantity_kg: '300.00',
-    });
+    const collection = await apiCallRaw<unknown>(
+      admin.page,
+      'POST',
+      '/production/cost-collections',
+      {
+        collection_date: new Date().toISOString().slice(0, 10),
+        cost_object_type: 'dye_lot',
+        dye_lot_no: seedDyeLotNo,
+        color_no: SEED.colorNo,
+        batch_no: seedDyeLotNo,
+        direct_material: '1000.00',
+        direct_labor: '200.00',
+        manufacturing_overhead: '100.00',
+        processing_fee: SEED.processing_fee,
+        dyeing_fee: SEED.dyeing_fee,
+        output_quantity_meters: SEED.output_quantity_meters,
+        output_quantity_kg: '300.00',
+      }
+    );
     seeded.costCollectionId = Number(
       Array.isArray(collection) ? collection[0]?.id : (collection as Row)?.id
     );
@@ -734,18 +1113,23 @@ test.describe('显示控制与脱敏面矩阵', () => {
       );
     }
 
-    const outsourcing = await apiCallRaw<unknown>(admin.page, 'POST', '/production/outsourcing-orders', {
-      order_no: SEED.orderNo,
-      order_type: '染色',
-      supplier_id: seeded.supplierId,
-      color_no: SEED.colorNo,
-      dye_lot_no: seedDyeLotNo,
-      issue_date: new Date().toISOString().slice(0, 10),
-      issue_quantity: '500',
-      issue_unit: '米',
-      material_cost: '2000.00',
-      standard_loss_rate: SEED.standard_loss_rate,
-    });
+    const outsourcing = await apiCallRaw<unknown>(
+      admin.page,
+      'POST',
+      '/production/outsourcing-orders',
+      {
+        order_no: SEED.orderNo,
+        order_type: '染色',
+        supplier_id: seeded.supplierId,
+        color_no: SEED.colorNo,
+        dye_lot_no: seedDyeLotNo,
+        issue_date: new Date().toISOString().slice(0, 10),
+        issue_quantity: '500',
+        issue_unit: '米',
+        material_cost: '2000.00',
+        standard_loss_rate: SEED.standard_loss_rate,
+      }
+    );
     seeded.outsourcingOrderId = Number(
       Array.isArray(outsourcing) ? outsourcing[0]?.id : (outsourcing as Row)?.id
     );
@@ -776,8 +1160,12 @@ test.describe('显示控制与脱敏面矩阵', () => {
       ) + '\n',
       'utf-8'
     );
-    await apiCallExpectFail(admin.page, 'DELETE', `/crm/customers/${seeded.customerId}`).catch(() => undefined);
-    await apiCallExpectFail(admin.page, 'DELETE', `/products/${seeded.productId}`).catch(() => undefined);
+    await apiCallExpectFail(admin.page, 'DELETE', `/crm/customers/${seeded.customerId}`).catch(
+      () => undefined
+    );
+    await apiCallExpectFail(admin.page, 'DELETE', `/products/${seeded.productId}`).catch(
+      () => undefined
+    );
     await admin.close();
   });
 
@@ -822,7 +1210,7 @@ test.describe('显示控制与脱敏面矩阵', () => {
         mismatches.push(
           `面 ${face.id} 出现未在矩阵声明里的脱敏调用 ${extra.join(
             ', '
-          )}：新增处置必须逐列登记进本矩阵，不能让矩阵继续按「该面不脱敏」通过`
+          )}：新增处置必须逐列登记进本矩阵，不能让矩阵继续按“该面不脱敏”通过`
         );
       }
     }
@@ -878,7 +1266,10 @@ test.describe('显示控制与脱敏面矩阵', () => {
           credentialRole: role,
         });
         try {
-          const identity = await readRelayIdentity(session.page, `面 ${face.id} 的角色 ${role} 会话`);
+          const identity = await readRelayIdentity(
+            session.page,
+            `面 ${face.id} 的角色 ${role} 会话`
+          );
           expect(
             identity.permissions.length,
             `面 ${face.id} 的角色 ${role} 登录后 permissions 为空数组（登录出参的授权面丢失），可见性无从判定`
@@ -896,7 +1287,9 @@ test.describe('显示控制与脱敏面矩阵', () => {
           } catch (error) {
             // 列表里没有本矩阵那行同样属行级收敛，登记后跳过逐列比对；
             // 单对象腿（详情面）不走这条路，它要么 200 要么由权限门断言抓。
-            visibleKeySets[role] = [`<集合内无本矩阵建档行：${(error as Error).message.slice(0, 120)}>`];
+            visibleKeySets[role] = [
+              `<集合内无本矩阵建档行：${(error as Error).message.slice(0, 120)}>`,
+            ];
             continue;
           }
           for (const spec of face.columns) {
@@ -919,7 +1312,8 @@ test.describe('显示控制与脱敏面矩阵', () => {
             serverSideMaskCalls: face.expectMaskCalls,
             holderRolesWithCredential: holders,
             columns: face.columns.map(
-              c => `${c.column}(${c.cn}) admin=${c.admin.join('或')} nonAdmin=${c.nonAdmin.join('或')}`
+              c =>
+                `${c.column}(${c.cn}) admin=${c.admin.join('或')} nonAdmin=${c.nonAdmin.join('或')}`
             ),
             visibleKeySetByRole: visibleKeySets,
           },
@@ -938,7 +1332,7 @@ test.describe('显示控制与脱敏面矩阵', () => {
       // 检测力自证：持证非 admin 角色必须真被跑过至少一次，否则上面的循环空转也是绿。
       expect(
         holders.length,
-        `面 ${face.id} 的资源 ${face.resource} 没有任何「持证且有 E2E 凭证」的非 admin 角色，` +
+        `面 ${face.id} 的资源 ${face.resource} 没有任何“持证且有 E2E 凭证”的非 admin 角色，` +
           '非 admin 腿的逐列断言没发生，该面的掩码结论不成立'
       ).toBeGreaterThan(0);
     });
@@ -976,7 +1370,7 @@ test.describe('显示控制与脱敏面矩阵', () => {
       const blockers = nonHolderRolesOf(face.resource, 'read').slice(0, 2);
       expect(
         blockers.length,
-        `面 ${face.id} 找不到「无 ${face.resource}:read 且有 E2E 凭证」的角色，越权侧无从判定，判红`
+        `面 ${face.id} 找不到“无 ${face.resource}:read 且有 E2E 凭证”的角色，越权侧无从判定，判红`
       ).toBeGreaterThan(0);
       for (const role of blockers) {
         const session = await createIsolatedSession(browser, role, {
@@ -1044,7 +1438,10 @@ test.describe('显示控制与脱敏面矩阵', () => {
       ).toBe(Number(SEED[col]));
     }
 
-    const biBody = readStructBody('../backend/src/services/bi_analysis_ops/types.rs', 'ProfitMetric');
+    const biBody = readStructBody(
+      '../backend/src/services/bi_analysis_ops/types.rs',
+      'ProfitMetric'
+    );
     expect(
       /gross_margin:\s*f64/.test(biBody),
       `BI 毛利率列实测不是 f64（片段=${biBody.slice(0, 240)}），出参形态口径需重判`
@@ -1074,7 +1471,9 @@ test.describe('显示控制与脱敏面矩阵', () => {
 
   // ---------- 五 三端一致性与服务端脱敏边界 ----------
 
-  test('三端一致 产品列表腿与详情腿对成本价的处置必须同向，详情腿不得成为列表掩码的旁路', async ({ browser }) => {
+  test('三端一致 产品列表腿与详情腿对成本价的处置必须同向，详情腿不得成为列表掩码的旁路', async ({
+    browser,
+  }) => {
     const problems: string[] = [];
     const holders = holderRolesOf('products', 'read').slice(0, 3);
     for (const role of holders) {
@@ -1085,12 +1484,16 @@ test.describe('显示控制与脱敏面矩阵', () => {
       try {
         const rows = await fetchFaceRows(session.page, 'products-list', 'items', seeded);
         const listRow = pickSeededRow(rows, SEEDED_FACES[0], seeded);
-        const detailRow = (await fetchFaceRows(session.page, 'products-detail', 'single', seeded))[0];
+        const detailRow = (
+          await fetchFaceRows(session.page, 'products-detail', 'single', seeded)
+        )[0];
         for (const key of ['cost_price', 'standard_price', 'supplier_id', 'gram_weight', 'width']) {
           const a = JSON.stringify(listRow[key] ?? '<无键>');
           const b = JSON.stringify(detailRow[key] ?? '<无键>');
           if (a !== b) {
-            problems.push(`角色 ${role} 的列 ${key}：列表腿=${a} 详情腿=${b}（同一记录两条腿给出两种可见性）`);
+            problems.push(
+              `角色 ${role} 的列 ${key}：列表腿=${a} 详情腿=${b}（同一记录两条腿给出两种可见性）`
+            );
           }
         }
       } finally {
@@ -1105,13 +1508,15 @@ test.describe('显示控制与脱敏面矩阵', () => {
     ).toEqual([]);
   });
 
-  test('三端一致 客户三条读腿（列表 与 详情 与 联系人子端点）非 admin 均不得拿到电话邮箱明文', async ({ browser }) => {
+  test('三端一致 客户三条读腿（列表 与 详情 与 联系人子端点）非 admin 均不得拿到电话邮箱明文', async ({
+    browser,
+  }) => {
     const problems: string[] = [];
     const observed: Record<string, string[]> = {};
     const holders = holderRolesOf('customers', 'read').slice(0, 3);
     expect(
       holders.length,
-      '没有任何「持 customers:read 且有 E2E 凭证」的非 admin 角色，客户域掩码面无法实测，判红'
+      '没有任何“持 customers:read 且有 E2E 凭证”的非 admin 角色，客户域掩码面无法实测，判红'
     ).toBeGreaterThan(0);
 
     for (const role of holders) {
@@ -1175,9 +1580,13 @@ test.describe('显示控制与脱敏面矩阵', () => {
             }
           }
           if (Object.prototype.hasOwnProperty.call(leg.row, 'address')) {
-            problems.push(`角色 ${role} 的${leg.name}应整键移除 address，实际仍下发=${JSON.stringify(leg.row['address'])}`);
+            problems.push(
+              `角色 ${role} 的${leg.name}应整键移除 address，实际仍下发=${JSON.stringify(leg.row['address'])}`
+            );
           }
-          observed[role].push(`${leg.name}=电话键${phoneKey ?? '缺席'} 邮箱键${emailKey ?? '缺席'}`);
+          observed[role].push(
+            `${leg.name}=电话键${phoneKey ?? '缺席'} 邮箱键${emailKey ?? '缺席'}`
+          );
         }
       } finally {
         await session.close();
@@ -1205,7 +1614,9 @@ test.describe('显示控制与脱敏面矩阵', () => {
         p =>
           /\/(h5|mobile|m)\/(products|customers|orders)/.test(p) ||
           /\/app-api\//.test(p) ||
-          listFaces.some(base => p !== `/api/v1/erp${base}` && p.endsWith(base) && p.includes('/mobile'))
+          listFaces.some(
+            base => p !== `/api/v1/erp${base}` && p.endsWith(base) && p.includes('/mobile')
+          )
       );
     expect(
       mobileAliases,
@@ -1220,16 +1631,28 @@ test.describe('显示控制与脱敏面矩阵', () => {
     }
   });
 
-  test('小程序可见性判据从后端契约导出：逐角色能读到成本族真值的面集合必须等于按其权限码派生的集合', async ({ browser }) => {
+  test('小程序可见性判据从后端契约导出：逐角色能读到成本族真值的面集合必须等于按其权限码派生的集合', async ({
+    browser,
+  }) => {
     const COST_FACES: Array<{ id: string; resource: string; column: string; cn: string }> = [
       { id: 'products-list', resource: 'products', column: 'cost_price', cn: '成本价' },
       { id: 'purchase-prices-list', resource: 'purchase-prices', column: 'price', cn: '进价' },
-      { id: 'cost-collections-list', resource: 'cost-collections', column: 'dyeing_fee', cn: '染厂加工费' },
-      { id: 'outsourcing-orders-list', resource: 'outsourcing-orders', column: 'standard_loss_rate', cn: '损耗' },
+      {
+        id: 'cost-collections-list',
+        resource: 'cost-collections',
+        column: 'dyeing_fee',
+        cn: '染厂加工费',
+      },
+      {
+        id: 'outsourcing-orders-list',
+        resource: 'outsourcing-orders',
+        column: 'standard_loss_rate',
+        cn: '损耗',
+      },
       { id: 'bi-profit', resource: 'bi-analysis', column: 'gross_margin', cn: '毛利率' },
     ];
     // 小程序侧沿用后端登录出参的权限码面（miniprogram/libs/utils/perm.js 复刻后端
-    // matches_permission），因此它的可达面判据就是「该角色权限码能否命中该端点派生的键」。
+    // matches_permission），因此它的可达面判据就是“该角色权限码能否命中该端点派生的键”。
     const targetRoles = [
       ...new Set([
         ...COST_FACES.flatMap(f => holderRolesOf(f.resource, 'read').slice(0, 1)),
@@ -1336,7 +1759,9 @@ test.describe('显示控制与脱敏面矩阵', () => {
       for (const c of f.mustHave) declaredColumns.add(c.column);
       for (const c of f.mustNotHave) declaredColumns.add(c.column);
     }
-    const unbound = index.filter(i => !declaredColumns.has(i.column)).map(i => `${i.cn}=${i.column}`);
+    const unbound = index
+      .filter(i => !declaredColumns.has(i.column))
+      .map(i => `${i.cn}=${i.column}`);
     expect(
       unbound,
       `用户口径的 15 项里有 ${unbound.length} 项没有落到任何面的真实列声明上：${unbound.join(', ')}`
