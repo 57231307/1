@@ -167,3 +167,5 @@ pub mod print_template_default_slot;
 pub mod textile_safety;
 pub mod purchase_inspection_result_check;
 pub mod export_approval_lifecycle;
+// 审计日志补定位列（终端类型 操作页面 单据编号 变更原因 风险标记）与追溯索引，链尾独立域
+pub mod m0126_add_audit_terminal_context_columns;

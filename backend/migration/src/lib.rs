@@ -257,6 +257,8 @@ impl MigratorTrait for Migrator {
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),
+            // 审计定位列（终端类型 操作页面 单据编号 变更原因 风险标记）与追溯索引，链尾独立域
+            Box::new(domain::m0126_add_audit_terminal_context_columns::Migration),
         ]
     }
 }
