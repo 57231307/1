@@ -29,6 +29,9 @@ use std::str::FromStr;
 const SERVICE_SRC: &str = include_str!("../src/services/sku_mapping_service.rs");
 const PO_CRUD_SRC: &str = include_str!("../src/services/po/order_ops/crud.rs");
 const HANDLER_SRC: &str = include_str!("../src/handlers/sku_mapping_handler.rs");
+/// 采购建单前端 hook，钉它必须把服务端原因挂到行上且不再叠矛盾的固定指路键
+const USE_CREATE_SRC: &str =
+    include_str!("../../frontend/src/views/purchase/composables/useCreate.ts");
 const SALES_ITEM_SRC: &str = include_str!("../src/models/sales_order_item.rs");
 
 // ---------------------------------------------------------------------------
@@ -363,21 +366,87 @@ fn resolve_result_has_no_mapping_wrapper() {
     assert_eq!(obj["lead_time"], 7);
 }
 
-/// resolve 预览端点面向采购角色，允许指路文案（提示先维护对照表），
-/// 与转采购 hook 的中性文案形成受众分层：采购可指路、销售可见面中性。
+/// resolve 预览端点的拒绝口径锁，2026-10-31 随写侧可执行化改判据。
+///
+/// 旧判据钉的是"文案含指路句子加 AppError::business 脱敏构造"，而 business 的 message
+/// 在出参侧被脱敏，采购界面只会拿到"业务处理失败"，指路信息进不了现场；同一句指路
+/// 由前端 i18n 固定补一条又会与服务端原因互相矛盾（用户实报的"有对照却说没对照"即此）。
+/// 现口径是服务端按两路分别给出可外显且点名的原因，前端不再叠固定文案，
+/// 因此本锁改钉"必须可外显 加 两路原因各自点名补救 加 前端不得再有矛盾键"，
+/// 并保留一条反向夹具证明判据对退回脱敏形态有检测力。
 #[test]
-fn resolve_handler_preview_allows_guidance_text() {
+fn resolve_preview_must_show_actionable_displayable_reason() {
     let code = code_only(HANDLER_SRC);
+    let body = resolve_sku_body(&code);
+
+    for needle in [
+        "该产品与当前供应商已有不分色号的通用对照",
+        "该产品与当前供应商尚未建立SKU对照",
+    ] {
+        assert!(
+            body.contains(needle),
+            "resolve 未命中必须给出点名补救动作的口径，缺文案 {needle}"
+        );
+    }
     assert!(
-        code.contains("该产品色号暂无供应商对照，请先维护对照表"),
-        "采购预览 resolve 端点应给出可指路的 business 文案"
+        canon_contains(&body, "AppError::business_displayable("),
+        "resolve 的拒绝必须走可外显构造，否则操作员只拿到脱敏常量"
     );
-    // 且该文案是 AppError::business（出参脱敏），指路信息只进日志，
-    // 真正面向采购的引导由前端 i18n（skuMappingNotFound）承担。
     assert!(
-        canon_contains(&code, ".ok_or_else(|| AppError::business("),
-        "resolve 无映射应返回 AppError::business（脱敏）"
+        !canon_contains(&body, "AppError::business("),
+        "resolve 未命中路径退回脱敏的 AppError::business 即判红，界面将再次只剩业务处理失败"
     );
+
+    let hook = code_only(USE_CREATE_SRC);
+    assert!(
+        !hook.contains("skuMappingNotFound"),
+        "前端不得再携带与服务端原因互相矛盾的固定指路键 skuMappingNotFound"
+    );
+    assert!(
+        hook.contains("resolve_error"),
+        "前端必须把服务端原因挂到明细行，提示消失后那一列仍能说明为什么空着"
+    );
+}
+
+/// 反向夹具，证明上一条锁不是恒真。把 resolve 体改回脱敏构造并抹掉一路原因，
+/// 判据必须逐条点名抓到，否则说明它有检测力盲区。
+#[test]
+fn resolve_preview_lock_detects_regression_to_masked_reason() {
+    let regressed = "\
+pub async fn resolve_sku() {
+    let reason = \"该产品与当前供应商尚未建立SKU对照\";
+    return Err(AppError::business(reason));
+}
+pub async fn other() {}";
+    let body = resolve_sku_body(regressed);
+    assert!(
+        !canon_contains(&body, "AppError::business_displayable("),
+        "夹具未造出脱敏回退形态，反向自证无效"
+    );
+    assert!(
+        canon_contains(&body, "AppError::business("),
+        "夹具未造出脱敏回退形态，反向自证无效"
+    );
+    assert!(
+        !body.contains("该产品与当前供应商已有不分色号的通用对照"),
+        "夹具应缺通用对照那一路口径，反向自证才覆盖文案缺失"
+    );
+}
+
+/// 从 handler 源码里切出 resolve_sku 函数体，把判据作用面收到该端点，
+/// 不让同文件其它端点的合法 business 用法干扰本锁。
+fn resolve_sku_body(code: &str) -> &str {
+    let start = code
+        .find("pub async fn resolve_sku")
+        .expect("handler 里必须还有 resolve_sku");
+    let rest = &code[start..];
+    match rest[24..]
+        .find("\npub async fn ")
+        .or_else(|| rest[24..].find("\npub fn "))
+    {
+        Some(end) => &rest[..end + 24],
+        None => rest,
+    }
 }
 
 // ---------------------------------------------------------------------------
