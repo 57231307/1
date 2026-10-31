@@ -36,8 +36,7 @@ use bingxi_backend::utils::admin_checker::AUDITOR_ROLE_CODE;
 use chrono::{DateTime, Duration, Utc};
 use rust_decimal::Decimal;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
-    QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ActiveValue, DatabaseConnection, EntityTrait, Order, QueryOrder, Set,
 };
 use serde_json::Value;
 use std::sync::Arc;
