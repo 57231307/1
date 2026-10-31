@@ -253,7 +253,9 @@ fn migration_grant_triples(migration_src: &str) -> BTreeSet<(String, String, Str
         .find("const GRANTS")
         .expect("通道② 迁移必须定义 GRANTS 常量，缺失即授予面不可核对");
     let body = &migration_src[start..];
-    let end = body.find("];").expect("GRANTS 常量必须以右中括号加分号收尾");
+    let end = body
+        .find("];")
+        .expect("GRANTS 常量必须以右中括号加分号收尾");
     body[..end]
         .lines()
         .filter_map(tuple_fields)
@@ -451,14 +453,7 @@ fn roles_without_a_key_are_denied_by_the_matcher() {
         );
         for resource in AR_RESOURCES {
             for action in [
-                "read",
-                "create",
-                "update",
-                "delete",
-                "approve",
-                "confirm",
-                "cancel",
-                "print",
+                "read", "create", "update", "delete", "approve", "confirm", "cancel", "print",
                 "export",
             ] {
                 assert!(
@@ -543,8 +538,7 @@ fn detector_can_see_injected_drift() {
     );
 
     // 注入一 摘掉一枚键
-    let removed =
-        migration_src.replace("(\"finance_manager\", \"ar-invoices\", \"approve\"),", "");
+    let removed = migration_src.replace("(\"finance_manager\", \"ar-invoices\", \"approve\"),", "");
     let after_removal = migration_grant_triples(&removed);
     assert!(
         after_removal.len() + 1 == baseline.len()

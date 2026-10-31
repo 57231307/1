@@ -3,7 +3,6 @@
   "reachableRoutes": [
     "/account-subject",
     "/accounting-period",
-    "/ar",
     "/ar-reconciliation",
     "/assist-accounting",
     "/bpm",
