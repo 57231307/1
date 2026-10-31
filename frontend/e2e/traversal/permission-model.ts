@@ -147,7 +147,22 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermValue> = {
     'ap-monthly:read',
     'ap-statistics:read',
   ],
-  ar: 'finance:read',
+  // /ar 的门控已从粗域键 finance:read 收成九枚细键（六页签入口判据的并集），
+  // 值顺序与 router 源文本内的字面量数组逐项对应，并与 constants/permissions.ts 的
+  // AR_SHELL_ENTRY_PERMISSIONS 逐字一致（三处一致性由 tests/unit/
+  // ar-shell-permission-lock.test.ts 承担）。fund-management:read 属资金账户页签，
+  // 取舍理由见该常量定义处注释。只持财务域其他细读权的岗位由此不再被并集放行进入应收壳页。
+  ar: [
+    'ar-invoices:read',
+    'ar-payments:read',
+    'ar-verifications:read',
+    'ar-reconciliations:read',
+    'fund-management:read',
+    'ar-aging:read',
+    'ar-daily:read',
+    'ar-monthly:read',
+    'ar-statistics:read',
+  ],
   customer: 'customers:read',
   supplier: 'suppliers:read',
   product: 'products:read',

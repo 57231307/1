@@ -116,6 +116,13 @@
 //!   schema，export_approval 流程定义行由 services/bpm_definition_seed.rs 出厂种子登记；
 //!   依赖 system 建的 bpm_process_instance、v15 建的 export_approval_request 与
 //!   download_token 等既有列，故必须排全链尾为新的顶层条目，复用库上也必然执行）
+//! - ar_family_grant: 应收族八枚细键补授财务两岗（finance_manager 审核面与报表面与催收
+//!   出文面 11 枚、accountant 制单与记账面 10 枚）的存量库通道——先探测八枚资源名在存量库
+//!   的既有授权行并逐枚点名缺失项，再按 roles.code 幂等补授，只补缺失行、不 UPDATE 不 DELETE
+//!   覆盖既有授权，同键显式拒绝行只点名不覆盖；回退按角色码与键的三元组配对收窄。
+//!   与通道① init_service_ops/permission.rs 的同源性与通道③ 零枚口径由
+//!   backend/tests/contract_ar_family_grant_channels_test.rs 双向钉住；置于链尾为新的顶层
+//!   条目，复用库上也必然执行
 
 pub mod system;
 pub mod business;
@@ -167,3 +174,6 @@ pub mod print_template_default_slot;
 pub mod textile_safety;
 pub mod purchase_inspection_result_check;
 pub mod export_approval_lifecycle;
+// 应收族八枚细键补授。独立顶层域，理由见域头（并入已应用域会在复用库被台账整体跳过，
+// 补授永不落地）。链尾位置与 ap_family_grant 同族同形态。
+pub mod ar_family_grant;

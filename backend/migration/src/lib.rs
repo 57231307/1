@@ -196,6 +196,18 @@
 //!    老行按 token_expires_at 自然过期、校验侧对 token_hash IS NULL 回退明文比对。依赖 system
 //!    建的 bpm_process_instance 与 finance 建并 v15 扩展的
 //!    export_approval_request 全部早于本域；置于全链尾为新的顶层条目，复用库上必然执行。
+//! 35. ar_family_grant: 应收族八枚细键的存量库补授通道（m0125）。八枚资源名
+//!    ar-invoices/ar-payments/ar-verifications/ar-collections/ar-aging/ar-daily/ar-monthly/
+//!    ar-statistics 已在 PERMISSION_RESOURCES 与 path_utils 消歧表在册，但三通道（init 角色
+//!    矩阵、存量库迁移、e2e SEED）此前全空，除超管外任何角色都调不到该族端点。本域先探测
+//!    八枚资源名在 role_permissions 的既有行数并逐枚点名缺失，再按 roles.code 为
+//!    finance_manager（审核、报表、催收出文共 11 枚）与 accountant（制单与记账共 10 枚）
+//!    幂等补授，ON CONFLICT 用唯一索引真实列集合 DO NOTHING，只补缺失行，绝不 UPDATE 或
+//!    DELETE 覆盖既有授权，同键显式拒绝行只点名不覆盖；down 按角色码与键的三元组配对收窄
+//!    回收。依赖 system 建的 roles 与 role_permissions 及 m_v15_domain 建的
+//!    uq_role_permissions_role_resource_action，全部早于本域；置于全链尾为新的顶层条目，
+//!    复用库上必然执行。三通道同口径由 backend/tests/
+//!    contract_ar_family_grant_channels_test.rs 双向钉住。
 
 pub use sea_orm_migration::prelude::*;
 
@@ -257,6 +269,9 @@ impl MigratorTrait for Migrator {
             Box::new(domain::textile_safety::Migration),
             Box::new(domain::purchase_inspection_result_check::Migration),
             Box::new(domain::export_approval_lifecycle::Migration),
+            // 应收族八枚细键的存量库补授通道，链尾独立域（只依赖 system 建的 roles 与
+            // role_permissions 与 m_v15_domain 建的同键唯一索引，全部早于本域）
+            Box::new(domain::ar_family_grant::Migration),
         ]
     }
 }

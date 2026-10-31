@@ -6,10 +6,22 @@
 <template>
   <div class="ar-verification-tab">
     <div class="tab-toolbar">
-      <el-button type="primary" @click="openManualDialog">
+      <!-- 手工与自动两条核销腿共用同一判据：后端资源 ar-verifications，两条 POST 端点
+           的末段 manual 与 auto 都不在 PATH_ACTION_KEYWORDS 内，一律按方法派生成
+           ar-verifications:create，所以两把按钮的守卫键相同（已知捆绑，授一枚即放两条腿）。
+           该键只授记账岗，审核岗在本页签只有读权，不加守卫就是点了必 403。 -->
+      <el-button
+        v-permission="PERMISSIONS.AR_VERIFICATION_CREATE"
+        type="primary"
+        @click="openManualDialog"
+      >
         {{ t('arModule.verification.manual') }}
       </el-button>
-      <el-button :loading="autoVerifying" @click="handleAutoVerify">
+      <el-button
+        v-permission="PERMISSIONS.AR_VERIFICATION_CREATE"
+        :loading="autoVerifying"
+        @click="handleAutoVerify"
+      >
         {{ t('arModule.verification.auto') }}
       </el-button>
       <el-button @click="fetchVerifications">{{ t('common.refresh') }}</el-button>
@@ -52,8 +64,12 @@
           <el-button size="small" link @click="showDetail(row)">
             {{ t('common.detail') }}
           </el-button>
+          <!-- 撤核面 POST /ar/verifications/{id}/cancel 末段命中动作关键字，派生
+               ar-verifications:cancel，只授记账岗（错核只能靠撤核回滚应收余额，
+               不给则本岗无更正入口；审核岗不持该键，不加守卫就是必 403） -->
           <el-button
             v-if="row.status === 'active'"
+            v-permission="PERMISSIONS.AR_VERIFICATION_CANCEL"
             size="small"
             type="danger"
             link
@@ -139,6 +155,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { useNumberField } from '@/composables/useNumberField';
+import { PERMISSIONS } from '@/constants/permissions';
 import {
   getARVerificationList,
   getARVerification,

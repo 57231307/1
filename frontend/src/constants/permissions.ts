@@ -367,6 +367,49 @@ export const PERMISSIONS = {
   // 应收发票（后端资源：ar-invoices，与应付同型随域改名）
   AR_INVOICE_READ: 'ar-invoices:read',
   AR_INVOICE_EXPORT: 'ar-invoices:export',
+  // 应收发票的制单面与审核面（后端资源 ar-invoices）：建单面 POST /ar/invoices 按方法派生
+  // create，改单面 PUT /ar/invoices/{id} 派生 update（两枚都授记账岗）；审核面与作废面的
+  // 末段 approve 与 cancel 命中 PATH_ACTION_KEYWORDS 派生同名动作（两枚都授审核岗）。
+  // 制单与审核互斥，五个键的持有者集合分属两岗，所以页签内按钮必须逐枚守卫。
+  AR_INVOICE_CREATE: 'ar-invoices:create',
+  AR_INVOICE_UPDATE: 'ar-invoices:update',
+  AR_INVOICE_APPROVE: 'ar-invoices:approve',
+  AR_INVOICE_CANCEL: 'ar-invoices:cancel',
+
+  // 应收族其余页签的入口读面键（后端资源名逐枚对齐 PERMISSION_RESOURCES 与 path_utils
+  // 的 ar 前缀消歧目标；派生依据 = GET /ar/<段>，动作段按 GET 到 read）：
+  // /ar/payments、/ar/verifications、/ar-reconciliations（对账族挂根级第四段，不经 ar 消歧）。
+  AR_PAYMENT_READ: 'ar-payments:read',
+  // 收款面的三个写动作（后端资源 ar-payments，动作按方法派生：POST 到 create、
+  // PUT 到 update，末段 confirm 命中 PATH_ACTION_KEYWORDS 派生 confirm）。
+  // 建单与改单授记账岗，确认授审核岗，两岗互斥，所以三个键的持有者集合不同，
+  // 收款页签的行内按钮必须逐枚守卫，否则总有一岗看得见点不得（点了必 403）。
+  AR_PAYMENT_CREATE: 'ar-payments:create',
+  AR_PAYMENT_UPDATE: 'ar-payments:update',
+  AR_PAYMENT_CONFIRM: 'ar-payments:confirm',
+  AR_VERIFICATION_READ: 'ar-verifications:read',
+  // 核销面的建单与撤核（后端资源 ar-verifications）：自动与手工两条 POST 端点的末段
+  // auto 与 manual 都不在 PATH_ACTION_KEYWORDS 内，一律按方法派生成 create，
+  // 所以一枚 create 同时放出两条核销腿（已知捆绑，页面两把按钮共用同一判据）；
+  // 撤核面 POST /ar/verifications/{id}/cancel 末段命中关键字派生 cancel。两枚都只授记账岗，
+  // 审核岗在本页签只有读权，按钮不守卫就是点了必 403。
+  AR_VERIFICATION_CREATE: 'ar-verifications:create',
+  AR_VERIFICATION_CANCEL: 'ar-verifications:cancel',
+  AR_RECONCILIATION_READ: 'ar-reconciliations:read',
+
+  // 收款单 DOCX 打印（后端资源：ar-collections，URL 段 ar/collections 消歧得名）。
+  // 本资源只有一个动作可派生：GET /ar/collections/{id}/print 末段命中路径动作关键字表
+  // 派生 print，该资源没有任何 read 端点，所以读面键 ar-collections:read 是运行时
+  // 永不命中的悬空授权，不许写。前端收款页签的行内打印按钮按本键守卫，缺键即按钮隐去。
+  AR_COLLECTION_PRINT: 'ar-collections:print',
+
+  // 应收报表中心四本账（GET /ar/reports/<段>：ar 与 reports 同为模块前缀，跳段后资源名
+  // 落在第五段并经消歧映射为 ar-aging / ar-daily / ar-monthly / ar-statistics，
+  // 四本彼此独立，任一枚都不代偿另一枚）。
+  AR_AGING_READ: 'ar-aging:read',
+  AR_DAILY_READ: 'ar-daily:read',
+  AR_MONTHLY_READ: 'ar-monthly:read',
+  AR_STATISTICS_READ: 'ar-statistics:read',
 
   // 财务报表（后端资源：finance 前缀加报表段；URL 形如 /finance/reports/<报表段>，
   // 跳段后仍由 RESOURCE_NAME_MAP 消歧，六个报表面各自一个资源名，互不代偿）
@@ -388,6 +431,9 @@ export const PERMISSIONS = {
   FINANCIAL_ANALYSIS_DELETE: 'financial-analysis:delete',
 
   // 资金管理（后端资源：fund-management，根级直接资源；建户面 POST /fund-management/accounts）
+  // READ 是应收壳页「资金账户」页签的入口判据（该页签挂载即拉 GET /fund-management/accounts，
+  // 资源段取 URL 第四段原名，不经任何前缀消歧）。
+  FUND_MANAGEMENT_READ: 'fund-management:read',
   FUND_MANAGEMENT_CREATE: 'fund-management:create',
 
   // 固定资产（后端资源：fixed-assets，根级直接资源；导出面 GET /fixed-assets/export）
@@ -513,4 +559,48 @@ export const AP_SHELL_ENTRY_PERMISSIONS: readonly PermissionCode[] = [
   PERMISSIONS.AP_VERIFICATION_READ,
   PERMISSIONS.AP_RECONCILIATION_READ,
   ...AP_REPORT_TAB_PERMISSIONS,
+];
+
+// ============================================================================
+// 应收域（/ar）门控集合
+// ============================================================================
+
+/**
+ * 应收报表中心页签的入口判据：四本账的读面键，任一命中即该页签可达。
+ * 页签内部用 el-radio-group 在四本账之间切换，本集合只决定「页签是否出现」。
+ * 四枚必须逐枚列：后端 matcher 是资源段等值的精确匹配，报表四本各自一个资源名，
+ * 给其中一本的读权放行不了另一本。
+ */
+export const AR_REPORT_TAB_PERMISSIONS: readonly PermissionCode[] = [
+  PERMISSIONS.AR_AGING_READ,
+  PERMISSIONS.AR_DAILY_READ,
+  PERMISSIONS.AR_MONTHLY_READ,
+  PERMISSIONS.AR_STATISTICS_READ,
+];
+
+/**
+ * 应收域壳页（路由 /ar）的入口判据：六个页签各自入口判据的并集。
+ *
+ * 与应付域同形，同样取并集钉住「壳页可达 ⇔ 至少一个页签可见」这条不变式，
+ * 同样不许用粗域键 finance:read 兼职（后者经 router 的 COARSE_DOMAIN_RESOURCES
+ * 展开为整个财务域五十余枚细资源的并集，只持凭证/工资/汇率/成本读权的岗位
+ * 也能打开应收壳页，属跨域越权入口；而后端 matcher 从不认粗键，所以粗键给出的
+ * 展示面必然比后端能力面宽，点进去就是 403）。
+ *
+ * 与应付域的一处结构差需要点名：本域的「资金账户」页签走 GET /fund-management/accounts，
+ * 后端资源段是 fund-management（根级直接资源，不经 ar 前缀消歧），不属应收族八枚细键。
+ * 按「壳页可达当且仅当至少一个页签可见」的不变式，它的读面键必须留在本并集里，
+ * 否则出纳（持 fund-management 读与建户、不持任何 ar-* 键）能进壳页却一个页签都看不见。
+ *
+ * 本集合与 router 里 /ar 的 meta.permission 字面量数组、e2e 权限模型的
+ * ROUTE_PERMISSIONS.ar 三处由静态锁 tests/unit/ar-shell-permission-lock.test.ts
+ * 逐字互锁；router 侧只能写单引号字面量，因为该口径的文本解析不识别标识符。
+ */
+export const AR_SHELL_ENTRY_PERMISSIONS: readonly PermissionCode[] = [
+  PERMISSIONS.AR_INVOICE_READ,
+  PERMISSIONS.AR_PAYMENT_READ,
+  PERMISSIONS.AR_VERIFICATION_READ,
+  PERMISSIONS.AR_RECONCILIATION_READ,
+  PERMISSIONS.FUND_MANAGEMENT_READ,
+  ...AR_REPORT_TAB_PERMISSIONS,
 ];

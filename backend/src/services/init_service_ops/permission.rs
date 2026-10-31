@@ -1191,6 +1191,43 @@ impl InitService {
                     ("ap-daily", "read"),
                     ("ap-monthly", "read"),
                     ("ap-statistics", "read"),
+                    // ===== 应收族 AR 审核与报表面与催收出文面 =====
+                    // 与上方应付族同岗同半程：业务面只授读加审核动作，制单面（建单、改单）
+                    // 留在 accountant 分组，互斥依据同样是 role_conflicts 内置默认的
+                    // 财务制单与审核互斥。八枚资源名全部在 utils/path_utils.rs 的 ar 前缀
+                    // 消歧映射与 init_service.rs 的 PERMISSION_RESOURCES 在册，本分组
+                    // 不新增资源键。键集与存量库通道
+                    // migration/src/domain/ar_family_grant/m0125_grant_ar_family_keys.rs
+                    // 逐字符同源，一致性由 tests/contract_ar_family_grant_channels_test.rs
+                    // 双向钉住（该族此前三通道全空，除超管外谁都调不到）。
+                    // ar-invoices 的审核与作废都在本岗：approve 末段命中 PATH_ACTION_KEYWORDS
+                    // 派生同名动作，作废（cancel）是发票作废面而非制单面，与审核同岗。
+                    // ar-payments 的 confirm 把收款落到应收余额，是审核腿，不给制单岗；
+                    // cancel（收款作废）在册但前端零调用方，授了等于给无人使用的口子扩面，
+                    // 两岗都不授。
+                    // ar-verifications 只授读：核销与撤核是记账动作，归 accountant 分组。
+                    // ar-collections 的 print 是本资源唯一可派生的动作（该资源只有收款单
+                    // DOCX 打印一条 GET 端点，没有任何 read 端点），前端收款页签的行内
+                    // 打印按钮是活调用方，缺键即点了必 403，催收出文归管理岗故本岗授。
+                    // ar-invoices 的 export 不授：导出按钮已由 v-permission 按该键守卫，
+                    // 缺键即按钮隐去而不形成 403，应付族同岗同样不授，两族保持一致。
+                    // 报表四枚只授读：四本账只有 ar 前缀下 reports 段的 aging、daily、
+                    // monthly、statistics 四条 GET 端点在册，reports 是嵌套子模块故资源名
+                    // 落在第五段并经映射表消歧，可派生动作仅 read 一种，给通配符会造出
+                    // 看着全权、实则只有读的悬空授权。
+                    // 同族 ar-reconciliations 用通配是因为它具备真实的增删改面（GET、POST、
+                    // PUT、DELETE 端点齐全），报表四本没有写端点。
+                    ("ar-invoices", "read"),
+                    ("ar-invoices", "approve"),
+                    ("ar-invoices", "cancel"),
+                    ("ar-payments", "read"),
+                    ("ar-payments", "confirm"),
+                    ("ar-verifications", "read"),
+                    ("ar-collections", "print"),
+                    ("ar-aging", "read"),
+                    ("ar-daily", "read"),
+                    ("ar-monthly", "read"),
+                    ("ar-statistics", "read"),
                     ("accounting-periods", "*"),
                     ("wages", "read"),
                     ("reports", "read"),
@@ -1268,6 +1305,36 @@ impl InitService {
                     ("ap-payment-requests", "submit"),
                     ("ap-reconciliations", "read"),
                     ("ap-reconciliations", "create"),
+                    // ===== 应收族（AR）制单与记账面 =====
+                    // 口径与应付族同岗同形：业务面授读加制单，报表面归 finance_manager
+                    // （ar-aging、ar-daily、ar-monthly、ar-statistics 不给本岗），审核面
+                    // 一律不给（发票 approve 与 cancel、收款 confirm 都属审核腿，与制单互斥）。
+                    // 写面按「没有该写就没有对应记账职责的合法入口」逐条判定，一律不放大。
+                    // ar-invoices 的建单是手工录入应收发票的唯一入口，改单必需：自动落草稿
+                    // 的应收单不给改单则本岗无法修正金额、发票日期与付款条件，只能退回超管
+                    // 代改。不给删单（草稿可用改单修正，删单属管理面，同族 ar-reconciliations
+                    // 本岗也只有读与建单），不给导出与打印（展示面，非记账必需）。
+                    // ar-payments 的建单与改单是收款登记与修正，收款入账是本岗核心记账职责。
+                    // 不给 confirm（把收款落到应收余额是审核腿），不给 cancel（该作废端点
+                    // 在前端零调用方，授了等于给无人使用的口子扩面）。
+                    // ar-verifications 的建单是核销本身（auto 与 manual 两条 POST 端点均派生
+                    // 建单键，两末段都不在 PATH_ACTION_KEYWORDS 内），它写核销单并回写应收
+                    // 余额，属记账职责。已知捆绑，授建单即同时放出自动与手工两条核销腿。
+                    // 撤核必需：错核只能靠余额回滚修正，不给则错核永久污染应收余额，且应用内
+                    // 无任何更正入口（与应付族 ap-verifications 的 cancel 同判据）。
+                    // ar-collections 的 print 与本岗的 ar-payments read 同页签共存，收款页签
+                    // 对本岗可见则行内打印按钮必须可用，否则本岗一进页签就撞一枚必 403 的入口。
+                    // 键集与存量库通道 m0125_grant_ar_family_keys 逐字符同源。
+                    ("ar-invoices", "read"),
+                    ("ar-invoices", "create"),
+                    ("ar-invoices", "update"),
+                    ("ar-payments", "read"),
+                    ("ar-payments", "create"),
+                    ("ar-payments", "update"),
+                    ("ar-verifications", "read"),
+                    ("ar-verifications", "create"),
+                    ("ar-verifications", "cancel"),
+                    ("ar-collections", "print"),
                     // 客户信用面：记账岗可查看信用评级、建评级、改额度与账期。停用（delete）
                     // 与额度释放（release）属审核处置面，按内置的财务制单与审核互斥留在
                     // finance_manager，本岗不授；print 同理不授（前端零调用方）。键集与存量库

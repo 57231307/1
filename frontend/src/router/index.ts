@@ -260,7 +260,32 @@ const routes: RouteRecordRaw[] = [
         path: 'ar',
         name: 'AR',
         component: () => import('@/views/ar/index.vue'),
-        meta: { title: '应收管理', icon: 'Money', permission: 'finance:read', requiresAuth: true },
+        // 应收域壳页门控：只认后端 PERMISSION_RESOURCES 在册的九枚细键（六个页签各自
+        // 入口判据的并集），不再用粗域键 finance:read。后者经 COARSE_DOMAIN_RESOURCES
+        // 展开为整个财务域五十余枚细资源的并集，只持凭证/工资/汇率/成本读权的岗位也能
+        // 打开应收壳页，属跨域越权入口；而后端 matches_permission 只做资源段等值匹配、
+        // 从不认粗键，所以粗键给出的展示面必然宽于后端能力面，点进去就是 403。
+        // 本数组与 constants/permissions.ts 的 AR_SHELL_ENTRY_PERMISSIONS 以及 e2e 权限模型
+        // 的 ROUTE_PERMISSIONS.ar 由静态锁 tests/unit/ar-shell-permission-lock.test.ts
+        // 逐字互锁；router 侧只能写单引号字面量，因为该口径的文本解析不识别标识符。
+        // 并集里 fund-management:read 属资金账户页签（GET /fund-management/accounts 的
+        // 根级直接资源，不经 ar 前缀消歧），取舍理由见该常量的定义处注释。
+        meta: {
+          title: '应收管理',
+          icon: 'Money',
+          permission: [
+            'ar-invoices:read',
+            'ar-payments:read',
+            'ar-verifications:read',
+            'ar-reconciliations:read',
+            'fund-management:read',
+            'ar-aging:read',
+            'ar-daily:read',
+            'ar-monthly:read',
+            'ar-statistics:read',
+          ],
+          requiresAuth: true,
+        },
       },
       // 面料三域各自以独立页为权威入口（坯布/染色批次/染色配方），旧容器 /fabric 与
       // 深链 /fabric/greige 一律收敛到坯布页；坯布页同时承接原容器的入库出库操作。

@@ -6,7 +6,14 @@
 <template>
   <div class="ar-payment-tab">
     <div class="tab-toolbar">
-      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+      <!-- 建单面按 POST /ar/payments 派生 ar-payments:create，只有记账岗持该键；
+           不加守卫则审核岗一进页签就看见一个点了必 403 的按钮 -->
+      <el-button
+        v-permission="PERMISSIONS.AR_PAYMENT_CREATE"
+        type="primary"
+        :icon="Plus"
+        @click="openCreateDialog"
+      >
         {{ t('arModule.payment.create') }}
       </el-button>
       <el-button @click="fetchPayments">{{ t('common.refresh') }}</el-button>
@@ -33,8 +40,18 @@
       </el-table-column>
       <el-table-column :label="t('common.action')" width="280" fixed="right">
         <template #default="{ row }">
+          <!-- 行内四个按钮各自的判据取该动作在后端真实派生出的键，逐枚守卫：
+               编辑面 PUT /ar/payments/{id} 派生 ar-payments:update（记账岗），
+               确认面 POST /ar/payments/{id}/confirm 末段命中动作关键字派生
+               ar-payments:confirm（审核岗），打印面 GET /ar/collections/{id}/print
+               末段命中关键字派生 ar-collections:print（两岗都授，因为本岗既然能进
+               收款页签，行内打印就必须可用），详情面 GET /ar/payments/{id} 派生
+               ar-payments:read（页签入口已按该键判过，不再重复守卫）。
+               状态条件 v-if 与 v-permission 叠加时 v-if 优先，元素未创建则指令不跑，
+               条件转真时元素重建并重新求权限。 -->
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending'"
+            v-permission="PERMISSIONS.AR_PAYMENT_UPDATE"
             size="small"
             type="primary"
             link
@@ -44,6 +61,7 @@
           </el-button>
           <el-button
             v-if="row.status === 'draft' || row.status === 'pending' || row.status === 'confirmed'"
+            v-permission="PERMISSIONS.AR_PAYMENT_CONFIRM"
             size="small"
             type="success"
             link
@@ -54,7 +72,12 @@
           <el-button size="small" link @click="showDetail(row)">
             {{ t('common.detail') }}
           </el-button>
-          <el-button size="small" link @click="printCollection(row)">
+          <el-button
+            v-permission="PERMISSIONS.AR_COLLECTION_PRINT"
+            size="small"
+            link
+            @click="printCollection(row)"
+          >
             {{ t('common.print') }}
           </el-button>
         </template>
@@ -136,6 +159,7 @@ import { Plus } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { isDialogDismissal } from '@/utils/monitor';
 import { useNumberField } from '@/composables/useNumberField';
+import { PERMISSIONS } from '@/constants/permissions';
 import {
   getARPaymentList,
   getARPayment,

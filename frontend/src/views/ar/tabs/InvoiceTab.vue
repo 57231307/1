@@ -8,7 +8,13 @@
     <div class="page-header">
       <h2 class="page-title">{{ $t('arModule.invoice.title') }}</h2>
       <div class="header-actions">
-        <el-button type="primary" @click="openInvoiceDialog()">
+        <!-- 建单面对应 POST /ar/invoices，权限键按方法派生为 ar-invoices:create（记账岗）；
+             审核岗不持该键，不加守卫就是一个点了必 403 的按钮 -->
+        <el-button
+          v-permission="PERMISSIONS.AR_INVOICE_CREATE"
+          type="primary"
+          @click="openInvoiceDialog()"
+        >
           <el-icon><Plus /></el-icon>
           {{ $t('arModule.invoice.create') }}
         </el-button>
@@ -100,8 +106,12 @@
             <el-button type="primary" link size="small" @click="viewInvoice(row)">{{
               $t('common.detail')
             }}</el-button>
+            <!-- 审核面与作废面的末段 approve 与 cancel 都命中 PATH_ACTION_KEYWORDS，
+                 各自派生同名动作键，两枚都只授审核岗（制单岗按互斥不授），
+                 所以两把按钮都要守卫，否则记账岗在草稿行上看见点了必 403 的入口 -->
             <el-button
               v-if="row.status === 'DRAFT'"
+              v-permission="PERMISSIONS.AR_INVOICE_APPROVE"
               type="success"
               link
               size="small"
@@ -110,6 +120,7 @@
             >
             <el-button
               v-if="row.status === 'DRAFT'"
+              v-permission="PERMISSIONS.AR_INVOICE_CANCEL"
               type="danger"
               link
               size="small"
