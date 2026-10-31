@@ -142,7 +142,7 @@ pub const SUPPORTED_DOC_TYPES: &[&str] = &[
 /// 判定逻辑：在 `get_print_data` 中，当 doc_type 属于本集合时，先按实体主键取 `created_by`
 /// 列值，经 `check_resource_owner_by_member_scope` 做单行归属门——不在调用方数据范围内的单据
 /// 返回 403（固定脱敏常量），不降级为空结果。后续工单扩展其他域只需在此登记 doc_type，
-/// 由契约锁保证每枚单据类型必须属于 GATED / PENDING / NO_OWNER 三者之一。
+/// 由 `ensure_print_row_scope` 对三集合之外的 doc_type 留 error 痕点名，登记缺口从此可查。
 pub const PRINT_SCOPE_GATED: &[&str] = &[
     "voucher",
     "ap_invoice",
@@ -242,22 +242,6 @@ pub const PRINT_SCOPE_PENDING: &[&str] = &[
     "inventory_piece_label",
 ];
 
-/// 打印出参中成本与价格敏感键的权威集合（装配层统一剔除，非 admin 不可见）。
-///
-/// 这些键在 print_service 各装配函数中向 `PrintData.data` 与 `PrintData.items` 写入；
-/// 打印出 docx 时由服务端直出字节，渲染层与前端无法介入，因此剔除必须在本集合所在
-/// 装配层完成。与 `field_mask::mask_sensitive_fields` 的 `cost_price` 单键口径同源
-/// 并扩展为本集合，避免在多个装配函数内各写一份 if 判定。
-pub const PRINT_COST_SENSITIVE_KEYS: &[&str] = &[
-    "unit_cost",
-    "total_cost",
-    "material_cost",
-    "rework_cost",
-    "original_cost",
-    "piece_price",
-    "cost_price",
-];
-
 impl PrintService {
     pub fn new(db: Arc<DatabaseConnection>) -> Self {
         Self { db }
@@ -283,6 +267,13 @@ impl PrintService {
         doc_id: i32,
     ) -> Result<(), AppError> {
         if !PRINT_SCOPE_GATED.contains(&doc_type) {
+            // 三集合之外的 doc_type 意味着这张单据的归属门状态从未被判定登记过，留 error 痕点名它。
+            // 本批不改受理面结果（PENDING 与 NO_OWNER 与未登记同样放行），但登记缺口从此可查；
+            // 改成硬拒要先核清全量 doc_type 已登记，否则会把未登记的存量单据打成 403。
+            if !PRINT_SCOPE_PENDING.contains(&doc_type) && !PRINT_SCOPE_NO_OWNER.contains(&doc_type)
+            {
+                tracing::error!(doc_type, "打印归属门登记缺口，该单据类型未登记在任一集合");
+            }
             return Ok(());
         }
         let db = self.db.as_ref();
