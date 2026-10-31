@@ -23,6 +23,8 @@ export const EXPORT_APPROVAL_STATUSES = [
   'rejected',
   'expired',
   'cancelled',
+  'consumed',
+  'exhausted',
 ] as const;
 
 export type ExportApprovalStatus = (typeof EXPORT_APPROVAL_STATUSES)[number];
@@ -38,6 +40,8 @@ export const EXPORT_APPROVAL_STATUS_LABEL_KEYS: Record<ExportApprovalStatus, str
   rejected: 'exportApprovals.rejected',
   expired: 'exportApprovals.statusExpired',
   cancelled: 'exportApprovals.cancelled',
+  consumed: 'exportApprovals.statusConsumed',
+  exhausted: 'exportApprovals.statusExhausted',
 };
 
 /** Element Plus el-tag 类型 */
@@ -49,6 +53,8 @@ export const EXPORT_APPROVAL_STATUS_TAG_TYPES: Record<ExportApprovalStatus, Expo
     rejected: 'danger',
     expired: 'info',
     cancelled: 'info',
+    consumed: 'info',
+    exhausted: 'danger',
   };
 
 /** 归一到已知状态词表；词表外取值记错误日志并抛错（禁止静默回显裸枚举） */
@@ -268,6 +274,80 @@ export function resolveExportDownloadTarget(
     permissionKey: cfg.downloadPermissionKey,
     filenamePrefix: cfg.filenamePrefix,
   };
+}
+
+/**
+ * 资源类型 → 应用内导出入口路由（审批通过后“去导出”的跳转目标）。
+ * 唯一事实来源为承载就地下载入口（useExportApproval.downloadApprovedExport）
+ * 的页面在 router/index.ts 的注册路径；新增资源接入时必须同步登记。
+ */
+export const EXPORT_APPROVAL_TARGET_ROUTES: Record<ExportApprovalResourceType, string> = {
+  customer: '/customer',
+  supplier: '/supplier',
+  product: '/product',
+  dye_recipe: '/dye-recipe',
+  price_list: '/sales-price',
+  finance_report: '/finance-report',
+  audit_log: '/system/audit-log',
+};
+
+/** 归一到目标路由；词外资源沿 normalize 的记日志并抛错口径，不兜底跳首页 */
+export function exportApprovalTargetRoute(resourceType: string): string {
+  return EXPORT_APPROVAL_TARGET_ROUTES[normalizeExportApprovalResourceType(resourceType)];
+}
+
+/** 审批中心（BPM 待办列表）路由，导出审批终审进度回看的正规入口 */
+export const BPM_APPROVAL_CENTER_ROUTE = '/bpm/approval';
+
+/**
+ * 审批回跳的来源标记（与已合入的审批回跳 query 口径逐字符一致：source 与 instanceId
+ * 与 businessId）。承载导出审批「去导出」跳转的落地页据此识别用户从审批通过而来，
+ * 并可按 businessId 精确定位那一份被批准的申请。
+ */
+export const EXPORT_APPROVAL_JUMPBACK_SOURCE = 'export_approval';
+
+/**
+ * 审批回跳查询串的形状（只携带来源、BPM 实例 ID 与申请单 ID，绝不携带令牌明文）。
+ * 返回类型取 Record 形态以直接适配 vue-router 的 LocationQueryRaw（值为 string|number，
+ * instanceId 缺失时省略键而非塞 null，避免可选性漂移与类型不匹配）。
+ */
+export type ExportApprovalJumpbackQuery = Record<string, string | number>;
+
+/**
+ * 构造「去导出」跳转的 query（唯一事实来源）。
+ * 令牌属一次性凭据，红线要求绝不出现在浏览器地址栏与代理日志，故此处只带来源/实例/单据
+ * 上下文；落地页凭 businessId 定位申请，再走 token-once/rotate 端点就地取回令牌下载。
+ */
+export function buildExportApprovalJumpbackQuery(
+  row: Pick<ExportApprovalRequestShape, 'id' | 'bpm_instance_id'>
+): ExportApprovalJumpbackQuery {
+  const query: ExportApprovalJumpbackQuery = {
+    source: EXPORT_APPROVAL_JUMPBACK_SOURCE,
+    businessId: row.id,
+  };
+  if (row.bpm_instance_id != null) {
+    query.instanceId = row.bpm_instance_id;
+  }
+  return query;
+}
+
+/** buildExportApprovalJumpbackQuery 入参的最小形状约束（避免依赖 api 层类型造成环引用） */
+interface ExportApprovalRequestShape {
+  id: number;
+  bpm_instance_id: number | null;
+}
+
+/**
+ * 从落地页 route.query 解析导出审批回跳上下文。
+ * 非本来源或缺 businessId 返回 null（落地页保持常规下载行为，不因缺上下文而报错）。
+ */
+export function parseExportApprovalJumpback(
+  query: Record<string, unknown>
+): { businessId: number } | null {
+  if (query.source !== EXPORT_APPROVAL_JUMPBACK_SOURCE) return null;
+  const businessId = Number(query.businessId);
+  if (!Number.isInteger(businessId) || businessId <= 0) return null;
+  return { businessId };
 }
 
 /**

@@ -1,17 +1,18 @@
 //! 出厂内置 BPM 审批流程定义种子落库
 //!
-//! 报价单/销售订单/采购订单/生产订单的提交审批链路都以 `start_process(process_key=...)` 查找
-//! ACTIVE 流程定义为前置门（报价/销售/采购/生产四个提交入口各自以固定编码发起，且都是
-//! fail-closed：查不到定义即拒绝提交并回滚业务状态）。系统出厂时该表为空，四个提交审批入口
+//! 报价/销售/采购/生产/导出审批的提交审批链路都以 `start_process(process_key=...)` 查找
+//! ACTIVE 流程定义为前置门（五个提交审批入口各自以固定编码发起，且都是
+//! fail-closed：查不到定义即拒绝提交并回滚业务状态）。系统出厂时该表为空，五个提交审批入口
 //! 必然失败——本模块把「出厂即可用」的流程定义以幂等方式补种到位。
 //!
 //! 幂等口径与内置打印模板种子一致：`INSERT ... ON CONFLICT (code) DO NOTHING`，仅补缺失编码，
 //! **绝不覆盖**既有行（用户在流程定义页对节点/审批人的任何调整永不受启动重跑影响）。
 //!
-//! 节点链形态与业务侧/测试侧既有可用形态同源：`start_event → user_task → end_event`
-//! 三节点两条边，user_task 以 `assignee_type=user` 绑定一个具体审批人——审批引擎当前仅支持
-//! 指定具体用户（`resolve_node_assignee` 对其余类型显式拒绝），单节点人工审批即出厂默认链路，
-//! 上线后可在流程定义页调整。
+//! 节点图形态按定义自带形态判别构造，与业务发起侧同源：常规审批链为单节点人工审批
+//! （`start_event → user_task → end_event` 三节点两条边）；导出审批链为按风险等级分叉的
+//! 两级图（`l1_approve` 之后低风险直达 `end`，非低风险经 `l2_approve` 再到 `end`）。
+//! 两形态的 user_task 均以 `assignee_type=user` 绑定一个具体审批人——审批引擎当前仅支持
+//! 指定具体用户（`resolve_node_assignee` 对其余类型显式拒绝），上线后可在流程定义页调整。
 //!
 //! 审批人锚点（不硬编码任何用户）：取「admin 角色下 ID 最小的启用用户」——admin 角色编码取
 //! 初始化链路定义的真实角色码（utils::admin_checker::ADMIN_ROLE_CODE），与权限域同源。
@@ -31,41 +32,63 @@ use crate::utils::error::AppError;
 /// 单一词表形态沿用建表默认值 DRAFT / 查找值 ACTIVE 的既有约定，不另立第二套状态常量。
 const DEFINITION_STATUS_ACTIVE: &str = "ACTIVE";
 
+/// 内置定义的节点图形态判别：出厂清单里不同流程的图构造不同，落库时按各自形态构造，
+/// 避免把两级审批链降级成单节点而使二级审批腿消失。
+#[derive(Clone, Copy)]
+enum BuiltinApprovalGraph {
+    /// 单节点人工审批：start_event → user_task → end_event
+    SingleNode,
+    /// 按风险等级分叉的两级审批：一级通过后低风险直达结束，非低风险进入二级审批
+    ExportRiskTiered,
+}
+
 /// 出厂内置审批流程定义清单（编码必须与提交审批链路发起侧的 process_key 逐字符相同）。
 struct BuiltinApprovalDefinition {
     code: &'static str,
     name: &'static str,
     category: &'static str,
     description: &'static str,
+    graph: BuiltinApprovalGraph,
 }
 
-/// 四个提交审批入口对应的出厂流程定义：编码来源为业务发起侧
-/// （报价单提交、销售订单提交、采购订单提交、生产订单提交各自的 start_process 调用），
-/// 名称/分类与既有测试种子与业务标题口径一致。
+/// 五个提交审批入口对应的出厂流程定义：编码来源为业务发起侧
+/// （报价单提交、销售订单提交、采购订单提交、生产订单提交、导出审批申请提交
+/// 各自的 start_process 调用），名称/分类与既有测试种子与业务标题口径一致。
 const BUILTIN_APPROVAL_DEFINITIONS: &[BuiltinApprovalDefinition] = &[
     BuiltinApprovalDefinition {
         code: "quotation_approval",
         name: "报价单审批流程",
         category: "sales",
         description: "出厂内置：报价单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        graph: BuiltinApprovalGraph::SingleNode,
     },
     BuiltinApprovalDefinition {
         code: "sales_order_approval",
         name: "销售订单审批流程",
         category: "sales",
         description: "出厂内置：销售订单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        graph: BuiltinApprovalGraph::SingleNode,
     },
     BuiltinApprovalDefinition {
         code: "purchase_order_approval",
         name: "采购订单审批流程",
         category: "purchase",
         description: "出厂内置：采购订单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        graph: BuiltinApprovalGraph::SingleNode,
     },
     BuiltinApprovalDefinition {
         code: "production_order_approval",
         name: "生产订单审批流程",
         category: "production",
         description: "出厂内置：生产订单提交后的单节点人工审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        graph: BuiltinApprovalGraph::SingleNode,
+    },
+    BuiltinApprovalDefinition {
+        code: "export_approval",
+        name: "导出审批流程",
+        category: "system",
+        description: "出厂内置：导出审批提交后按风险等级走一级或二级的审批链路，审批人默认绑定 admin 角色首个启用用户，可在流程定义页调整",
+        graph: BuiltinApprovalGraph::ExportRiskTiered,
     },
 ];
 
@@ -91,6 +114,61 @@ fn build_single_node_approval_config(assignee_user_id: i32) -> serde_json::Value
             { "source": "approve_task", "target": "end" },
         ],
     })
+}
+
+/// 构建按风险等级分叉的两级审批流程图（导出审批出厂形态，节点/边与发起侧条件求值口径同源）。
+///
+/// 入参 `assignee_user_id` 为两级审批任务绑定的具体用户 ID（users.id 正整数）；
+/// 传给审批引擎的节点解析与边条件求值函数（resolve_node_assignee / evaluate_bpm_condition）
+/// 消费，条件变量 `risk_level` 由导出审批发起侧经 variables 传入实例。
+fn build_export_risk_tiered_approval_config(assignee_user_id: i32) -> serde_json::Value {
+    serde_json::json!({
+        "nodes": [
+            { "id": "start", "name": "提交审批", "type": "start_event" },
+            {
+                "id": "l1_approve",
+                "name": "一级审批",
+                "type": "user_task",
+                "assignee_type": "user",
+                "assignee_value": assignee_user_id,
+            },
+            {
+                "id": "l2_approve",
+                "name": "二级审批",
+                "type": "user_task",
+                "assignee_type": "user",
+                "assignee_value": assignee_user_id,
+            },
+            { "id": "end", "name": "完成", "type": "end_event" },
+        ],
+        "edges": [
+            { "source": "start", "target": "l1_approve" },
+            {
+                "source": "l1_approve",
+                "target": "end",
+                "condition": "${risk_level} == 'low'",
+            },
+            {
+                "source": "l1_approve",
+                "target": "l2_approve",
+                "condition": "${risk_level} != 'low'",
+            },
+            { "source": "l2_approve", "target": "end" },
+        ],
+    })
+}
+
+/// 按定义的图形态判别构造流程配置（nodes/edges 唯一生成出口，保证种子形态一致）。
+///
+/// 入参为出厂条目的图形态标记与审批任务绑定的具体用户 ID；传给形态分支构造函数，
+/// 构造结果写入 bpm_process_definition.config。
+fn build_approval_config(graph: BuiltinApprovalGraph, assignee_user_id: i32) -> serde_json::Value {
+    match graph {
+        BuiltinApprovalGraph::SingleNode => build_single_node_approval_config(assignee_user_id),
+        BuiltinApprovalGraph::ExportRiskTiered => {
+            build_export_risk_tiered_approval_config(assignee_user_id)
+        }
+    }
 }
 
 /// 解析出厂审批人锚点：admin 角色（角色码与权限域同源）下 ID 最小的启用用户。
@@ -132,7 +210,6 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
         return Ok(());
     };
 
-    let config = build_single_node_approval_config(approver.id);
     let now = chrono::Utc::now();
     let total = BUILTIN_APPROVAL_DEFINITIONS.len();
     let codes: Vec<String> = BUILTIN_APPROVAL_DEFINITIONS
@@ -160,7 +237,7 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
             inserted = 0usize,
             skipped = total,
             assignee_user_id = approver.id,
-            "BPM 出厂审批流程定义种子无需写入（四枚编码均已在册，既有定义与用户调整不覆盖）"
+            "BPM 出厂审批流程定义种子无需写入（出厂清单编码均已在册，既有定义与用户调整不覆盖）"
         );
         return Ok(());
     }
@@ -174,7 +251,7 @@ pub async fn seed_builtin_bpm_definitions(db: &DatabaseConnection) -> Result<(),
             description: Set(Some(def.description.to_string())),
             category: Set(Some(def.category.to_string())),
             version: Set(Some("v1".to_string())),
-            config: Set(Some(config.clone())),
+            config: Set(Some(build_approval_config(def.graph, approver.id))),
             status: Set(DEFINITION_STATUS_ACTIVE.to_string()),
             created_at: Set(now),
             updated_at: Set(now),

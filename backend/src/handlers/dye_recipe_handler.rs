@@ -20,6 +20,7 @@ use crate::services::audit_log_service::{AuditEvent, AuditLogService};
 use crate::services::dye_recipe_service::{
     CreateDyeRecipeRequest, DyeRecipeQuery, DyeRecipeService, UpdateDyeRecipeRequest,
 };
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::utils::data_scope::{DataScopeContext, apply_data_scope};
 use crate::utils::error::AppError;
 use crate::utils::optional_json::OptionalJson;
@@ -264,48 +265,92 @@ pub async fn submit_dye_recipe(
     )))
 }
 
-/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（xlsx）；注意：该接口返回 xlsx 二进制流（非 JSON），无法套用 `Result<Json<ApiResponse<T>>, AppError>`。 此处返回
-/// `Result<axum::response::Response, AppError>`：成功时通过 build_xlsx_response 构造带 xlsx Content-Type 的 200 响应；失败时通过 `?` 将 `sea_orm::DbErr` 自动转换为 `AppError`。
+/// GET /api/v1/erp/dye-recipes/export - 导出配方列表（xlsx）
+///
+/// 功能：按本次请求的筛选与行级数据权限取染色配方全集，落成 xlsx 响应体
+/// 调用方：染色配方路由的导出端点
+/// 入参：查询参数（recipe_no、color_code、color_name、dye_type、status 与审批令牌）、
+/// 应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，取数交 query_dye_recipes_for_export，表格构造交
+/// build_dye_recipes_table，审计交 record_dye_recipes_export_audit，成功登记交 record_download
+/// 存什么：不写业务表；配方行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
+/// 存哪里：不适用
+///
+/// 该端点返回 xlsx 二进制流（非 JSON），故返回 Result<axum::response::Response, AppError>，
+/// 成功时由 build_xlsx_response 构造带 xlsx Content-Type 的 200 响应，失败时经问号运算符
+/// 把 sea_orm::DbErr 转成 AppError。范围参数只收本次请求实际带的筛选项。
 pub async fn export_dye_recipes(
     State(state): State<AppState>,
     auth: AuthContext,
     Query(query): Query<DyeRecipeListQuery>,
 ) -> Result<axum::response::Response, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌（在 query 被 move 前提取）
-    let download_token = query.download_token.clone();
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(download_token.as_deref(), "dye_recipe")
-            .await?;
-
-    // 导出与主列表必须同一 scope：此处复用 handler 的 AuthContext 构造 DataScopeContext，
-    // 下推到导出查询，避免列表已收窄而导出仍全库落盘（xlsx 一次性外带工艺机密）。
-    // auth 此前仅用于审计，现同时作为行级数据权限来源；审计记录仍按原口径写。
-    let data_scope_ctx = auth.to_data_scope_context();
-
-    // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
-    let recipes = query_dye_recipes_for_export(&state.db, &query, Some(&data_scope_ctx)).await?;
-    let row_count = recipes.len();
-
-    let recipes_json: Vec<serde_json::Value> = recipes
-        .into_iter()
-        .map(|r| serde_json::to_value(r).map_err(AppError::from))
-        .collect::<Result<Vec<_>, _>>()?;
-    let table = build_dye_recipes_table(&recipes_json);
-
-    record_dye_recipes_export_audit(&state, &auth, row_count, &query);
-
-    // 敏感导出 fail-closed：记录令牌消费
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(
-            approval.id,
-            "dye_recipes_export".to_string(),
-            row_count as i64,
-            String::new(),
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "recipe_no",
+            query.recipe_no.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "color_code",
+            query.color_code.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "color_name",
+            query.color_name.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "dye_type",
+            query.dye_type.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "status",
+            query.status.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "dye_recipe",
+            auth.user_id,
+            Some(requested_scope),
         )
         .await?;
 
-    // 规则 3：导出统一使用 xlsx 格式，错误用 AppError 表达，成功返回 200 + xlsx 响应体
+    let table = approval_svc
+        .run_export_leg(approval.id, async {
+            // 导出与主列表必须同一 scope：复用 handler 的 AuthContext 构造
+            // DataScopeContext 下推到导出查询，避免列表已收窄而导出仍全库落盘
+            // （xlsx 一次性外带工艺机密）。
+            let data_scope_ctx = auth.to_data_scope_context();
+
+            // 导出全量数据（不分页），保留 handler 直接查询以避免 service 暴露过多内部 select
+            let recipes =
+                query_dye_recipes_for_export(&state.db, &query, Some(&data_scope_ctx)).await?;
+            let row_count = recipes.len();
+
+            let recipes_json: Vec<serde_json::Value> = recipes
+                .into_iter()
+                .map(|r| serde_json::to_value(r).map_err(AppError::from))
+                .collect::<Result<Vec<_>, _>>()?;
+            let table = build_dye_recipes_table(&recipes_json);
+
+            record_dye_recipes_export_audit(&state, &auth, row_count, &query);
+
+            // 敏感导出 fail-closed：记录令牌消费
+            approval_svc
+                .record_download(
+                    approval.id,
+                    "dye_recipes_export".to_string(),
+                    row_count as i64,
+                    String::new(),
+                )
+                .await?;
+            Ok(table)
+        })
+        .await?;
+
     build_xlsx_response(&table, "dye_recipes_export")
 }
 
