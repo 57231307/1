@@ -4,6 +4,7 @@
 import { test, expect } from '../diagnose-fixture';
 import { applyAuthMocks } from '../smoke/_helpers';
 import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
+import { cellInputByColumn } from '../flow/table-column';
 
 /**
  * 真实 UI 事实（据源码核对，不虚构选择器）：
@@ -13,7 +14,7 @@ import { pickSelect, pickSelectIn } from '../flow/ui-helpers';
  *   客户(customer select 占位 '选择客户')、订单日期(默认今日)、要求交货日期(必填 date 占位 '选择日期')、
  *   联系人(占位 '联系人姓名')、联系电话(占位 '联系电话')、收货地址(占位 '详细收货地址')、
  *   明细行内 el-table：产品(select 占位 '选择产品')、色号(select 占位 '留空表示白坯布')、
- *   数量(spinbutton)、单价(spinbutton)；底部按钮 '取消'/'确定'。
+ *   数量、单价（纯手写录入的数字输入框，无步进加减按钮，按列头锚定）；底部按钮 '取消'/'确定'。
  *   —— 不存在“双计量(米+公斤)”“潘通色号”“等级”等字段，原 02-03/02-04 系按不存在的 UI 编写。
  * - 明细行操作：'添加明细' 按钮新增、行内 '删除' 链接删除（剩 1 行时删除弹 '至少保留一条明细'）。
  * - 提交成功走 useOlvProc.handleFormSubmit → msg.success('createSuccess') = '创建成功'
@@ -79,9 +80,13 @@ test.describe('02 创建销售订单', () => {
     await dialog.getByPlaceholder('详细收货地址').fill('浙江省杭州市西湖区文三路 100 号');
     // 明细行产品（客户之后第 2 个 el-select，el-select 排除 date-picker 故索引稳定）
     await pickSelect(page, dialog.locator('.el-select').nth(1));
-    // 数量 / 单价（spinbutton）
-    await dialog.getByRole('spinbutton').first().fill('200');
-    await dialog.getByRole('spinbutton').nth(1).fill('45.5');
+    // 数量 / 单价 两列为纯手写录入的数字输入框（无步进加减按钮）按列头锚定该行录入框
+    const orderTable = dialog.locator('.el-table').first();
+    const orderRow = orderTable.locator('.el-table__row').first();
+    const qtyInputO2 = await cellInputByColumn(orderTable, orderRow, '数量');
+    await qtyInputO2.fill('200');
+    const priceInputO2 = await cellInputByColumn(orderTable, orderRow, '单价');
+    await priceInputO2.fill('45.5');
     // 确定提交
     await dialog.getByRole('button', { name: '确定', exact: true }).click();
     // 真实落库反馈：msg.success('createSuccess') = '创建成功'

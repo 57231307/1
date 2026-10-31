@@ -26,9 +26,6 @@ use clap::Subcommand;
 /// 服务名称 (systemd service name)
 pub(crate) const SERVICE_NAME: &str = "bingxi";
 
-/// GitHub 仓库
-pub(crate) const GITHUB_REPO: &str = "57231307/1";
-
 /// 更新下载 / API 加速镜像清单 = 运维显式环境变量 `UPDATE__MIRRORS`（逗号分隔）
 /// ∪（默认档）内置公共默认加速镜像 [`DEFAULT_RELEASE_MIRRORS`]，与后端 `config.update.mirrors`
 /// + `use_default_mirrors` 完全同源同口径（复用同一 `pub(crate) const`，不各写一套域名）。
@@ -248,6 +245,27 @@ pub(crate) fn require_env(key: &str, hint: &str) -> String {
     }
 }
 
+/// 取当前生效的更新通道仓身份（`owner/name`），非法即点名退出。
+///
+/// 入参无，读 `UPDATE__GITHUB_REPO` 后转调服务层唯一真源的纯解析函数 `resolve_github_repo`；
+/// 返回值交给 `build_release_url` 拼下载链接、`upgrade::get_latest_version` 拼 API 查询路径，
+/// 二者共用本函数，退出形态不在两处各写一遍。
+///
+/// 非法值选择退出而不是回落缺省：回落会让升级悄悄指向另一个仓，装错包比装不上更坏。
+/// 选择点名退出而不是 panic：与同文件 `require_root` / `require_env` 保持一致，
+/// CLI 是进程入口，stderr 上给出可执行的纠正指引比一条栈回溯有用。
+pub(crate) fn require_github_repo() -> String {
+    let raw = std::env::var(crate::services::system_update_service::GITHUB_REPO_ENV).ok();
+    match crate::services::system_update_service::resolve_github_repo(raw.as_deref()) {
+        Ok(repo) => repo,
+        Err(reason) => {
+            eprintln!("❌ 错误：{reason}");
+            eprintln!("提示：删除该环境变量即使用本仓缺省身份，或改成合法的 owner/name 后重试。");
+            std::process::exit(1);
+        }
+    }
+}
+
 /// 执行系统命令
 pub(crate) fn run_cmd(cmd: &str, args: &[&str]) -> Result<String, String> {
     let output = Command::new(cmd)
@@ -277,11 +295,13 @@ pub(crate) fn status_icon(ok: bool) -> &'static str {
     if ok { "[OK]" } else { "[STOPPED]" }
 }
 
-/// 构建 GitHub Release 下载链接
+/// 构建 GitHub Release 下载链接。仓身份取自服务层唯一真源，本层不再自带一份常量。
 pub(crate) fn build_release_url(version: &str) -> String {
     format!(
         "https://github.com/{}/releases/download/{}/release-{}.tar.gz",
-        GITHUB_REPO, version, version
+        require_github_repo(),
+        version,
+        version
     )
 }
 
