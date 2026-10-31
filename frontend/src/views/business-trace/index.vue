@@ -8,7 +8,6 @@ import {
   ElForm,
   ElFormItem,
   ElInput,
-  ElInputNumber,
   ElMessage,
   ElRow,
   ElCol,
@@ -19,6 +18,7 @@ import {
   ElStep,
   ElResult,
 } from 'element-plus';
+import NumericInput from '@/components/NumericInput.vue';
 import { Search, ArrowRightBold, ArrowLeftBold, Camera } from '@element-plus/icons-vue';
 import {
   getTraceByFiveDimension,
@@ -320,8 +320,9 @@ const handleCreateSnapshot = async () => {
             <ElRow :gutter="20">
               <ElCol :span="10">
                 <ElFormItem :label="$t('businessTrace.field.supplierId')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="forwardForm.supplier_id"
+                    integer
                     :placeholder="$t('businessTrace.placeholder.supplierId')"
                   />
                 </ElFormItem>
@@ -406,8 +407,9 @@ const handleCreateSnapshot = async () => {
             <ElRow :gutter="20">
               <ElCol :span="10">
                 <ElFormItem :label="$t('businessTrace.field.customerId')">
-                  <ElInputNumber
+                  <NumericInput
                     v-model="backwardForm.customer_id"
+                    integer
                     :placeholder="$t('businessTrace.placeholder.customerId')"
                   />
                 </ElFormItem>

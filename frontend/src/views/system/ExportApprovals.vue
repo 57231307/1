@@ -189,7 +189,7 @@
           />
         </ElFormItem>
         <ElFormItem :label="$t('exportApprovals.estimatedRowsLabel')">
-          <ElInputNumber v-model="createForm.estimated_rows" :min="0" />
+          <NumericInput v-model="createForm.estimated_rows" integer optional :min="0" />
         </ElFormItem>
         <ElFormItem :label="$t('exportApprovals.fileFormatLabel')">
           <!-- 后端 create 校验 file_format 仅接受 xlsx/pdf（export_approval_service） -->
@@ -226,6 +226,7 @@ import { logger, logAuxLoadFailure } from '@/utils/logger';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { isDialogDismissal, rethrowNonDismissal } from '@/utils/monitor';
 import { msg } from '@/utils/message';
+import NumericInput from '@/components/NumericInput.vue';
 import {
   listApprovals,
   listPendingForMe,
