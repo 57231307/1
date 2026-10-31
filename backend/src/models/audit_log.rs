@@ -140,19 +140,14 @@ pub struct Model {
     pub export_watermark_user: Option<String>,
     // ============ 审计定位列（终端类型 操作页面 单据编号 变更原因 风险标记）============
     /// 操作终端类型（PC / H5 / MINIPROGRAM / UNKNOWN），由服务端按请求头与 UA 判定，取不到记 UNKNOWN，不默认 PC
-    #[sea_orm(column_type = "String", string_len = 16, nullable)]
     pub terminal_type: Option<String>,
     /// 操作页面标识（优先 X-Page-Path 头，回退 Referer 路径），取不到为 None
-    #[sea_orm(column_type = "String", string_len = 500, nullable)]
     pub operation_page: Option<String>,
     /// 单据编号（业务单号，非主键 id），由写入侧业务上下文登记，未登记为 None
-    #[sea_orm(column_type = "String", string_len = 64, nullable)]
     pub doc_no: Option<String>,
     /// 变更原因备注，调用方未提供时保持 None，禁止用默认文案填充
-    #[sea_orm(column_type = "Text", nullable)]
     pub change_reason: Option<String>,
     /// 高风险操作标记（DELETE / REVERSE / VOID 等），普通操作为 None
-    #[sea_orm(column_type = "String", string_len = 32, nullable)]
     pub risk_flag: Option<String>,
 }
 
