@@ -3790,6 +3790,9 @@ export default {
       safetyClassA: 'Class A (infant)',
       safetyClassB: 'Class B (direct skin contact)',
       safetyClassC: 'Class C (non-direct skin contact)',
+      gradeSuperior: 'Superior grade',
+      gradeFirst: 'First grade',
+      gradeQualified: 'Qualified grade',
       structureGroupWoven: 'Woven',
       structureGroupWeftKnit: 'Knitted - Weft',
       structureGroupWarpKnit: 'Knitted - Warp',
@@ -3949,7 +3952,7 @@ export default {
       labelFactoryAddress: 'Factory Address',
       placeholderFactoryAddress: 'Enter factory address',
       labelProductGrade: 'Product Grade',
-      placeholderProductGrade: 'Enter product grade',
+      placeholderProductGrade: 'Select product grade',
       labelSafetyCategory: 'Safety Category',
       tipSafetyCategory:
         'GB 18401-2010 class A/B/C: A infant, B direct skin contact, C non-direct skin contact; class A must also meet GB 31701-2015',

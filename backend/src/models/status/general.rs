@@ -107,6 +107,25 @@ pub mod product_safety_category {
     pub const ALL_CLASSES: &[&str] = &[CLASS_A, CLASS_B, CLASS_C];
 }
 
+/// 产品等级（GB/T 分等定级三档，中文稳定值落 products.product_grade）。
+/// 单一定义源，供入参取值域校验、CSV 导入枚举校验、DB CHECK 约束与前端下拉词表共用，禁止另抄一份。
+/// 优等品为最高档，一等品次之，合格品为门槛档。空值语义为未定级或未录入。
+/// 与库存等级（inventory_stock.grade 的 一等品 二等品 等外品）是两套互不相干的词表，
+/// 值有一等品重叠但语义不同，禁止互相 import、复制清单或做跨域并集。
+pub mod product_grade {
+    /// 优等品：最高档
+    pub const SUPERIOR: &str = "优等品";
+
+    /// 一等品：中间档
+    pub const FIRST: &str = "一等品";
+
+    /// 合格品：门槛档
+    pub const QUALIFIED: &str = "合格品";
+
+    /// 全量产品等级词表，供入参与导入枚举合法性判定与 DB CHECK 单源比对
+    pub const ALL_GRADES: &[&str] = &[SUPERIOR, FIRST, QUALIFIED];
+}
+
 /// 主数据启用/停用状态（小写值，批次 208 P2-5：supplier/customer/fixed_asset 等用小写 active/inactive，与 common::STATUS_ACTIVE 大写区分）
 pub mod master_data {
     /// 启用：主数据可用状态

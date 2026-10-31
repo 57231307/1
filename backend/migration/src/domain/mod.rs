@@ -167,3 +167,5 @@ pub mod print_template_default_slot;
 pub mod textile_safety;
 pub mod purchase_inspection_result_check;
 pub mod export_approval_lifecycle;
+// 产品等级列的词表收口域。独立顶层域，理由见域头（并入已应用域会被台账整体跳过）。
+pub mod product_grade_vocab_check;

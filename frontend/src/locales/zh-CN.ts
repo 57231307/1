@@ -3766,6 +3766,9 @@ export default {
       safetyClassA: 'A 类（婴幼儿）',
       safetyClassB: 'B 类（直接接触皮肤）',
       safetyClassC: 'C 类（非直接接触皮肤）',
+      gradeSuperior: '优等品',
+      gradeFirst: '一等品',
+      gradeQualified: '合格品',
       structureGroupWoven: '梭织',
       structureGroupWeftKnit: '针织-纬编',
       structureGroupWarpKnit: '针织-经编',
@@ -3920,7 +3923,7 @@ export default {
       labelFactoryAddress: '生产厂址',
       placeholderFactoryAddress: '请输入生产厂址',
       labelProductGrade: '产品等级',
-      placeholderProductGrade: '请输入产品等级',
+      placeholderProductGrade: '请选择产品等级',
       labelSafetyCategory: '安全类别',
       tipSafetyCategory:
         '按 GB 18401-2010 分为 A、B、C 三类：A 婴幼儿，B 直接接触皮肤，C 非直接接触皮肤；A 类另须满足 GB 31701-2015',
