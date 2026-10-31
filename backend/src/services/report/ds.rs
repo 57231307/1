@@ -558,7 +558,7 @@ impl ReportEngineService {
             template.columns.iter().map(|c| c.key.as_str()).collect();
         for (idx, row) in rows.iter().enumerate() {
             let Some(obj) = row.as_object() else {
-                return Err(AppError::internal(format!(
+                return Err(AppError::business(format!(
                     "报表 {} 第 {} 行不是对象行，无法与声明列对齐",
                     template.id, idx
                 )));
@@ -567,7 +567,7 @@ impl ReportEngineService {
             if actual != declared {
                 let missing: Vec<&str> = declared.difference(&actual).copied().collect();
                 let extra: Vec<&str> = actual.difference(&declared).copied().collect();
-                return Err(AppError::internal(format!(
+                return Err(AppError::business(format!(
                     "报表 {} 行键与声明列不同源：缺键 {:?}，多键 {:?}",
                     template.id, missing, extra
                 )));
