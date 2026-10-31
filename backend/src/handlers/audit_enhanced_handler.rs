@@ -11,6 +11,7 @@ use crate::middleware::auth_context::AuthContext;
 use crate::models::audit_log;
 use crate::models::audit_log::{OperationType, Severity};
 use crate::services::audit_log_service::{AuditEvent, AuditLogService};
+use crate::services::export_approval_service::ExportApprovalService;
 use crate::utils::error::AppError;
 use crate::utils::response::ApiResponse;
 
@@ -135,63 +136,107 @@ pub async fn list_audit_logs(
     }))))
 }
 
+/// 增强审计页的审计日志导出，端点为 GET /api/v1/erp/audit/logs/export
+///
+/// 功能：取最近一万条审计日志落成 json 文件，并写一条导出审计
+/// 调用方：分析路由的审计日志导出端点
+/// 入参：查询参数（table_name、action、user_id、start_date、end_date 与审批令牌）、
+/// 应用状态、会话上下文
+/// 传给谁：受理门交 ExportApprovalService::enforce_export_download_secured，导出腿交
+/// run_export_leg，取数交本函数内的 sea_orm 查询，成功登记交 record_download
+/// 存什么：不写业务表；日志行写进导出文件，审计行写审计日志表，令牌消费写导出审批表
+/// 存哪里：不适用
+///
+/// 范围参数收本端点查询结构真实承载的筛选项。注意本端点的取数不消费这些筛选项，
+/// 落盘集合恒为按创建时间倒序的最近一万条，因此带筛选项的请求只有与批准参数逐字
+/// 相等才会放行，其余一律按超范围拒绝。
 pub async fn export_audit_logs(
     State(state): State<AppState>,
     auth: AuthContext,
-    Query(_query): Query<AuditLogQuery>,
+    Query(query): Query<AuditLogQuery>,
 ) -> Result<Json<ApiResponse<ExportResult>>, AppError> {
-    // 敏感导出 fail-closed：校验审批令牌
-    let approval =
-        crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-            .enforce_export_download(_query.download_token.as_deref(), "audit_log")
-            .await?;
-
-    use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
-
-    const EXPORT_LIMIT: u64 = 10000;
-    let logs = audit_log::Entity::find()
-        .order_by_desc(audit_log::Column::CreatedAt)
-        .limit(EXPORT_LIMIT)
-        .all(state.db.as_ref())
+    // 敏感导出 fail-closed：受理门走加固入口（申请人本人 + 批准范围逐项比对）
+    let approval_svc = ExportApprovalService::new(state.db.clone());
+    let requested_scope = ExportApprovalService::scope_params(&[
+        (
+            "table_name",
+            query.table_name.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "action",
+            query.action.as_deref().map(serde_json::Value::from),
+        ),
+        ("user_id", query.user_id.map(serde_json::Value::from)),
+        (
+            "start_date",
+            query.start_date.as_deref().map(serde_json::Value::from),
+        ),
+        (
+            "end_date",
+            query.end_date.as_deref().map(serde_json::Value::from),
+        ),
+    ]);
+    let approval = approval_svc
+        .enforce_export_download_secured(
+            query.download_token.as_deref(),
+            "audit_log",
+            auth.user_id,
+            Some(requested_scope),
+        )
         .await?;
-    let count = logs.len();
-    let file_name = format!(
-        "audit_logs_{}.json",
-        chrono::Utc::now().format("%Y%m%d%H%M%S")
-    );
 
-    // V15 P2 B11-P2-1：导出审计日志（best-effort，异步不阻塞响应）
-    let event = AuditEvent {
-        user_id: Some(auth.user_id),
-        username: Some(auth.username.clone()),
-        operation_type: OperationType::Export,
-        severity: Severity::Info,
-        resource_type: Some("audit_log".to_string()),
-        resource_id: None,
-        resource_name: Some(file_name.clone()),
-        description: Some(format!(
-            "用户 {} 导出审计日志（共 {} 条）",
-            auth.username, count
-        )),
-        request_method: Some("GET".to_string()),
-        request_path: Some("/api/v1/erp/audit/logs/export".to_string()),
-        before_snapshot: None,
-        after_snapshot: Some(serde_json::json!({
-            "format": "json",
-            "total": count,
-        })),
-    };
-    let svc = Arc::new(AuditLogService::new(state.db.clone()));
-    svc.record_async(event, None);
+    let (file_name, record_count) = approval_svc
+        .run_export_leg(approval.id, async {
+            use sea_orm::{EntityTrait, QueryOrder, QuerySelect};
 
-    // 敏感导出 fail-closed：记录令牌消费
-    crate::services::export_approval_service::ExportApprovalService::new(state.db.clone())
-        .record_download(approval.id, file_name.clone(), count as i64, String::new())
+            const EXPORT_LIMIT: u64 = 10000;
+            let logs = audit_log::Entity::find()
+                .order_by_desc(audit_log::Column::CreatedAt)
+                .limit(EXPORT_LIMIT)
+                .all(state.db.as_ref())
+                .await?;
+            let count = logs.len();
+            let file_name = format!(
+                "audit_logs_{}.json",
+                chrono::Utc::now().format("%Y%m%d%H%M%S")
+            );
+
+            // 导出审计日志（best-effort，异步不阻塞响应）
+            let event = AuditEvent {
+                user_id: Some(auth.user_id),
+                username: Some(auth.username.clone()),
+                operation_type: OperationType::Export,
+                severity: Severity::Info,
+                resource_type: Some("audit_log".to_string()),
+                resource_id: None,
+                resource_name: Some(file_name.clone()),
+                description: Some(format!(
+                    "用户 {} 导出审计日志（共 {} 条）",
+                    auth.username, count
+                )),
+                request_method: Some("GET".to_string()),
+                request_path: Some("/api/v1/erp/audit/logs/export".to_string()),
+                before_snapshot: None,
+                after_snapshot: Some(serde_json::json!({
+                    "format": "json",
+                    "total": count,
+                })),
+            };
+            let svc = Arc::new(AuditLogService::new(state.db.clone()));
+            svc.record_async(event, None);
+
+            // 敏感导出 fail-closed：记录令牌消费
+            approval_svc
+                .record_download(approval.id, file_name.clone(), count as i64, String::new())
+                .await?;
+
+            Ok((file_name, count))
+        })
         .await?;
 
     Ok(Json(ApiResponse::success(ExportResult {
         download_url: format!("/api/v1/erp/downloads/{}", file_name),
         file_name,
-        record_count: count,
+        record_count,
     })))
 }

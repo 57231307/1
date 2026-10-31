@@ -1,0 +1,848 @@
+//! 第三方检测报告服务（登记、完整性门、逐项目实测结果承载、报告级判定、多报告采信）
+//!
+//! 完整性门在受理侧执行：CMA 与 CNAS 资质位（至少一枚，两枚都缺即逐枚点名）、六项要素
+//! （样品名称、材质成分、色号、检验依据、检测项目与结果、判定结论）、有效期窗口、
+//! 按批次一致性，任一不满足落 rejected 并在 rejection_detail 逐条点名缺项代号
+//! （逗号串，取值域 `report_element_code`），不允许"先收后进"式静默通过，也不允许
+//! 只回一句"信息不完整"。
+//! 有效期窗口按**出具日与有效期两列**共同判定（`validity_window_on` 单源）：超过有效期、
+//! 缺有效期无法核验、出具日尚未到达三档都是可点名的业务事实，不是异常。
+//! 同一批次（同一送检单）多份报告时，采信规则成文且单源（`select_adopted_reports`）：
+//! 只采信已受理且有效期窗口覆盖今日的报告里出具日最新的一份，其余逐枚点名排除原因。
+//! 检验依据只做存在性与格式校验（完整标准号加类别形态，如 "GB 18401-2010 B类"），
+//! 不反向写产品侧 execution_standard 自由文本列（裁定 5）。
+use crate::models::status::{
+    report_acceptance_status, report_adoption_reason, report_element_code, submission_status,
+    textile_fastness_grade, textile_flag_value, textile_item_kind, textile_safety_category,
+    textile_verdict,
+};
+use crate::models::textile_report_item_result::{
+    ActiveModel, Column, Entity as ReportResult, Model,
+};
+use crate::models::textile_safety_submission::{
+    ActiveModel as SubmissionActiveModel, Entity as Submission,
+};
+use crate::models::textile_safety_submission_item::{
+    Column as ListItemColumn, Entity as SubmissionItem,
+};
+use crate::models::textile_test_item::{
+    Column as ItemCodeColumn, Entity as TestItem, Model as TestItemModel,
+};
+use crate::models::textile_third_party_report::{
+    ActiveModel as ReportActiveModel, Column as ReportColumn, Entity as ThirdPartyReport,
+    Model as ReportModel,
+};
+use crate::services::textile_safety_limit_judge::{JudgeDims, MeasuredInput};
+use crate::services::textile_safety_submission_service::TextileSafetySubmissionService;
+use crate::utils::error::AppError;
+use rust_decimal::Decimal;
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, EntityTrait, Order,
+    QueryFilter, QueryOrder,
+};
+use std::sync::Arc;
+
+/// 报告登记入参（六项要素与资质位与日期；受理态由门产出，请求体不得直达 accepted）。
+pub struct RegisterReportReq {
+    pub report_no: String,
+    pub submission_id: i32,
+    pub inspection_agency: String,
+    pub has_cma: bool,
+    pub has_cnas: bool,
+    pub sample_name: Option<String>,
+    pub material_composition: Option<String>,
+    pub color_no: Option<String>,
+    pub process_no: Option<String>,
+    pub test_basis: Option<String>,
+    pub conclusion: Option<String>,
+    pub oeko_tex_class: Option<String>,
+    pub issue_date: chrono::NaiveDate,
+    pub valid_until: Option<chrono::NaiveDate>,
+    pub report_file_url: Option<String>,
+    pub created_by: i32,
+}
+
+/// 逐项目实测结果一行（结构化承载：存值、单位、检测方法；等级用 token 单源录入）。
+pub struct ResultRowReq {
+    pub item_code: String,
+    /// 数值型实测值
+    pub measured_value: Option<Decimal>,
+    /// 等级型 token（"3-4" 等九档），service 按词表换算为半级编码数值存列；
+    /// 与 measured_value 互斥，双给即拒
+    pub measured_token: Option<String>,
+    /// 感官与布尔 flag（none、detected）
+    pub measured_text: Option<String>,
+    pub measured_unit: Option<String>,
+    pub test_method: Option<String>,
+}
+
+pub struct TextileSafetyReportService {
+    db: Arc<DatabaseConnection>,
+}
+
+/// 报告有效期窗口状态（采信与完整性门共用的单源判据，"过期"是事实不是异常）
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ValidityWindow {
+    /// 窗口覆盖今日，可采信
+    Valid,
+    /// 今日已晚于有效期
+    Expired,
+    /// 有效期列未登记，窗口无法核验（无法核验即不采信，不默认当有效）
+    WindowMissing,
+    /// 出具日尚未到达（今日早于出具日）
+    NotYetValid,
+}
+
+impl ValidityWindow {
+    /// 窗口状态的人类可读点名文案（错误消息与回显用，单源避免三处手写漂移）
+    fn label(self) -> &'static str {
+        match self {
+            ValidityWindow::Valid => "窗口覆盖今日",
+            ValidityWindow::Expired => "已过有效期",
+            ValidityWindow::WindowMissing => "缺有效期无法核验",
+            ValidityWindow::NotYetValid => "出具日尚未到达",
+        }
+    }
+}
+
+/// 有效期窗口判定单源：同时消费出具日与有效期两列，调用方不得另写第二套比法。
+///
+/// 入参：`issue_date` 报告出具日、`valid_until` 有效期至（可空）、`today` 判定时点的本地日。
+/// 传给谁：完整性门 `run_acceptance_gate`、报告级判定 `judge_report`、整单采信
+/// `select_adopted_reports`（送检服务经整单判定消费）。
+/// 判据顺序不可倒：出具日未到达优先（未来日期的报告连"起算"都还没开始，谈不上过期），
+/// 再看有效期是否缺失（缺失是无法核验而非"永不过期"），最后比上界。
+/// 库内 `chk_textile_report_valid_window` 已保证 valid_until 不早于 issue_date，
+/// 因此三个失败档互斥，不会同窗口既过期又未生效。
+pub fn validity_window_on(
+    issue_date: chrono::NaiveDate,
+    valid_until: Option<chrono::NaiveDate>,
+    today: chrono::NaiveDate,
+) -> ValidityWindow {
+    if today < issue_date {
+        return ValidityWindow::NotYetValid;
+    }
+    match valid_until {
+        None => ValidityWindow::WindowMissing,
+        Some(until) if today > until => ValidityWindow::Expired,
+        Some(_) => ValidityWindow::Valid,
+    }
+}
+
+/// 采信判定所需的最小报告快照（不依赖库连接，采信规则因此可离线单测；口径同判定器 `CandidateRule`）
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct ReportCandidate {
+    pub id: i32,
+    pub report_no: String,
+    pub acceptance_status: String,
+    pub issue_date: chrono::NaiveDate,
+    pub valid_until: Option<chrono::NaiveDate>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl From<&ReportModel> for ReportCandidate {
+    fn from(r: &ReportModel) -> Self {
+        Self {
+            id: r.id,
+            report_no: r.report_no.clone(),
+            acceptance_status: r.acceptance_status.clone(),
+            issue_date: r.issue_date,
+            valid_until: r.valid_until,
+            created_at: r.created_at,
+        }
+    }
+}
+
+/// 一份报告在采信口径下的点名（report_no 加原因码，原因取值域 `report_adoption_reason`）
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct ReportAdoption {
+    pub report_no: String,
+    pub reason: String,
+}
+
+/// 同批次多份报告的采信决策（**至多一份采信**，其余逐枚点名原因，绝不静默丢行）
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct AdoptionDecision {
+    /// 本次唯一采信的报告；无任何可采信报告时为 `None`
+    pub adopted: Option<ReportCandidate>,
+    /// 被排除的报告与排除原因（含未受理的，全部点名）
+    pub excluded: Vec<ReportAdoption>,
+}
+
+impl AdoptionDecision {
+    /// 采信那份的报告编号
+    pub fn adopted_report_no(&self) -> Option<&str> {
+        self.adopted.as_ref().map(|c| c.report_no.as_str())
+    }
+
+    /// 排除清单的逐枚点名文案（整单判定的错误消息与界面回显共用单源，不再各处手写）
+    pub fn excluded_note(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        for item in &self.excluded {
+            let label =
+                report_adoption_reason::display_label(&item.reason).unwrap_or(item.reason.as_str());
+            parts.push(format!("{}（{}）", item.report_no, label));
+        }
+        parts.join("、")
+    }
+}
+
+/// 采信规则单源实现（成文判据，静态锁 `check-textile-report-adoption.mjs` 钉本函数形态）：
+/// 1. 只有完整性门已放行（`acceptance_status` 为 accepted）的报告进入采信候选；
+///    pending 与 rejected 一律点名 `not_accepted`，rejected 的缺项明细另有完整性门通道；
+/// 2. 候选内按有效期窗口 `validity_window_on` 筛，过期、缺有效期、出具日未到达逐枚点名，
+///    过期报告不得被判定器采信；
+/// 3. 窗口覆盖今日的候选中**只采信出具日最新的一份**（出具日相同按登记时间新优先，
+///    仍相同按主键大者优先，保证同输入同结论的确定性）；
+/// 4. 其余窗口内但更旧的报告点名 `superseded` 排除——旧报告的结论不再作为整单依据，
+///    但行不删不改，留痕完整。
+/// 入参：同一送检单（即同一批次口径 同品种同色号同工艺）下的全部报告快照、判定时点今日。
+/// 传给谁：`textile_safety_submission_service::judge_submission` 与送检单详情读回。
+/// 返回：`AdoptionDecision`；调用方必须把 `excluded` 原样回显给操作者，不得只取 adopted。
+pub fn select_adopted_reports(
+    reports: &[ReportCandidate],
+    today: chrono::NaiveDate,
+) -> AdoptionDecision {
+    let mut in_window: Vec<ReportCandidate> = Vec::new();
+    let mut excluded: Vec<ReportAdoption> = Vec::new();
+    for report in reports {
+        if report.acceptance_status != report_acceptance_status::ACCEPTED {
+            excluded.push(ReportAdoption {
+                report_no: report.report_no.clone(),
+                reason: report_adoption_reason::NOT_ACCEPTED.to_string(),
+            });
+            continue;
+        }
+        let window = validity_window_on(report.issue_date, report.valid_until, today);
+        let reason = match window {
+            ValidityWindow::Valid => None,
+            ValidityWindow::Expired => Some(report_adoption_reason::EXPIRED),
+            ValidityWindow::WindowMissing => Some(report_adoption_reason::VALID_WINDOW_MISSING),
+            ValidityWindow::NotYetValid => Some(report_adoption_reason::NOT_YET_VALID),
+        };
+        match reason {
+            Some(code) => excluded.push(ReportAdoption {
+                report_no: report.report_no.clone(),
+                reason: code.to_string(),
+            }),
+            None => in_window.push(report.clone()),
+        }
+    }
+    // 出具日新者优先，其次登记时间，最后主键；排序后首位即唯一采信对象
+    in_window.sort_by(|a, b| {
+        b.issue_date
+            .cmp(&a.issue_date)
+            .then_with(|| b.created_at.cmp(&a.created_at))
+            .then_with(|| b.id.cmp(&a.id))
+    });
+    let adopted = in_window.first().cloned();
+    for stale in in_window.iter().skip(1) {
+        excluded.push(ReportAdoption {
+            report_no: stale.report_no.clone(),
+            reason: report_adoption_reason::SUPERSEDED.to_string(),
+        });
+    }
+    AdoptionDecision { adopted, excluded }
+}
+
+impl TextileSafetyReportService {
+    pub fn new(db: Arc<DatabaseConnection>) -> Self {
+        Self { db }
+    }
+
+    /// 登记报告：新建一份第三方报告，受理态恒落 pending，送检单从 sent 自动推进 reported。
+    ///
+    /// 判据：受理态不接受请求体直填（pending 是唯一合法初值，accepted 只能由完整性门产出）；
+    /// 挂单前提为送检单处于 sent 或 reported（复检追加第二份报告允许）；
+    /// oeko_tex_class 若给值必须命中分级词表（登记位也要白名单，脏 token 拒收）。
+    pub async fn register(&self, req: RegisterReportReq) -> Result<ReportModel, AppError> {
+        let submission = Submission::find_by_id(req.submission_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| {
+                AppError::not_found(format!(
+                    "送检单 {} 不存在，报告必须挂真实送检单",
+                    req.submission_id
+                ))
+            })?;
+        if submission.status != submission_status::SENT
+            && submission.status != submission_status::REPORTED
+        {
+            return Err(AppError::business(format!(
+                "送检单 {} 处于 {} 态，仅已送检或已收报告态可登记报告",
+                req.submission_id, submission.status
+            )));
+        }
+        if req.report_no.trim().is_empty() {
+            return Err(AppError::validation_displayable("报告编号不能为空"));
+        }
+        if let Some(class) = req.oeko_tex_class.as_deref() {
+            if !crate::models::status::oeko_tex_class::is_valid(class) {
+                return Err(AppError::validation_displayable(format!(
+                    "OEKO-TEX 分级 {} 不在词表内（合法值 I、II、III、IV）",
+                    class
+                )));
+            }
+        }
+        let now = chrono::Utc::now();
+        let active = ReportActiveModel {
+            report_no: ActiveValue::Set(req.report_no),
+            submission_id: ActiveValue::Set(req.submission_id),
+            inspection_agency: ActiveValue::Set(req.inspection_agency),
+            has_cma: ActiveValue::Set(req.has_cma),
+            has_cnas: ActiveValue::Set(req.has_cnas),
+            sample_name: ActiveValue::Set(req.sample_name),
+            material_composition: ActiveValue::Set(req.material_composition),
+            color_no: ActiveValue::Set(req.color_no),
+            process_no: ActiveValue::Set(req.process_no),
+            test_basis: ActiveValue::Set(req.test_basis),
+            conclusion: ActiveValue::Set(req.conclusion),
+            oeko_tex_class: ActiveValue::Set(req.oeko_tex_class),
+            issue_date: ActiveValue::Set(req.issue_date),
+            valid_until: ActiveValue::Set(req.valid_until),
+            acceptance_status: ActiveValue::Set(report_acceptance_status::PENDING.to_string()),
+            rejection_detail: ActiveValue::Set(String::new()),
+            report_file_url: ActiveValue::Set(req.report_file_url),
+            created_by: ActiveValue::Set(req.created_by),
+            created_at: ActiveValue::Set(now),
+            updated_at: ActiveValue::Set(now),
+            ..Default::default()
+        };
+        let saved = active.insert(self.db.as_ref()).await?;
+        if submission.status == submission_status::SENT {
+            let mut sub_active: SubmissionActiveModel = submission.into();
+            sub_active.status = ActiveValue::Set(submission_status::REPORTED.to_string());
+            sub_active.updated_at = ActiveValue::Set(now);
+            sub_active.update(self.db.as_ref()).await?;
+        }
+        tracing::info!(
+            report_id = saved.id,
+            submission_id = saved.submission_id,
+            operator = saved.created_by,
+            "第三方报告已登记，待完整性门核对"
+        );
+        Ok(saved)
+    }
+
+    /// 修正报告要素：改后受理态复位 pending 并清空拒绝明细（要素变了必须重新过门）。
+    pub async fn update(&self, id: i32, req: RegisterReportReq) -> Result<ReportModel, AppError> {
+        let report = self.get(id).await?;
+        let submission = Submission::find_by_id(report.submission_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::internal(format!("报告 {} 的送检单引用悬空", id)))?;
+        if [
+            submission_status::JUDGED,
+            submission_status::CLOSED,
+            submission_status::WITHDRAWN,
+        ]
+        .contains(&submission.status.as_str())
+        {
+            return Err(AppError::business(format!(
+                "送检单 {} 已 {}，报告要素封账不可改（错误报告请走撤单重送）",
+                submission.id, submission.status
+            )));
+        }
+        if let Some(class) = req.oeko_tex_class.as_deref() {
+            if !crate::models::status::oeko_tex_class::is_valid(class) {
+                return Err(AppError::validation_displayable(format!(
+                    "OEKO-TEX 分级 {} 不在词表内（合法值 I、II、III、IV）",
+                    class
+                )));
+            }
+        }
+        let mut active: ReportActiveModel = report.into();
+        active.report_no = ActiveValue::Set(req.report_no);
+        active.inspection_agency = ActiveValue::Set(req.inspection_agency);
+        active.has_cma = ActiveValue::Set(req.has_cma);
+        active.has_cnas = ActiveValue::Set(req.has_cnas);
+        active.sample_name = ActiveValue::Set(req.sample_name);
+        active.material_composition = ActiveValue::Set(req.material_composition);
+        active.color_no = ActiveValue::Set(req.color_no);
+        active.process_no = ActiveValue::Set(req.process_no);
+        active.test_basis = ActiveValue::Set(req.test_basis);
+        active.conclusion = ActiveValue::Set(req.conclusion);
+        active.oeko_tex_class = ActiveValue::Set(req.oeko_tex_class);
+        active.issue_date = ActiveValue::Set(req.issue_date);
+        active.valid_until = ActiveValue::Set(req.valid_until);
+        active.report_file_url = ActiveValue::Set(req.report_file_url);
+        // 复位受理态：改后的要素没有重新过门前不得携带 accepted 结论存活
+        active.acceptance_status = ActiveValue::Set(report_acceptance_status::PENDING.to_string());
+        active.rejection_detail = ActiveValue::Set(String::new());
+        active.updated_at = ActiveValue::Set(chrono::Utc::now());
+        Ok(active.update(self.db.as_ref()).await?)
+    }
+
+    pub async fn get(&self, id: i32) -> Result<ReportModel, AppError> {
+        ThirdPartyReport::find_by_id(id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::not_found(format!("第三方报告 {} 不存在", id)))
+    }
+
+    /// 按送检单列报告（新登记在前）。
+    pub async fn list_by_submission(
+        &self,
+        submission_id: i32,
+    ) -> Result<Vec<ReportModel>, AppError> {
+        Ok(ThirdPartyReport::find()
+            .filter(ReportColumn::SubmissionId.eq(submission_id))
+            .order_by(ReportColumn::CreatedAt, Order::Desc)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    pub async fn list_results(&self, report_id: i32) -> Result<Vec<Model>, AppError> {
+        Ok(ReportResult::find()
+            .filter(Column::ReportId.eq(report_id))
+            .order_by(Column::ItemId, Order::Asc)
+            .all(self.db.as_ref())
+            .await?)
+    }
+
+    /// 完整性门：逐条点名缺项，全过落 accepted，任一缺落 rejected 并写 rejection_detail。
+    ///
+    /// 门的形状（与裁定六面对齐，缺项代号取值域 `report_element_code::ALL`）：
+    /// 1. 资质位：CMA 与 CNAS **至少持一枚**即放行（CMA 是法定资质认定、CNAS 是自愿认可，
+    ///    只持 CMA 的报告合法）；两枚都缺即逐枚记 cma 与 cnas，不合并成一句"无资质"；
+    /// 2. 六项要素：样品名称、材质成分、色号、检验依据（存在且格式为完整标准号加类别形态）、
+    ///    检测项目与结果（结果行非空且每行都有存值或 flag）、判定结论；
+    /// 3. 有效期窗口：按出具日与有效期两列判（`validity_window_on` 单源），超过有效期或
+    ///    缺有效期无法核验记 expired，出具日尚未到达记 not_yet_valid（三档都是点名事实，
+    ///    不是异常，也不静默当作有效）；
+    /// 4. 按批次：报告色号与工艺必须与送检单批次口径一致，报告侧工艺缺失即无法对账，
+    ///    记 batch_mismatch；色号缺失已按要素记 color_no，不重复记。
+    /// 传给谁：handler accept 端点（PUT /textile-reports/{id}/acceptance）。
+    /// 返回：落库后的报告行；缺项非空即 rejected，缺项清单同时回给调用方展示。
+    pub async fn run_acceptance_gate(
+        &self,
+        id: i32,
+        operator: i32,
+    ) -> Result<(ReportModel, Vec<String>), AppError> {
+        let report = self.get(id).await?;
+        let submission = Submission::find_by_id(report.submission_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::internal(format!("报告 {} 的送检单引用悬空", id)))?;
+        let mut missing: Vec<String> = Vec::new();
+        if !report.has_cma && !report.has_cnas {
+            // 两枚资质标志一起缺失才拒，且逐枚点名缺了哪两枚
+            missing.push(report_element_code::CMA.to_string());
+            missing.push(report_element_code::CNAS.to_string());
+        }
+        let blank = |v: &Option<String>| v.as_deref().map(|s| !s.trim().is_empty()) == Some(true);
+        if !blank(&report.sample_name) {
+            missing.push(report_element_code::SAMPLE_NAME.to_string());
+        }
+        if !blank(&report.material_composition) {
+            missing.push(report_element_code::MATERIAL_COMPOSITION.to_string());
+        }
+        if !blank(&report.color_no) {
+            missing.push(report_element_code::COLOR_NO.to_string());
+        }
+        if !report
+            .test_basis
+            .as_deref()
+            .map(test_basis_format_ok)
+            .unwrap_or(false)
+        {
+            missing.push(report_element_code::TEST_BASIS.to_string());
+        }
+        let results = self.list_results(id).await?;
+        if results.is_empty() {
+            missing.push(report_element_code::ITEM_RESULTS.to_string());
+        } else if results.iter().any(|r| {
+            r.measured_value.is_none()
+                && r.measured_text.as_deref().map(|t| !t.trim().is_empty()) != Some(true)
+        }) {
+            // 结果行存在但某行既无存值又无 flag，"检测项目与结果"要素实质不完整
+            missing.push(report_element_code::ITEM_RESULTS.to_string());
+        }
+        if !blank(&report.conclusion) {
+            missing.push(report_element_code::CONCLUSION.to_string());
+        }
+        // 有效期窗口按出具日与有效期两列判；过期与缺登记两档在受理门里同归 expired 档点名
+        // （采信链路上 `select_adopted_reports` 把两档拆成 expired 与 valid_window_missing
+        // 各自点名，报告详情面能直接看出 valid_until 是空还是已过）
+        match validity_window_on(
+            report.issue_date,
+            report.valid_until,
+            chrono::Utc::now().date_naive(),
+        ) {
+            ValidityWindow::Valid => {}
+            ValidityWindow::Expired | ValidityWindow::WindowMissing => {
+                missing.push(report_element_code::EXPIRED.to_string())
+            }
+            ValidityWindow::NotYetValid => {
+                missing.push(report_element_code::NOT_YET_VALID.to_string())
+            }
+        }
+        let color_claimed = blank(&report.color_no);
+        let process_claimed = blank(&report.process_no);
+        // 批次口径判据（成文，不留多重嵌套）：报告侧工艺必须给出且与送检单一致，
+        // 否则无法按批次对账，点名 batch_mismatch；色号在报告"声称给出"时必须与送检单一致，
+        // 色号整体缺失的情形已由六项要素门点名 color_no，批次维不重复记同一缺项。
+        let process_value = report.process_no.as_deref().unwrap_or("").trim();
+        let process_ok = process_claimed && process_value == submission.process_no.trim();
+        let color_ok = if color_claimed {
+            report.color_no.as_deref().unwrap_or("").trim() == submission.color_no.trim()
+        } else {
+            true
+        };
+        if !process_ok || !color_ok {
+            missing.push(report_element_code::BATCH_MISMATCH.to_string());
+        }
+        let accepted = missing.is_empty();
+        let mut active: ReportActiveModel = report.into();
+        let now = chrono::Utc::now();
+        active.acceptance_status = ActiveValue::Set(if accepted {
+            report_acceptance_status::ACCEPTED.to_string()
+        } else {
+            report_acceptance_status::REJECTED.to_string()
+        });
+        active.rejection_detail = ActiveValue::Set(missing.join(","));
+        active.updated_at = ActiveValue::Set(now);
+        let saved = active.update(self.db.as_ref()).await?;
+        tracing::info!(
+            report_id = id,
+            accepted,
+            missing = missing.join("|"),
+            operator,
+            "第三方报告完整性门核对完成"
+        );
+        Ok((saved, missing))
+    }
+
+    /// 逐项目实测结果 upsert（结构化承载存值、单位、检测方法；按项目测量类型强校验）。
+    ///
+    /// 判据：项目必须命中主数据且在送检清单内（清单是"该检什么"的依据，报告结果不许夹带
+    /// 清单外项目）；numeric 要 measured_value；grade 要 measured_token 并按词表换算半级
+    /// 编码数值（token 与 value 双给即拒，单源）；sensory 与 boolean 要词表内 flag；
+    /// 重录实测即复位 verdict 为 pending，旧结论不得跨输入版本存活。
+    /// 传给谁：handler upsert_results 端点（POST /textile-reports/{id}/results）。
+    pub async fn upsert_results(
+        &self,
+        report_id: i32,
+        rows: Vec<ResultRowReq>,
+        operator: i32,
+    ) -> Result<Vec<Model>, AppError> {
+        let report = self.get(report_id).await?;
+        let list_items = SubmissionItem::find()
+            .filter(ListItemColumn::SubmissionId.eq(report.submission_id))
+            .all(self.db.as_ref())
+            .await?;
+        let mut out = Vec::new();
+        for req in rows {
+            let item = TestItem::find()
+                .filter(ItemCodeColumn::ItemCode.eq(req.item_code.as_str()))
+                .one(self.db.as_ref())
+                .await?
+                .ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "项目编码 {} 不在检测项目主数据内，结果行不许携带无主项目",
+                        req.item_code
+                    ))
+                })?;
+            if !list_items.iter().any(|l| l.item_id == item.id) {
+                return Err(AppError::business(format!(
+                    "项目 {}（{}）不在该送检单清单内；要检它先把它列入清单，结果行不许夹带",
+                    item.item_code, item.item_name
+                )));
+            }
+            let (value, text) = Self::normalize_measured(&item, &req)?;
+            let existing = ReportResult::find()
+                .filter(Column::ReportId.eq(report_id))
+                .filter(Column::ItemId.eq(item.id))
+                .one(self.db.as_ref())
+                .await?;
+            let now = chrono::Utc::now();
+            let saved = match existing {
+                Some(row) => {
+                    let mut active: ActiveModel = row.into();
+                    active.measured_value = ActiveValue::Set(value);
+                    active.measured_text = ActiveValue::Set(text);
+                    active.measured_unit = ActiveValue::Set(req.measured_unit);
+                    active.test_method = ActiveValue::Set(req.test_method);
+                    active.verdict = ActiveValue::Set(textile_verdict::PENDING.to_string());
+                    active.judged_at = ActiveValue::Set(None);
+                    active.updated_at = ActiveValue::Set(now);
+                    active.update(self.db.as_ref()).await?
+                }
+                None => {
+                    let active = ActiveModel {
+                        report_id: ActiveValue::Set(report_id),
+                        item_id: ActiveValue::Set(item.id),
+                        measured_value: ActiveValue::Set(value),
+                        measured_text: ActiveValue::Set(text),
+                        measured_unit: ActiveValue::Set(req.measured_unit),
+                        test_method: ActiveValue::Set(req.test_method),
+                        verdict: ActiveValue::Set(textile_verdict::PENDING.to_string()),
+                        judged_at: ActiveValue::Set(None),
+                        created_at: ActiveValue::Set(now),
+                        updated_at: ActiveValue::Set(now),
+                        ..Default::default()
+                    };
+                    active.insert(self.db.as_ref()).await?
+                }
+            };
+            out.push(saved);
+        }
+        tracing::info!(
+            report_id,
+            rows = out.len(),
+            operator,
+            "第三方报告逐项目实测结果已录入"
+        );
+        Ok(out)
+    }
+
+    /// 报告级判定：对全部结果行按限值矩阵出三态并写 verdict（na 行不需要实测输入）。
+    ///
+    /// 判据：报告必须已受理（rejected 或 pending 的报告不配产结论，先过门再判定）；
+    /// 报告必须处于自身有效期窗口内（按出具日与有效期两列判，过期、缺有效期或出具日未到达
+    /// 一律点名拒绝——**过期报告不得被判定器采信**，这是业务事实不是异常）；
+    /// 每行走判定器 `resolve_item_verdict`（四维取行、合取、分层），输入不足即整批报错
+    /// （fail-visible，已判行保持，重跑幂等）。
+    /// 传给谁：handler judge_report 端点（PUT /textile-reports/{id}/judgement）。
+    pub async fn judge_report(
+        &self,
+        report_id: i32,
+        operator: i32,
+    ) -> Result<Vec<Model>, AppError> {
+        let report = self.get(report_id).await?;
+        if report.acceptance_status != report_acceptance_status::ACCEPTED {
+            return Err(AppError::business(format!(
+                "报告 {} 受理态为 {}，完整性门未放行前不得产出逐项目判定",
+                report_id, report.acceptance_status
+            )));
+        }
+        let window = validity_window_on(
+            report.issue_date,
+            report.valid_until,
+            chrono::Utc::now().date_naive(),
+        );
+        if window != ValidityWindow::Valid {
+            let until_note = report
+                .valid_until
+                .map(|d| d.to_string())
+                .unwrap_or_else(|| "未登记".to_string());
+            return Err(AppError::business(format!(
+                "报告 {} 不被判定器采信（{}；出具日 {}、有效期至 {}），过期或无法核验有效期的报告不得产出逐项目判定；请取得有效报告或走复检更新报告后重判",
+                report_id,
+                window.label(),
+                report.issue_date,
+                until_note
+            )));
+        }
+        let submission = Submission::find_by_id(report.submission_id)
+            .one(self.db.as_ref())
+            .await?
+            .ok_or_else(|| AppError::internal(format!("报告 {} 的送检单引用悬空", report_id)))?;
+        let tags = TextileSafetySubmissionService::split_exemption_tags(
+            submission.exemption_tags.as_deref(),
+        )?;
+        let dims = JudgeDims {
+            safety_category: &submission.safety_category,
+            product_form: &submission.product_form,
+            condition_tags: &tags,
+        };
+        let rows = self.list_results(report_id).await?;
+        if rows.is_empty() {
+            return Err(AppError::business(format!(
+                "报告 {} 没有结果行可判，请先录入逐项目实测结果",
+                report_id
+            )));
+        }
+        let sub_service = TextileSafetySubmissionService::new(self.db.clone());
+        let mut out = Vec::new();
+        for row in rows {
+            let item = TestItem::find_by_id(row.item_id)
+                .one(self.db.as_ref())
+                .await?
+                .ok_or_else(|| AppError::internal(format!("结果行 {} 的项目主数据缺失", row.id)))?;
+            let measured = MeasuredInput {
+                value: row.measured_value,
+                text: row.measured_text.clone(),
+            };
+            let verdict = sub_service
+                .resolve_item_verdict(&item, &dims, &measured)
+                .await?;
+            let now = chrono::Utc::now();
+            let mut active: ActiveModel = row.into();
+            active.verdict = ActiveValue::Set(verdict);
+            active.judged_at = ActiveValue::Set(Some(now));
+            active.updated_at = ActiveValue::Set(now);
+            out.push(active.update(self.db.as_ref()).await?);
+        }
+        tracing::info!(
+            report_id,
+            judged = out.len(),
+            operator,
+            "第三方报告逐项目判定完成"
+        );
+        Ok(out)
+    }
+
+    /// 按项目测量类型把录入请求归一为（存值、flag）二元组，校验全部前置在此。
+    fn normalize_measured(
+        item: &TestItemModel,
+        req: &ResultRowReq,
+    ) -> Result<(Option<Decimal>, Option<String>), AppError> {
+        match item.item_kind.as_str() {
+            textile_item_kind::NUMERIC => {
+                if req.measured_token.is_some() {
+                    return Err(AppError::validation_displayable(format!(
+                        "项目 {}（{}）是数值型，不接受等级 token，请直接给实测数值",
+                        item.item_code, item.item_name
+                    )));
+                }
+                req.measured_value.ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "项目 {}（{}）需要实测数值，当前为空",
+                        item.item_code, item.item_name
+                    ))
+                })?;
+                Ok((
+                    req.measured_value,
+                    normalized_flag(req.measured_text.as_deref())?,
+                ))
+            }
+            textile_item_kind::GRADE => {
+                if req.measured_value.is_some() {
+                    return Err(AppError::validation_displayable(format!(
+                        "项目 {}（{}）是等级型，请录入等级 token（如 3-4），数值由词表半级编码换算，不许手填编码值",
+                        item.item_code, item.item_name
+                    )));
+                }
+                let token = req.measured_token.as_deref().ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "项目 {}（{}）需要等级 token（合法 {}）",
+                        item.item_code,
+                        item.item_name,
+                        textile_fastness_grade::ALL.join(",")
+                    ))
+                })?;
+                if !textile_fastness_grade::is_valid(token) {
+                    return Err(AppError::validation_displayable(format!(
+                        "等级 token {} 不在取值域（1 到 5 含四个半级：{}）",
+                        token,
+                        textile_fastness_grade::ALL.join(",")
+                    )));
+                }
+                let encoded = textile_fastness_grade::encode(token)
+                    .ok_or_else(|| AppError::internal("等级词表与编码表漂移"))?;
+                let value: Decimal = encoded.parse().map_err(|_| {
+                    AppError::internal(format!("等级编码 {} 无法解析为数值", encoded))
+                })?;
+                Ok((Some(value), None))
+            }
+            textile_item_kind::SENSORY | textile_item_kind::BOOLEAN => {
+                if req.measured_value.is_some() || req.measured_token.is_some() {
+                    return Err(AppError::validation_displayable(format!(
+                        "项目 {}（{}）是感官或布尔证据型，只接受 flag（{} 或 {}），不接受数值",
+                        item.item_code,
+                        item.item_name,
+                        textile_flag_value::NONE,
+                        textile_flag_value::DETECTED
+                    )));
+                }
+                let flag = normalized_flag(req.measured_text.as_deref())?.ok_or_else(|| {
+                    AppError::validation_displayable(format!(
+                        "项目 {}（{}）需要实测 flag（{} 或 {}），当前为空",
+                        item.item_code,
+                        item.item_name,
+                        textile_flag_value::NONE,
+                        textile_flag_value::DETECTED
+                    ))
+                })?;
+                if flag != textile_flag_value::NONE && flag != textile_flag_value::DETECTED {
+                    return Err(AppError::validation_displayable(format!(
+                        "项目 {}（{}）的 flag 只能是 {} 或 {}（其它文字是备注不是判定输入）",
+                        item.item_code,
+                        item.item_name,
+                        textile_flag_value::NONE,
+                        textile_flag_value::DETECTED
+                    )));
+                }
+                Ok((None, Some(flag)))
+            }
+            other => Err(AppError::internal(format!(
+                "项目 {} 的测量类型 {} 不在词表内，主数据被旁路写坏",
+                item.item_code, other
+            ))),
+        }
+    }
+}
+
+/// 空白 flag 归一（空串按未给处理，非空逐字符透传给类型分派校验）。
+fn normalized_flag(raw: Option<&str>) -> Result<Option<String>, AppError> {
+    Ok(match raw {
+        Some(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+        _ => None,
+    })
+}
+
+/// 检验依据格式判据：必须含完整国标号（GB 18401-2010 或 GB 31701-2015，带空格的原文形态），
+/// 凡引用 GB 18401 必须同时给出类别形态（A类、B类、C类，来自词表 display_label 换算）。
+///
+/// 判据来源是裁定 5："按 GB 18401-2010 B类 这类完整标准号加类别形态做存在性与格式校验"；
+/// 只做本列自身的形态校验，不反向写产品侧 execution_standard 自由文本列。
+pub fn test_basis_format_ok(raw: &str) -> bool {
+    let s = raw.trim();
+    if s.is_empty() {
+        return false;
+    }
+    let cites_18401 = s.contains("GB 18401-2010");
+    let cites_31701 = s.contains("GB 31701-2015");
+    if !cites_18401 && !cites_31701 {
+        return false;
+    }
+    if cites_18401 {
+        // 引用基本安全标准必须带安全类别展示形态（展示文本由稳定码经词表换算，同一字典）
+        let has_class = [
+            textile_safety_category::CLASS_A,
+            textile_safety_category::CLASS_B,
+            textile_safety_category::CLASS_C,
+        ]
+        .iter()
+        .any(|code| {
+            textile_safety_category::display_label(code)
+                .map(|label| s.contains(label))
+                .unwrap_or(false)
+        });
+        if !has_class {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_basis_format_ok;
+
+    /// 正向：完整标准号加类别形态（裁定原文示例）必须放行。
+    #[test]
+    fn accepts_full_basis_with_class() {
+        assert!(test_basis_format_ok("GB 18401-2010 B类"));
+        assert!(test_basis_format_ok(
+            "检验依据 GB 18401-2010 A类、GB 31701-2015"
+        ));
+    }
+
+    /// 反向：缺类别、裸标准号、缺年份、错空格形态一律拒绝（钉校验强度而非恒真）。
+    #[test]
+    fn rejects_incomplete_basis() {
+        assert!(!test_basis_format_ok("GB 18401-2010"));
+        assert!(!test_basis_format_ok("GB18401 B类"));
+        assert!(!test_basis_format_ok("GB 18401 B类"));
+        assert!(!test_basis_format_ok(""));
+        assert!(!test_basis_format_ok("企标 Q/XX 01-2020"));
+    }
+
+    /// 仅引用 GB 31701（童装强制标准本身无类别档）放行，钉住两标准差异化判据。
+    #[test]
+    fn accepts_31701_alone() {
+        assert!(test_basis_format_ok("GB 31701-2015"));
+    }
+}
