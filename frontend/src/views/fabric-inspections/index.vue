@@ -422,8 +422,8 @@ import {
   printInventoryPieceLabelDocx,
   type InventoryPieceRow,
 } from '@/api/inventory-transfer';
-import {
 import NumericInput from '@/components/NumericInput.vue';
+import {
   closeFabricInspection,
   createFabricInspection,
   deleteFabricInspection,
