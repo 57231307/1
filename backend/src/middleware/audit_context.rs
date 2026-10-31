@@ -98,6 +98,15 @@ pub fn current_audit_request_ctx() -> Option<AuditContext> {
         .ok()
 }
 
+impl AuditContext {
+    /// 同步写入单点（update_with_audit 与 delete_with_audit 的构造器不接收 ctx 入参）取当前
+    /// 请求作用域的活上下文。请求作用域内返回含终端与页面与单号与原因与风险的实时快照；
+    /// 不在请求作用域（后台维护任务）时返回 UNKNOWN 终端与空维度的兜底，绝不默认 PC。
+    pub fn current_for_sync_write() -> Self {
+        current_audit_request_ctx().unwrap_or_else(AuditContext::empty)
+    }
+}
+
 /// 业务侧登记本次操作的单据编号（同一请求多次调用以最后一次为准）；未在请求作用域内调用为无害空操作。
 pub fn set_audit_doc_no(doc_no: Option<String>) {
     let _ = AUDIT_REQUEST_CTX.try_with(|cell| cell.borrow_mut().doc_no = doc_no);

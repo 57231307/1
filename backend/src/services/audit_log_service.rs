@@ -16,7 +16,9 @@
 //! 再经 shutdown 从全局单例取出消费者 JoinHandle 真实 abort（take 后置空，天然防二次
 //! abort），并返回句柄供调用方 await 确认消费者已终止，不靠 sleep 猜时序。
 
-use crate::middleware::audit_context::AuditContext;
+use crate::middleware::audit_context::{
+    AuditContext, RISK_DELETE, TERMINAL_UNKNOWN, current_audit_request_ctx,
+};
 use crate::models::audit_log::{self, OperationType, Severity};
 use crate::utils::error::AppError;
 use chrono::Utc;
@@ -406,6 +408,8 @@ impl AuditLogService {
         before_snapshot: Option<Value>,
         after_snapshot: Option<Value>,
     ) -> audit_log::ActiveModel {
+        // 终端与页面与单号与原因与风险五维在单点从请求作用域取，不在各 service 逐点塞
+        let req_ctx = audit_ctx_for_sync_write();
         audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
@@ -434,6 +438,12 @@ impl AuditLogService {
             after_snapshot: ActiveValue::Set(after_snapshot.map(audit_log::AuditValue)),
             // V15 P0-S19 补齐：update_with_audit 无 query string，condition 为 None
             condition: ActiveValue::Set(None),
+            // 审计定位五维（单点写入）
+            terminal_type: ActiveValue::Set(Some(req_ctx.terminal_type)),
+            operation_page: ActiveValue::Set(req_ctx.operation_page),
+            doc_no: ActiveValue::Set(req_ctx.doc_no),
+            change_reason: ActiveValue::Set(req_ctx.change_reason),
+            risk_flag: ActiveValue::Set(req_ctx.risk_flag),
             ..Default::default()
         }
     }
@@ -524,6 +534,13 @@ impl AuditLogService {
     {
         // 删除快照与 update 路径同口径：落库前按操作人 user_id 反查取名，无操作人保持 NULL
         let username = Self::fetch_username(db, user_id).await?;
+        // 定位五维在单点从请求作用域取；删除属高风险操作，业务侧未显式标记时自动补 DELETE
+        let req_ctx = audit_ctx_for_sync_write();
+        let risk_flag = Some(
+            req_ctx
+                .risk_flag
+                .unwrap_or_else(|| RISK_DELETE.to_string()),
+        );
         let log = audit_log::ActiveModel {
             id: ActiveValue::NotSet,
             user_id: ActiveValue::Set(user_id),
@@ -550,6 +567,12 @@ impl AuditLogService {
             after_snapshot: ActiveValue::Set(None),
             // V15 P0-S19 补齐：delete_with_audit 无 query string，condition 为 None
             condition: ActiveValue::Set(None),
+            // 审计定位五维（单点写入），高风险标记含自动 DELETE
+            terminal_type: ActiveValue::Set(Some(req_ctx.terminal_type)),
+            operation_page: ActiveValue::Set(req_ctx.operation_page),
+            doc_no: ActiveValue::Set(req_ctx.doc_no),
+            change_reason: ActiveValue::Set(req_ctx.change_reason),
+            risk_flag: ActiveValue::Set(risk_flag),
             ..Default::default()
         };
         log.insert(db).await?;
@@ -563,7 +586,10 @@ impl AuditLogService {
         ctx: Option<&AuditContext>,
     ) -> Result<(), AppError> {
         Self::resolve_username(self.db.as_ref(), &mut event).await;
-        let log = build_active_model(&event, ctx);
+        // 定位五维以请求作用域活上下文为准（含业务侧 set_* 已登记的单号与原因与风险），
+        // 传入的 ctx 仅在活上下文不可得（旁路或后台）时作降级来源。
+        let effective = current_audit_request_ctx().or_else(|| ctx.cloned());
+        let log = build_active_model(&event, effective.as_ref());
         log.insert(self.db.as_ref()).await?;
         Ok(())
     }
@@ -571,6 +597,9 @@ impl AuditLogService {
     /// 异步记录审计事件（推荐使用）
     /// L-32 修复（批次 380 v13 复审）：改为通过 mpsc channel 发送事件，；由后台单消费者 task 落库，避免每次调用都创建 detached spawn task。；写库失败由消费者 task 内部 catch_unwind + error 日志处理。
     pub fn record_async(self: Arc<Self>, event: AuditEvent, ctx: Option<AuditContext>) {
+        // 发送点在请求 task 内执行：先把活上下文（含终端与页面与单号与原因与风险）定下来，
+        // 随事件载荷交给消费者落库（消费者在别的 task，读不到本 task 的 task-local）。
+        let ctx = current_audit_request_ctx().or(ctx);
         // 载荷带本实例的连接：落库用哪个库由发事件的调用方决定，不由谁先初始化全局单例决定。
         if let Err(e) = self
             .sender
@@ -603,6 +632,16 @@ pub fn build_active_model(
         None => (None, None, None),
     };
 
+    // 定位五维（终端与页面与单号与原因与风险）。终端取不到如实记 UNKNOWN，绝不默认 PC；
+    // 页面与单号与原因取不到记 None；风险标记由业务侧登记（删除在 delete 单点另行自动补）。
+    let terminal_type = ctx
+        .map(|c| c.terminal_type.clone())
+        .unwrap_or_else(|| TERMINAL_UNKNOWN.to_string());
+    let operation_page = ctx.and_then(|c| c.operation_page.clone());
+    let doc_no = ctx.and_then(|c| c.doc_no.clone());
+    let change_reason = ctx.and_then(|c| c.change_reason.clone());
+    let risk_flag = ctx.and_then(|c| c.risk_flag.clone());
+
     audit_log::ActiveModel {
         id: ActiveValue::NotSet,
         user_id: ActiveValue::Set(event.user_id),
@@ -629,6 +668,19 @@ pub fn build_active_model(
         after_snapshot: ActiveValue::Set(event.after_snapshot.clone().map(audit_log::AuditValue)),
         // V15 P0-S19 补齐：AuditEvent 未携带 query string，condition 为 None
         condition: ActiveValue::Set(None),
+        // 审计定位五维（单点写入，取值全部来自请求上下文，不在调用方逐点塞）
+        terminal_type: ActiveValue::Set(Some(terminal_type)),
+        operation_page: ActiveValue::Set(operation_page),
+        doc_no: ActiveValue::Set(doc_no),
+        change_reason: ActiveValue::Set(change_reason),
+        risk_flag: ActiveValue::Set(risk_flag),
         ..Default::default()
     }
+}
+
+/// 读取当前请求作用域的活审计上下文（含业务侧登记的单号与原因与风险）。
+/// 同步写入单点（update_with_audit 与 delete_with_audit 的构造器不接收 ctx 入参）经此取五维；
+/// 不在请求作用域（后台维护任务）时返回 UNKNOWN 终端与空维度的兜底上下文，绝不默认 PC。
+fn audit_ctx_for_sync_write() -> AuditContext {
+    AuditContext::current_for_sync_write()
 }
