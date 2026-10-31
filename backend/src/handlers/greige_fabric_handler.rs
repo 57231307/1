@@ -775,7 +775,8 @@ pub async fn delete_greige_fabric(
     // 以状态 token 为判据等于"建档即死档"，录错只能留档。改成看库存事实与活单据引用后，
     // 未流转档案（零在架实物、无下游单据引用）可撤回，真有货或被单据指着的仍然拦得住，
     // 且不再依赖 update 腿能把 status 写成已出库这条不改库存事实的旁路。
-    if let Some(message) = find_greige_reference_rejection(&*state.db, id, &fabric.fabric_no).await?
+    if let Some(message) =
+        find_greige_reference_rejection(&*state.db, id, &fabric.fabric_no).await?
     {
         return Err(AppError::business_displayable(message));
     }
