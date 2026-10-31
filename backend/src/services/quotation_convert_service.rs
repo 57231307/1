@@ -223,8 +223,23 @@ impl QuotationConvertService {
             let (quantity_meters, quantity_kg) =
                 Self::convert_item_quantity_to_dual_units(item, product)?;
 
-            let subtotal = item.amount;
-            let tax_amount = item.amount_with_tax - item.amount;
+            // 报价行的三值在此只核对不换算，税额取 含税 减 净额 的差额，
+            // 判定入口是 utils tax 的 assert_three_way_reconcile，容差按存储精度逐分判。
+            // 含税报价的净额本就是除法反算值、不含税报价的含税是正算值，两条腿都钩稽；
+            // 存量脏行（含税低于净额）在这里点名拒绝，不再带病转成订单行。
+            let split = crate::utils::tax::assert_three_way_reconcile(
+                item.amount,
+                item.amount_with_tax - item.amount,
+                item.amount_with_tax,
+            )
+            .map_err(|e| {
+                AppError::validation(format!(
+                    "报价单转订单失败（报价明细 {}，产品 {}）：{}",
+                    item.id, item.product_id, e
+                ))
+            })?;
+            let subtotal = split.net;
+            let tax_amount = split.tax;
             let new_item = OrderItemActive {
                 id: Default::default(),
                 order_id: Set(order_id),
@@ -236,7 +251,7 @@ impl QuotationConvertService {
                 subtotal: Set(subtotal),
                 tax_amount: Set(tax_amount),
                 discount_amount: Set(item.discount_amount.unwrap_or(Decimal::ZERO)),
-                total_amount: Set(item.amount_with_tax),
+                total_amount: Set(split.inclusive),
                 shipped_quantity: Set(Decimal::ZERO),
                 notes: Set(item.notes.clone()),
                 created_at: Set(now),

@@ -2,8 +2,9 @@
 //!
 //! ## 功能
 //! 把数量、单价、折扣率、税率四个入参折算成行级的成交额、折扣额、折后额、税额与含税额，
-//! 再把若干行汇总成表头级四项合计。折算口径是「先按折扣率算折扣额，再在折后额上乘税率，
-//! 每一步都定点舍入到两位」。
+//! 再把若干行汇总成表头级四项合计。折算口径是先按折扣率算折扣额，再在折后额上取税额，
+//! 每一步都定点舍入到两位；税额与含税额一律经 utils tax 内核出，本模块不再自写
+//! 净额 乘 税率 除 100 的第二套公式，含税由 净额 加 税额 构造并与净额逐分钩稽。
 //!
 //! ## 为什么收口在这里
 //! 同一组数量与单价必须在销售订单与销售合同上算出同一个金额。舍入方向或精度一旦在两处
@@ -69,7 +70,9 @@ pub fn calculate_line_amounts(
     let subtotal = (quantity * unit_price).round_dp(2);
     let discount_amount = (subtotal * (discount_pct / percent_base)).round_dp(2);
     let amount_after_discount = (subtotal - discount_amount).round_dp(2);
-    let tax_amount = (amount_after_discount * (tax_pct / percent_base)).round_dp(2);
+    // 税额与含税一律取税额内核：本模块是净额是事实的正向腿，税额按净额正算、
+    // 含税取净额加税额，调用方不再自己写 净额 乘 税率 除 100 的第二套公式。
+    let tax_amount = crate::utils::tax::tax_amount(amount_after_discount, tax_pct);
     let total_amount = (amount_after_discount + tax_amount).round_dp(2);
     SalesLineAmounts {
         subtotal,

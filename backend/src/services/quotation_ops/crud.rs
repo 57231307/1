@@ -56,7 +56,8 @@ impl QuotationService {
         // 报价行单位跟随产品主数据交易单位（单一真源）：前端传入与产品不一致即拒创建，
         // 不静默覆盖，杜绝「报价/订单/库存单位各写一套」的自由文本漂移
         Self::validate_item_units_against_products(&txn, &dto.items).await?;
-        Self::insert_new_quotation_items(&txn, &dto.items, result.id).await?;
+        Self::insert_new_quotation_items(&txn, &dto.items, result.id, dto.tax_inclusive, dto.tax_rate)
+            .await?;
         Self::insert_new_quotation_terms(&txn, dto.terms, result.id).await?;
         txn.commit().await?;
         Ok(result)
@@ -149,46 +150,58 @@ impl QuotationService {
     }
 
     /// 批量插入报价单明细（insert_many，N 条合并为 1 次 INSERT）
+    ///
+    /// 入参 items 是明细 DTO，quotation_id 是刚建出的主表 id，
+    /// tax_inclusive 与 tax_rate 取本张报价单自身的含税标志与税率（百分数口径）。
+    /// 两枚单价与三枚金额一律经 quotation_ops/calc.rs 的 compute_quotation_line 折算
+    /// 后落 sales_quotation_items 的 unit_price、unit_price_with_tax、amount、
+    /// amount_with_tax、discount_amount 列，与表头 calculate_totals 共用同一入口，
+    /// 因此含税单切换口径时明细净额必然是含税除以 (1 加 税率) 的反算值，
+    /// 不再出现表头除法反算、明细仍按净价乘数量两套口径并存的破口。
+    /// 传给谁，出参 ActiveModel 由本函数 insert_many 落库；非法入参点名拒绝（400）。
     pub(crate) async fn insert_new_quotation_items(
         txn: &sea_orm::DatabaseTransaction,
         items: &[CreateQuotationItemDto],
         quotation_id: i64,
+        tax_inclusive: bool,
+        tax_rate: Decimal,
     ) -> Result<(), ServiceError> {
-        let item_active_models: Vec<ItemActive> =
-            items
-                .iter()
-                .enumerate()
-                .map(|(idx, item_dto)| ItemActive {
-                    id: Default::default(),
-                    quotation_id: Set(quotation_id),
-                    product_id: Set(item_dto.product_id),
-                    color_id: Set(item_dto.color_id),
-                    color_code: Set(None),
-                    pantone_code: Set(None),
-                    cncs_code: Set(None),
-                    specification: Set(item_dto.specification.clone()),
-                    unit: Set(item_dto.unit.clone()),
-                    quantity: Set(item_dto.quantity),
-                    unit_price: Set(item_dto.unit_price),
-                    unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                    // 批次 87：金额计算补 round_dp(2) 精度归一化
-                    amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
-                    amount_with_tax: Set(
-                        (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2)
-                    ),
-                    tier_pricing: Set(item_dto
-                        .tier_pricing
-                        .as_ref()
-                        .and_then(|v| serde_json::from_value(v.clone()).ok())),
-                    discount_rate: Set(item_dto.discount_rate),
-                    discount_amount: Set(item_dto.discount_rate.map(|r| {
-                        (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100))
-                            .round_dp(2)
-                    })),
-                    notes: Set(item_dto.notes.clone()),
-                    sequence: Set(idx as i32),
-                })
-                .collect();
+        let mut item_active_models: Vec<ItemActive> = Vec::with_capacity(items.len());
+        for (idx, item_dto) in items.iter().enumerate() {
+            let line = crate::services::quotation_ops::calc::compute_quotation_line(
+                item_dto.quantity,
+                item_dto.unit_price,
+                item_dto.unit_price_with_tax,
+                item_dto.discount_rate,
+                tax_inclusive,
+                Some(tax_rate),
+            )
+            .map_err(|e| AppError::validation(e.to_string()))?;
+            item_active_models.push(ItemActive {
+                id: Default::default(),
+                quotation_id: Set(quotation_id),
+                product_id: Set(item_dto.product_id),
+                color_id: Set(item_dto.color_id),
+                color_code: Set(None),
+                pantone_code: Set(None),
+                cncs_code: Set(None),
+                specification: Set(item_dto.specification.clone()),
+                unit: Set(item_dto.unit.clone()),
+                quantity: Set(item_dto.quantity),
+                unit_price: Set(line.unit_price),
+                unit_price_with_tax: Set(line.unit_price_with_tax),
+                amount: Set(line.net_amount),
+                amount_with_tax: Set(line.gross_amount),
+                tier_pricing: Set(item_dto
+                    .tier_pricing
+                    .as_ref()
+                    .and_then(|v| serde_json::from_value(v.clone()).ok())),
+                discount_rate: Set(item_dto.discount_rate),
+                discount_amount: Set(line.discount_amount),
+                notes: Set(item_dto.notes.clone()),
+                sequence: Set(idx as i32),
+            });
+        }
         if !item_active_models.is_empty() {
             ItemEntity::insert_many(item_active_models)
                 .exec(txn)

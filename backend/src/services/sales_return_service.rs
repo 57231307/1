@@ -349,7 +349,9 @@ impl SalesReturnService {
         let subtotal = (quantity * unit_price).round_dp(2);
         let discount_amount = (subtotal * (discount_percent / Decimal::new(100, 0))).round_dp(2);
         let taxable_amount = (subtotal - discount_amount).round_dp(2);
-        let tax_amount = (taxable_amount * (tax_percent / Decimal::new(100, 0))).round_dp(2);
+        // 税额取税额内核的正向腿（退货按原单净额单价乘退货数量立账，净额是事实），
+        // 含税由 净额 加 税额 构造，本调用点不再自写 净额 乘 税率 除 100。
+        let tax_amount = crate::utils::tax::tax_amount(taxable_amount, tax_percent);
         let total_amount = (taxable_amount + tax_amount).round_dp(2);
         ReturnItemAmounts {
             subtotal,

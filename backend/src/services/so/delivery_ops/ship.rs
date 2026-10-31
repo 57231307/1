@@ -281,7 +281,9 @@ impl SalesService {
                 .await?;
             for reduction in reductions {
                 let line_amount = (reduction.quantity * unit_price).round_dp(2);
-                let line_tax = (line_amount * tax_percent / Decimal::new(100, 0)).round_dp(2);
+                // 发货行销项税额走税额内核的正向腿，基数是实发数量乘订单净额单价，
+                // 出库环节没有按发货量重新录入的含税事实，本调用点不再自写乘税率公式
+                let line_tax = crate::utils::tax::tax_amount(line_amount, tax_percent);
                 delivery_total_amount += line_amount;
                 delivery_total_tax += line_tax;
                 delivery_items_to_insert.push(Self::build_delivery_item(

@@ -42,7 +42,8 @@ impl QuotationService {
         )
         .await?;
         if let Some(items) = dto.items {
-            Self::replace_items(&txn, id, items).await?;
+            // 明细折算取本次写回后的口径，开关与税率改了、明细没改，行金额同样跟着换向
+            Self::replace_items(&txn, id, items, updated.tax_inclusive, updated.tax_rate).await?;
         }
         if let Some(terms) = dto.terms {
             Self::replace_terms(&txn, id, terms).await?;
@@ -157,10 +158,16 @@ impl QuotationService {
     }
 
     /// 全量替换报价单明细（删除旧明细 + 批量插入新明细）
+    ///
+    /// 入参 tax_inclusive 与 tax_rate 取本张报价单**本次写回后**的含税标志与税率，
+    /// 明细行的两枚单价与三枚金额由 items_to_active_models 交唯一折算入口出，
+    /// 与建单腿 quotation_ops/crud.rs 的 insert_new_quotation_items 同式。
     pub(crate) async fn replace_items(
         txn: &sea_orm::DatabaseTransaction,
         id: i64,
         items: Vec<CreateQuotationItemDto>,
+        tax_inclusive: bool,
+        tax_rate: Decimal,
     ) -> Result<(), AppError> {
         if items.is_empty() {
             return Err(AppError::validation_displayable(
@@ -173,7 +180,7 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(id))
             .exec(txn)
             .await?;
-        let item_active_models = Self::items_to_active_models(items, id);
+        let item_active_models = Self::items_to_active_models(items, id, tax_inclusive, tax_rate)?;
         if !item_active_models.is_empty() {
             ItemEntity::insert_many(item_active_models)
                 .exec(txn)
@@ -182,13 +189,33 @@ impl QuotationService {
         Ok(())
     }
 
-    fn items_to_active_models(items: Vec<CreateQuotationItemDto>, id: i64) -> Vec<ItemActive> {
-        items
-            .into_iter()
-            .enumerate()
-            .map(|(idx, item_dto)| ItemActive {
+    /// 报价明细 DTO 转 ActiveModel，两枚单价与三枚金额一律走唯一折算入口
+    ///
+    /// 入参 items 是明细 DTO，quotation_id 是主表 id，tax_inclusive 与 tax_rate 是本单口径。
+    /// 传给谁，出参交 replace_items 的 insert_many 落 sales_quotation_items 的
+    /// unit_price、unit_price_with_tax、amount、amount_with_tax、discount_amount 列。
+    /// 存什么存哪里，本函数不落库；含税标志为真时净额与不含税单价都是除法反算值，
+    /// 为假时含税侧两列都是正算值，两条腿都不在调用点写任何税率公式。
+    fn items_to_active_models(
+        items: Vec<CreateQuotationItemDto>,
+        quotation_id: i64,
+        tax_inclusive: bool,
+        tax_rate: Decimal,
+    ) -> Result<Vec<ItemActive>, AppError> {
+        let mut models: Vec<ItemActive> = Vec::with_capacity(items.len());
+        for (idx, item_dto) in items.into_iter().enumerate() {
+            let line = crate::services::quotation_ops::calc::compute_quotation_line(
+                item_dto.quantity,
+                item_dto.unit_price,
+                item_dto.unit_price_with_tax,
+                item_dto.discount_rate,
+                tax_inclusive,
+                Some(tax_rate),
+            )
+            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
+            models.push(ItemActive {
                 id: Default::default(),
-                quotation_id: Set(id),
+                quotation_id: Set(quotation_id),
                 product_id: Set(item_dto.product_id),
                 color_id: Set(item_dto.color_id),
                 color_code: Set(None),
@@ -197,24 +224,21 @@ impl QuotationService {
                 specification: Set(item_dto.specification.clone()),
                 unit: Set(item_dto.unit.clone()),
                 quantity: Set(item_dto.quantity),
-                unit_price: Set(item_dto.unit_price),
-                unit_price_with_tax: Set(item_dto.unit_price_with_tax),
-                amount: Set((item_dto.quantity * item_dto.unit_price).round_dp(2)),
-                amount_with_tax: Set(
-                    (item_dto.quantity * item_dto.unit_price_with_tax).round_dp(2),
-                ),
+                unit_price: Set(line.unit_price),
+                unit_price_with_tax: Set(line.unit_price_with_tax),
+                amount: Set(line.net_amount),
+                amount_with_tax: Set(line.gross_amount),
                 tier_pricing: Set(item_dto
                     .tier_pricing
                     .as_ref()
                     .and_then(|v| serde_json::from_value(v.clone()).ok())),
                 discount_rate: Set(item_dto.discount_rate),
-                discount_amount: Set(item_dto.discount_rate.map(|r| {
-                    (item_dto.quantity * item_dto.unit_price * r / Decimal::from(100)).round_dp(2)
-                })),
+                discount_amount: Set(line.discount_amount),
                 notes: Set(item_dto.notes.clone()),
                 sequence: Set(idx as i32),
-            })
-            .collect()
+            });
+        }
+        Ok(models)
     }
 
     /// 全量替换报价单条款（删除旧条款 + 批量插入新条款）
@@ -249,11 +273,15 @@ impl QuotationService {
     /// 重算 subtotal/tax/total 并更新主表（在 txn 内查询和 update，保证原子性）
     ///
     /// 入参 updated 是刚写回的报价单主表模型，明细取本事务内已落库的
-    /// sales_quotation_item 的 amount 与 amount_with_tax 两列。
-    /// 换算方向与建单腿共用 crate::services::quotation_ops::calc 的
-    /// compute_quotation_header，含税标志为真时表头含税合计就是明细含税金额合计，
-    /// 净额按单据自身税率除法反算、税额取差额，两腿不会再一个塌 0 一个正算。
-    /// 出参三个值写回 sales_quotations 的 subtotal、tax_amount、total_amount 列。
+    /// sales_quotation_items 的数量与两枚单价列。
+    /// 每行都重新经 crate::services::quotation_ops::calc 的 compute_quotation_line
+    /// 按**当前**含税标志与单据自身税率折算，折算结果与库里不同就同步回写明细行，
+    /// 因此只翻动含税开关而不改明细时，明细的净额 与 含税 与 折扣同样跟着换向
+    /// （此前只重算表头，明细仍停在旧口径，一张单上同时存在两套数）。
+    /// 表头三值取逐行折算后的求和交 compute_quotation_header 做钩稽判定，
+    /// 与建单腿同源，不做合计的直接换算。
+    /// 出参三个值写回 sales_quotations 的 subtotal、tax_amount、total_amount 列，
+    /// 行级四列写回 sales_quotation_items。
     pub(crate) async fn recalculate_totals_and_update(
         txn: &sea_orm::DatabaseTransaction,
         updated: &sales_quotation::Model,
@@ -262,22 +290,44 @@ impl QuotationService {
             .filter(sales_quotation_item::Column::QuotationId.eq(updated.id))
             .all(txn)
             .await?;
-        let net_sum: Decimal = recalc_items
-            .iter()
-            .map(|i| i.amount.round_dp(2))
-            .sum::<Decimal>()
-            .round_dp(2);
-        let gross_sum: Decimal = recalc_items
-            .iter()
-            .map(|i| i.amount_with_tax.round_dp(2))
-            .sum::<Decimal>()
-            .round_dp(2);
+
+        let mut net_sum = Decimal::ZERO;
+        let mut tax_sum = Decimal::ZERO;
+        let mut gross_sum = Decimal::ZERO;
+        for item in &recalc_items {
+            let line = crate::services::quotation_ops::calc::compute_quotation_line(
+                item.quantity,
+                item.unit_price,
+                item.unit_price_with_tax,
+                item.discount_rate,
+                updated.tax_inclusive,
+                Some(updated.tax_rate),
+            )
+            .map_err(|e| AppError::validation_displayable(e.to_string()))?;
+
+            if line.unit_price != item.unit_price
+                || line.unit_price_with_tax != item.unit_price_with_tax
+                || line.net_amount != item.amount
+                || line.gross_amount != item.amount_with_tax
+                || line.discount_amount != item.discount_amount
+            {
+                let mut item_active: sales_quotation_item::ActiveModel = item.clone().into();
+                item_active.unit_price = Set(line.unit_price);
+                item_active.unit_price_with_tax = Set(line.unit_price_with_tax);
+                item_active.amount = Set(line.net_amount);
+                item_active.amount_with_tax = Set(line.gross_amount);
+                item_active.discount_amount = Set(line.discount_amount);
+                item_active.update(txn).await?;
+            }
+
+            net_sum += line.net_amount;
+            tax_sum += line.tax_amount;
+            gross_sum += line.gross_amount;
+        }
+
         let (subtotal, tax_amount, total_amount) =
             crate::services::quotation_ops::calc::compute_quotation_header(
-                net_sum,
-                gross_sum,
-                updated.tax_inclusive,
-                updated.tax_rate,
+                net_sum, tax_sum, gross_sum,
             )
             .map_err(|e| AppError::validation_displayable(e.to_string()))?;
 

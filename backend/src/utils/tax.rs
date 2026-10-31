@@ -28,6 +28,8 @@
 //!   沿用同一行的净额事实，后者显式声明无进项税；
 //! - 销售订单行与销售合同行，services/so/amounts.rs 的 calculate_line_amounts，
 //!   销售侧表单只有单价与小计两列，净额是录入事实，含税单价由报价带入另一列；
+//! - 报价单的不含税腿，services/quotation_ops/calc.rs 的 compute_quotation_line，
+//!   该单含税标志为假时净单价是录入事实，含税单价与行含税金额都由本入口正算；
 //! - 发货行销项税额，services/so/delivery_ops/ship.rs，基数是实发数量乘订单净额单价，
 //!   出库环节不存在按发货量重新录入的含税事实；
 //! - 销售退货行与采购退货行，services/sales_return_service.rs 与
@@ -40,6 +42,10 @@
 //! 三值各自独立来源、只需核对不需换算的入口用 assert_three_way_reconcile，
 //! 它不产生任何新数值，只判定 净额 加 税额 等于 含税 且 含税不小于净额，
 //! 破口即点名拒绝（财务发票票面三值与报价转订单的行级三值走这条）。
+//!
+//! 多明细行单据的表头口径是**逐行换算后求和**，不是把行合计拿来再做一次换算：
+//! 逐行反算的尾差累计与合计直接换算可以差 1 分，表头只有取行的和才能与明细逐分对上
+//! （报价单表头见 services/quotation_ops/calc.rs 的 compute_quotation_header）。
 //!
 //! 例外是**出口退税域**，该域是**小数**口径且自身自洽，不经过本模块。
 //! export_refund_declarations.refund_rate 为 DECIMAL(6,4)，services/export_refund_service.rs
